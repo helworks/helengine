@@ -101,7 +101,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal(new int2(1280, EditorTitleBar.NativeResizeBorderHeight), resizeBorderInteractable.Size);
             Assert.Equal(new int2(1280, EditorTitleBar.NativeResizeBorderHeight), resizeBorderSurface.Size);
-            Assert.True(resizeBorderSurface.RenderOrder2D > RenderOrder2D.OverlayInput);
+            Assert.True(resizeBorderSurface.Parent.Position.Z > GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity").Position.Z);
         }
 
         /// <summary>
@@ -170,7 +170,7 @@ namespace helengine.editor.tests {
         /// Ensures the main File menu renders above docked panel content and labels.
         /// </summary>
         [Fact]
-        public void FileMenu_UsesOverlayRenderOrdersAboveDockPanels() {
+        public void FileMenu_PlacesMenuAboveDockPanels() {
             InitializeCore();
             EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
             ContextMenu fileMenu = GetPrivateField<ContextMenu>(titleBar, "FileMenu");
@@ -185,15 +185,17 @@ namespace helengine.editor.tests {
             RoundedRectComponent menuBackground = FindComponent<RoundedRectComponent>(fileMenu.Entity);
             TextComponent menuItemText = FindTextComponent(fileMenu.Entity, "Main");
 
-            Assert.Equal(RenderOrder2D.OverlayBackground, menuBackground.RenderOrder2D);
-            Assert.Equal(RenderOrder2D.OverlayForeground, menuItemText.RenderOrder2D);
+            DockableEntity panel = new DockableEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
+            panel.IsDocked = true;
+            Assert.True(menuBackground.Parent.Position.Z > panel.Position.Z);
+            Assert.True(RenderDepthOrder2D.CompareDrawables(menuBackground, menuItemText) < 0);
         }
 
         /// <summary>
-        /// Ensures the Add menu uses the same overlay orders as the File menu and stays above docked panels.
+        /// Ensures the Add menu uses the same overlay depth as the File menu and stays above docked panels.
         /// </summary>
         [Fact]
-        public void AddMenu_UsesOverlayRenderOrdersAboveDockPanels() {
+        public void AddMenu_PlacesMenuAboveDockPanels() {
             InitializeCore();
             EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
             ContextMenu addMenu = GetPrivateField<ContextMenu>(titleBar, "AddMenu");
@@ -208,8 +210,10 @@ namespace helengine.editor.tests {
             RoundedRectComponent menuBackground = FindComponent<RoundedRectComponent>(addMenu.Entity);
             TextComponent menuItemText = FindTextComponent(addMenu.Entity, "Cube");
 
-            Assert.Equal(RenderOrder2D.OverlayBackground, menuBackground.RenderOrder2D);
-            Assert.Equal(RenderOrder2D.OverlayForeground, menuItemText.RenderOrder2D);
+            DockableEntity panel = new DockableEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
+            panel.IsDocked = true;
+            Assert.True(menuBackground.Parent.Position.Z > panel.Position.Z);
+            Assert.True(RenderDepthOrder2D.CompareDrawables(menuBackground, menuItemText) < 0);
         }
 
         /// <summary>

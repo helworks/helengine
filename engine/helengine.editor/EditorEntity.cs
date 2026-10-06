@@ -73,9 +73,12 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Gets or sets a value indicating whether the entity should be hidden from rendering.
+        /// Gets or sets a value indicating whether the entity should be hidden from editor rendering.
         /// </summary>
-        public bool Hidden { get; set; }
+        public bool Hidden {
+            get => RenderSuppressed;
+            set => RenderSuppressed = value;
+        }
 
         /// <summary>
         /// Gets or sets a value indicating whether the entity is internal to the editor and hidden from the scene hierarchy.

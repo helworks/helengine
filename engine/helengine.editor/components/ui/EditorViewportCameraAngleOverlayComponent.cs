@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Draws live camera-angle diagnostics over an editor viewport and labels the currently visible transform-gizmo axes.
     /// </summary>
+    [RunInEditor]
     public class EditorViewportCameraAngleOverlayComponent : UpdateComponent {
         /// <summary>
         /// Conversion factor from radians to degrees.
@@ -11,10 +12,6 @@ namespace helengine.editor {
         /// Quarter-turn angle in radians used for 90-degree snap readouts.
         /// </summary>
         const double QuarterTurnRadians = Math.PI * 0.5;
-        /// <summary>
-        /// Perspective vertical field of view used by scene camera rendering.
-        /// </summary>
-        const double PerspectiveVerticalFieldOfViewRadians = Math.PI / 4.0;
         /// <summary>
         /// Horizontal pixel padding applied to overlay text.
         /// </summary>
@@ -109,14 +106,6 @@ namespace helengine.editor {
         /// </summary>
         readonly int ViewportTopOffset;
         /// <summary>
-        /// Render order used for the overlay background.
-        /// </summary>
-        readonly byte OverlayBackgroundRenderOrder;
-        /// <summary>
-        /// Render order used for the overlay text.
-        /// </summary>
-        readonly byte OverlayTextRenderOrder;
-        /// <summary>
         /// Controls whether the top-left camera diagnostics text is rendered.
         /// </summary>
         readonly bool ShowCameraStats;
@@ -182,8 +171,6 @@ namespace helengine.editor {
             ShowCameraStats = showCameraStats;
             BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
             RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
-            OverlayBackgroundRenderOrder = RenderOrder2D.OverlayBackground;
-            OverlayTextRenderOrder = RenderOrder2D.OverlayForeground;
         }
 
         /// <summary>
@@ -227,7 +214,6 @@ namespace helengine.editor {
                     FillColor = new byte4(0, 0, 0, 145),
                     BorderColor = new byte4(255, 255, 255, 64),
                     Size = new int2(1, 1),
-                    RenderOrder2D = OverlayBackgroundRenderOrder
                 };
                 OverlayRoot.AddComponent(OverlayBackground);
 
@@ -241,7 +227,6 @@ namespace helengine.editor {
                 OverlayText = new TextComponent {
                     Font = Font,
                     Color = new byte4(235, 235, 235, 255),
-                    RenderOrder2D = OverlayTextRenderOrder,
                     Size = new int2(1, 1),
                     Text = string.Empty
                 };

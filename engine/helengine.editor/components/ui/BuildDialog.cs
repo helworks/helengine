@@ -518,7 +518,6 @@ public class BuildDialog : EditorDialogBase {
                 GetPlatformTabHeightPixels(),
                 0,
                 GetPlatformTabHeightPixels());
-            PlatformTabStrip.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             BuildColumnRoot.AddChild(PlatformTabStrip.Root);
 
             EnvironmentComboBoxHost = new EditorEntity(OwnerCore, InteractionServices) {
@@ -532,7 +531,6 @@ public class BuildDialog : EditorDialogBase {
                 DialogFont,
                 SupportedEnvironmentIds,
                 1);
-            ConfigureDialogComboBox(EnvironmentComboBox);
             EnvironmentComboBox.SelectionChanged += HandleEnvironmentSelectionChanged;
             EnvironmentComboBoxHost.AddComponent(EnvironmentComboBox);
 
@@ -550,7 +548,6 @@ public class BuildDialog : EditorDialogBase {
                 BorderThickness = 2f,
                 Radius = 6f,
                 Corners = RoundedRectCorners.BottomLeft | RoundedRectCorners.BottomRight,
-                RenderOrder2D = DialogPanelOrder,
                 Size = new int2(GetBuildColumnWidth(), 1)
             };
             SceneListRoot.AddComponent(SceneListBackground);
@@ -573,7 +570,7 @@ public class BuildDialog : EditorDialogBase {
             };
             SceneListRoot.AddChild(SceneListItemsRoot);
 
-            SceneListScrollComponent = new ScrollComponent();
+            SceneListScrollComponent = new EditorScrollComponent();
             SceneListScrollComponent.ScrollOffsetChanged += HandleSceneListScrollOffsetChanged;
             SceneListItemsRoot.AddComponent(SceneListScrollComponent);
 
@@ -596,7 +593,6 @@ public class BuildDialog : EditorDialogBase {
                 BorderColor = ThemeManager.Colors.AccentTertiary,
                 BorderThickness = 2f,
                 Radius = 0f,
-                RenderOrder2D = DialogPanelOrder,
                 Size = new int2(GetQueueColumnWidthPixels(), 1)
             };
             QueueSectionRoot.AddComponent(QueueListBackground);
@@ -606,7 +602,6 @@ public class BuildDialog : EditorDialogBase {
                 BorderColor = ThemeManager.Colors.AccentSecondary,
                 BorderThickness = 0f,
                 Radius = 6f,
-                RenderOrder2D = DialogPanelOrder,
                 Size = new int2(GetQueueColumnWidthPixels(), GetQueueHeaderHeightPixels())
             };
             QueueSectionRoot.AddComponent(QueueHeaderBackground);
@@ -622,7 +617,6 @@ public class BuildDialog : EditorDialogBase {
                 Font = DialogFont,
                 Text = "Queue",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                RenderOrder2D = DialogTextOrder
             };
             QueueHeaderTextHost.AddComponent(QueueHeaderText);
 
@@ -633,7 +627,7 @@ public class BuildDialog : EditorDialogBase {
             };
             QueueSectionRoot.AddChild(QueueItemsRoot);
 
-            QueueScrollComponent = new ScrollComponent();
+            QueueScrollComponent = new EditorScrollComponent();
             QueueScrollComponent.ScrollOffsetChanged += HandleQueueScrollOffsetChanged;
             QueueItemsRoot.AddComponent(QueueScrollComponent);
 
@@ -652,14 +646,12 @@ public class BuildDialog : EditorDialogBase {
             BuildColumnRoot.AddChild(CopySettingsButtonHost);
 
             CopySettingsButton = new ButtonComponent("Copy settings from...", new int2(GetBuildColumnWidth(), GetFooterButtonHeightPixels()), DialogFont, HandleCopySettingsButtonClicked);
-            CopySettingsButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             CopySettingsButtonHost.AddComponent(CopySettingsButton);
 
             OutputLabelText = new TextComponent {
                 Font = DialogFont,
                 Text = "Output Folder",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                RenderOrder2D = DialogTextOrder
             };
             OutputLabelHost.AddComponent(OutputLabelText);
 
@@ -674,7 +666,6 @@ public class BuildDialog : EditorDialogBase {
                 Font = DialogFont,
                 Text = "Debug build",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                RenderOrder2D = DialogTextOrder
             };
             DebugBuildLabelHost.AddComponent(DebugBuildLabelText);
 
@@ -686,7 +677,6 @@ public class BuildDialog : EditorDialogBase {
             BuildColumnRoot.AddChild(OutputFieldHost);
 
             OutputDirectoryField = new TextBoxComponent(new int2(GetOutputFieldWidth(), GetOutputFieldHeightPixels()), DialogFont, "Select an output folder");
-            OutputDirectoryField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             OutputDirectoryField.TextChanged += HandleOutputDirectoryFieldTextChanged;
             OutputFieldHost.AddComponent(OutputDirectoryField);
 
@@ -698,7 +688,6 @@ public class BuildDialog : EditorDialogBase {
             BuildColumnRoot.AddChild(DebugBuildCheckBoxHost);
 
             DebugBuildCheckBox = new CheckBoxComponent(new int2(18, 18), DialogFont, false);
-            DebugBuildCheckBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             DebugBuildCheckBoxHost.AddComponent(DebugBuildCheckBox);
 
             OverrideProjectScenesLabelHost = new EditorEntity(OwnerCore, InteractionServices) {
@@ -712,7 +701,6 @@ public class BuildDialog : EditorDialogBase {
                 Font = DialogFont,
                 Text = "Local scene override",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                RenderOrder2D = DialogTextOrder
             };
             OverrideProjectScenesLabelHost.AddComponent(OverrideProjectScenesLabelText);
 
@@ -724,7 +712,6 @@ public class BuildDialog : EditorDialogBase {
             BuildColumnRoot.AddChild(OverrideProjectScenesCheckBoxHost);
 
             OverrideProjectScenesCheckBox = new CheckBoxComponent(new int2(18, 18), DialogFont, false);
-            OverrideProjectScenesCheckBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             OverrideProjectScenesCheckBox.CheckedChanged += HandleOverrideProjectScenesCheckedChanged;
             OverrideProjectScenesCheckBoxHost.AddComponent(OverrideProjectScenesCheckBox);
 
@@ -736,7 +723,6 @@ public class BuildDialog : EditorDialogBase {
             BuildColumnRoot.AddChild(BrowseOutputFolderButtonHost);
 
             BrowseOutputFolderButton = new ButtonComponent("Browse", new int2(GetBrowseButtonWidthPixels(), GetFooterButtonHeightPixels()), DialogFont, HandleBrowseOutputFolderClicked);
-            BrowseOutputFolderButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             BrowseOutputFolderButtonHost.AddComponent(BrowseOutputFolderButton);
 
             AddToBuildButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
@@ -747,7 +733,6 @@ public class BuildDialog : EditorDialogBase {
             QueueColumnRoot.AddChild(AddToBuildButtonHost);
 
             AddToBuildButton = new ButtonComponent("Add to Build", new int2(GetFooterButtonWidthPixels(), GetFooterButtonHeightPixels()), DialogFont, HandleAddToBuildClicked);
-            AddToBuildButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             AddToBuildButtonHost.AddComponent(AddToBuildButton);
 
             BuildQueueButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
@@ -758,7 +743,6 @@ public class BuildDialog : EditorDialogBase {
             QueueColumnRoot.AddChild(BuildQueueButtonHost);
 
             BuildQueueButton = new ButtonComponent("Build Queue", new int2(GetFooterButtonWidthPixels(), GetFooterButtonHeightPixels()), DialogFont, HandleBuildQueueRequested);
-            BuildQueueButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             BuildQueueButtonHost.AddComponent(BuildQueueButton);
 
             BuildLogsRoot = new EditorEntity(OwnerCore, InteractionServices) {
@@ -773,7 +757,6 @@ public class BuildDialog : EditorDialogBase {
                 BorderColor = ThemeManager.Colors.AccentTertiary,
                 BorderThickness = 2f,
                 Radius = 0f,
-                RenderOrder2D = DialogPanelOrder,
                 Size = new int2(1, 1)
             };
             BuildLogsRoot.AddComponent(BuildLogsBackground);
@@ -789,7 +772,6 @@ public class BuildDialog : EditorDialogBase {
                 Font = DialogFont,
                 Text = "Build Logs",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                RenderOrder2D = DialogTextOrder
             };
             BuildLogsTitleHost.AddComponent(BuildLogsTitleText);
 
@@ -805,7 +787,6 @@ public class BuildDialog : EditorDialogBase {
                 BorderColor = ThemeManager.Colors.AccentTertiary,
                 BorderThickness = 1f,
                 Radius = 4f,
-                RenderOrder2D = DialogPanelOrder,
                 Size = new int2(1, GetBuildLogsProgressBarHeightPixels())
             };
             BuildLogsProgressTrackHost.AddComponent(BuildLogsProgressTrack);
@@ -822,7 +803,6 @@ public class BuildDialog : EditorDialogBase {
                 BorderColor = ThemeManager.Colors.AccentSecondary,
                 BorderThickness = 0f,
                 Radius = 4f,
-                RenderOrder2D = DialogPanelOrder,
                 Size = new int2(1, BuildLogsProgressBarHeight - 2)
             };
             BuildLogsProgressFillHost.AddComponent(BuildLogsProgressFill);
@@ -840,12 +820,11 @@ public class BuildDialog : EditorDialogBase {
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 SelectionEnabled = true,
                 WrapText = true,
-                RenderOrder2D = DialogTextOrder,
                 Size = new int2(1, 1)
             };
             BuildLogsTextHost.AddComponent(BuildLogsText);
 
-            BuildLogsScrollComponent = new ScrollComponent();
+            BuildLogsScrollComponent = new EditorScrollComponent();
             BuildLogsScrollComponent.ScrollOffsetChanged += HandleBuildLogsScrollOffsetChanged;
             BuildLogsTextHost.AddComponent(BuildLogsScrollComponent);
         }
@@ -1656,7 +1635,7 @@ public class BuildDialog : EditorDialogBase {
         /// </summary>
         /// <returns>New queue row bundle.</returns>
         BuildDialogQueueRow CreateQueueRow() {
-            BuildDialogQueueRow row = new BuildDialogQueueRow(OwnerCore, InteractionServices, DialogFont, DialogMetrics, LayerMask, DialogPanelOrder, DialogTextOrder);
+            BuildDialogQueueRow row = new BuildDialogQueueRow(OwnerCore, InteractionServices, DialogFont, DialogMetrics, LayerMask);
             row.RemoveRequested += HandleQueueRowRemoveRequested;
             QueueItemsRoot.AddChild(row.Root);
             return row;
@@ -1667,7 +1646,7 @@ public class BuildDialog : EditorDialogBase {
         /// </summary>
         /// <returns>New scene row bundle.</returns>
         BuildDialogSceneRow CreateSceneRow() {
-            BuildDialogSceneRow row = new BuildDialogSceneRow(OwnerCore, InteractionServices, DialogFont, DialogMetrics, EditorLayerMasks.BuildDialogSceneListContent, DialogPanelOrder, DialogTextOrder);
+            BuildDialogSceneRow row = new BuildDialogSceneRow(OwnerCore, InteractionServices, DialogFont, DialogMetrics, EditorLayerMasks.BuildDialogSceneListContent);
             row.OrderField.TextChanged += currentOrderField => HandleSceneOrderFieldChanged(row.SceneId, currentOrderField);
             row.OrderField.Submitted += currentOrderField => HandleSceneOrderFieldSubmitted(row.SceneId, currentOrderField);
             row.CheckBox.CheckedChanged += (checkBox, isChecked) => ApplySceneSelectionChanged(row.SceneId, checkBox, isChecked);

@@ -35,16 +35,26 @@ namespace helengine.editor {
         /// <summary>
         /// Creates the hidden preview content entity used to host one cloned 2D component.
         /// </summary>
+        /// <param name="ownerCore">Core that owns the hidden preview entity.</param>
+        /// <param name="boundCameraComponent">Camera that exclusively receives drawables from this content entity.</param>
         /// <returns>Configured hidden preview content entity.</returns>
-        public static EditorEntity CreatePreviewContentEntity(Core ownerCore) {
+        public static EditorEntity CreatePreviewContentEntity(Core ownerCore, CameraComponent boundCameraComponent) {
             if (ownerCore == null) {
                 throw new ArgumentNullException(nameof(ownerCore));
+            } else if (boundCameraComponent == null) {
+                throw new ArgumentNullException(nameof(boundCameraComponent));
             }
-            return new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore)) {
+            EditorEntity previewContentEntity = new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore)) {
                 Name = "Exact 2D Preview Content",
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneModelPreview
             };
+
+            previewContentEntity.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ExplicitCameraBindingMode,
+                BoundCameraComponent = boundCameraComponent
+            });
+            return previewContentEntity;
         }
 
         /// <summary>

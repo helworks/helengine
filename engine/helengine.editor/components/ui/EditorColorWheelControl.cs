@@ -66,8 +66,7 @@ namespace helengine.editor {
 
             WheelSprite = new SpriteComponent {
                 Size = new int2(WheelSize, WheelSize),
-                Texture = EditorColorUtils.BuildHueWheelTexture(WheelSize, RenderManager2D),
-                RenderOrder2D = RenderOrder2D.ModalOverlayBackground
+                Texture = EditorColorUtils.BuildHueWheelTexture(WheelSize, RenderManager2D)
             };
             WheelHost.AddComponent(WheelSprite);
 
@@ -86,8 +85,7 @@ namespace helengine.editor {
                 Radius = MarkerSize * 0.5f,
                 BorderThickness = 2f,
                 FillColor = ThemeManager.Colors.TextOnAccent,
-                BorderColor = ThemeManager.Colors.SurfacePrimary,
-                RenderOrder2D = RenderOrder2D.ModalOverlayForeground
+                BorderColor = ThemeManager.Colors.SurfacePrimary
             };
             MarkerHost.AddComponent(HueMarker);
 

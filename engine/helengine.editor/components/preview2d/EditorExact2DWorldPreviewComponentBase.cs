@@ -2,6 +2,7 @@ namespace helengine {
     /// <summary>
     /// Provides the shared exact-preview behavior used by editor-only world-space text and rounded-rectangle preview components.
     /// </summary>
+    [RunInEditor]
     public abstract class EditorExact2DWorldPreviewComponentBase : EditorWorldSpace2DPreviewComponentBase {
         /// <summary>
         /// Editor-only capture service that owns the hidden clone scene and offscreen render target.

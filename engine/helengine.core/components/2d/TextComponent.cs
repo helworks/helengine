@@ -2,6 +2,9 @@ namespace helengine {
     /// <summary>
     /// Renders text using a provided font asset via the 2D render manager.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class TextComponent : Component, ITextDrawable2D, IAnchorSizeProvider {
         /// <summary>
         /// Stores the current text content so selection state can clamp itself when the text changes.
@@ -91,25 +94,6 @@ namespace helengine {
         /// Stores the monotonically increasing version that changes whenever render-relevant text state changes.
         /// </summary>
         int TextRenderStateVersionValue;
-        byte RenderOrder2DValue;
-
-        /// <summary>
-        /// Gets or sets the render order for this text drawable.
-        /// </summary>
-        public byte RenderOrder2D {
-            get { return RenderOrder2DValue; }
-            set {
-                if (RenderOrder2DValue != value) {
-                    RenderOrder2DValue = value;
-                    UpdateSelectionRenderOrder();
-                    if (Parent != null && Parent.IsHierarchyEnabled) {
-                        OwnerCore.ObjectManager.RemoveFromRender2D(this);
-                        OwnerCore.ObjectManager.RegisterForRender2D(this);
-                    }
-                }
-            }
-        }
-
         /// <summary>
         /// Gets or sets an optional pre-rendered texture backing this text.
         /// </summary>
@@ -378,10 +362,6 @@ namespace helengine {
                     if (SelectionEntityValue != null) {
                         SelectionEntityValue.Enabled = Parent.IsHierarchyEnabled;
                     }
-                    if (Parent.IsHierarchyEnabled && RenderOrder2DValue == 0) {
-                        OwnerCore.ObjectManager.RemoveFromRender2D(this);
-                        OwnerCore.ObjectManager.RegisterForRender2D(this);
-                    }
                     UpdateSelectionVisual();
                 }
             }
@@ -544,7 +524,6 @@ namespace helengine {
                     ThemeManager.Colors.AccentPrimary.Z,
                     96);
                 SelectionSpriteValue.BorderColor = SelectionSpriteValue.FillColor;
-                SelectionSpriteValue.RenderOrder2D = ResolveSelectionRenderOrder();
                 SelectionEntityValue.AddComponent(SelectionSpriteValue);
             }
 
@@ -553,29 +532,6 @@ namespace helengine {
                 SelectionUpdateComponentValue.UpdateOrder = OwnerCore.ObjectManager.GetUpdateOrderForLayer(1);
                 entity.AddComponent(SelectionUpdateComponentValue);
             }
-        }
-
-        /// <summary>
-        /// Updates the selection render order so the highlight remains behind the glyphs.
-        /// </summary>
-        void UpdateSelectionRenderOrder() {
-            if (SelectionSpriteValue == null) {
-                return;
-            }
-
-            SelectionSpriteValue.RenderOrder2D = ResolveSelectionRenderOrder();
-        }
-
-        /// <summary>
-        /// Resolves the render order used for the selection highlight.
-        /// </summary>
-        /// <returns>Render order one step behind the text drawable when possible.</returns>
-        byte ResolveSelectionRenderOrder() {
-            if (RenderOrder2DValue == 0) {
-                return 0;
-            }
-
-            return (byte)(RenderOrder2DValue - 1);
         }
 
         /// <summary>
@@ -617,7 +573,7 @@ namespace helengine {
             }
 
             if (!SelectionEnabled || Font == null || !HasSelection || string.IsNullOrEmpty(TextValue)) {
-                SelectionEntityValue.LocalPosition = new float3(0f, 0f, 0.05f);
+                SelectionEntityValue.LocalPosition = new float3(0f, 0f, -0.01f);
                 SelectionSpriteValue.Size = new int2(0, 0);
                 SelectionSpriteValue.FillColor = new byte4(
                     ThemeManager.Colors.AccentPrimary.X,
@@ -640,7 +596,7 @@ namespace helengine {
             SelectionEntityValue.LocalPosition = new float3(
                 (float)selectionStartX,
                 (float)(selectionLineIndex * lineHeight),
-                0.05f);
+                -0.01f);
             SelectionSpriteValue.Size = new int2(
                 (int)Math.Ceiling(selectionWidth),
                 (int)Math.Ceiling(lineHeight));

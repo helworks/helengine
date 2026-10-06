@@ -1,10 +1,7 @@
 namespace helengine {
     /// <summary>
-    /// Tracks wheel-driven list scrolling for a rectangular viewport, acts as its own clip region, derives the visible range when needed, and can translate a bound content root automatically.
+    /// Tracks wheel and middle-button autoscroll for a rectangular viewport, acts as its own clip region, derives the visible range when needed, and can translate a bound content root automatically.
     /// </summary>
-#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
-    [RunInEditor]
-#endif
     public class ScrollComponent : UpdateComponent, IClipRegion2D {
         /// <summary>
         /// Standard mouse-wheel delta used to represent one notch on Windows-compatible devices.
@@ -27,6 +24,11 @@ namespace helengine {
         ScrollBarComponent ScrollBarValue;
 
         /// <summary>
+        /// Autoscroll speed in items per second when the pointer is one item extent from the activation point.
+        /// </summary>
+        const float AutoScrollItemsPerExtentPerSecond = 4f;
+
+        /// <summary>
         /// Size of the scroll viewport in screen-space pixels.
         /// </summary>
         int2 SizeValue;
@@ -37,7 +39,7 @@ namespace helengine {
         int ItemCountValue;
 
         /// <summary>
-        /// Pixel height or extent consumed by one item in the scrolling content.
+        /// Pixel width or height consumed by one item along the configured scroll orientation.
         /// </summary>
         int ItemExtentValue = 1;
 
@@ -62,7 +64,7 @@ namespace helengine {
         int WheelNotchSizeValue = StandardWheelNotch;
 
         /// <summary>
-        /// Tracks whether wheel scrolling should only occur while the pointer is inside the viewport.
+        /// Tracks whether wheel scrolling and middle-button autoscroll activation require the pointer to be inside the viewport.
         /// </summary>
         bool RequiresPointerInsideValue = true;
 
@@ -77,7 +79,22 @@ namespace helengine {
         Entity ClipOriginEntityValue;
 
         /// <summary>
-        /// Raised when the scroll offset changes because of wheel input or an explicit scroll request.
+        /// Tracks whether browser-style autoscroll is active for this viewport.
+        /// </summary>
+        bool IsAutoScrollActive;
+
+        /// <summary>
+        /// Pointer position that controls the fixed autoscroll indicator and its speed reference.
+        /// </summary>
+        int2 AutoScrollOriginPosition;
+
+        /// <summary>
+        /// Fractional item movement accumulated while autoscrolling.
+        /// </summary>
+        float AutoScrollItemRemainder;
+
+        /// <summary>
+        /// Raised when the scroll offset changes because of wheel input, middle-button autoscroll, or an explicit scroll request.
         /// </summary>
         public event Action<ScrollComponent, int> ScrollOffsetChanged;
 
@@ -149,7 +166,7 @@ namespace helengine {
 
         /// <summary>
         /// Gets or sets the number of complete items visible in the viewport.
-        /// When set to zero, the component derives the value from the viewport height and item extent.
+        /// When set to zero, the component derives the value from the viewport extent along its orientation and the item extent.
         /// </summary>
         public int VisibleItemCount {
             get { return GetVisibleItemCount(); }
@@ -197,6 +214,27 @@ namespace helengine {
         /// Gets the current scroll offset in item units.
         /// </summary>
         public int ScrollOffset { get; private set; }
+
+        /// <summary>Gets the active autoscroll direction: -1 toward the start, +1 toward the end, or zero at rest or a content limit.</summary>
+        [ScenePersistenceIgnore]
+        public int AutoScrollDirection {
+            get {
+                if (!IsAutoScrollActive || Parent == null || !Parent.IsHierarchyEnabled) {
+                    return 0;
+                }
+
+                int distance = OrientationValue == ScrollOrientation.Horizontal
+                    ? OwnerCore.Input.GetMouseX() - AutoScrollOriginPosition.X
+                    : OwnerCore.Input.GetMouseY() - AutoScrollOriginPosition.Y;
+                if (distance < 0 && ScrollOffset > 0) {
+                    return -1;
+                }
+                if (distance > 0 && ScrollOffset < MaximumScrollOffset) {
+                    return 1;
+                }
+                return 0;
+            }
+        }
 
         /// <summary>
         /// Gets or sets the content root that should move in response to the current scroll offset.
@@ -253,7 +291,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Gets or sets a value indicating whether the pointer must be inside the viewport before scrolling can occur.
+        /// Gets or sets a value indicating whether the pointer must be inside the viewport before wheel scrolling or middle-button autoscroll can activate.
         /// </summary>
         public bool RequiresPointerInside {
             get { return RequiresPointerInsideValue; }
@@ -278,17 +316,35 @@ namespace helengine {
             }
         }
 
-        /// <summary>Releases the owned scrollbar when the viewport is detached.</summary>
+        /// <summary>Releases the owned scrollbar and any active autoscroll when the viewport is detached.</summary>
         /// <param name="entity">Entity losing the scroll viewport.</param>
         public override void ComponentRemoved(Entity entity) {
+            StopAutoScroll();
             RemoveScrollBar();
             base.ComponentRemoved(entity);
         }
 
-        /// <summary>Advances wheel scrolling and updates the scrollbar layout.</summary>
+        /// <summary>
+        /// Advances scrolling from mouse wheel input or the active middle-button autoscroll mode and updates scrollbar layout.
+        /// </summary>
         public override void Update() {
-            TryApplyWheelInput();
+            if (!IsAutoScrollActive) {
+                TryApplyWheelInput();
+            }
+
+            TryApplyMiddleMouseAutoScrollInput();
             RefreshScrollBar();
+        }
+
+        /// <summary>
+        /// Releases an active autoscroll cursor override when the owning viewport is disabled.
+        /// </summary>
+        /// <param name="newEnabled">Whether the viewport hierarchy remains enabled.</param>
+        public override void ParentEnabledChange(bool newEnabled) {
+            base.ParentEnabledChange(newEnabled);
+            if (!newEnabled) {
+                StopAutoScroll();
+            }
         }
 
         /// <summary>
@@ -370,6 +426,124 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets or sets the axis along which the viewport scrolls. Vertical is the default.
+        /// </summary>
+        public ScrollOrientation Orientation {
+            get { return OrientationValue; }
+            set {
+                if (value != ScrollOrientation.Vertical && value != ScrollOrientation.Horizontal) {
+                    throw new ArgumentOutOfRangeException(nameof(value), "Scroll orientation must be vertical or horizontal.");
+                }
+
+                if (OrientationValue == value) {
+                    return;
+                }
+
+                StopAutoScroll();
+                OrientationValue = value;
+                ClampScrollOffset();
+                ApplyContentRootOffset();
+            }
+        }
+
+        /// <summary>
+        /// Toggles autoscroll on middle click, cancels it on left or right click, and scrolls based on pointer distance from the anchor.
+        /// </summary>
+        /// <returns>True when the scroll offset changed.</returns>
+        bool TryApplyMiddleMouseAutoScrollInput() {
+#if DESKTOP_PLATFORM
+            if (Parent == null) {
+                StopAutoScroll();
+                return false;
+            }
+
+            InputSystem input = OwnerCore.Input;
+            if (IsAutoScrollActive && (input.WasMouseLeftButtonPressed() || input.WasMouseRightButtonPressed())) {
+                StopAutoScroll();
+                return false;
+            }
+            if (input.WasMouseMiddleButtonPressed()) {
+                if (IsAutoScrollActive) {
+                    StopAutoScroll();
+                    return false;
+                }
+
+                int pointerX = input.GetMouseX();
+                int pointerY = input.GetMouseY();
+                if (MaximumScrollOffset <= 0 ||
+                    (RequiresPointerInsideValue && !ContainsScreenPoint(pointerX, pointerY))) {
+                    return false;
+                }
+
+                PointerCursorKind autoScrollCursorKind = OrientationValue == ScrollOrientation.Horizontal
+                    ? PointerCursorKind.AutoScrollHorizontal
+                    : PointerCursorKind.AutoScrollVertical;
+                if (!OwnerCore.PointerInteractionSystem.TrySetCursorOverride(
+                    this,
+                    autoScrollCursorKind,
+                    new int2(pointerX, pointerY))) {
+                    return false;
+                }
+
+                IsAutoScrollActive = true;
+                AutoScrollOriginPosition = new int2(pointerX, pointerY);
+                AutoScrollItemRemainder = 0f;
+                return false;
+            }
+
+            if (!IsAutoScrollActive) {
+                return false;
+            }
+
+            if (MaximumScrollOffset <= 0) {
+                StopAutoScroll();
+                return false;
+            }
+
+            int pointerDistanceFromOrigin = OrientationValue == ScrollOrientation.Horizontal
+                ? input.GetMouseX() - AutoScrollOriginPosition.X
+                : input.GetMouseY() - AutoScrollOriginPosition.Y;
+            if (pointerDistanceFromOrigin == 0) {
+                AutoScrollItemRemainder = 0f;
+                return false;
+            }
+
+            float itemsPerSecond = pointerDistanceFromOrigin /
+                (float)ItemExtentValue *
+                AutoScrollItemsPerExtentPerSecond;
+            float accumulatedItems = AutoScrollItemRemainder + itemsPerSecond * OwnerCore.DeltaTime;
+            int itemDelta = (int)accumulatedItems;
+            AutoScrollItemRemainder = accumulatedItems - itemDelta;
+            if (itemDelta == 0) {
+                return false;
+            }
+
+            if ((ScrollOffset == 0 && itemDelta < 0) ||
+                (ScrollOffset == MaximumScrollOffset && itemDelta > 0)) {
+                AutoScrollItemRemainder = 0f;
+                return false;
+            }
+
+            long requestedOffset = (long)ScrollOffset + itemDelta;
+            int nextOffset = (int)Math.Clamp(requestedOffset, 0L, MaximumScrollOffset);
+            return SetScrollOffset(nextOffset, true);
+#else
+            return false;
+#endif
+        }
+
+        /// <summary>
+        /// Ends autoscroll and releases the cursor override owned by this component.
+        /// </summary>
+        void StopAutoScroll() {
+            IsAutoScrollActive = false;
+            AutoScrollItemRemainder = 0f;
+            if (OwnerCore != null) {
+                OwnerCore.PointerInteractionSystem.ClearCursorOverride(this);
+            }
+        }
+
+        /// <summary>
         /// Applies one scroll offset and optionally raises the change event.
         /// </summary>
         /// <param name="scrollOffset">Requested scroll offset.</param>
@@ -391,26 +565,6 @@ namespace helengine {
             return true;
         }
 
-        /// <summary>
-        /// Gets or sets the axis along which the viewport scrolls. Vertical is the default.
-        /// </summary>
-        public ScrollOrientation Orientation {
-            get { return OrientationValue; }
-            set {
-                if (value != ScrollOrientation.Vertical && value != ScrollOrientation.Horizontal) {
-                    throw new ArgumentOutOfRangeException(nameof(value), "Scroll orientation must be vertical or horizontal.");
-                }
-
-                if (OrientationValue == value) {
-                    return;
-                }
-
-                OrientationValue = value;
-                ClampScrollOffset();
-                ApplyContentRootOffset();
-            }
-        }
-
         /// <summary>Creates the scrollbar subtree once during attachment or when scrollbar support is enabled.</summary>
         void CreateScrollBar() {
             ScrollBarHost = new Entity(OwnerCore);
@@ -421,10 +575,17 @@ namespace helengine {
             }
 
             Parent.AddChild(ScrollBarHost);
-            ScrollBarValue = new ScrollBarComponent(new int2(1, 1));
+            ScrollBarValue = CreateScrollBarComponent(new int2(1, 1));
             ScrollBarValue.Target = this;
             ScrollBarHost.AddComponent(ScrollBarValue);
             RefreshScrollBar();
+        }
+
+        /// <summary>Creates the scrollbar controller owned by this viewport; editor UI overrides this to opt its controller into authoring execution.</summary>
+        /// <param name="size">Initial positive track bounds before viewport layout is applied.</param>
+        /// <returns>Detached scrollbar controller whose lifecycle follows its concrete execution policy.</returns>
+        protected virtual ScrollBarComponent CreateScrollBarComponent(int2 size) {
+            return new ScrollBarComponent(size);
         }
 
         /// <summary>Disposes the complete scrollbar subtree so disabled scrollbars retain no entities, visuals, or input regions.</summary>
@@ -487,7 +648,7 @@ namespace helengine {
                 throw new InvalidOperationException("Scroll components require an attached parent entity.");
             }
 
-            Entity clipOriginEntity = ClipOriginEntityValue ?? Parent;
+            Entity clipOriginEntity = ClipOriginEntityValue ?? FindAncestorViewportEntity() ?? Parent;
             float3 origin = clipOriginEntity.Position;
             int2 viewportSize = ResolveViewportSize();
             return new float4(origin.X, origin.Y, viewportSize.X, viewportSize.Y);
@@ -539,15 +700,35 @@ namespace helengine {
         /// </summary>
         /// <returns>Viewport size used for clipping, hit testing, and automatic visible-count calculations.</returns>
         int2 ResolveViewportSize() {
-            if (Parent != null && Parent.Parent != null && Parent.Parent.Components != null) {
-                for (int componentIndex = 0; componentIndex < Parent.Parent.Components.Count; componentIndex++) {
-                    if (Parent.Parent.Components[componentIndex] is ClipRectComponent clipRectComponent) {
+            Entity viewportEntity = FindAncestorViewportEntity();
+            if (viewportEntity != null) {
+                for (int componentIndex = 0; componentIndex < viewportEntity.Components.Count; componentIndex++) {
+                    if (viewportEntity.Components[componentIndex] is ClipRectComponent clipRectComponent) {
                         return clipRectComponent.Size;
                     }
                 }
             }
 
             return SizeValue;
+        }
+
+        /// <summary>
+        /// Finds the parent entity that owns the clip rectangle used to size this scroll viewport.
+        /// </summary>
+        /// <returns>The clipped viewport entity when one exists.</returns>
+        Entity FindAncestorViewportEntity() {
+            if (Parent == null || Parent.Parent == null || Parent.Parent.Components == null) {
+                return null;
+            }
+
+            Entity viewportEntity = Parent.Parent;
+            for (int componentIndex = 0; componentIndex < viewportEntity.Components.Count; componentIndex++) {
+                if (viewportEntity.Components[componentIndex] is ClipRectComponent) {
+                    return viewportEntity;
+                }
+            }
+
+            return null;
         }
     }
 }

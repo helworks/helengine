@@ -31,8 +31,8 @@ namespace helengine.editor.tests {
             RoundedRectComponent menuBackground = GetPrivateField<RoundedRectComponent>(panelMenu, "Background");
 
             Assert.Equal(EditorLayerMasks.EditorModalUi, panelMenu.Entity.LayerMask);
-            Assert.True(menuBackground.RenderOrder2D >= RenderOrder2D.OverlayBackground);
-            Assert.True(menuBackground.RenderOrder2D < RenderOrder2D.ModalBackground);
+            Assert.True(menuBackground.Parent.Position.Z > dock.Position.Z);
+            Assert.True(menuBackground.Parent.Position.Z < EditorUiDepths.ModalBackdrop);
         }
 
         /// <summary>

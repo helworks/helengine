@@ -24,6 +24,21 @@ namespace helengine {
         public InputSystem Input { get; private set; }
 
         /// <summary>
+        /// Component that currently owns a global pointer-cursor override, when one exists.
+        /// </summary>
+        Component CursorOverrideOwner;
+
+        /// <summary>
+        /// Fixed screen position associated with the current cursor override.
+        /// </summary>
+        int2 CursorOverridePositionValue;
+
+        /// <summary>
+        /// Cursor kind requested by the current global override owner.
+        /// </summary>
+        PointerCursorKind CursorOverrideKind;
+
+        /// <summary>
         /// Gets the interactable currently captured by a press.
         /// </summary>
         public IInteractable2D Highlighted { get; private set; }
@@ -38,11 +53,105 @@ namespace helengine {
         /// </summary>
         public PointerCursorKind HoverCursor {
             get {
+                if (HasAttachedCursorOverride) {
+                    return CursorOverrideKind;
+                }
+
                 if (Hovering == null) {
                     return PointerCursorKind.Default;
                 }
 
                 return Hovering.HoverCursor;
+            }
+        }
+
+        /// <summary>
+        /// Gets the screen position where the current global cursor override was activated.
+        /// </summary>
+        public int2 CursorOverridePosition {
+            get {
+                return HasAttachedCursorOverride ? CursorOverridePositionValue : new int2(0, 0);
+            }
+        }
+
+        /// <summary>Gets the available autoscroll direction from the component that owns the fixed cursor marker.</summary>
+        public int CursorOverrideScrollDirection {
+            get {
+                return HasAttachedCursorOverride && CursorOverrideOwner is ScrollComponent scroll
+                    ? scroll.AutoScrollDirection
+                    : 0;
+            }
+        }
+
+        /// <summary>
+        /// Attempts to set a global cursor override owned by the supplied component.
+        /// </summary>
+        /// <param name="owner">Component that owns the override.</param>
+        /// <param name="cursor">Cursor to expose while the component remains attached.</param>
+        /// <returns>True when the override was assigned to the owner.</returns>
+        public bool TrySetCursorOverride(Component owner, PointerCursorKind cursor) {
+            return TrySetCursorOverride(owner, cursor, Input.GetMousePosition());
+        }
+
+        /// <summary>
+        /// Attempts to set a global cursor override and its fixed screen-space anchor.
+        /// </summary>
+        /// <param name="owner">Component that owns the override.</param>
+        /// <param name="cursor">Cursor state to expose while the component remains attached.</param>
+        /// <param name="position">Screen position where the override was activated.</param>
+        /// <returns>True when the override was assigned to the owner.</returns>
+        public bool TrySetCursorOverride(Component owner, PointerCursorKind cursor, int2 position) {
+            if (owner == null) {
+                throw new ArgumentNullException(nameof(owner));
+            }
+
+            if (HasAttachedCursorOverride &&
+                CursorOverrideOwner.Parent != null &&
+                !ReferenceEquals(CursorOverrideOwner, owner)) {
+                return false;
+            }
+
+            CursorOverrideOwner = owner;
+            CursorOverrideKind = cursor;
+            CursorOverridePositionValue = position;
+            return true;
+        }
+
+        /// <summary>
+        /// Clears a cursor override only when the supplied component currently owns it.
+        /// </summary>
+        /// <param name="owner">Component whose override should be cleared.</param>
+        public void ClearCursorOverride(Component owner) {
+            if (owner == null) {
+                throw new ArgumentNullException(nameof(owner));
+            }
+
+            if (!ReferenceEquals(CursorOverrideOwner, owner)) {
+                return;
+            }
+
+            CursorOverrideOwner = null;
+            CursorOverrideKind = PointerCursorKind.Default;
+            CursorOverridePositionValue = new int2(0, 0);
+        }
+
+        /// <summary>
+        /// Clears a stale override when its owning component is no longer attached.
+        /// </summary>
+        bool HasAttachedCursorOverride {
+            get {
+                if (CursorOverrideOwner == null) {
+                    return false;
+                }
+
+                if (CursorOverrideOwner.Parent != null) {
+                    return true;
+                }
+
+                CursorOverrideOwner = null;
+                CursorOverrideKind = PointerCursorKind.Default;
+                CursorOverridePositionValue = new int2(0, 0);
+                return false;
             }
         }
 

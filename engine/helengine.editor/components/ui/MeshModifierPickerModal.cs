@@ -91,7 +91,6 @@ namespace helengine.editor {
 
                 ButtonComponent button = new ButtonComponent(ModifierDisplayNames[index], GetEntryButtonSize(), DialogFont, () => HandleEntryClicked(kind), 0f);
                 buttonHost.AddComponent(button);
-                button.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
                 EntryButtonHosts[index] = buttonHost;
                 EntryButtons[index] = button;

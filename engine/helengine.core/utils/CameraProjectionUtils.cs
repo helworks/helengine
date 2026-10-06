@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Builds validated perspective projections from authored camera state.
+    /// Builds validated perspective and orthographic projections from camera state.
     /// </summary>
     public static class CameraProjectionUtils {
         /// <summary>
@@ -71,12 +71,43 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Creates a validated perspective projection matrix for one camera.
+        /// Creates a validated projection matrix using optional camera projection settings.
+        /// Cameras that do not implement <see cref="ICameraProjectionSettings"/> retain the
+        /// existing perspective projection behavior.
         /// </summary>
-        /// <param name="camera">Camera providing clip-plane distances.</param>
-        /// <param name="fieldOfView">Vertical field of view in radians.</param>
-        /// <param name="aspectRatio">Viewport aspect ratio.</param>
-        /// <returns>Perspective projection matrix built from validated clip-plane values.</returns>
+        /// <param name="camera">Camera providing projection and clip-plane state.</param>
+        /// <param name="aspectRatio">Viewport width divided by viewport height.</param>
+        /// <returns>Projection matrix matching the camera's selected projection mode.</returns>
+        public static float4x4 CreateProjection(ICamera camera, float aspectRatio) {
+            if (camera == null) {
+                throw new ArgumentNullException(nameof(camera));
+            }
+            ValidateAspectRatio(aspectRatio);
+
+            ICameraProjectionSettings settings = camera as ICameraProjectionSettings;
+            if (settings == null || settings.ProjectionMode == CameraProjectionMode.Perspective) {
+                float4x4 perspectiveProjection = CreatePerspectiveProjection(camera, aspectRatio);
+                ValidateProjectionMatrix(perspectiveProjection, nameof(aspectRatio));
+                return perspectiveProjection;
+            } else if (settings.ProjectionMode == CameraProjectionMode.Orthographic) {
+                float span = ValidateOrthographicVerticalSpan(settings.OrthographicVerticalSpan);
+                float nearPlaneDistance = ClampNearPlaneDistance(camera.NearPlaneDistance, camera.FarPlaneDistance);
+                float farPlaneDistance = ClampFarPlaneDistance(nearPlaneDistance, camera.FarPlaneDistance);
+                double width = (double)span * aspectRatio;
+                if (!double.IsFinite(width) || width <= 0.0 || width > float.MaxValue) {
+                    throw new ArgumentOutOfRangeException(nameof(aspectRatio), "The viewport aspect ratio produces an invalid orthographic width.");
+                }
+
+                float halfWidth = (float)(width * 0.5);
+                float halfHeight = span * 0.5f;
+                float4x4.CreateOrthographicOffCenter(-halfWidth, halfWidth, -halfHeight, halfHeight, nearPlaneDistance, farPlaneDistance, out float4x4 orthographicProjection);
+                ValidateProjectionMatrix(orthographicProjection, nameof(aspectRatio));
+                return orthographicProjection;
+            }
+
+            throw new ArgumentOutOfRangeException(nameof(settings.ProjectionMode), settings.ProjectionMode, "The camera projection mode is not supported.");
+        }
+
         /// <summary>
         /// Gets the vertical world-space distance represented by one viewport pixel at a given camera distance.
         /// </summary>
@@ -113,6 +144,16 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Validates a viewport aspect ratio before it is used to create a projection matrix.
+        /// </summary>
+        /// <param name="aspectRatio">Viewport width divided by viewport height.</param>
+        static void ValidateAspectRatio(float aspectRatio) {
+            if (!float.IsFinite(aspectRatio) || aspectRatio <= 0f) {
+                throw new ArgumentOutOfRangeException(nameof(aspectRatio), "The viewport aspect ratio must be finite and positive.");
+            }
+        }
+
+        /// <summary>
         /// Validates a full vertical span before it is used to create orthographic geometry.
         /// </summary>
         /// <param name="span">Requested orthographic vertical span.</param>
@@ -135,6 +176,27 @@ namespace helengine {
             }
         }
 
+        /// <summary>
+        /// Ensures a generated projection contains only finite matrix values.
+        /// </summary>
+        /// <param name="projection">Matrix to validate.</param>
+        /// <param name="parameterName">Input name associated with projection overflow.</param>
+        static void ValidateProjectionMatrix(float4x4 projection, string parameterName) {
+            if (!float.IsFinite(projection.M11) || !float.IsFinite(projection.M12) || !float.IsFinite(projection.M13) || !float.IsFinite(projection.M14) ||
+                !float.IsFinite(projection.M21) || !float.IsFinite(projection.M22) || !float.IsFinite(projection.M23) || !float.IsFinite(projection.M24) ||
+                !float.IsFinite(projection.M31) || !float.IsFinite(projection.M32) || !float.IsFinite(projection.M33) || !float.IsFinite(projection.M34) ||
+                !float.IsFinite(projection.M41) || !float.IsFinite(projection.M42) || !float.IsFinite(projection.M43) || !float.IsFinite(projection.M44)) {
+                throw new ArgumentOutOfRangeException(parameterName, "The projection inputs produce a non-finite matrix.");
+            }
+        }
+
+        /// <summary>
+        /// Creates a validated perspective projection matrix for one camera.
+        /// </summary>
+        /// <param name="camera">Camera providing clip-plane distances.</param>
+        /// <param name="fieldOfView">Vertical field of view in radians.</param>
+        /// <param name="aspectRatio">Viewport aspect ratio.</param>
+        /// <returns>Perspective projection matrix built from validated clip-plane values.</returns>
         /// <summary>
         /// Creates a validated perspective projection matrix using the camera's own field of view.
         /// </summary>

@@ -91,10 +91,6 @@ namespace helengine.editor {
         /// </summary>
         readonly FontAsset font;
         /// <summary>
-        /// Render order for property text.
-        /// </summary>
-        readonly byte textOrder;
-        /// <summary>
         /// Root entity hosting the scroll viewport directly below the title bar.
         /// </summary>
         readonly EditorEntity contentRoot;
@@ -616,8 +612,6 @@ namespace helengine.editor {
             Title = "Properties";
             MinSize = new int2(UiMetrics.ScalePixels(220), UiMetrics.ScalePixels(160));
 
-            textOrder = RenderOrder2D.PanelForeground;
-
             contentRoot = new EditorEntity(OwnerCore, InteractionServices);
             contentRoot.LayerMask = LayerMask;
             contentRoot.Position = new float3(0, TitleBarHeightPixels, 0.05f);
@@ -643,7 +637,7 @@ namespace helengine.editor {
             contentRoot.AddChild(ScrollContentRoot);
             ContentRenderQueueSynchronizer = new EditorSubtreeRenderQueue2DSynchronizer(ContentCameraComponent, ScrollContentRoot);
 
-            ContentScrollComponent = new ScrollComponent();
+            ContentScrollComponent = new EditorScrollComponent();
             ContentScrollComponent.ScrollOffsetChanged += HandleContentScrollOffsetChanged;
             contentRoot.AddComponent(ContentScrollComponent);
 
@@ -723,7 +717,6 @@ namespace helengine.editor {
                 ComponentPlatformTabHeight,
                 0,
                 ComponentPlatformArrowButtonWidth);
-            ComponentPlatformTabStrip.SetRenderOrders(RenderOrder2D.PanelSurface, textOrder);
             ComponentPlatformTabStrip.SetEnvironmentAddButtonVisible(true);
             ComponentPlatformTabStrip.EnvironmentOverrideRequested += HandleComponentEnvironmentOverrideRequested;
             TransformRoot.AddChild(ComponentPlatformTabStrip.Root);
@@ -737,7 +730,6 @@ namespace helengine.editor {
                 ComponentPlatformTabHeight,
                 0,
                 ComponentPlatformArrowButtonWidth);
-            ComponentEnvironmentTabStrip.SetRenderOrders(RenderOrder2D.PanelSurface, textOrder);
             ComponentEnvironmentTabStrip.Root.Enabled = false;
             ComponentEnvironmentTabStrip.EnvironmentOverrideRequested += HandleComponentEnvironmentOverrideRequested;
             TransformRoot.AddChild(ComponentEnvironmentTabStrip.Root);
@@ -1507,7 +1499,6 @@ namespace helengine.editor {
             text.Text = string.Empty;
             text.Color = ThemeManager.Colors.InputForegroundPrimary;
             text.Size = new int2(1, 1);
-            text.RenderOrder2D = textOrder;
             host.AddComponent(text);
 
             lineHosts.Add(host);
@@ -1579,7 +1570,6 @@ namespace helengine.editor {
             labelText.Text = label;
             labelText.Color = ThemeManager.Colors.InputForegroundPrimary;
             labelText.Size = new int2(TransformLabelWidth, TransformFieldHeight);
-            labelText.RenderOrder2D = textOrder;
             labelHost.AddComponent(labelText);
 
             fieldHosts = new EditorEntity[3];
@@ -1626,7 +1616,6 @@ namespace helengine.editor {
                 FillColor = new byte4(255, 255, 255, 0),
                 BorderThickness = 0f,
                 BorderColor = ResolveOverrideOutlineColor(),
-                RenderOrder2D = RenderOrder2D.PanelSurface,
                 Size = new int2(1, TransformRowHeight)
             };
             row.AddComponent(outline);
@@ -1638,7 +1627,6 @@ namespace helengine.editor {
             row.AddChild(revertButtonHost);
 
             revertButton = new ButtonComponent("Revert", new int2(TransformRevertButtonWidth, TransformRevertButtonHeight), font, onClick, 1f);
-            revertButton.SetRenderOrders(RenderOrder2D.PanelSurface, textOrder);
             revertButton.UseHoverOnlyBackground();
             revertButton.UseSquareCorners();
             revertButton.SetTextColor(ThemeManager.Colors.AccentQuaternary);
@@ -1672,7 +1660,6 @@ namespace helengine.editor {
             labelText.Text = "Name";
             labelText.Color = ThemeManager.Colors.InputForegroundPrimary;
             labelText.Size = new int2(TransformLabelWidth, TransformFieldHeight);
-            labelText.RenderOrder2D = textOrder;
             labelHost.AddComponent(labelText);
 
             fieldHost = new EditorEntity(OwnerCore, InteractionServices);
@@ -1712,7 +1699,6 @@ namespace helengine.editor {
             labelText.Text = "Exists";
             labelText.Color = ThemeManager.Colors.InputForegroundPrimary;
             labelText.Size = new int2(TransformLabelWidth, TransformFieldHeight);
-            labelText.RenderOrder2D = textOrder;
             labelHost.AddComponent(labelText);
 
             checkBoxHost = new EditorEntity(OwnerCore, InteractionServices);
@@ -1721,7 +1707,6 @@ namespace helengine.editor {
             row.AddChild(checkBoxHost);
 
             checkBox = new CheckBoxComponent(new int2(TransformFieldHeight, TransformFieldHeight), font, true);
-            checkBox.SetRenderOrders(RenderOrder2D.PanelSurface, textOrder);
             checkBoxHost.AddComponent(checkBox);
         }
 

@@ -199,7 +199,6 @@ namespace helengine.editor {
             SearchField = new TextBoxComponent(new int2(PanelWidth - (PanelPadding * 2), SearchFieldHeight), SearchFont, SearchPlaceholder);
             SearchField.TextChanged += HandleSearchFieldChanged;
             SearchFieldHost.AddComponent(SearchField);
-            SearchField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
 
             ListHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
@@ -208,7 +207,7 @@ namespace helengine.editor {
             };
             DialogPanelRoot.AddChild(ListHost);
 
-            ListScrollComponent = new ScrollComponent();
+            ListScrollComponent = new EditorScrollComponent();
             ListScrollComponent.ScrollOffsetChanged += HandleScrollOffsetChanged;
             ListHost.AddComponent(ListScrollComponent);
 
@@ -230,14 +229,12 @@ namespace helengine.editor {
             AddButton.UseSquareCorners();
             AddButton.SetHoverCursor(PointerCursorKind.Hand);
             FooterHost.AddComponent(AddButton);
-            AddButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
 
             EmptyStateText = new TextComponent {
                 Font = SearchFont,
                 Text = "No components match the search.",
                 Color = ThemeManager.Colors.AccentQuaternary,
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(SearchFont.LineHeight, 1f)))),
-                RenderOrder2D = DialogTextOrder
             };
             EmptyStateHost.AddComponent(EmptyStateText);
             Enabled = false;
@@ -552,7 +549,6 @@ namespace helengine.editor {
             SpriteComponent background = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfacePrimary,
-                RenderOrder2D = DialogPanelOrder
             };
             rowEntity.AddComponent(background);
 
@@ -574,7 +570,6 @@ namespace helengine.editor {
                 Text = string.Empty,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(1, RowHeight),
-                RenderOrder2D = DialogTextOrder
             };
             labelHost.AddComponent(label);
 
@@ -591,7 +586,6 @@ namespace helengine.editor {
                 Text = string.Empty,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(0, 0),
-                RenderOrder2D = DialogTextOrder
             };
             indicatorHost.AddComponent(indicator);
 

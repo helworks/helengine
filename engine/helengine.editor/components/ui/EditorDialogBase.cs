@@ -39,10 +39,6 @@ namespace helengine.editor {
         const float PanelRadius = 6f;
 
         /// <summary>
-        /// Render order used by the fullscreen modal backdrop behind the dialog panel.
-        /// </summary>
-        const byte BackdropOrder = RenderOrder2D.ModalBackground - 1;
-        /// <summary>
         /// Width reserved on the right side of the host title bar for the minimize, maximize, and close button cluster.
         /// </summary>
         const int HostTitleBarButtonGapWidth = CloseButtonWidth * 3;
@@ -92,16 +88,6 @@ namespace helengine.editor {
         /// Unscaled base header height used to rebuild the dialog shell when metrics change.
         /// </summary>
         readonly int BaseDialogHeaderHeight;
-
-        /// <summary>
-        /// Render order used for dialog panel surfaces.
-        /// </summary>
-        readonly byte PanelOrder;
-
-        /// <summary>
-        /// Render order used for dialog foreground text and controls.
-        /// </summary>
-        readonly byte TextOrder;
 
         /// <summary>
         /// Root entity that owns the fullscreen modal backdrop behind the panel.
@@ -352,9 +338,6 @@ namespace helengine.editor {
             DialogHeaderHeight = Metrics.ScalePixels(dialogHeaderHeight);
             DialogIsResizable = true;
             DialogMinimumSize = new int2(Metrics.ScalePixels(240), Metrics.ScalePixels(160));
-            PanelOrder = RenderOrder2D.ModalBackground;
-            TextOrder = RenderOrder2D.ModalForeground;
-
             LayerMask = EditorLayerMasks.EditorModalUi;
             InternalEntity = true;
             Name = dialogName;
@@ -362,7 +345,7 @@ namespace helengine.editor {
 
             BackdropRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
-                Position = float3.Zero,
+                Position = new float3(0f, 0f, EditorUiDepths.ModalBackdrop),
                 InternalEntity = true
             };
             AddChild(BackdropRoot);
@@ -377,7 +360,6 @@ namespace helengine.editor {
             BackdropTopSurface = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = BackdropColor,
-                RenderOrder2D = BackdropOrder,
                 Size = new int2(0, 0)
             };
             BackdropTopRoot.AddComponent(BackdropTopSurface);
@@ -397,7 +379,6 @@ namespace helengine.editor {
             BackdropBodySurface = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = BackdropColor,
-                RenderOrder2D = BackdropOrder,
                 Size = new int2(0, 0)
             };
             BackdropBodyRoot.AddComponent(BackdropBodySurface);
@@ -409,7 +390,7 @@ namespace helengine.editor {
 
             PanelRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
-                Position = float3.Zero,
+                Position = new float3(0f, 0f, EditorUiDepths.ModalPanel),
                 InternalEntity = true
             };
             AddChild(PanelRoot);
@@ -419,7 +400,6 @@ namespace helengine.editor {
                 BorderColor = ThemeManager.Colors.AccentTertiary,
                 BorderThickness = PanelBorderThickness,
                 Radius = PanelRadius,
-                RenderOrder2D = PanelOrder,
                 Size = new int2(DialogWidth, DialogHeight)
             };
             PanelRoot.AddComponent(PanelBackground);
@@ -441,7 +421,6 @@ namespace helengine.editor {
             HeaderBackground = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.AccentSecondary,
-                RenderOrder2D = PanelOrder,
                 Size = new int2(DialogWidth, DialogHeaderHeight)
             };
             HeaderRoot.AddComponent(HeaderBackground);
@@ -463,8 +442,7 @@ namespace helengine.editor {
                 Font = font,
                 Text = dialogTitle,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f)))),
-                RenderOrder2D = TextOrder
+                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f))))
             };
             TitleHost.AddComponent(TitleText);
 
@@ -478,14 +456,12 @@ namespace helengine.editor {
             CloseButtonSeparator = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.AccentQuaternary,
-                RenderOrder2D = TextOrder,
                 Size = new int2(GetDialogSeparatorWidth(), DialogHeaderHeight)
             };
             CloseButtonHost.AddComponent(CloseButtonSeparator);
 
             CloseButton = new ButtonComponent("X", new int2(GetCloseButtonWidthPixels(), DialogHeaderHeight), font, HandleCloseClicked, 0f);
             CloseButtonHost.AddComponent(CloseButton);
-            CloseButton.SetRenderOrders(TextOrder, TextOrder);
             CloseButton.UseHoverOnlyBackground();
             CloseButton.UseSquareCorners();
             CloseButton.SetTextColor(ThemeManager.Colors.AccentQuaternary);
@@ -501,7 +477,6 @@ namespace helengine.editor {
             ResizeTopLeftSurface = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = new byte4(0, 0, 0, 0),
-                RenderOrder2D = RenderOrder2D.ModalInput,
                 Size = new int2(GetResizeGripSizePixels(), GetResizeGripSizePixels())
             };
             ResizeTopLeftHost.AddComponent(ResizeTopLeftSurface);
@@ -524,7 +499,6 @@ namespace helengine.editor {
             ResizeBottomLeftSurface = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = new byte4(0, 0, 0, 0),
-                RenderOrder2D = RenderOrder2D.ModalInput,
                 Size = new int2(GetResizeGripSizePixels(), GetResizeGripSizePixels())
             };
             ResizeBottomLeftHost.AddComponent(ResizeBottomLeftSurface);
@@ -547,7 +521,6 @@ namespace helengine.editor {
             ResizeBottomRightSurface = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = new byte4(0, 0, 0, 0),
-                RenderOrder2D = RenderOrder2D.ModalInput,
                 Size = new int2(GetResizeGripSizePixels(), GetResizeGripSizePixels())
             };
             ResizeBottomRightHost.AddComponent(ResizeBottomRightSurface);
@@ -598,16 +571,6 @@ namespace helengine.editor {
         protected EditorUiMetrics DialogMetrics => Metrics;
 
         /// <summary>
-        /// Gets the render order used for panel surfaces.
-        /// </summary>
-        protected byte DialogPanelOrder => PanelOrder;
-
-        /// <summary>
-        /// Gets the render order used for dialog foreground content.
-        /// </summary>
-        protected byte DialogTextOrder => TextOrder;
-
-        /// <summary>
         /// Gets the root entity that owns dialog-specific content inside the shared modal shell.
         /// </summary>
         protected EditorEntity DialogPanelRoot => ContentRoot;
@@ -621,18 +584,6 @@ namespace helengine.editor {
         /// Gets the rounded panel background rendered behind the dialog content.
         /// </summary>
         protected RoundedRectComponent DialogPanelBackground => PanelBackground;
-
-        /// <summary>
-        /// Applies the shared modal render-order configuration used by combo boxes hosted inside the dialog.
-        /// </summary>
-        /// <param name="comboBox">Combo box whose control and drop-down visuals should be layered for modal presentation.</param>
-        protected void ConfigureDialogComboBox(ComboBoxComponent comboBox) {
-            if (comboBox == null) {
-                throw new ArgumentNullException(nameof(comboBox));
-            }
-
-            comboBox.UseModalPresentation();
-        }
 
         /// <summary>
         /// Reapplies shared dialog shell font and metrics after a live UI scale change.
@@ -733,7 +684,7 @@ namespace helengine.editor {
         /// Updates the shared fullscreen backdrop and blocking rectangle for the current host size.
         /// </summary>
         protected void UpdateDialogBackdrop() {
-            BackdropRoot.Position = float3.Zero;
+            BackdropRoot.Position = new float3(0f, 0f, EditorUiDepths.ModalBackdrop);
             int topWidth = Math.Max(0, HostSize.X - GetHostTitleBarButtonGapWidth());
             BackdropTopRoot.Position = float3.Zero;
             BackdropTopSurface.Size = new int2(topWidth, Metrics.HostTitleBarHeight);
@@ -821,7 +772,7 @@ namespace helengine.editor {
         /// Applies the cached panel position to the dialog root entity.
         /// </summary>
         protected void ApplyDialogPosition() {
-            PanelRoot.Position = new float3(PanelPosition.X, PanelPosition.Y, 0.1f);
+            PanelRoot.Position = new float3(PanelPosition.X, PanelPosition.Y, EditorUiDepths.ModalPanel + 0.1f);
         }
 
         /// <summary>

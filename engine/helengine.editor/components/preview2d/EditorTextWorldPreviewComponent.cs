@@ -2,6 +2,7 @@ namespace helengine {
     /// <summary>
     /// Renders one editor-only world-space mesh proxy for an authored text component.
     /// </summary>
+    [RunInEditor]
     public sealed class EditorTextWorldPreviewComponent : EditorExact2DWorldPreviewComponentBase {
         /// <summary>
         /// Authored text component mirrored by this preview proxy.
@@ -28,7 +29,15 @@ namespace helengine {
         /// </summary>
         /// <returns>Text preview size in world units.</returns>
         protected override int2 ResolvePreviewSize() {
-            return SourceComponentValue.Size;
+            float4 bounds = helengine.editor.EditorTextPreviewBoundsService.ResolveBounds(SourceComponentValue);
+            return new int2((int)bounds.Z, (int)bounds.W);
+        }
+
+        /// <summary>Preserves the authored text origin while extending the plane to include outline and glyph overflow.</summary>
+        /// <returns>Local origin of the complete text capture rectangle.</returns>
+        protected override float3 ResolvePreviewLocalOffset() {
+            float4 bounds = helengine.editor.EditorTextPreviewBoundsService.ResolveBounds(SourceComponentValue);
+            return helengine.editor.EditorViewportDirect2DPresentationService.ResolvePresentedComponentOffset(SourceEntity, new float3(bounds.X, bounds.Y, 0));
         }
 
         /// <summary>

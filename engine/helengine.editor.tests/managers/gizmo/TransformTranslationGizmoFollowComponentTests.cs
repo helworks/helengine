@@ -327,6 +327,31 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
+        /// Ensures the translation gizmo keeps the same screen size as an orthographic camera moves away from its pivot.
+        /// </summary>
+        [Fact]
+        public void Update_WhenOrthographicCameraDistanceChanges_KeepsGizmoScreenSize() {
+            InitializeCore();
+            EditorViewportCameraComponent sceneCamera = CreateEditorSceneCamera(new float3(0f, 0f, 10f));
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+
+            RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
+            RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
+            EditorEntity previewEntity = CreatePreviewEntity(new TestRuntimeMaterial());
+            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, normalMaterial, previewEntity);
+            gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
+            EditorEntity selectedEntity = new EditorEntity(CoreValue, InteractionServices);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
+
+            UpdateFollowComponent(gizmoRoot);
+            float nearScale = gizmoRoot.Scale.X;
+            sceneCamera.Parent.Position = new float3(0f, 0f, 100f);
+            UpdateFollowComponent(gizmoRoot);
+
+            Assert.InRange(Math.Abs(gizmoRoot.Scale.X - nearScale), 0f, FloatTolerance);
+        }
+
+        /// <summary>
         /// Ensures the cone tip stays exactly one authored shaft length from the axis origin after gizmo scaling is applied.
         /// </summary>
         [Fact]
@@ -415,6 +440,28 @@ namespace helengine.editor.tests.managers.gizmo {
             };
             cameraEntity.AddComponent(sceneCamera);
             CoreValue.ObjectManager.Cameras.Clear();
+            CameraUnderTest = sceneCamera;
+            return sceneCamera;
+        }
+
+        /// <summary>
+        /// Creates an editor viewport camera configured for orthographic sizing tests.
+        /// </summary>
+        /// <param name="cameraPosition">World-space camera position.</param>
+        /// <returns>Configured and attached editor viewport camera.</returns>
+        EditorViewportCameraComponent CreateEditorSceneCamera(float3 cameraPosition) {
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices) {
+                InternalEntity = true,
+                Position = cameraPosition,
+                Orientation = float4.Identity
+            };
+
+            EditorViewportCameraComponent sceneCamera = new EditorViewportCameraComponent {
+                Viewport = new float4(0f, 0f, 1280f, 720f),
+                ProjectionMode = CameraProjectionMode.Orthographic,
+                OrthographicVerticalSpan = 20f
+            };
+            cameraEntity.AddComponent(sceneCamera);
             CameraUnderTest = sceneCamera;
             return sceneCamera;
         }

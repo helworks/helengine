@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Update component that routes per-frame hierarchy context-menu input handling.
     /// </summary>
+    [RunInEditor]
     public class SceneHierarchyPanelUpdater : UpdateComponent {
         /// <summary>
         /// Hierarchy panel that owns the updated context-menu state.

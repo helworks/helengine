@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Update component that drives asset browser panel input handling.
     /// </summary>
+    [RunInEditor]
     public class AssetBrowserPanelUpdater : UpdateComponent {
         /// <summary>
         /// Panel being updated.

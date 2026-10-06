@@ -24,6 +24,8 @@ namespace helengine.editor.tests.testing {
         /// Gets whether disposal has been requested.
         /// </summary>
         public bool IsDisposed { get; private set; }
+        /// <summary>Gets a snapshot of IDs submitted by the latest frame, including the actual viewport-owned handles.</summary>
+        public IReadOnlyDictionary<IDrawable3D, byte4> LastColors { get; private set; }
 
         /// <summary>
         /// Records a shared picker render request.
@@ -39,6 +41,7 @@ namespace helengine.editor.tests.testing {
             }
 
             RenderCount++;
+            LastColors = new Dictionary<IDrawable3D, byte4>(colors);
         }
 
         /// <summary>

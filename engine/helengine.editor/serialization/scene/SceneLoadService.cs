@@ -140,6 +140,7 @@ namespace helengine.editor {
             entity.IsSceneOwned = true;
             entity.Static = entityAsset.IsStatic;
             entity.Enabled = entityAsset.Enabled;
+            entity.Hidden = entityAsset.HiddenInEditor;
             entity.LayerMask = entityAsset.LayerMask;
             entity.LocalPosition = entityAsset.LocalPosition;
             entity.LocalScale = entityAsset.LocalScale;

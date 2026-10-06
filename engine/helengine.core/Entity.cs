@@ -8,6 +8,8 @@ namespace helengine {
         /// Runtime-only suppression state that is never serialized with the entity.
         /// </summary>
         bool IsRuntimeSuppressed;
+        /// <summary>Runtime-only visibility state that suppresses drawable camera registrations.</summary>
+        bool IsRenderSuppressed;
         bool IsStatic;
         bool IsInitializedValue;
         bool IsDisposing;
@@ -288,6 +290,44 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets or sets runtime-only render suppression without disabling component updates or scene participation.
+        /// </summary>
+        public bool RenderSuppressed {
+            get {
+                ThrowIfDisposed();
+                return IsRenderSuppressed;
+            }
+            set {
+                ThrowIfDisposed();
+                if (IsRenderSuppressed == value) {
+                    return;
+                }
+
+                IsRenderSuppressed = value;
+                RefreshRenderRegistrations();
+            }
+        }
+
+        /// <summary>
+        /// Gets whether this entity or one of its ancestors suppresses drawable rendering.
+        /// </summary>
+        public bool IsRenderHierarchySuppressed {
+            get {
+                ThrowIfDisposed();
+                Entity current = this;
+                while (current != null) {
+                    if (current.IsRenderSuppressed) {
+                        return true;
+                    }
+
+                    current = current.Parent;
+                }
+
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Gets a value indicating whether this entity is effectively enabled after combining its local state, runtime
         /// suppression, and all parents.
         /// </summary>
@@ -389,7 +429,7 @@ namespace helengine {
                 entity.InitializeHierarchy();
             }
             if (wasHierarchyEnabled && entity.IsHierarchyEnabled) {
-                entity.RefreshRegistrationsAfterParentChange();
+                entity.RefreshRenderRegistrations();
             }
             bool isHierarchyEnabled = entity.IsHierarchyEnabled;
             if (wasHierarchyEnabled != isHierarchyEnabled) {
@@ -437,7 +477,7 @@ namespace helengine {
             entity.Parent = null;
             entity.InvalidateWorldTransformCache();
             if (!ShouldSuppressRegistrationRefreshForDetachment(entity) && wasHierarchyEnabled && entity.IsHierarchyEnabled) {
-                entity.RefreshRegistrationsAfterParentChange();
+                entity.RefreshRenderRegistrations();
             }
             bool isHierarchyEnabled = entity.IsHierarchyEnabled;
             if (wasHierarchyEnabled != isHierarchyEnabled) {
@@ -647,7 +687,10 @@ namespace helengine {
         protected virtual void ParentStaticChange(bool newEnabled) {
             if (ComponentsValue != null) {
                 for (int i = 0; i < ComponentsValue.Count; i++) {
-                    ComponentsValue[i].ParentStaticChange(newEnabled);
+                    Component component = ComponentsValue[i];
+                    if (ComponentExecutionPolicy.ShouldRunComponentLifecycle(component, this)) {
+                        component.ParentStaticChange(newEnabled);
+                    }
                 }
             }
 
@@ -661,22 +704,25 @@ namespace helengine {
         /// <summary>
         /// Rebuilds render and camera registrations for this subtree after a parent change that preserved enabled state.
         /// </summary>
-        void RefreshRegistrationsAfterParentChange() {
+        void RefreshRenderRegistrations() {
             if (!IsHierarchyEnabled || OwnerCore == null || OwnerCore.ObjectManager == null) {
                 return;
             }
 
-            RefreshRegistrationsAfterParentChangeRecursive(this);
+            RefreshRenderRegistrationsRecursive(this);
         }
 
         /// <summary>
         /// Recursively rebuilds render and camera registrations for one subtree after a reparent operation.
         /// </summary>
         /// <param name="entity">Current entity whose attached components should be refreshed.</param>
-        static void RefreshRegistrationsAfterParentChangeRecursive(Entity entity) {
+        static void RefreshRenderRegistrationsRecursive(Entity entity) {
             if (entity.Components != null) {
                 for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
                     Component component = entity.Components[componentIndex];
+                    if (!ComponentExecutionPolicy.ShouldRunComponentLifecycle(component, entity)) {
+                        continue;
+                    }
                     if (component is IDrawable2D drawable2D) {
                         entity.OwnerCore.ObjectManager.RemoveFromRender2D(drawable2D);
                         entity.OwnerCore.ObjectManager.RegisterForRender2D(drawable2D);
@@ -699,7 +745,7 @@ namespace helengine {
             }
 
             for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
-                RefreshRegistrationsAfterParentChangeRecursive(entity.Children[childIndex]);
+                RefreshRenderRegistrationsRecursive(entity.Children[childIndex]);
             }
         }
 

@@ -74,7 +74,8 @@ namespace helengine.editor.tests {
             UnsavedChangesDialog dialog = new UnsavedChangesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
 
-            Assert.Equal(RenderOrder2D.ModalBackground, panelBackground.RenderOrder2D);
+            ContextMenu menu = new ContextMenu(Core.Instance, CreateFont(), dialog.LayerMask, new helengine.editor.EditorSessionInteractionServices());
+            Assert.True(panelBackground.Parent.Position.Z > menu.Entity.Position.Z);
         }
 
         /// <summary>

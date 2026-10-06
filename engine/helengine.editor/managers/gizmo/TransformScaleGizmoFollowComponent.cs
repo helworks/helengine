@@ -2,11 +2,8 @@ namespace helengine.editor {
     /// <summary>
     /// Keeps the scale gizmo aligned to the currently selected entity.
     /// </summary>
+    [RunInEditor]
     public class TransformScaleGizmoFollowComponent : UpdateComponent {
-        /// <summary>
-        /// Perspective vertical field of view used by the 3D renderer.
-        /// </summary>
-        const double PerspectiveVerticalFieldOfViewRadians = Math.PI / 4.0;
         /// <summary>
         /// Fraction of viewport height the scale axis should occupy on screen.
         /// </summary>
@@ -75,6 +72,7 @@ namespace helengine.editor {
             BaseHandlePositions = new Dictionary<Entity, float3>();
             BaseHandleOrientations = new Dictionary<Entity, float4>();
             HandleBaseTransformsCached = false;
+            UpdateOrder = TransformGizmoUpdateOrder.Follow;
         }
 
         /// <summary>
@@ -357,12 +355,8 @@ namespace helengine.editor {
                 distance = MinimumDistance;
             }
 
-            double tanHalfFov = Math.Tan(PerspectiveVerticalFieldOfViewRadians * 0.5);
-            if (tanHalfFov <= 0.0) {
-                throw new InvalidOperationException("Perspective field of view must produce a positive tangent value.");
-            }
-
-            double targetWorldAxisLength = targetAxisPixels * (2.0 * distance * tanHalfFov) / viewportHeight;
+            double worldUnitsPerPixel = CameraProjectionUtils.GetWorldUnitsPerPixel(SceneCamera, distance, viewportHeight);
+            double targetWorldAxisLength = targetAxisPixels * worldUnitsPerPixel;
             return targetWorldAxisLength / TransformScaleGizmoFactory.AxisLength;
         }
 

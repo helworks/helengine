@@ -19,9 +19,9 @@ namespace helengine {
         public const byte CurrentVersion = 25;
 
         /// <summary>
-        /// Version marker written into scene entity payloads that include stable ids, static state, layer masks, and enabled state.
+        /// Latest version marker written into scene entity payloads.
         /// </summary>
-        const byte SceneEntityPayloadVersion = 9;
+        const byte SceneEntityPayloadVersion = 10;
 
         /// <summary>
         /// Deserializes an asset from the supplied stream using the packaged runtime asset format.
@@ -592,7 +592,7 @@ namespace helengine {
 
             EngineBinaryReadContext.CurrentReadStage = "SceneEntity:PayloadVersion";
             byte payloadVersion = reader.ReadByte();
-            if (payloadVersion != SceneEntityPayloadVersion) {
+            if (payloadVersion != 9 && payloadVersion != SceneEntityPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported scene entity payload version '{payloadVersion}'.");
             }
 
@@ -603,6 +603,7 @@ namespace helengine {
             EngineBinaryReadContext.CurrentReadStage = "SceneEntity:Transform";
             bool isStatic = reader.ReadByte() != 0;
             bool enabled = reader.ReadByte() != 0;
+            bool hiddenInEditor = payloadVersion >= 10 && reader.ReadByte() != 0;
             ushort layerMask = reader.ReadUInt16();
             float3 localPosition = reader.ReadFloat3();
             float3 localScale = reader.ReadFloat3();
@@ -627,6 +628,7 @@ namespace helengine {
                 Name = name,
                 IsStatic = isStatic,
                 Enabled = enabled,
+                HiddenInEditor = hiddenInEditor,
                 LayerMask = layerMask,
                 LocalPosition = localPosition,
                 LocalScale = localScale,

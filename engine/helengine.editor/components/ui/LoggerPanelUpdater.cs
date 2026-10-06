@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Update component that flushes pending logger entries into the UI panel.
     /// </summary>
+    [RunInEditor]
     public class LoggerPanelUpdater : UpdateComponent {
         /// <summary>
         /// Logger panel that receives updates.

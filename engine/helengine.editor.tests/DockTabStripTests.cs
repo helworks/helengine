@@ -4,14 +4,14 @@ using Xunit;
 
 namespace helengine.editor.tests {
     /// <summary>
-    /// Verifies tab-strip visuals use the explicit panel render-order stack.
+    /// Verifies tab-strip visuals follow their physical depth and hierarchy.
     /// </summary>
     public class DockTabStripTests : IDisposable {
         /// <summary>
-        /// Ensures tab backgrounds and labels use the explicit interactive panel band.
+        /// Ensures tab labels remain in front of their backgrounds at the requested panel depth.
         /// </summary>
         [Fact]
-        public void UpdateTabs_UsesExplicitInteractivePanelRenderOrders() {
+        public void UpdateTabs_PlacesLabelsAboveBackgrounds() {
             InitializeCore();
 
             FontAsset font = CreateFont();
@@ -32,8 +32,8 @@ namespace helengine.editor.tests {
             List<DockTabEntry> tabs = GetPrivateField<List<DockTabEntry>>(strip, "tabs");
 
             Assert.Equal(2, tabs.Count);
-            Assert.Equal(RenderOrder2D.PanelInteractive, tabs[0].Background.RenderOrder2D);
-            Assert.True(tabs[0].Label.RenderOrder2D > tabs[0].Background.RenderOrder2D);
+            Assert.True(RenderDepthOrder2D.CompareDrawables(tabs[0].Background, tabs[0].Label) < 0);
+            Assert.True(RenderDepthOrder2D.CompareDrawables(tabs[1].Background, tabs[1].Label) < 0);
         }
 
         /// <summary>

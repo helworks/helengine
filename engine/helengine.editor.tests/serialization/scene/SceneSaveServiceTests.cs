@@ -210,6 +210,40 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures editor-only visibility survives saving and reopening a scene without disabling the entity.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenEntityIsHiddenInEditor_PreservesVisibilityWithoutDisablingEntity() {
+            EditorEntity entity = CreateUserEntity("Hidden In Editor", float3.Zero, float3.One, float4.Identity);
+            entity.Hidden = true;
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            SceneSaveService saveService = CreateSceneSaveService(registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "HiddenInEditor.helen");
+
+            saveService.Save(scenePath);
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            using (MemoryStream packagedStream = new MemoryStream(AssetSerializer.SerializeToBytes(asset))) {
+                SceneAsset packagedAsset = PackagedAssetBinarySerializer.DeserializeSceneAsset(packagedStream);
+                Assert.True(Assert.Single(packagedAsset.RootEntities).HiddenInEditor);
+            }
+
+            SceneLoadService loadService = new SceneLoadService(
+                registry,
+                new TestSceneAssetReferenceResolver(),
+                GeneratedAssetGraph.MaterialCache,
+                GeneratedAssetGraph.RendererResources);
+            EditorEntity loaded = Assert.Single(loadService.Load(asset));
+
+            Assert.True(loaded.Hidden);
+            Assert.True(loaded.Enabled);
+            Assert.True(loaded.IsHierarchyEnabled);
+        }
+
+        /// <summary>
         /// Ensures scene save and load preserve the authored static flag for root and child entities.
         /// </summary>
         [Fact]
@@ -522,8 +556,7 @@ namespace helengine.editor.tests.serialization.scene {
             FPSComponent fpsComponent = new FPSComponent {
                 Font = editorCore.DefaultFontAssetForEditor,
                 RefreshIntervalSeconds = 1.75d,
-                Padding = new int2(4, 6),
-                RenderOrder2D = 211
+                Padding = new int2(4, 6)
             };
             root.AddComponent(fpsComponent);
 
@@ -572,7 +605,6 @@ namespace helengine.editor.tests.serialization.scene {
                 Color = new byte4(255, 255, 255, 255),
                 SourceRect = new float4(0f, 0f, 1f, 1f),
                 Rotation = 0f,
-                RenderOrder2D = 11,
             };
             root.AddComponent(titleText);
             GetSaveComponent(root).SetAssetReference(titleText, "Font", titleFontReference);
@@ -586,7 +618,6 @@ namespace helengine.editor.tests.serialization.scene {
                 Color = new byte4(12, 34, 56, 255),
                 SourceRect = new float4(0f, 0f, 1f, 1f),
                 Rotation = 0f,
-                RenderOrder2D = 12,
             };
             child.AddComponent(bodyText);
             root.AddChild(child);
@@ -648,7 +679,6 @@ namespace helengine.editor.tests.serialization.scene {
                 Color = new byte4(12, 34, 56, 255),
                 SourceRect = new float4(0f, 0f, 1f, 1f),
                 Rotation = 0f,
-                RenderOrder2D = 12,
             };
             root.AddComponent(textComponent);
             GetSaveComponent(root).SetAssetReference(textComponent, nameof(TextComponent.Font), fontReference);
@@ -719,7 +749,6 @@ namespace helengine.editor.tests.serialization.scene {
                 SourceRect = new float4(0f, 0f, 1f, 1f),
                 Rotation = 0f,
                 FontScale = 2f,
-                RenderOrder2D = 12,
             };
             root.AddComponent(textComponent);
             GetSaveComponent(root).SetAssetReference(textComponent, nameof(TextComponent.Font), fontReference);

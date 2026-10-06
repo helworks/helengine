@@ -1502,7 +1502,7 @@ namespace helengine.editor.tests {
                     QueueItems = queueItems
                 });
 
-            ScrollComponent queueScrollComponent = GetPrivateField<ScrollComponent>(dialog, "QueueScrollComponent");
+            ScrollComponent queueScrollComponent = GetPrivateField<EditorScrollComponent>(dialog, "QueueScrollComponent");
             List<TextComponent> queueItemTexts = GetPrivateField<List<TextComponent>>(dialog, "QueueItemTexts");
 
             Assert.True(queueScrollComponent.MaximumScrollOffset > 0);
@@ -1560,7 +1560,7 @@ namespace helengine.editor.tests {
                     ]
                 });
 
-            ScrollComponent sceneListScrollComponent = GetPrivateField<ScrollComponent>(dialog, "SceneListScrollComponent");
+            ScrollComponent sceneListScrollComponent = GetPrivateField<EditorScrollComponent>(dialog, "SceneListScrollComponent");
             List<TextComponent> mapLabelTexts = GetPrivateField<List<TextComponent>>(dialog, "MapLabelTexts");
 
             Assert.True(sceneListScrollComponent.MaximumScrollOffset > 0);
@@ -1617,7 +1617,7 @@ namespace helengine.editor.tests {
                 });
 
             RoundedRectComponent sceneListBackground = GetPrivateField<RoundedRectComponent>(dialog, "SceneListBackground");
-            ScrollComponent sceneListScrollComponent = GetPrivateField<ScrollComponent>(dialog, "SceneListScrollComponent");
+            ScrollComponent sceneListScrollComponent = GetPrivateField<EditorScrollComponent>(dialog, "SceneListScrollComponent");
 
             sceneListBackground.Size = new int2(
                 sceneListBackground.Size.X,
@@ -1677,7 +1677,7 @@ namespace helengine.editor.tests {
                     QueueItems = queueItems
                 });
 
-            ScrollComponent queueScrollComponent = GetPrivateField<ScrollComponent>(dialog, "QueueScrollComponent");
+            ScrollComponent queueScrollComponent = GetPrivateField<EditorScrollComponent>(dialog, "QueueScrollComponent");
             int queueRowsViewportHeight = InvokePrivateInt(dialog, "GetQueueRowsViewportHeight");
             int queueCardHeight = InvokePrivateInt(dialog, "GetQueueCardHeight");
             int expectedVisibleRowCount = Math.Max(1, (queueRowsViewportHeight + queueCardHeight - 1) / queueCardHeight);
@@ -1724,7 +1724,7 @@ namespace helengine.editor.tests {
                     QueueItems = queueItems
                 });
 
-            ScrollComponent buildLogsScrollComponent = GetPrivateField<ScrollComponent>(dialog, "BuildLogsScrollComponent");
+            ScrollComponent buildLogsScrollComponent = GetPrivateField<EditorScrollComponent>(dialog, "BuildLogsScrollComponent");
             TextComponent buildLogsText = GetPrivateField<TextComponent>(dialog, "BuildLogsText");
 
             Assert.True(buildLogsScrollComponent.MaximumScrollOffset > 0);
@@ -1801,7 +1801,7 @@ namespace helengine.editor.tests {
                     QueueItems = queueItems
                 });
 
-            ScrollComponent buildLogsScrollComponent = GetPrivateField<ScrollComponent>(dialog, "BuildLogsScrollComponent");
+            ScrollComponent buildLogsScrollComponent = GetPrivateField<EditorScrollComponent>(dialog, "BuildLogsScrollComponent");
             int buildLogsTextViewportHeight = InvokePrivateInt(dialog, "GetBuildLogsTextViewportHeight");
             int buildLogLineHeight = InvokePrivateInt(dialog, "GetBuildLogLineHeightPixels");
             int expectedVisibleLineCount = Math.Max(1, (buildLogsTextViewportHeight + buildLogLineHeight - 1) / buildLogLineHeight);
@@ -2317,8 +2317,9 @@ namespace helengine.editor.tests {
             RoundedRectComponent backgroundSprite = GetPrivateField<RoundedRectComponent>(outputDirectoryField, "BackgroundSprite");
             TextComponent textComponent = GetPrivateField<TextComponent>(outputDirectoryField, "TextComponent");
 
-            Assert.Equal(RenderOrder2D.ModalBackground, backgroundSprite.RenderOrder2D);
-            Assert.Equal(RenderOrder2D.ModalForeground, textComponent.RenderOrder2D);
+            RoundedRectComponent panel = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
+            Assert.True(RenderDepthOrder2D.CompareDrawables(panel, backgroundSprite) < 0);
+            Assert.True(RenderDepthOrder2D.CompareDrawables(backgroundSprite, textComponent) < 0);
         }
 
         /// <summary>

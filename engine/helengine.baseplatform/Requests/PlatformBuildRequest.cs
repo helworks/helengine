@@ -26,6 +26,8 @@ namespace helengine.baseplatform.Requests {
         /// <param name="generatedCoreCppRootPath">The generated core C++ root supplied by the platform installation.</param>
         /// <param name="selectedMediaProfileId">The selected media-profile identifier.</param>
         /// <param name="selectedStorageProfileId">The selected storage-profile identifier.</param>
+        /// <param name="selectedEnvironmentId">The selected editor/cooker environment identifier.</param>
+        /// <param name="nativeObjectCacheRoot">Optional persistent native object root for this project, platform, and profile.</param>
         /// <exception cref="ArgumentNullException">Thrown when the manifest, target variants, cook profiles, or filesystem roots are missing.</exception>
         /// <exception cref="ArgumentException">Thrown when any required string value is missing or a referenced cook profile is unavailable.</exception>
         public PlatformBuildRequest(
@@ -71,7 +73,8 @@ namespace helengine.baseplatform.Requests {
             string generatedCoreCppRootPath = "",
             string selectedMediaProfileId = "",
             string selectedStorageProfileId = "",
-            string selectedEnvironmentId = "release") {
+            string selectedEnvironmentId = "release",
+            string nativeObjectCacheRoot = "") {
             if (manifest == null) {
                 throw new ArgumentNullException(nameof(manifest));
             } else if (targetVariants == null) {
@@ -135,6 +138,7 @@ namespace helengine.baseplatform.Requests {
             SelectedMediaProfileId = selectedMediaProfileId ?? string.Empty;
             SelectedStorageProfileId = selectedStorageProfileId ?? string.Empty;
             SelectedEnvironmentId = string.IsNullOrWhiteSpace(selectedEnvironmentId) ? "release" : selectedEnvironmentId.Trim();
+            NativeObjectCacheRoot = nativeObjectCacheRoot ?? string.Empty;
         }
 
         /// <summary>
@@ -211,5 +215,10 @@ namespace helengine.baseplatform.Requests {
         /// Gets the selected editor/cooker environment identifier.
         /// </summary>
         public string SelectedEnvironmentId { get; }
+
+        /// <summary>
+        /// Gets the persistent native object/build root for this project, platform, and profile; an empty value disables native caching.
+        /// </summary>
+        public string NativeObjectCacheRoot { get; }
     }
 }

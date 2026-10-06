@@ -71,12 +71,13 @@ namespace helengine.editor.tests {
         /// Ensures the save-scene dialog uses the modal foreground band for its labels.
         /// </summary>
         [Fact]
-        public void Constructor_UsesModalForegroundForDialogLabels() {
+        public void Constructor_PlacesHeaderTextAbovePanel() {
             SaveFileDialog dialog = new SaveFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
 
             TextComponent headerText = GetPrivateField<TextComponent>(dialog, "HeaderText");
 
-            Assert.Equal(RenderOrder2D.ModalForeground, headerText.RenderOrder2D);
+            RoundedRectComponent panel = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
+            Assert.True(RenderDepthOrder2D.CompareDrawables(panel, headerText) < 0);
         }
 
         /// <summary>

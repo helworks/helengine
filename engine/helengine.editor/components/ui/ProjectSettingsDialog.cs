@@ -164,7 +164,6 @@ namespace helengine.editor {
             NameFieldHost = CreateDialogHost();
             DialogPanelRoot.AddChild(NameFieldHost);
             NameField = new TextBoxComponent(GetFieldSize(), DialogFont, string.Empty);
-            NameField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             NameFieldHost.AddComponent(NameField);
 
             DescriptionLabelHost = CreateDialogHost();
@@ -175,7 +174,6 @@ namespace helengine.editor {
             DescriptionFieldHost = CreateDialogHost();
             DialogPanelRoot.AddChild(DescriptionFieldHost);
             DescriptionField = new TextBoxComponent(GetFieldSize(), DialogFont, string.Empty);
-            DescriptionField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             DescriptionFieldHost.AddComponent(DescriptionField);
 
             StatusHost = CreateDialogHost();
@@ -185,20 +183,17 @@ namespace helengine.editor {
                 Text = string.Empty,
                 Color = ThemeManager.Colors.StateWarning,
                 Size = new int2(1, GetLabelHeightPixels()),
-                RenderOrder2D = DialogTextOrder
             };
             StatusHost.AddComponent(StatusText);
 
             SaveButtonHost = CreateDialogHost();
             DialogPanelRoot.AddChild(SaveButtonHost);
             SaveButton = new ButtonComponent("Save", GetSaveButtonSize(), DialogFont, HandleSaveClicked, 0f);
-            SaveButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
             SaveButtonHost.AddComponent(SaveButton);
 
             CancelButtonHost = CreateDialogHost();
             DialogPanelRoot.AddChild(CancelButtonHost);
             CancelButton = new ButtonComponent("Cancel", GetCancelButtonSize(), DialogFont, HandleCancelClicked, 0f);
-            CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
             CancelButtonHost.AddComponent(CancelButton);
 
             Enabled = false;
@@ -309,7 +304,6 @@ namespace helengine.editor {
                 Text = text,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(1, GetLabelHeightPixels()),
-                RenderOrder2D = DialogTextOrder
             };
         }
 

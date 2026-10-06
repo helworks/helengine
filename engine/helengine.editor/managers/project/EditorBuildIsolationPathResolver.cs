@@ -227,7 +227,7 @@ namespace helengine.editor {
         /// <param name="platformId">Stable target platform identifier.</param>
         /// <returns>Absolute generated-core root beneath the selected stable profile.</returns>
         internal string ResolveGeneratedCoreRootPath(string platformId) {
-            return CombineStrictDescendantPath(ResolveStableProfileRootPath(platformId), "generated-core");
+            return CombineStrictDescendantPath(ResolveStableProfileCacheRootPath(platformId), "generated-core");
         }
 
         /// <summary>
@@ -236,7 +236,16 @@ namespace helengine.editor {
         /// <param name="platformId">Stable target platform identifier.</param>
         /// <returns>Absolute native root beneath the selected stable profile.</returns>
         internal string ResolveNativeRootPath(string platformId) {
-            return CombineStrictDescendantPath(ResolveStableProfileRootPath(platformId), "native");
+            return CombineStrictDescendantPath(ResolveStableProfileCacheRootPath(platformId), "native");
+        }
+
+        /// <summary>
+        /// Resolves the wrapper-selected deterministic project/platform/profile cache slice.
+        /// </summary>
+        /// <param name="platformId">Stable target platform identifier.</param>
+        /// <returns>Absolute wrapper cache profile root.</returns>
+        internal string ResolveStableProfileCacheRootPath(string platformId) {
+            return ResolveStableProfileRootPath(platformId);
         }
 
         /// <summary>

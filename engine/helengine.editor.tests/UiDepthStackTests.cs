@@ -3,14 +3,14 @@ using Xunit;
 
 namespace helengine.editor.tests {
     /// <summary>
-    /// Verifies the explicit editor 2D render stack for dockables and overlays.
+    /// Verifies the depth-based editor 2D render stack for dockables and overlays.
     /// </summary>
-    public class RenderOrder2DStackTests {
+    public class UiDepthStackTests {
         /// <summary>
         /// Ensures floating dockables sit above docked panels while remaining below overlay menus.
         /// </summary>
         [Fact]
-        public void FloatingDockable_AppliesExplicitBiasAboveDockedPanels() {
+        public void FloatingDockable_StaysAboveDockedPanelsAndBelowMenus() {
             InitializeCore();
 
             FontAsset font = CreateFont();
@@ -23,12 +23,20 @@ namespace helengine.editor.tests {
             SpriteComponent dockedTitleBar = FindTitleBarSprite(docked);
             SpriteComponent floatingTitleBar = FindTitleBarSprite(floating);
 
-            Assert.True(floatingTitleBar.RenderOrder2D > dockedTitleBar.RenderOrder2D);
-            Assert.True(floatingTitleBar.RenderOrder2D < RenderOrder2D.OverlayBackground);
+            ContextMenu menu = new ContextMenu(Core.Instance, font, docked.LayerMask, new helengine.editor.EditorSessionInteractionServices());
+            menu.Show(new[] { new ContextMenuItem("Test", () => { }) }, new int2(0, 0), new int2(320, 240));
+
+            Assert.True(floating.Position.Z > docked.Position.Z);
+            Assert.True(RenderDepthOrder2D.CompareDrawables(dockedTitleBar, floatingTitleBar) < 0);
+            Assert.True(menu.Entity.Position.Z > floatingTitleBar.Parent.Position.Z);
+            floating.IsDocked = true;
+            Assert.Equal(docked.Position.Z, floating.Position.Z);
+            floating.IsDocked = false;
+            Assert.True(floating.Position.Z > docked.Position.Z);
         }
 
         /// <summary>
-        /// Initializes the core services required for render-order tests.
+        /// Initializes the core services required for depth-order tests.
         /// </summary>
         void InitializeCore() {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });

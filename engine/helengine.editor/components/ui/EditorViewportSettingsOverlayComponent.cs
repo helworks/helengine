@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Non-modal viewport overlay that exposes grid visibility and viewport-local preview controls for one editor camera.
     /// </summary>
+    [RunInEditor]
     public class EditorViewportSettingsOverlayComponent : UpdateComponent {
         /// <summary>
         /// Fixed overlay width in pixels.
@@ -604,7 +605,6 @@ namespace helengine.editor {
                 BorderThickness = 1f,
                 FillColor = new byte4(20, 24, 30, 240),
                 BorderColor = new byte4(255, 255, 255, 52),
-                RenderOrder2D = RenderOrder2D.OverlayBackground
             };
             OverlayRoot.AddComponent(OverlayBackground);
         }
@@ -621,7 +621,6 @@ namespace helengine.editor {
                 Text = "Grid",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(120, GridToggleRowHeight),
-                RenderOrder2D = RenderOrder2D.OverlayForeground
             };
             labelRoot.AddComponent(GridToggleLabelText);
 
@@ -630,7 +629,6 @@ namespace helengine.editor {
 
             GridToggleCheckBox = new CheckBoxComponent(EditorPlatformSettingsSection.CheckBoxSize, Font);
             GridToggleCheckBox.CheckedChanged += (component, isChecked) => HandleGridToggleCheckedChanged(isChecked);
-            GridToggleCheckBox.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
             GridToggleCheckBoxHost.AddComponent(GridToggleCheckBox);
         }
 
@@ -646,7 +644,6 @@ namespace helengine.editor {
                 Text = "Pixels / Unit",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(PanelWidth - PanelPadding * 2, SectionLabelHeight),
-                RenderOrder2D = RenderOrder2D.OverlayForeground
             };
             labelRoot.AddComponent(PixelsPerWorldUnitLabelText);
 
@@ -654,7 +651,6 @@ namespace helengine.editor {
                 InternalEntity = true
             };
             PixelsPerWorldUnitSliderInternal.ApplyLayerMask(OverlayLayerMask);
-            PixelsPerWorldUnitSliderInternal.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
             PixelsPerWorldUnitSliderInternal.KeyboardStep = PixelsPerWorldUnitKeyboardStep;
             PixelsPerWorldUnitSliderInternal.ValueChanged += HandlePixelsPerWorldUnitSliderChanged;
             OverlayRoot.AddChild(PixelsPerWorldUnitSliderInternal);
@@ -663,7 +659,6 @@ namespace helengine.editor {
             OverlayRoot.AddChild(valueRoot);
 
             PixelsPerWorldUnitValueTextBoxInternal = new TextBoxComponent(new int2(SliderValueWidth, SliderHeight), Font);
-            PixelsPerWorldUnitValueTextBoxInternal.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
             PixelsPerWorldUnitValueTextBoxInternal.Submitted += HandlePixelsPerWorldUnitValueSubmitted;
             valueRoot.AddComponent(PixelsPerWorldUnitValueTextBoxInternal);
         }
@@ -680,7 +675,6 @@ namespace helengine.editor {
                 Text = "Near Plane",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(PanelWidth - PanelPadding * 2, SectionLabelHeight),
-                RenderOrder2D = RenderOrder2D.OverlayForeground
             };
             labelRoot.AddComponent(NearPlaneLabelText);
 
@@ -688,7 +682,6 @@ namespace helengine.editor {
                 InternalEntity = true
             };
             NearPlaneSliderInternal.ApplyLayerMask(OverlayLayerMask);
-            NearPlaneSliderInternal.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
             NearPlaneSliderInternal.KeyboardStep = NearPlaneKeyboardStep;
             NearPlaneSliderInternal.ValueChanged += HandleNearPlaneSliderChanged;
             OverlayRoot.AddChild(NearPlaneSliderInternal);
@@ -697,7 +690,6 @@ namespace helengine.editor {
             OverlayRoot.AddChild(valueRoot);
 
             NearPlaneValueTextBoxInternal = new TextBoxComponent(new int2(SliderValueWidth, SliderHeight), Font);
-            NearPlaneValueTextBoxInternal.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
             NearPlaneValueTextBoxInternal.Submitted += HandleNearPlaneValueSubmitted;
             valueRoot.AddComponent(NearPlaneValueTextBoxInternal);
         }
@@ -714,7 +706,6 @@ namespace helengine.editor {
                 Text = "Far Plane",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(PanelWidth - PanelPadding * 2, SectionLabelHeight),
-                RenderOrder2D = RenderOrder2D.OverlayForeground
             };
             labelRoot.AddComponent(FarPlaneLabelText);
 
@@ -722,7 +713,6 @@ namespace helengine.editor {
                 InternalEntity = true
             };
             FarPlaneSliderInternal.ApplyLayerMask(OverlayLayerMask);
-            FarPlaneSliderInternal.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
             FarPlaneSliderInternal.KeyboardStep = FarPlaneKeyboardStep;
             FarPlaneSliderInternal.ValueChanged += HandleFarPlaneSliderChanged;
             OverlayRoot.AddChild(FarPlaneSliderInternal);
@@ -731,7 +721,6 @@ namespace helengine.editor {
             OverlayRoot.AddChild(valueRoot);
 
             FarPlaneValueTextBoxInternal = new TextBoxComponent(new int2(SliderValueWidth, SliderHeight), Font);
-            FarPlaneValueTextBoxInternal.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
             FarPlaneValueTextBoxInternal.Submitted += HandleFarPlaneValueSubmitted;
             valueRoot.AddComponent(FarPlaneValueTextBoxInternal);
         }
@@ -748,7 +737,6 @@ namespace helengine.editor {
                 Text = "Manual Speed",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(120, GridToggleRowHeight),
-                RenderOrder2D = RenderOrder2D.OverlayForeground
             };
             labelRoot.AddComponent(CameraSpeedModeLabelText);
 
@@ -757,7 +745,6 @@ namespace helengine.editor {
 
             CameraSpeedModeCheckBoxInternal = new CheckBoxComponent(EditorPlatformSettingsSection.CheckBoxSize, Font);
             CameraSpeedModeCheckBoxInternal.CheckedChanged += (component, isChecked) => HandleCameraSpeedModeCheckedChanged(isChecked);
-            CameraSpeedModeCheckBoxInternal.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
             CameraSpeedModeCheckBoxHost.AddComponent(CameraSpeedModeCheckBoxInternal);
         }
 
@@ -773,7 +760,6 @@ namespace helengine.editor {
                 Text = "Camera Speed",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(PanelWidth - PanelPadding * 2, SectionLabelHeight),
-                RenderOrder2D = RenderOrder2D.OverlayForeground
             };
             labelRoot.AddComponent(ManualCameraSpeedLabelText);
 
@@ -781,7 +767,6 @@ namespace helengine.editor {
                 InternalEntity = true
             };
             ManualCameraSpeedSliderInternal.ApplyLayerMask(OverlayLayerMask);
-            ManualCameraSpeedSliderInternal.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
             ManualCameraSpeedSliderInternal.KeyboardStep = ManualCameraSpeedKeyboardStep;
             ManualCameraSpeedSliderInternal.ValueChanged += HandleManualCameraSpeedSliderChanged;
             OverlayRoot.AddChild(ManualCameraSpeedSliderInternal);
@@ -790,7 +775,6 @@ namespace helengine.editor {
             OverlayRoot.AddChild(valueRoot);
 
             ManualCameraSpeedValueTextBoxInternal = new TextBoxComponent(new int2(SliderValueWidth, SliderHeight), Font);
-            ManualCameraSpeedValueTextBoxInternal.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
             ManualCameraSpeedValueTextBoxInternal.Submitted += HandleManualCameraSpeedValueSubmitted;
             valueRoot.AddComponent(ManualCameraSpeedValueTextBoxInternal);
         }
@@ -808,7 +792,6 @@ namespace helengine.editor {
                 BorderThickness = 1f,
                 FillColor = ThemeManager.Colors.SurfaceInput,
                 BorderColor = ThemeManager.Colors.SurfacePrimary,
-                RenderOrder2D = RenderOrder2D.OverlayBackground
             };
             CloseButtonRoot.AddComponent(CloseButtonBackground);
 
@@ -820,7 +803,6 @@ namespace helengine.editor {
                 Text = "Close",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(CloseButtonWidth, CloseButtonHeight),
-                RenderOrder2D = RenderOrder2D.OverlayForeground
             };
             textRoot.AddComponent(CloseButtonText);
 

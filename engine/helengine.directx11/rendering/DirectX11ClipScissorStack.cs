@@ -31,6 +31,12 @@ namespace helengine.directx11 {
         /// </summary>
         int CameraScissorBottom;
 
+        /// <summary>Physical camera viewport that receives the projected logical clip rectangles.</summary>
+        float4 CameraViewport;
+
+        /// <summary>Logical canvas projected into the physical camera viewport.</summary>
+        float4 ProjectionViewport;
+
         /// <summary>
         /// Initializes the stack against the device that receives its scissor rectangles.
         /// </summary>
@@ -48,11 +54,23 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="viewport">Camera viewport in pixel-space coordinates.</param>
         public void SetCameraViewport(float4 viewport) {
+            CameraViewport = viewport;
+            ProjectionViewport = viewport;
             CameraScissorLeft = (int)Math.Round(viewport.X);
             CameraScissorTop = (int)Math.Round(viewport.Y);
             CameraScissorRight = (int)Math.Round(viewport.X + viewport.Z);
             CameraScissorBottom = (int)Math.Round(viewport.Y + viewport.W);
             ApplyCameraScissor();
+        }
+
+        /// <summary>Sets the logical projection used to translate drawable clipping into physical target pixels.</summary>
+        /// <param name="viewport">Finite logical viewport with positive dimensions.</param>
+        public void SetProjectionViewport(float4 viewport) {
+            if (!float.IsFinite(viewport.X) || !float.IsFinite(viewport.Y) ||
+                !float.IsFinite(viewport.Z) || !float.IsFinite(viewport.W) || viewport.Z <= 0f || viewport.W <= 0f) {
+                throw new ArgumentOutOfRangeException(nameof(viewport), "Projection viewport must be finite and have positive dimensions.");
+            }
+            ProjectionViewport = viewport;
         }
 
         /// <summary>
@@ -71,8 +89,15 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="clipRect">Logical clip rectangle resolved for the current drawable.</param>
         protected override void ApplyClipScissor(float4 clipRect) {
+            double scaleX = (double)CameraViewport.Z / ProjectionViewport.Z;
+            double scaleY = (double)CameraViewport.W / ProjectionViewport.W;
+            float4 physicalClipRect = new float4(
+                (float)(CameraViewport.X + (((double)clipRect.X - ProjectionViewport.X) * scaleX)),
+                (float)(CameraViewport.Y + (((double)clipRect.Y - ProjectionViewport.Y) * scaleY)),
+                (float)(clipRect.Z * scaleX),
+                (float)(clipRect.W * scaleY));
             float4 viewportRect = new float4(CameraScissorLeft, CameraScissorTop, CameraScissorRight - CameraScissorLeft, CameraScissorBottom - CameraScissorTop);
-            float4 effectiveRect = Intersect(viewportRect, clipRect);
+            float4 effectiveRect = Intersect(viewportRect, physicalClipRect);
 
             int scissorLeft = (int)Math.Round(effectiveRect.X);
             int scissorTop = (int)Math.Round(effectiveRect.Y);

@@ -8,7 +8,7 @@ namespace helengine.files {
         /// <summary>
         /// Version marker written into current scene entity payloads.
         /// </summary>
-        public const byte SceneEntityPayloadVersion = 9;
+        public const byte SceneEntityPayloadVersion = 10;
 
         /// <summary>Validates one scene entity and all nested entities.</summary>
         public static void ValidateDeterministicSceneEntityOverrides(SceneEntityAsset entity) {
@@ -105,6 +105,7 @@ namespace helengine.files {
             writer.WriteString(asset.Name);
             writer.WriteByte(asset.IsStatic ? (byte)1 : (byte)0);
             writer.WriteByte(asset.Enabled ? (byte)1 : (byte)0);
+            writer.WriteByte(asset.HiddenInEditor ? (byte)1 : (byte)0);
             writer.WriteUInt16(asset.LayerMask);
             writer.WriteFloat3(asset.LocalPosition);
             writer.WriteFloat3(asset.LocalScale);
@@ -129,7 +130,7 @@ namespace helengine.files {
             }
 
             byte payloadVersion = reader.ReadByte();
-            if (payloadVersion != SceneEntityPayloadVersion) {
+            if (payloadVersion != 9 && payloadVersion != SceneEntityPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported scene entity payload version '{payloadVersion}'.");
             }
 
@@ -137,6 +138,7 @@ namespace helengine.files {
             string name = reader.ReadString();
             bool isStatic = reader.ReadByte() != 0;
             bool enabled = reader.ReadByte() != 0;
+            bool hiddenInEditor = payloadVersion >= 10 && reader.ReadByte() != 0;
             ushort layerMask = reader.ReadUInt16();
             float3 localPosition = reader.ReadFloat3();
             float3 localScale = reader.ReadFloat3();
@@ -153,6 +155,7 @@ namespace helengine.files {
                 Name = name,
                 IsStatic = isStatic,
                 Enabled = enabled,
+                HiddenInEditor = hiddenInEditor,
                 LayerMask = layerMask,
                 LocalPosition = localPosition,
                 LocalScale = localScale,

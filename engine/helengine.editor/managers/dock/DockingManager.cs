@@ -11,6 +11,8 @@ namespace helengine.editor {
         /// Overlay used to preview docking targets during drag operations.
         /// </summary>
         readonly DockPreviewOverlay previewOverlay;
+        /// <summary>Pointer router whose scrollbar hover and press capture take precedence over nearby resize handles.</summary>
+        readonly PointerInteractionSystem PointerInteractions;
         readonly EditorSessionInteractionServices interactionServices;
         /// <summary>
         /// Last dockable entity that was dragged, used to finalize docking.
@@ -42,6 +44,7 @@ namespace helengine.editor {
             this.interactionServices = interactionServices ?? throw new ArgumentNullException(nameof(interactionServices));
             layout = new DockLayoutEngine(renderManager2D, objectManager, padding, gap);
             previewOverlay = new DockPreviewOverlay(renderManager2D?.OwnerCore ?? throw new ArgumentNullException(nameof(renderManager2D)), interactionServices);
+            PointerInteractions = renderManager2D.OwnerCore.PointerInteractionSystem;
         }
 
         /// <summary>
@@ -124,7 +127,7 @@ namespace helengine.editor {
                 return layoutDirty;
             }
 
-            if (isDraggingDockable) {
+            if (isDraggingDockable || IsScrollBarPointerTarget(PointerInteractions.Highlighted ?? PointerInteractions.Hovering)) {
                 cursorState = DockingCursorState.Default;
                 return false;
             }
@@ -138,6 +141,26 @@ namespace helengine.editor {
                 cursorState = hoverVertical ? DockingCursorState.VerticalSplit : DockingCursorState.HorizontalSplit;
             } else {
                 cursorState = DockingCursorState.Default;
+            }
+
+            return false;
+        }
+
+        /// <summary>Identifies scrollbar input through its owning subtree so hover and capture suppress only the start of a competing resize.</summary>
+        /// <param name="interactable">Captured pointer target, or the hovered target when no press is captured.</param>
+        /// <returns>True when the target belongs to a scrollbar.</returns>
+        bool IsScrollBarPointerTarget(IInteractable2D interactable) {
+            Entity entity = interactable?.Parent;
+            while (entity != null) {
+                if (entity.Components != null) {
+                    for (int index = 0; index < entity.Components.Count; index++) {
+                        if (entity.Components[index] is ScrollBarComponent) {
+                            return true;
+                        }
+                    }
+                }
+
+                entity = entity.Parent;
             }
 
             return false;

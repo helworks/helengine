@@ -2,6 +2,9 @@ namespace helengine {
     /// <summary>
     /// Represents one authored spot light in the scene.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class SpotLightComponent : LightComponent {
         /// <summary>
         /// Initializes one authored spot light with default cone and range values.

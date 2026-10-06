@@ -2,6 +2,7 @@ namespace helengine {
     /// <summary>
     /// Renders the hidden editor-only arrow attached to authored directional light entities.
     /// </summary>
+    [RunInEditor]
     public class EditorDirectionalLightVisualComponent : MeshComponent, IEditorHiddenComponent {
         readonly helengine.editor.EngineGeneratedMaterialCache GeneratedMaterialCache;
         readonly helengine.EditorDirectionalLightVisualResources VisualResources;

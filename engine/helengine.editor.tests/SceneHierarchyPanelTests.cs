@@ -70,6 +70,28 @@ namespace helengine.editor.tests {
             Assert.Same(selectedEntity, InteractionServices.Selection.SelectedEntity);
         }
 
+        /// <summary>Selection changes the row background while leaving both horizontal separators untouched.</summary>
+        [Fact]
+        public void ClickingHierarchyRow_ChangesOnlyBackgroundForSelectedEntity() {
+            EditorEntity selectedEntity = new EditorEntity(CoreValue, InteractionServices) {
+                Name = "Selected From Hierarchy"
+            };
+            SceneHierarchyPanel panel = CreatePanel(CreateFont());
+            SceneHierarchyRow row = FindVisibleRow(panel, selectedEntity);
+            byte4 originalBackground = row.Background.Color;
+            byte4 originalTopBorder = row.TopBorder.Color;
+            byte4 originalBottomBorder = row.BottomBorder.Color;
+            int2 rowPoint = new int2(48, SceneHierarchyPanel.RowHeight / 2);
+
+            Click(row.Interactable, rowPoint);
+            row.Interactable.OnCursor(rowPoint, new int2(0, 0), PointerInteraction.Leave);
+
+            Assert.Same(selectedEntity, InteractionServices.Selection.SelectedEntity);
+            Assert.NotEqual(originalBackground, row.Background.Color);
+            Assert.Equal(originalTopBorder, row.TopBorder.Color);
+            Assert.Equal(originalBottomBorder, row.BottomBorder.Color);
+        }
+
         /// <summary>
         /// Ensures clicking the parent-row arrow collapses and re-expands that branch without removing the parent row.
         /// </summary>
@@ -90,17 +112,192 @@ namespace helengine.editor.tests {
 
             Assert.Equal(new[] { parent, child }, GetVisibleRowEntities(panel));
 
-            parentRow.Interactable.OnCursor(new int2(10, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Hover);
-            parentRow.Interactable.OnCursor(new int2(10, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Press);
-            parentRow.Interactable.OnCursor(new int2(10, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Release);
+            Click(parentRow.DisclosureInteractable, new int2(10, SceneHierarchyPanel.RowHeight / 2));
 
             Assert.Equal(new[] { parent }, GetVisibleRowEntities(panel));
 
             parentRow = FindVisibleRow(panel, parent);
-            parentRow.Interactable.OnCursor(new int2(10, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Hover);
-            parentRow.Interactable.OnCursor(new int2(10, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Press);
-            parentRow.Interactable.OnCursor(new int2(10, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Release);
+            Click(parentRow.DisclosureInteractable, new int2(10, SceneHierarchyPanel.RowHeight / 2));
 
+            Assert.Equal(new[] { parent, child }, GetVisibleRowEntities(panel));
+        }
+
+        /// <summary>Hover fills the disclosure button while keeping its border color unchanged.</summary>
+        [Fact]
+        public void HoveringHierarchyDisclosure_ChangesBackgroundWithoutChangingBorder() {
+            EditorEntity parent = new EditorEntity(CoreValue, InteractionServices) {
+                Name = "Parent"
+            };
+            EditorEntity child = new EditorEntity(CoreValue, InteractionServices) {
+                Name = "Child"
+            };
+            parent.AddChild(child);
+
+            SceneHierarchyPanel panel = CreatePanel(CreateFont());
+            SceneHierarchyRow row = FindVisibleRow(panel, parent);
+            byte4 originalBorderColor = row.DisclosureBackground.BorderColor;
+
+            row.DisclosureInteractable.OnCursor(
+                new int2(10, SceneHierarchyPanel.RowHeight / 2),
+                new int2(0, 0),
+                PointerInteraction.Hover);
+
+            Assert.Equal(ThemeManager.Colors.AccentSecondary, row.DisclosureBackground.FillColor);
+            Assert.Equal(originalBorderColor, row.DisclosureBackground.BorderColor);
+
+            row.DisclosureInteractable.OnCursor(
+                new int2(10, SceneHierarchyPanel.RowHeight / 2),
+                new int2(0, 0),
+                PointerInteraction.Leave);
+
+            Assert.Equal(new byte4(255, 255, 255, 0), row.DisclosureBackground.FillColor);
+            Assert.Equal(originalBorderColor, row.DisclosureBackground.BorderColor);
+        }
+
+        /// <summary>Hovering an expanded branch highlights its own depth guide until it leaves or collapses.</summary>
+        [Fact]
+        public void HoveringExpandedDisclosure_HighlightsItsDepthGuideUntilLeaveOrCollapse() {
+            EditorEntity root = new EditorEntity(CoreValue, InteractionServices) {
+                Name = "Root"
+            };
+            EditorEntity branch = new EditorEntity(CoreValue, InteractionServices) {
+                Name = "Branch"
+            };
+            EditorEntity grandchild = new EditorEntity(CoreValue, InteractionServices) {
+                Name = "Grandchild"
+            };
+            EditorEntity sibling = new EditorEntity(CoreValue, InteractionServices) {
+                Name = "Sibling"
+            };
+            root.AddChild(branch);
+            root.AddChild(sibling);
+            branch.AddChild(grandchild);
+
+            SceneHierarchyPanel panel = CreatePanel(CreateFont());
+            panel.RefreshHierarchy();
+
+            SceneHierarchyRow branchRow = FindVisibleRow(panel, branch);
+            SceneHierarchyRow grandchildRow = FindVisibleRow(panel, grandchild);
+            List<(Entity Host, SpriteComponent Sprite)> branchGuides = FindVerticalDepthGuideSprites(grandchildRow.Entity);
+            int2 disclosurePoint = new int2(10, SceneHierarchyPanel.RowHeight / 2);
+
+            Assert.Equal(2, branchGuides.Count);
+            Assert.Equal(ThemeManager.Colors.SurfaceInput, branchGuides[1].Sprite.Color);
+            branchRow.DisclosureInteractable.OnCursor(disclosurePoint, new int2(0, 0), PointerInteraction.Hover);
+
+            Assert.Equal(ThemeManager.Colors.AccentSecondary, branchGuides[1].Sprite.Color);
+            Assert.Equal(ThemeManager.Colors.SurfaceInput, branchGuides[0].Sprite.Color);
+
+            branchRow.DisclosureInteractable.OnCursor(disclosurePoint, new int2(0, 0), PointerInteraction.Leave);
+
+            Assert.Equal(ThemeManager.Colors.SurfaceInput, branchGuides[1].Sprite.Color);
+
+            Click(branchRow.DisclosureInteractable, disclosurePoint);
+
+            Assert.Equal(new[] { root, branch, sibling }, GetVisibleRowEntities(panel));
+            List<SceneHierarchyRow> rows = GetPrivateField<List<SceneHierarchyRow>>(panel, "rows");
+            Assert.All(rows.SelectMany(row => FindVerticalDepthGuideSprites(row.Entity)), guide =>
+                Assert.Equal(ThemeManager.Colors.SurfaceInput, guide.Sprite.Color));
+        }
+
+        /// <summary>Visibility controls stay at the row's left edge while disclosure and labels follow hierarchy depth.</summary>
+        [Fact]
+        public void RefreshHierarchy_KeepsVisibilityButtonAtLeftWhileDisclosureFollowsHierarchyDepth() {
+            EditorEntity parent = new EditorEntity(CoreValue, InteractionServices) {
+                Name = "Parent"
+            };
+            EditorEntity child = new EditorEntity(CoreValue, InteractionServices) {
+                Name = "Child"
+            };
+            parent.AddChild(child);
+
+            SceneHierarchyPanel panel = CreatePanel(CreateFont());
+            panel.RefreshHierarchy();
+
+            SceneHierarchyRow parentRow = FindVisibleRow(panel, parent);
+            SceneHierarchyRow childRow = FindVisibleRow(panel, child);
+
+            Assert.Equal(parentRow.VisibilityHost.Position.X, childRow.VisibilityHost.Position.X);
+            Assert.Equal(parentRow.VisibilityHitLeft, childRow.VisibilityHitLeft);
+            Assert.Equal(14f, childRow.ArrowHost.Position.X - parentRow.ArrowHost.Position.X);
+            Assert.Equal(14, childRow.ArrowHitLeft - parentRow.ArrowHitLeft);
+            Assert.Equal(14f, childRow.LabelHost.Position.X - parentRow.LabelHost.Position.X);
+        }
+
+        /// <summary>Each visible descendant row draws one vertical guide for every ancestor depth.</summary>
+        [Fact]
+        public void RefreshHierarchy_DrawsVerticalDepthGuidesWithinEachVisibleBranch() {
+            EditorEntity parent = new EditorEntity(CoreValue, InteractionServices) {
+                Name = "Parent"
+            };
+            EditorEntity child = new EditorEntity(CoreValue, InteractionServices) {
+                Name = "Child"
+            };
+            EditorEntity grandchild = new EditorEntity(CoreValue, InteractionServices) {
+                Name = "Grandchild"
+            };
+            EditorEntity sibling = new EditorEntity(CoreValue, InteractionServices) {
+                Name = "Sibling"
+            };
+            EditorEntity otherRoot = new EditorEntity(CoreValue, InteractionServices) {
+                Name = "Other Root"
+            };
+            parent.AddChild(child);
+            parent.AddChild(sibling);
+            child.AddChild(grandchild);
+
+            SceneHierarchyPanel panel = CreatePanel(CreateFont());
+            panel.RefreshHierarchy();
+
+            List<(Entity Host, SpriteComponent Sprite)> parentGuides = FindVerticalDepthGuideSprites(FindVisibleRow(panel, parent).Entity);
+            List<(Entity Host, SpriteComponent Sprite)> childGuides = FindVerticalDepthGuideSprites(FindVisibleRow(panel, child).Entity);
+            List<(Entity Host, SpriteComponent Sprite)> grandchildGuides = FindVerticalDepthGuideSprites(FindVisibleRow(panel, grandchild).Entity);
+            List<(Entity Host, SpriteComponent Sprite)> siblingGuides = FindVerticalDepthGuideSprites(FindVisibleRow(panel, sibling).Entity);
+            List<(Entity Host, SpriteComponent Sprite)> otherRootGuides = FindVerticalDepthGuideSprites(FindVisibleRow(panel, otherRoot).Entity);
+
+            Assert.Empty(parentGuides);
+            Assert.Single(childGuides);
+            Assert.Equal(new[] { 38f }, childGuides.Select(guide => guide.Host.Position.X));
+            Assert.Equal(new[] { 38f, 52f }, grandchildGuides.Select(guide => guide.Host.Position.X));
+            Assert.Single(siblingGuides);
+            Assert.Equal(new[] { 38f }, siblingGuides.Select(guide => guide.Host.Position.X));
+            Assert.Empty(otherRootGuides);
+            Assert.All(childGuides.Concat(grandchildGuides).Concat(siblingGuides), guide => {
+                Assert.Equal(1, guide.Sprite.Size.X);
+                Assert.Equal(SceneHierarchyPanel.RowHeight, guide.Sprite.Size.Y);
+            });
+        }
+
+        /// <summary>
+        /// Ensures the visibility control hides the entity without disabling, selecting, or collapsing its hierarchy row.
+        /// </summary>
+        [Fact]
+        public void ClickingHierarchyVisibilityIcon_HidesEntityWithoutSelectingOrCollapsingBranch() {
+            EditorEntity parent = new EditorEntity(CoreValue, InteractionServices) {
+                Name = "Parent"
+            };
+            EditorEntity child = new EditorEntity(CoreValue, InteractionServices) {
+                Name = "Child"
+            };
+            parent.AddChild(child);
+
+            SceneHierarchyPanel panel = CreatePanel(CreateFont());
+            panel.RefreshHierarchy();
+            InteractionServices.Selection.SetSelectedEntity(child);
+            SceneHierarchyRow parentRow = FindVisibleRow(panel, parent);
+
+            int2 rowPoint = new int2(18, SceneHierarchyPanel.RowHeight / 2);
+            parentRow.Interactable.OnCursor(rowPoint, new int2(0, 0), PointerInteraction.Hover);
+            parentRow.Interactable.OnCursor(rowPoint, new int2(0, 0), PointerInteraction.Press);
+            parentRow.VisibilityInteractable.OnCursor(new int2(10, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Hover);
+            parentRow.VisibilityInteractable.OnCursor(new int2(10, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Press);
+            parentRow.Interactable.OnCursor(rowPoint, new int2(0, 0), PointerInteraction.Release);
+            parentRow.VisibilityInteractable.OnCursor(new int2(10, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Release);
+
+            Assert.True(parent.Hidden);
+            Assert.True(parent.Enabled);
+            Assert.True(parent.IsHierarchyEnabled);
+            Assert.Same(child, InteractionServices.Selection.SelectedEntity);
             Assert.Equal(new[] { parent, child }, GetVisibleRowEntities(panel));
         }
 
@@ -258,6 +455,51 @@ namespace helengine.editor.tests {
             Assert.Equal(EditorLayerMasks.SceneHierarchyContent, row.LabelHost.LayerMask);
         }
 
+        /// <summary>Ensures the scrollbar shares the clipped content camera and renders after the row separators, including after scrolling.</summary>
+        /// <param name="scrollOffset">Row offset at which to inspect the rendered hierarchy.</param>
+        [Theory]
+        [InlineData(0)]
+        [InlineData(3)]
+        public void RefreshHierarchy_RendersScrollBarAboveRowSeparators(int scrollOffset) {
+            for (int index = 0; index < 20; index++) {
+                new EditorEntity(CoreValue, InteractionServices) {
+                    Name = $"Hierarchy {index}"
+                };
+            }
+
+            SceneHierarchyPanel panel = CreatePanel(CreateFont());
+            panel.Size = new int2(320, 176);
+            panel.RefreshHierarchy();
+            ScrollComponent scroll = GetPrivateField<EditorScrollComponent>(panel, "scrollComponent");
+            scroll.ScrollTo(scrollOffset);
+            Assert.True(scroll.ScrollBar.IsVisible);
+
+            Entity visuals = scroll.ScrollBar.Parent.Children[0];
+            RoundedRectComponent track = Assert.Single(visuals.Components.OfType<RoundedRectComponent>());
+            RoundedRectComponent thumb = Assert.Single(visuals.Children[0].Components.OfType<RoundedRectComponent>());
+            CameraComponent contentCamera = GetPrivateField<CameraComponent>(panel, "contentCameraComponent");
+            RenderList2D queue = Assert.IsType<RenderList2D>(contentCamera.RenderQueue2D);
+            List<IDrawable2D> drawables = Enumerable.Range(0, queue.Count).Select(index => queue[index]).ToList();
+            Assert.Contains(track, drawables);
+            Assert.Contains(thumb, drawables);
+            Assert.Equal(contentCamera.LayerMask, track.Parent.LayerMask);
+            Assert.Equal(contentCamera.LayerMask, thumb.Parent.LayerMask);
+
+            int trackIndex = drawables.IndexOf(track);
+            int thumbIndex = drawables.IndexOf(thumb);
+            Assert.True(trackIndex < thumbIndex);
+            List<SceneHierarchyRow> rows = GetPrivateField<List<SceneHierarchyRow>>(panel, "rows");
+            Assert.Contains(rows, row => row.BottomBorderEntity.IsHierarchyEnabled);
+            foreach (SceneHierarchyRow row in rows.Where(row => row.Entity.IsHierarchyEnabled)) {
+                Assert.Contains(row.TopBorder, drawables);
+                Assert.True(drawables.IndexOf(row.TopBorder) < trackIndex);
+                if (row.BottomBorderEntity.IsHierarchyEnabled) {
+                    Assert.Contains(row.BottomBorder, drawables);
+                    Assert.True(drawables.IndexOf(row.BottomBorder) < trackIndex);
+                }
+            }
+        }
+
         /// <summary>
         /// Ensures the Scene Hierarchy content camera viewport matches the panel body below the title bar.
         /// </summary>
@@ -407,6 +649,15 @@ namespace helengine.editor.tests {
             throw new InvalidOperationException("Expected the hierarchy panel to register a row interactable.");
         }
 
+        /// <summary>Dispatches one complete click sequence to an individual hierarchy button.</summary>
+        /// <param name="interactable">Button receiving the click.</param>
+        /// <param name="point">Pointer position in button-local coordinates.</param>
+        static void Click(InteractableComponent interactable, int2 point) {
+            interactable.OnCursor(point, new int2(0, 0), PointerInteraction.Hover);
+            interactable.OnCursor(point, new int2(0, 0), PointerInteraction.Press);
+            interactable.OnCursor(point, new int2(0, 0), PointerInteraction.Release);
+        }
+
         /// <summary>
         /// Returns the currently visible row assigned to the provided entity.
         /// </summary>
@@ -423,6 +674,33 @@ namespace helengine.editor.tests {
             }
 
             throw new InvalidOperationException("Expected the entity to have one visible hierarchy row.");
+        }
+
+        /// <summary>Finds one-pixel-wide row-height sprites used as vertical hierarchy depth guides.</summary>
+        static List<(Entity Host, SpriteComponent Sprite)> FindVerticalDepthGuideSprites(Entity rowEntity) {
+            List<(Entity Host, SpriteComponent Sprite)> guides = new List<(Entity Host, SpriteComponent Sprite)>();
+            CollectVerticalDepthGuideSprites(rowEntity, guides);
+            return guides;
+        }
+
+        /// <summary>Collects vertical hierarchy guide sprites from one row's entity subtree.</summary>
+        static void CollectVerticalDepthGuideSprites(Entity entity, List<(Entity Host, SpriteComponent Sprite)> guides) {
+            if (entity.Components != null) {
+                for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
+                    if (entity.Components[componentIndex] is SpriteComponent sprite &&
+                        sprite.Size.X == 1 && sprite.Size.Y == SceneHierarchyPanel.RowHeight) {
+                        guides.Add((entity, sprite));
+                    }
+                }
+            }
+
+            if (entity.Children == null) {
+                return;
+            }
+
+            for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
+                CollectVerticalDepthGuideSprites(entity.Children[childIndex], guides);
+            }
         }
 
         /// <summary>

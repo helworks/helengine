@@ -1,6 +1,6 @@
 # Viewport navigation cube
 
-Status: proposed for user review.
+Status: approved by the user in conversation; implementation plan prepared for review.
 
 ## Intent and scope
 
@@ -11,7 +11,7 @@ editor's viewing camera, not authored cameras, entities, or scene assets.
 
 The user approved this interaction scope in conversation. This document specifies
 the implementation boundaries and acceptance criteria; implementation awaits
-review of this document.
+review of the implementation plan and selection of its execution method.
 
 ## Interaction
 

@@ -28,7 +28,6 @@ namespace helengine.editor {
             valueText.Text = ComponentPropertiesView.EmptyAssetLabel;
             valueText.Color = ThemeManager.Colors.InputForegroundPrimary;
             valueText.Size = new int2(1, 1);
-            valueText.RenderOrder2D = View.TextOrder;
             valueHost.AddComponent(valueText);
 
             var buttonHost = new EditorEntity(View.RootEntity.OwnerCore, View.RootEntity.InteractionServices);

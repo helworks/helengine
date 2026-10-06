@@ -19,7 +19,29 @@ namespace helengine.editor {
             LayoutRootPath = Path.Combine(ExecutionRootPath, "layout");
             PackageRootPath = Path.Combine(ExecutionRootPath, "package");
             BuilderWorkingRootPath = Path.Combine(ExecutionRootPath, "builder");
+            NativeObjectCacheRootPath = string.Empty;
             LogsRootPath = Path.Combine(ExecutionRootPath, "logs");
+        }
+
+        /// <summary>
+        /// Uses a fresh graph and generated-core tree while retaining a separate native builder cache between runs.
+        /// </summary>
+        /// <param name="executionRootPath">Resettable build-graph execution root.</param>
+        /// <param name="builderWorkingRootPath">Persistent native builder working root.</param>
+        public EditorPlatformBuildGraphWorkspace(string executionRootPath, string builderWorkingRootPath)
+            : this(executionRootPath) {
+            if (string.IsNullOrWhiteSpace(builderWorkingRootPath)) {
+                throw new ArgumentException("Native builder working root must be provided.", nameof(builderWorkingRootPath));
+            }
+
+            string canonicalBuilderWorkingRootPath = ResolveCanonicalRootPath(builderWorkingRootPath);
+            EnsureRootsAreDisjoint(
+                ExecutionRootPath,
+                "Execution root",
+                canonicalBuilderWorkingRootPath,
+                "native root",
+                nameof(builderWorkingRootPath));
+            BuilderWorkingRootPath = canonicalBuilderWorkingRootPath;
         }
 
         /// <summary>
@@ -73,6 +95,45 @@ namespace helengine.editor {
             LayoutRootPath = Path.Combine(ExecutionRootPath, "layout");
             PackageRootPath = Path.Combine(ExecutionRootPath, "package");
             LogsRootPath = Path.Combine(ExecutionRootPath, "logs");
+            NativeObjectCacheRootPath = string.Empty;
+        }
+
+        /// <summary>
+        /// Creates a disposable build workspace alongside independent generated-source and native-object cache roots.
+        /// </summary>
+        /// <param name="executionRootPath">Resettable build-graph execution root.</param>
+        /// <param name="generatedCoreRootPath">Fresh generated-core root for this invocation.</param>
+        /// <param name="builderWorkingRootPath">Disposable platform-builder staging root for this invocation.</param>
+        /// <param name="nativeObjectCacheRootPath">Persistent native object root for this project, platform, and profile.</param>
+        public EditorPlatformBuildGraphWorkspace(
+            string executionRootPath,
+            string generatedCoreRootPath,
+            string builderWorkingRootPath,
+            string nativeObjectCacheRootPath)
+            : this(executionRootPath) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated-core root path must be provided.", nameof(generatedCoreRootPath));
+            } else if (string.IsNullOrWhiteSpace(builderWorkingRootPath)) {
+                throw new ArgumentException("Builder working root path must be provided.", nameof(builderWorkingRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(nativeObjectCacheRootPath)) {
+                throw new ArgumentException("Native object cache root path must be provided.", nameof(nativeObjectCacheRootPath));
+            }
+
+            string canonicalGeneratedCoreRootPath = ResolveCanonicalRootPath(generatedCoreRootPath);
+            string canonicalBuilderWorkingRootPath = ResolveCanonicalRootPath(builderWorkingRootPath);
+            string canonicalNativeObjectCacheRootPath = ResolveCanonicalRootPath(nativeObjectCacheRootPath);
+            if (!IsStrictAncestorPath(ExecutionRootPath, canonicalGeneratedCoreRootPath)) {
+                throw new ArgumentException("Generated-core root must be inside the disposable execution root.", nameof(generatedCoreRootPath));
+            }
+            if (!IsStrictAncestorPath(ExecutionRootPath, canonicalBuilderWorkingRootPath)) {
+                throw new ArgumentException("Builder working root must be inside the disposable execution root.", nameof(builderWorkingRootPath));
+            }
+            EnsureRootsAreDisjoint(canonicalGeneratedCoreRootPath, "generated-core root", canonicalBuilderWorkingRootPath, "builder working root", nameof(builderWorkingRootPath));
+            EnsureRootsAreDisjoint(ExecutionRootPath, "Execution root", canonicalNativeObjectCacheRootPath, "native cache root", nameof(nativeObjectCacheRootPath));
+            GeneratedCoreRootPath = canonicalGeneratedCoreRootPath;
+            BuilderWorkingRootPath = canonicalBuilderWorkingRootPath;
+            NativeObjectCacheRootPath = canonicalNativeObjectCacheRootPath;
         }
 
         /// <summary>
@@ -166,6 +227,11 @@ namespace helengine.editor {
         /// Gets the builder scratch root used by platform-specific packagers.
         /// </summary>
         public string BuilderWorkingRootPath { get; }
+
+        /// <summary>
+        /// Gets the persistent native object cache root, or an empty path for legacy workspaces without native caching.
+        /// </summary>
+        public string NativeObjectCacheRootPath { get; }
 
         /// <summary>
         /// Gets the log root path.

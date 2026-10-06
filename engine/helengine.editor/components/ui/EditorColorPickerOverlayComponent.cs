@@ -588,8 +588,7 @@ namespace helengine.editor {
                 Radius = 6f,
                 BorderThickness = 2f,
                 FillColor = CurrentColor,
-                BorderColor = ThemeManager.Colors.SurfaceInput,
-                RenderOrder2D = RenderOrder2D.ModalOverlayForeground
+                BorderColor = ThemeManager.Colors.SurfaceInput
             };
             PreviewHost.AddComponent(PreviewBackground);
         }
@@ -608,7 +607,6 @@ namespace helengine.editor {
             HexTextBoxControl = new TextBoxComponent(new int2(HexTextboxWidth, HexTextboxHeight), Font);
             HexTextBoxControl.TextChanged += HandleHexTextChanged;
             HexTextBoxControl.Submitted += HandleHexTextSubmitted;
-            HexTextBoxControl.SetRenderOrders(RenderOrder2D.ModalOverlayBackground, RenderOrder2D.ModalOverlayForeground);
             HexTextboxHost.AddComponent(HexTextBoxControl);
         }
 
@@ -628,14 +626,12 @@ namespace helengine.editor {
             AlphaLabelText = new TextComponent {
                 Font = Font,
                 Text = "A",
-                Color = ThemeManager.Colors.InputForegroundPrimary,
-                RenderOrder2D = RenderOrder2D.ModalOverlayForeground
+                Color = ThemeManager.Colors.InputForegroundPrimary
             };
             AlphaLabelHost.AddComponent(AlphaLabelText);
 
             AlphaSliderControl = new EditorSlider(OwnerCore, InteractionServices, 0.0, 255.0, 255.0, EditorSliderScaleMode.Linear, AlphaSliderWidth, 16);
             AlphaSliderControl.ApplyLayerMask(LayerMask);
-            AlphaSliderControl.SetRenderOrders(RenderOrder2D.ModalOverlayBackground, RenderOrder2D.ModalOverlayForeground);
             AlphaSliderControl.KeyboardStep = 1.0;
             AlphaSliderControl.ValueChanged += HandleAlphaSliderChanged;
             AlphaSliderControl.Position = new float3(SidePanelLeft + AlphaLabelWidth + 8, rowTop + 4, 0.2f);
@@ -651,8 +647,7 @@ namespace helengine.editor {
             AlphaValueText = new TextComponent {
                 Font = Font,
                 Text = "255",
-                Color = ThemeManager.Colors.InputForegroundSecondary,
-                RenderOrder2D = RenderOrder2D.ModalOverlayForeground
+                Color = ThemeManager.Colors.InputForegroundSecondary
             };
             AlphaValueHost.AddComponent(AlphaValueText);
         }

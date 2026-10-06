@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Polls editor input and forwards keyboard-focus commands into the owning session focus service.
     /// </summary>
+    [RunInEditor]
     public class EditorKeyboardFocusUpdateComponent : UpdateComponent {
         readonly InputSystem Input;
         readonly EditorSessionInteractionServices InteractionServices;
@@ -35,6 +36,11 @@ namespace helengine.editor {
         /// Callback invoked when the editor-global duplicate shortcut is pressed.
         /// </summary>
         public Action DuplicateShortcutRequested { get; set; }
+
+        /// <summary>
+        /// Frames the selection in the session's active viewport when F is pressed outside text entry.
+        /// </summary>
+        public Action FocusSelectionShortcutRequested { get; set; }
 
         /// <summary>
         /// Routes per-frame input into the shared keyboard-focus service.
@@ -98,7 +104,11 @@ namespace helengine.editor {
             } else if (activationKeysAllowed && input.WasKeyPressed(Keys.S)) {
                 InteractionServices.KeyboardFocus.HandleActivationKey(Keys.S);
             } else if (activationKeysAllowed && input.WasKeyPressed(Keys.F)) {
-                InteractionServices.KeyboardFocus.HandleActivationKey(Keys.F);
+                if (!textEntryActive && FocusSelectionShortcutRequested != null) {
+                    FocusSelectionShortcutRequested();
+                } else {
+                    InteractionServices.KeyboardFocus.HandleActivationKey(Keys.F);
+                }
             } else if (activationKeysAllowed && input.WasKeyPressed(Keys.Up)) {
                 InteractionServices.KeyboardFocus.HandleActivationKey(Keys.Up);
             } else if (activationKeysAllowed && input.WasKeyPressed(Keys.Down)) {

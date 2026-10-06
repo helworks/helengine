@@ -2,7 +2,8 @@ namespace helengine {
     /// <summary>
     /// Provides the shared mesh-proxy behavior used by editor-only world-space 2D preview components.
     /// </summary>
-    public abstract class EditorWorldSpace2DPreviewComponentBase : MeshComponent, IEditorHiddenComponent {
+    [RunInEditor]
+    public abstract class EditorWorldSpace2DPreviewComponentBase : MeshComponent, IEditorHiddenComponent, IRenderHierarchySource, IPlanarDrawable3D {
         /// <summary>
         /// Backing material owned by this preview component.
         /// </summary>
@@ -25,6 +26,9 @@ namespace helengine {
         /// Gets the authored source entity mirrored by this preview proxy.
         /// </summary>
         public Entity SourceEntity { get; }
+
+        /// <summary>Gets the transformed normal of the preview quad for camera-relative plane ordering.</summary>
+        public float3 WorldPlaneNormal => float4.RotateVector(new float3(0f, 0f, 1f), Parent.Orientation);
 
         /// <summary>
         /// Gets the runtime material currently owned by this preview proxy.
@@ -69,8 +73,8 @@ namespace helengine {
             EditorEntity previewEntity = ResolvePreviewEntity(Parent);
             previewEntity.InternalEntity = true;
             previewEntity.LayerMask = helengine.editor.EditorLayerMasks.SceneObjects;
-            previewEntity.Enabled = SourceEntity.Enabled;
-            previewEntity.LocalPosition = helengine.editor.EditorViewportDirect2DPresentationService.ResolvePresentedWorldPosition(SourceEntity);
+            previewEntity.Enabled = SourceEntity.IsHierarchyEnabled;
+            previewEntity.LocalPosition = helengine.editor.EditorViewportDirect2DPresentationService.TransformPresentedEntityLocalPoint(SourceEntity, ResolvePreviewLocalOffset());
             previewEntity.LocalOrientation = SourceEntity.Orientation;
             previewEntity.LocalScale = ResolvePreviewScale();
             SynchronizePreviewMaterial();
@@ -81,6 +85,12 @@ namespace helengine {
         /// </summary>
         /// <returns>World-space preview size for the shared unit quad.</returns>
         protected abstract int2 ResolvePreviewSize();
+
+        /// <summary>Offsets the preview plane when captured content extends above or left of its authored origin.</summary>
+        /// <returns>Local top-left capture origin, zero for previews contained in their layout rectangle.</returns>
+        protected virtual float3 ResolvePreviewLocalOffset() {
+            return float3.Zero;
+        }
 
         /// <summary>
         /// Resolves the runtime texture displayed by the preview material.

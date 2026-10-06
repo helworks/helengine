@@ -187,7 +187,6 @@ namespace helengine.editor {
             CanvasWidthFieldHost = CreateDialogHost();
             DialogPanelRoot.AddChild(CanvasWidthFieldHost);
             CanvasWidthField = new TextBoxComponent(GetFieldSize(), DialogFont, "1280");
-            CanvasWidthField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             CanvasWidthFieldHost.AddComponent(CanvasWidthField);
 
             CanvasHeightLabelHost = CreateDialogHost();
@@ -198,7 +197,6 @@ namespace helengine.editor {
             CanvasHeightFieldHost = CreateDialogHost();
             DialogPanelRoot.AddChild(CanvasHeightFieldHost);
             CanvasHeightField = new TextBoxComponent(GetFieldSize(), DialogFont, "720");
-            CanvasHeightField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             CanvasHeightFieldHost.AddComponent(CanvasHeightField);
 
             DontUnloadLabelHost = CreateDialogHost();
@@ -209,7 +207,6 @@ namespace helengine.editor {
             DontUnloadCheckBoxHost = CreateDialogHost();
             DialogPanelRoot.AddChild(DontUnloadCheckBoxHost);
             DontUnloadCheckBox = new CheckBoxComponent(GetCheckBoxSize(), DialogFont);
-            DontUnloadCheckBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             DontUnloadCheckBoxHost.AddComponent(DontUnloadCheckBox);
 
             StatusHost = CreateDialogHost();
@@ -219,20 +216,17 @@ namespace helengine.editor {
                 Text = string.Empty,
                 Color = ThemeManager.Colors.StateWarning,
                 Size = new int2(1, GetLabelHeightPixels()),
-                RenderOrder2D = DialogTextOrder
             };
             StatusHost.AddComponent(StatusText);
 
             ApplyButtonHost = CreateDialogHost();
             DialogPanelRoot.AddChild(ApplyButtonHost);
             ApplyButton = new ButtonComponent("Apply", GetApplyButtonSize(), DialogFont, HandleApplyClicked, 0f);
-            ApplyButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
             ApplyButtonHost.AddComponent(ApplyButton);
 
             CancelButtonHost = CreateDialogHost();
             DialogPanelRoot.AddChild(CancelButtonHost);
             CancelButton = new ButtonComponent("Cancel", GetCancelButtonSize(), DialogFont, HandleCancelClicked, 0f);
-            CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
             CancelButtonHost.AddComponent(CancelButton);
 
             Enabled = false;
@@ -361,7 +355,6 @@ namespace helengine.editor {
                 Text = text,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(1, GetLabelHeightPixels()),
-                RenderOrder2D = DialogTextOrder
             };
         }
 

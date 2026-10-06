@@ -57,6 +57,98 @@ namespace helengine.editor.tests {
             Assert.Contains(previewEntity.Components, component => component is EditorSpriteWorldPreviewComponent);
         }
 
+        /// <summary>Preview visibility follows disabled ancestors and reparenting, like the authored renderer.</summary>
+        [Fact]
+        public void Update_PreviewRespectsAncestorVisibility() {
+            EditorEntity ancestor = new EditorEntity(CoreValue, InteractionServices) { Enabled = false };
+            EditorEntity panel = new EditorEntity(CoreValue, InteractionServices);
+            EditorEntity source = new EditorEntity(CoreValue, InteractionServices);
+            ancestor.AddChild(panel);
+            panel.AddChild(source);
+            source.AddComponent(new SpriteComponent { Size = new int2(64, 32), Texture = CoreValue.RenderManager2D.PixelTexture });
+            EditorEntity host = new EditorEntity(CoreValue, InteractionServices);
+            EditorWorldSpace2DPreviewSyncComponent sync = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
+            host.AddComponent(sync);
+            sync.Update();
+            EditorEntity preview = InteractionServices.WorldSpace2DPreviewRegistry.ResolvePreviewEntity(source);
+            Assert.NotNull(preview);
+            Assert.False(preview.IsHierarchyEnabled);
+            ancestor.Enabled = true;
+            sync.Update();
+            Assert.True(preview.IsHierarchyEnabled);
+            panel.Enabled = false;
+            sync.Update();
+            Assert.False(preview.IsHierarchyEnabled);
+            panel.RemoveChild(source);
+            ancestor.AddChild(source);
+            sync.Update();
+            Assert.True(preview.IsHierarchyEnabled);
+            source.Enabled = false;
+            sync.Update();
+            Assert.False(preview.IsHierarchyEnabled);
+        }
+
+        /// <summary>Preview proxies remain enabled but disappear when a source or its ancestor is hidden in the editor.</summary>
+        [Fact]
+        public void Update_PreviewRespectsEditorHiddenStateWithoutDisablingProxy() {
+            EditorEntity ancestor = new EditorEntity(CoreValue, InteractionServices);
+            EditorEntity source = new EditorEntity(CoreValue, InteractionServices);
+            ancestor.AddChild(source);
+            source.AddComponent(new SpriteComponent { Size = new int2(64, 32), Texture = CoreValue.RenderManager2D.PixelTexture });
+            EditorEntity host = new EditorEntity(GeneratedAssetGraph.ObjectManager.OwnerCore, InteractionServices);
+            EditorWorldSpace2DPreviewSyncComponent sync = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
+            host.AddComponent(sync);
+
+            sync.Update();
+            EditorEntity preview = InteractionServices.WorldSpace2DPreviewRegistry.ResolvePreviewEntity(source);
+            Assert.NotNull(preview);
+            Assert.False(preview.RenderSuppressed);
+
+            ancestor.RenderSuppressed = true;
+            sync.Update();
+            Assert.True(preview.RenderSuppressed);
+            Assert.True(preview.Enabled);
+
+            ancestor.RenderSuppressed = false;
+            source.RenderSuppressed = true;
+            sync.Update();
+            Assert.True(preview.RenderSuppressed);
+            Assert.True(preview.Enabled);
+
+            source.RenderSuppressed = false;
+            sync.Update();
+            Assert.False(preview.RenderSuppressed);
+        }
+
+        /// <summary>Hiding viewport-owned 2D content keeps its world-space proxy on the 3D preview path.</summary>
+        [Fact]
+        public void Update_HidingViewportOwnedSourceKeepsSuppressedWorldPreview() {
+            EditorEntity viewportRoot = new EditorEntity(CoreValue, InteractionServices);
+            viewportRoot.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.FixedBindingMode,
+                FixedSize = new int2(640, 360)
+            });
+            EditorEntity source = new EditorEntity(CoreValue, InteractionServices);
+            source.AddComponent(new SpriteComponent { Size = new int2(64, 32), Texture = CoreValue.RenderManager2D.PixelTexture });
+            viewportRoot.AddChild(source);
+
+            EditorEntity host = new EditorEntity(GeneratedAssetGraph.ObjectManager.OwnerCore, InteractionServices);
+            EditorWorldSpace2DPreviewSyncComponent sync = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
+            host.AddComponent(sync);
+            sync.Update();
+            EditorEntity preview = InteractionServices.WorldSpace2DPreviewRegistry.ResolvePreviewEntity(source);
+
+            Assert.NotNull(preview);
+            Assert.False(preview.RenderSuppressed);
+
+            source.RenderSuppressed = true;
+            sync.Update();
+
+            Assert.Same(preview, InteractionServices.WorldSpace2DPreviewRegistry.ResolvePreviewEntity(source));
+            Assert.True(preview.RenderSuppressed);
+            Assert.True(preview.Enabled);
+        }
+
         /// <summary>
         /// Ensures the synchronizer removes the preview proxy and clears the registry when the authored source entity disappears.
         /// </summary>

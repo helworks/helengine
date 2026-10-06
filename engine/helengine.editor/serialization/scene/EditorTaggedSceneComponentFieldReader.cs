@@ -7,6 +7,10 @@ namespace helengine.editor {
         /// Raw field payload bytes keyed by stable field name.
         /// </summary>
         readonly Dictionary<string, byte[]> FieldPayloadsByName;
+        /// <summary>
+        /// Field names in their serialized order so payload rewriting remains deterministic.
+        /// </summary>
+        readonly List<string> FieldOrder;
 
         /// <summary>
         /// Initializes a reader over one serialized editor component payload.
@@ -18,6 +22,7 @@ namespace helengine.editor {
             }
 
             FieldPayloadsByName = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+            FieldOrder = new List<string>();
             byte? receivedVersion = null;
             int? receivedFieldCount = null;
             try {
@@ -44,6 +49,7 @@ namespace helengine.editor {
                     }
 
                     FieldPayloadsByName.Add(fieldName, reader.ReadByteArray() ?? Array.Empty<byte>());
+                    FieldOrder.Add(fieldName);
                 }
 
                 if (stream.Position != stream.Length) {
@@ -107,6 +113,67 @@ namespace helengine.editor {
 
             payloadLength = 0;
             return false;
+        }
+
+        /// <summary>
+        /// Builds a copy of this tagged payload without one obsolete named field.
+        /// </summary>
+        /// <param name="fieldName">Exact field name to omit from the copied payload.</param>
+        /// <param name="payload">Filtered payload when the field was present.</param>
+        /// <returns>True when the payload contained and omitted the requested field.</returns>
+        internal bool TryBuildPayloadWithoutField(string fieldName, out byte[] payload) {
+            if (string.IsNullOrWhiteSpace(fieldName)) {
+                throw new ArgumentException("Field name must be provided.", nameof(fieldName));
+            }
+            if (!FieldPayloadsByName.ContainsKey(fieldName)) {
+                payload = null;
+                return false;
+            }
+
+            using MemoryStream stream = new MemoryStream();
+            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian)) {
+                writer.WriteByte(EditorTaggedSceneComponentPayloadFormat.CurrentVersion);
+                writer.WriteInt32(FieldOrder.Count - 1);
+                for (int index = 0; index < FieldOrder.Count; index++) {
+                    string currentFieldName = FieldOrder[index];
+                    if (string.Equals(currentFieldName, fieldName, StringComparison.Ordinal)) {
+                        continue;
+                    }
+
+                    writer.WriteString(currentFieldName);
+                    writer.WriteByteArray(FieldPayloadsByName[currentFieldName]);
+                }
+            }
+
+            payload = stream.ToArray();
+            return true;
+        }
+
+        /// <summary>
+        /// Tries to omit one obsolete field from a tagged payload while leaving opaque non-tagged payloads untouched.
+        /// </summary>
+        /// <param name="payload">Payload bytes that may use the tagged editor format.</param>
+        /// <param name="fieldName">Exact field name to omit.</param>
+        /// <param name="filteredPayload">Rewritten bytes when the requested tagged field was present.</param>
+        /// <returns>True when a valid tagged payload contained and omitted the requested field.</returns>
+        internal static bool TryRemoveField(byte[] payload, string fieldName, out byte[] filteredPayload) {
+            if (payload == null) {
+                throw new ArgumentNullException(nameof(payload));
+            }
+            if (string.IsNullOrWhiteSpace(fieldName)) {
+                throw new ArgumentException("Field name must be provided.", nameof(fieldName));
+            }
+
+            try {
+                EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(payload);
+                return reader.TryBuildPayloadWithoutField(fieldName, out filteredPayload);
+            } catch (Exception exception) when (
+                exception is InvalidOperationException
+                || exception is EndOfStreamException
+                || exception is ArgumentException) {
+                filteredPayload = null;
+                return false;
+            }
         }
     }
 }

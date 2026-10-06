@@ -124,7 +124,6 @@ namespace helengine.editor {
                 Font = DialogFont,
                 Text = "Copy settings from",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                RenderOrder2D = DialogTextOrder
             };
             SourceLabelHost.AddComponent(SourceLabelText);
 
@@ -136,7 +135,6 @@ namespace helengine.editor {
             DialogPanelRoot.AddChild(SourceComboHost);
 
             SourceComboBox = new ComboBoxComponent(GetSourceComboBoxSize(), DialogFont, Array.Empty<string>(), -1);
-            ConfigureDialogComboBox(SourceComboBox);
             SourceComboHost.AddComponent(SourceComboBox);
 
             CopyButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
@@ -147,7 +145,6 @@ namespace helengine.editor {
             DialogPanelRoot.AddChild(CopyButtonHost);
 
             CopyButton = new ButtonComponent("Copy", new int2(1, GetFooterHeightPixels()), DialogFont, HandleCopyButtonClicked);
-            CopyButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             CopyButtonHost.AddComponent(CopyButton);
 
             CancelButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
@@ -158,7 +155,6 @@ namespace helengine.editor {
             DialogPanelRoot.AddChild(CancelButtonHost);
 
             CancelButton = new ButtonComponent("Cancel", new int2(1, GetFooterHeightPixels()), DialogFont, HandleCancelClicked);
-            CancelButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             CancelButtonHost.AddComponent(CancelButton);
 
             EmptyStateHost = new EditorEntity(OwnerCore, InteractionServices) {
@@ -172,7 +168,6 @@ namespace helengine.editor {
                 Font = DialogFont,
                 Text = "No other platforms are available to copy from.",
                 Color = ThemeManager.Colors.AccentQuaternary,
-                RenderOrder2D = DialogTextOrder
             };
             EmptyStateHost.AddComponent(EmptyStateText);
 

@@ -2,6 +2,9 @@ namespace helengine {
     /// <summary>
     /// Polls input for a selectable text component and forwards interaction into its selection logic.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public sealed class TextComponentSelectionUpdateComponent : UpdateComponent {
         /// <summary>
         /// Initializes a new input-forwarding update component for the supplied text component.

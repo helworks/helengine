@@ -51,18 +51,25 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the modal presentation shortcut applies the dedicated modal popup render band.
+        /// Ensures dropdown visuals inherit the owner depth and remain above the selected label.
         /// </summary>
         [Fact]
-        public void ComboBoxComponent_UseModalPresentation_AppliesModalPopupRenderOrders() {
+        public void ComboBoxComponent_HostDepthChanged_PreservesDropdownStack() {
+            InitializeCore();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             ComboBoxComponent comboBox = new ComboBoxComponent(new int2(180, 28), CreateFont(), new[] { "One", "Two" }, 0);
+            entity.AddComponent(comboBox);
+            ((IFocusTarget)comboBox).ActivateFromKey(Keys.Enter);
+            TextComponent label = GetPrivateField<TextComponent>(comboBox, "LabelText");
+            RoundedRectComponent popup = GetPrivateField<RoundedRectComponent>(comboBox, "ListBackground");
 
-            comboBox.UseModalPresentation();
-
-            Assert.Equal(RenderOrder2D.ModalBackground, GetPrivateField<byte>(comboBox, "BackgroundOrder"));
-            Assert.Equal(RenderOrder2D.ModalForeground, GetPrivateField<byte>(comboBox, "TextOrder"));
-            Assert.Equal(RenderOrder2D.ModalOverlayBackground, GetPrivateField<byte>(comboBox, "ListBackgroundOrder"));
-            Assert.Equal(RenderOrder2D.ModalOverlayForeground, GetPrivateField<byte>(comboBox, "ListTextOrder"));
+            entity.Position = new float3(0f, 0f, 240f);
+            Assert.True(comboBox.IsOpen);
+            Assert.True(label.Parent.Position.Z > 240f);
+            Assert.True(RenderDepthOrder2D.CompareDrawables(label, popup) < 0);
+            entity.Position = new float3(0f, 0f, 300f);
+            Assert.True(popup.Parent.Position.Z > 300f);
+            Assert.True(RenderDepthOrder2D.CompareDrawables(label, popup) < 0);
         }
 
         /// <summary>

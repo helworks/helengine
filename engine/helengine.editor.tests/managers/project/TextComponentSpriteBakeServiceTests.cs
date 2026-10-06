@@ -56,6 +56,14 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures generated text-sprite requests cannot carry the removed per-component 2D draw-order setting.
+        /// </summary>
+        [Fact]
+        public void BakeRequest_WhenCreated_DoesNotExposeRemovedRenderOrderSetting() {
+            Assert.Null(typeof(TextComponentSpriteBakeRequest).GetProperty("RenderOrder2D"));
+        }
+
+        /// <summary>
         /// Ensures bake requests use the shared generic processor settings instead of platform-specific texture defaults.
         /// </summary>
         [Fact]
@@ -105,8 +113,7 @@ namespace helengine.editor.tests {
                 false,
                 1f,
                 TextAlignment.Center,
-                0f,
-                12);
+                0f);
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.Bake(request));
             Assert.Contains("Unsupported generated font asset id", exception.Message);
@@ -151,8 +158,7 @@ namespace helengine.editor.tests {
                 false,
                 1f,
                 TextAlignment.Center,
-                0f,
-                12);
+                0f);
         }
 
         /// <summary>

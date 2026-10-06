@@ -6,6 +6,7 @@ using SharpDX;
 using SharpDX.Direct3D11;
 using SharpDX.DXGI;
 using helengine.directx11;
+using helengine.editor;
 
 namespace helengine.editor.windows.tests.rendering {
     /// <summary>
@@ -64,9 +65,7 @@ namespace helengine.editor.windows.tests.rendering {
                 Assert.InRange((int)pixels[channel], Math.Max(0, expected - 1), Math.Min(255, expected + 1));
             }
             Assert.Equal(new byte[] { 20, 100, 200, 255 }, pixels.Skip(12).Take(4));
-            if (useRgb) {
-                Assert.Equal(byte.MaxValue, pixels[3]);
-            }
+            Assert.Equal(byte.MaxValue, pixels[3]);
         }
 
         /// <summary>
@@ -75,6 +74,47 @@ namespace helengine.editor.windows.tests.rendering {
         static FontAsset CreateFont(RuntimeTexture texture) {
             return new FontAsset(new FontInfo("Coverage test", 1, 1), texture,
                 new Dictionary<char, FontChar> { ['H'] = new FontChar(new float4(0, 0, 1, 1), 0, 1, 0, 0) }, 1, 1, 1);
+        }
+
+        /// <summary>Rasterizes authored glyphs and clipping directly into each preview resolution instead of stretching a cached image.</summary>
+        /// <param name="targetSize">Physical preview dimensions for the fixed logical canvas.</param>
+        [Theory]
+        [InlineData(4)]
+        [InlineData(8)]
+        public void DrawText_WithLogicalCanvas_RasterizesAtTargetResolutionAndScalesClipping(int targetSize) {
+            using DirectX11Renderer3D renderer = new DirectX11Renderer3D();
+            using DirectX11RenderTargetResource target = new DirectX11RenderTargetResource(
+                renderer.Device, targetSize, targetSize, Format.R8G8B8A8_UNorm, Format.D24_UNorm_S8_UInt);
+            DeviceContext context = renderer.Device.ImmediateContext;
+            context.OutputMerger.SetRenderTargets(target.RenderTargetView);
+            context.ClearRenderTargetView(target.RenderTargetView, new SharpDX.Mathematics.Interop.RawColor4(0, 0, 0, 1));
+            CameraPreviewComponent camera = new CameraPreviewComponent {
+                Viewport = new float4(0, 0, targetSize, targetSize),
+                LogicalViewportSize = new int2(8, 8),
+                RenderTarget = target
+            };
+            renderer.Render2D.GetType().GetMethod("RenderCamera", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(renderer.Render2D, new object[] { camera });
+            DirectX11ClipScissorStack clipping = new DirectX11ClipScissorStack(renderer.Device);
+            clipping.SetCameraViewport(camera.Viewport);
+            clipping.SetProjectionViewport(new float4(0, 0, 8, 8));
+            typeof(DirectX11ClipScissorStack).GetMethod("ApplyClipScissor", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(clipping, new object[] { new float4(2, 0, 2, 4) });
+            RuntimeTexture coverage = renderer.Render2D.BuildTextureFromRaw(new TextureAsset {
+                Width = 1, Height = 1, Colors = new byte[] { 255, 255, 255, 255 }
+            });
+            TextComponent text = CreateText(CreateFont(coverage), new byte4(255, 255, 255, 255), 2, 4);
+
+            renderer.Render2D.DrawText(text);
+
+            byte[] pixels = ReadFirstRow(target.ColorTexture, renderer.Device);
+            for (int x = 0; x < targetSize; x++) {
+                byte expected = x >= targetSize / 4 && x < targetSize / 2 ? byte.MaxValue : (byte)0;
+                Assert.Equal(expected, pixels[x * 4]);
+                Assert.Equal(byte.MaxValue, pixels[(x * 4) + 3]);
+            }
+            Assert.Equal(4f, text.FontScale);
+            Assert.Equal(new float3(2, 0, 0), text.Parent.Position);
         }
 
         /// <summary>

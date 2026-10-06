@@ -52,7 +52,6 @@ namespace helengine.editor.tests.managers.rendering {
                     Height = 16
                 },
                 Size = new int2(16, 16),
-                RenderOrder2D = 10
             };
             clipHost.AddComponent(sprite);
             renderList.Add(sprite);
@@ -93,7 +92,6 @@ namespace helengine.editor.tests.managers.rendering {
                 Font = CreateFont(),
                 Text = "A",
                 Color = new byte4(20, 30, 40, 50),
-                RenderOrder2D = 20
             };
             inner.AddComponent(text);
             renderList.Add(text);

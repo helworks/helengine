@@ -25,6 +25,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Keeps the local capture offset in the same reference-canvas units as a fitted preview plane's dimensions.
+        /// </summary>
+        [Fact]
+        public void ResolvePresentedComponentOffset_ReversesReferenceCanvasFit() {
+            Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D).OnWindowResize(IntPtr.Zero, 1600, 900);
+            Entity viewport = new Entity(Core.Instance);
+            viewport.InitComponents();
+            viewport.InitChildren();
+            viewport.AddComponent(new ViewportComponent { BindingMode = ViewportComponent.ScreenBindingMode });
+            viewport.AddComponent(new ReferenceCanvasFitComponent { ReferenceWidth = 1280, ReferenceHeight = 720 });
+            Entity source = new Entity(Core.Instance);
+            source.InitComponents();
+            source.InitChildren();
+            viewport.AddChild(source);
+            viewport.InitializeHierarchy();
+            Core.Instance.Update();
+
+            float3 offset = EditorViewportDirect2DPresentationService.ResolvePresentedComponentOffset(source, new float3(-10, -5, 2));
+
+            AssertFloat3ApproximatelyEqual(new float3(-8, -4, 2), offset, 0.001f);
+        }
+
+        /// <summary>
         /// Ensures viewport-owned entities round-trip between stored world space and presented world space when reference-canvas fit is active.
         /// </summary>
         [Fact]

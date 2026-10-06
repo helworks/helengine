@@ -201,10 +201,6 @@ namespace helengine.editor {
             PanelPosition = int2.Zero;
             DialogPanelBackground.FillColor = ThemeManager.Colors.SurfacePrimary;
 
-            byte toolbarOrder = DialogPanelOrder;
-            byte rowBackgroundOrder = DialogPanelOrder;
-            byte iconBackgroundOrder = DialogPanelOrder;
-
             BrowserView = new AssetBrowserView(
                 OwnerCore,
                 InteractionServices,
@@ -212,14 +208,9 @@ namespace helengine.editor {
                 EditorUiMetrics.Default,
                 projectPath,
                 LayerMask,
-                toolbarOrder,
-                rowBackgroundOrder,
-                iconBackgroundOrder,
-                DialogTextOrder,
                 false,
                 null,
                 dataSource ?? throw new ArgumentNullException(nameof(dataSource)));
-            BrowserView.SetToolbarButtonRenderOrders(DialogTextOrder, DialogTextOrder);
             BrowserView.SetExtensionFilter(SceneAsset.FileExtension);
             BrowserView.AssetActivated += HandleAssetActivated;
             BrowserView.SelectionCleared += HandleSelectionCleared;
@@ -237,7 +228,6 @@ namespace helengine.editor {
                 Text = string.Empty,
                 Color = ThemeManager.Colors.StateWarning,
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f)))),
-                RenderOrder2D = DialogTextOrder
             };
             StatusHost.AddComponent(StatusText);
 
@@ -250,7 +240,6 @@ namespace helengine.editor {
 
             CancelButton = new ButtonComponent("Cancel", GetCancelButtonSize(), font, Hide, 0f);
             CancelButtonHost.AddComponent(CancelButton);
-            CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
             OpenButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
@@ -261,7 +250,6 @@ namespace helengine.editor {
 
             OpenButton = new ButtonComponent("Open", GetOpenButtonSize(), font, HandleOpenClicked, 0f);
             OpenButtonHost.AddComponent(OpenButton);
-            OpenButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
             Enabled = false;
             IsInitialized = true;

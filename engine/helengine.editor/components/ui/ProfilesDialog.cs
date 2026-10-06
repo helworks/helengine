@@ -305,7 +305,6 @@ namespace helengine.editor {
             DialogPanelRoot.AddChild(PlatformComboBoxHost);
             PlatformComboBox = new ComboBoxComponent(GetPlatformComboBoxSize(), DialogFontValue, Array.Empty<string>(), -1);
             PlatformComboBox.SelectionChanged += HandlePlatformSelectionChanged;
-            ConfigureDialogComboBox(PlatformComboBox);
             PlatformComboBoxHost.AddComponent(PlatformComboBox);
 
             VersionLabelHost = CreateTextHost();
@@ -319,26 +318,22 @@ namespace helengine.editor {
                 new int2(GetSettingValueWidth(), GetFieldRowHeightPixels()),
                 DialogFontValue,
                 EditorPlatformProfileSettingsDocument.DefaultVersion);
-            VersionTextBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             VersionTextBoxHost.AddComponent(VersionTextBox);
 
             BuildTabButtonHost = CreateTextHost();
             DialogPanelRoot.AddChild(BuildTabButtonHost);
             BuildTabButton = new ButtonComponent("Build", GetTabButtonSize(), DialogFontValue, HandleBuildTabClicked, 0f);
             BuildTabButtonHost.AddComponent(BuildTabButton);
-            BuildTabButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
             GraphicsTabButtonHost = CreateTextHost();
             DialogPanelRoot.AddChild(GraphicsTabButtonHost);
             GraphicsTabButton = new ButtonComponent("Graphics", GetTabButtonSize(), DialogFontValue, HandleGraphicsTabClicked, 0f);
             GraphicsTabButtonHost.AddComponent(GraphicsTabButton);
-            GraphicsTabButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
             CodegenTabButtonHost = CreateTextHost();
             DialogPanelRoot.AddChild(CodegenTabButtonHost);
             CodegenTabButton = new ButtonComponent("Codegen", GetTabButtonSize(), DialogFontValue, HandleCodegenTabClicked, 0f);
             CodegenTabButtonHost.AddComponent(CodegenTabButton);
-            CodegenTabButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
             BuildContentHost = CreateTextHost();
             DialogPanelRoot.AddChild(BuildContentHost);
@@ -354,24 +349,18 @@ namespace helengine.editor {
                 BuildContentHost,
                 LayerMask,
                 DialogFontValue,
-                DialogPanelOrder,
-                DialogTextOrder,
                 GetLabelColumnWidth(),
                 settingValueWidth);
             GraphicsSettingsSection = new EditorPlatformSettingsSection(
                 GraphicsContentHost,
                 LayerMask,
                 DialogFontValue,
-                DialogPanelOrder,
-                DialogTextOrder,
                 GetLabelColumnWidth(),
                 settingValueWidth);
             CodegenSettingsSection = new EditorPlatformSettingsSection(
                 CodegenContentHost,
                 LayerMask,
                 DialogFontValue,
-                DialogPanelOrder,
-                DialogTextOrder,
                 GetLabelColumnWidth(),
                 settingValueWidth);
 
@@ -382,7 +371,6 @@ namespace helengine.editor {
                 Text = string.Empty,
                 Color = ThemeManager.Colors.StateWarning,
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFontValue.LineHeight, 1f)))),
-                RenderOrder2D = DialogTextOrder
             };
             StatusHost.AddComponent(StatusText);
 
@@ -394,7 +382,6 @@ namespace helengine.editor {
             DialogPanelRoot.AddChild(CancelButtonHost);
             CancelButton = new ButtonComponent("Cancel", GetFooterButtonSize(), DialogFontValue, HandleCancelClicked, 0f);
             CancelButtonHost.AddComponent(CancelButton);
-            CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
             SaveButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
@@ -404,7 +391,6 @@ namespace helengine.editor {
             DialogPanelRoot.AddChild(SaveButtonHost);
             SaveButton = new ButtonComponent("Save", GetFooterButtonSize(), DialogFontValue, HandleSaveClicked, 0f);
             SaveButtonHost.AddComponent(SaveButton);
-            SaveButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
             Enabled = false;
             IsInitialized = true;
@@ -848,7 +834,6 @@ namespace helengine.editor {
                 Text = text,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFontValue.LineHeight, 1f)))),
-                RenderOrder2D = DialogTextOrder
             };
         }
 

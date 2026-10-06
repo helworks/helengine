@@ -9,6 +9,44 @@ namespace helengine.editor.tests {
         EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
         readonly Core CoreValue;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
+
+        /// <summary>Orbiting cannot reorder parallel UI planes according to their unrelated corner origins.</summary>
+        [Theory]
+        [InlineData(1f, -1f, -1)]
+        [InlineData(-1f, 1f, 1)]
+        public void ParallelPreviews_UsePlaneDepthFromEitherSide(float forwardX, float forwardZ, int expectedOrder) {
+            EditorSpriteWorldPreviewComponent background = CreateDepthPreview(new float3(0f, 0f, 12f));
+            EditorSpriteWorldPreviewComponent label = CreateDepthPreview(new float3(100f, 80f, 13f));
+
+            int order = CameraDepthOrder.CompareTransparent(background, label, new float3(forwardX, 0f, forwardZ));
+
+            Assert.Equal(expectedOrder, Math.Sign(order));
+            Assert.Equal(12f, background.Parent.Position.Z);
+            Assert.Equal(13f, label.Parent.Position.Z);
+        }
+
+        /// <summary>Coplanar UI content retains authored hierarchy when the camera is oblique.</summary>
+        [Fact]
+        public void CoplanarPreviews_KeepHierarchyWhenCameraOrbits() {
+            EditorSpriteWorldPreviewComponent background = CreateDepthPreview(new float3(0f, 0f, 12f));
+            EditorSpriteWorldPreviewComponent label = CreateDepthPreview(new float3(100f, 80f, 12f));
+            int expected = RenderDepthOrder2D.CompareHierarchy(background.SourceEntity, label.SourceEntity);
+
+            Assert.Equal(Math.Sign(expected), Math.Sign(CameraDepthOrder.CompareTransparent(background, label, new float3(1f, 0f, -1f))));
+        }
+
+        /// <summary>Builds a real textured preview proxy at a nonzero authored depth for ordering regressions.</summary>
+        /// <param name="position">Source position mirrored by the preview.</param>
+        /// <returns>Registered preview component.</returns>
+        EditorSpriteWorldPreviewComponent CreateDepthPreview(float3 position) {
+            EditorEntity source = new EditorEntity(CoreValue, InteractionServices) { LocalPosition = position };
+            SpriteComponent sprite = new SpriteComponent { Size = new int2(200, 100), Texture = CoreValue.RenderManager2D.PixelTexture };
+            source.AddComponent(sprite);
+            EditorEntity proxy = new EditorEntity(CoreValue, InteractionServices);
+            EditorSpriteWorldPreviewComponent preview = new EditorSpriteWorldPreviewComponent(source, sprite, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
+            proxy.AddComponent(preview);
+            return preview;
+        }
         /// <summary>
         /// Initializes the core services required by preview-proxy registry tests.
         /// </summary>
@@ -206,7 +244,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenViewportOwnedSpriteUsesReferenceCanvasFit_ReversesFitScaleAndPresentsNegativeYWorldSpace() {
-            Entity viewportEntity = new Entity(CoreValue);
+            Entity viewportEntity = new Entity(CoreValue) { LocalPosition = new float3(0f, 0f, 20f) };
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -219,7 +257,7 @@ namespace helengine.editor.tests {
             });
 
             Entity sourceEntity = new Entity(CoreValue) {
-                LocalPosition = new float3(100f, 200f, 0f)
+                LocalPosition = new float3(100f, 200f, 7f)
             };
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
@@ -238,7 +276,7 @@ namespace helengine.editor.tests {
 
             previewComponent.SynchronizeFromSource();
 
-            Assert.Equal(new float3(100f, -200f, 0f), previewEntity.Position);
+            Assert.Equal(new float3(100f, -200f, 27f), previewEntity.Position);
             Assert.Equal(new float3(220f, 110f, 1f), previewEntity.Scale);
         }
 
@@ -318,10 +356,10 @@ namespace helengine.editor.tests {
             Assert.Equal(new float3(1f, 0f, 0f), builtModelAsset.Positions[1]);
             Assert.Equal(new float3(1f, -1f, 0f), builtModelAsset.Positions[2]);
             Assert.Equal(new float3(0f, -1f, 0f), builtModelAsset.Positions[3]);
-            Assert.Equal(new float2(0f, 1f), builtModelAsset.TexCoords[0]);
-            Assert.Equal(new float2(1f, 1f), builtModelAsset.TexCoords[1]);
-            Assert.Equal(new float2(1f, 0f), builtModelAsset.TexCoords[2]);
-            Assert.Equal(new float2(0f, 0f), builtModelAsset.TexCoords[3]);
+            Assert.Equal(new float2(0f, 0f), builtModelAsset.TexCoords[0]);
+            Assert.Equal(new float2(1f, 0f), builtModelAsset.TexCoords[1]);
+            Assert.Equal(new float2(1f, 1f), builtModelAsset.TexCoords[2]);
+            Assert.Equal(new float2(0f, 1f), builtModelAsset.TexCoords[3]);
         }
 
         /// <summary>

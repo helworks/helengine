@@ -150,11 +150,6 @@ namespace helengine.editor {
             MinSize = new int2(UiMetrics.ScalePixels(260), UiMetrics.ScalePixels(180));
             OpenFolderAction = openFolderAction;
 
-            byte toolbarOrder = RenderOrder2D.PanelSurface;
-            byte rowBackgroundOrder = RenderOrder2D.PanelSurface;
-            byte iconBackgroundOrder = RenderOrder2D.PanelSurface;
-            byte textOrder = RenderOrder2D.PanelForeground;
-
             ContentRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = new float3(0, TitleBarHeightPixels, 0.05f)
@@ -168,10 +163,6 @@ namespace helengine.editor {
                 UiMetrics,
                 projectPath,
                 LayerMask,
-                toolbarOrder,
-                rowBackgroundOrder,
-                iconBackgroundOrder,
-                textOrder,
                 true,
                 this,
                 dataSource);
@@ -180,11 +171,9 @@ namespace helengine.editor {
             BrowserView.AssetActivated += HandleAssetActivated;
             BrowserView.SelectionCleared += HandleSelectionCleared;
 
-            byte menuBackgroundOrder = RenderOrder2D.OverlayBackground;
-            byte menuTextOrder = RenderOrder2D.OverlayForeground;
-            AssetContextMenu = new ContextMenu(OwnerCore, Font, LayerMask, menuBackgroundOrder, menuTextOrder, InteractionServices);
+            AssetContextMenu = new ContextMenu(OwnerCore, Font, LayerMask, InteractionServices);
             AddChild(AssetContextMenu.Entity);
-            FileTemplateMenu = new ContextMenu(OwnerCore, Font, LayerMask, menuBackgroundOrder, menuTextOrder, InteractionServices);
+            FileTemplateMenu = new ContextMenu(OwnerCore, Font, LayerMask, InteractionServices);
             AddChild(FileTemplateMenu.Entity);
 
             CreateAssetItems = new List<ContextMenuItem> {
@@ -197,7 +186,6 @@ namespace helengine.editor {
             AddComponent(new AssetBrowserPanelUpdater(this));
             IsInitialized = true;
             BrowserView.UpdateLayout(Math.Max(Size.X, MinSize.X), Math.Max(Size.Y, MinSize.Y));
-            RefreshRenderOrderBias();
         }
 
         /// <summary>
@@ -205,7 +193,6 @@ namespace helengine.editor {
         /// </summary>
         public void RefreshEntries() {
             BrowserView.RefreshEntries();
-            RefreshRenderOrderBias();
         }
 
         /// <summary>

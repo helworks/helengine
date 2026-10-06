@@ -2,6 +2,9 @@ namespace helengine {
     /// <summary>
     /// Renders a 3D mesh using the 3D render manager.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class MeshComponent : Component, IDrawable3D {
         /// <summary>
         /// Stores the render ordering key currently registered with the 3D object manager.

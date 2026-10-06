@@ -230,14 +230,14 @@ namespace helengine {
                     new float3(0f, 0f, -1f)
                 ],
                 TexCoords = [
+                    new float2(0f, 0f),
+                    new float2(1f, 0f),
+                    new float2(1f, 1f),
+                    new float2(0f, 1f),
+                    new float2(0f, 0f),
                     new float2(0f, 1f),
                     new float2(1f, 1f),
-                    new float2(1f, 0f),
-                    new float2(0f, 0f),
-                    new float2(0f, 1f),
-                    new float2(0f, 0f),
-                    new float2(1f, 0f),
-                    new float2(1f, 1f)
+                    new float2(1f, 0f)
                 ],
                 Indices16 = [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]
             };

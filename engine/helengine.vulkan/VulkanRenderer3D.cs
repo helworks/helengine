@@ -687,12 +687,16 @@ namespace helengine.vulkan {
             float3 cameraTarget = cameraPos + cameraForward;
             float4x4.CreateLookAt(ref cameraPos, ref cameraTarget, ref cameraUp, out view);
 
-            float4x4 projection = CameraProjectionUtils.CreatePerspectiveProjection(camera, (float)aspectRatio);
+            float4x4 projection = CameraProjectionUtils.CreateProjection(camera, (float)aspectRatio);
             ApplyVulkanProjectionAdjustments(ref projection);
             float4x4.Multiply(ref view, ref projection, out CurrentViewProjection);
 
             IRenderQueue3D renderQueue = camera.RenderQueue3D;
-            renderQueue.VisitOrdered(this);
+            if (renderQueue is RenderList3D depthOrderedQueue) {
+                depthOrderedQueue.VisitCameraOrdered(this, camera);
+            } else {
+                renderQueue.VisitOrdered(this);
+            }
 
             Renderer2D.RenderCamera(camera);
         }

@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Marks an entity as a transform-gizmo handle and describes its drag constraint.
     /// </summary>
+    [RunInEditor]
     public class TransformGizmoHandleComponent : Component {
         /// <summary>
         /// Smallest squared vector magnitude accepted as non-zero.

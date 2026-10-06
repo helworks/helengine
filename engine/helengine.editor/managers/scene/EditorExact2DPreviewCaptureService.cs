@@ -78,7 +78,7 @@ namespace helengine.editor {
             PreviewCameraComponentValue = EditorExact2DPreviewSceneFactory.CreatePreviewCameraComponent(PreviewSizeValue);
             PreviewCameraEntity.AddComponent(PreviewCameraComponentValue);
 
-            PreviewContentEntity = EditorExact2DPreviewSceneFactory.CreatePreviewContentEntity(ownerCore);
+            PreviewContentEntity = EditorExact2DPreviewSceneFactory.CreatePreviewContentEntity(ownerCore, PreviewCameraComponentValue);
             PreviewMaterialValue = EditorExact2DPreviewMaterialFactory.Create(Render3D, Render2D.PixelTexture, BuiltInShaderLibrary);
         }
 
@@ -257,7 +257,8 @@ namespace helengine.editor {
         /// <param name="sourceEntity">Authored source entity whose transform establishes local preview placement.</param>
         /// <param name="sourceComponent">Authored text component to clone.</param>
         void SynchronizeTextComponent(Entity sourceEntity, TextComponent sourceComponent) {
-            PreviewContentEntity.LocalPosition = float3.Zero;
+            float4 bounds = EditorTextPreviewBoundsService.ResolveBounds(sourceComponent);
+            PreviewContentEntity.LocalPosition = new float3(-bounds.X, -bounds.Y, 0);
             PreviewContentEntity.LocalOrientation = float4.Identity;
             PreviewContentEntity.LocalScale = float3.One;
             PreviewContentEntity.Enabled = sourceEntity.Enabled;
@@ -276,7 +277,6 @@ namespace helengine.editor {
             PreviewTextComponentValue.Font = sourceComponent.Font;
             PreviewTextComponentValue.FontScale = sourceComponent.FontScale;
             PreviewTextComponentValue.Alignment = sourceComponent.Alignment;
-            PreviewTextComponentValue.RenderOrder2D = sourceComponent.RenderOrder2D;
         }
 
         /// <summary>
@@ -290,7 +290,6 @@ namespace helengine.editor {
             PreviewContentEntity.LocalScale = float3.One;
             PreviewContentEntity.Enabled = sourceEntity.Enabled;
 
-            PreviewRoundedRectComponentValue.RenderOrder2D = sourceComponent.RenderOrder2D;
             PreviewRoundedRectComponentValue.Corners = sourceComponent.Corners;
             PreviewRoundedRectComponentValue.Rotation = sourceComponent.Rotation;
             PreviewRoundedRectComponentValue.Color = sourceComponent.Color;

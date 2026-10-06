@@ -2,6 +2,9 @@ namespace helengine {
     /// <summary>
     /// Simple text box with placeholder, blinking cursor, and basic keyboard input handling.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class TextBoxComponent : Component, IFocusTarget {
         /// <summary>
         /// Horizontal padding between the textbox border and its text content.
@@ -40,9 +43,6 @@ namespace helengine {
         bool IsFocusedValue;
         bool CursorVisible = true;
         double CursorBlinkElapsedSeconds;
-        bool HasRenderOrderOverrides;
-        byte BackgroundRenderOrder;
-        byte TextRenderOrder;
         bool IsInvalid;
         /// <summary>
         /// True when the text box hides its border while it is neither focused nor invalid.
@@ -189,25 +189,6 @@ namespace helengine {
         public float CurrentShakeOffsetX => CurrentShakeOffsetXValue;
 
         /// <summary>
-        /// Overrides the render order used for the textbox background and text.
-        /// </summary>
-        /// <param name="backgroundOrder">Render order for the textbox background.</param>
-        /// <param name="textOrder">Render order for textbox text.</param>
-        public void SetRenderOrders(byte backgroundOrder, byte textOrder) {
-            HasRenderOrderOverrides = true;
-            BackgroundRenderOrder = backgroundOrder;
-            TextRenderOrder = textOrder;
-
-            if (BackgroundSprite != null) {
-                BackgroundSprite.RenderOrder2D = backgroundOrder;
-            }
-
-            if (TextComponent != null) {
-                TextComponent.RenderOrder2D = textOrder;
-            }
-        }
-
-        /// <summary>
         /// Applies or clears the invalid visual state without changing the current text or focus state.
         /// </summary>
         /// <param name="isInvalid">True when the text box should use the invalid border color.</param>
@@ -254,13 +235,6 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            byte backgroundOrder = RenderOrder2D.PanelSurface;
-            byte textOrder = RenderOrder2D.PanelForeground;
-            if (HasRenderOrderOverrides) {
-                backgroundOrder = BackgroundRenderOrder;
-                textOrder = TextRenderOrder;
-            }
-
             // Create rounded background
             BackgroundSprite = new RoundedRectComponent();
             BackgroundSprite.Size = SizeValue;
@@ -268,7 +242,6 @@ namespace helengine {
             BackgroundSprite.BorderThickness = 2f;
             BackgroundSprite.FillColor = ThemeManager.Colors.SurfaceInput;
             BackgroundSprite.BorderColor = ThemeManager.Colors.AccentTertiary;
-            BackgroundSprite.RenderOrder2D = backgroundOrder;
             entity.AddComponent(BackgroundSprite);
 
             // Create selection highlight so dragged text can be shown behind the caret and text.
@@ -291,8 +264,8 @@ namespace helengine {
                 ThemeManager.Colors.AccentPrimary.Z,
                 96);
             SelectionSprite.BorderColor = SelectionSprite.FillColor;
-            SelectionSprite.RenderOrder2D = textOrder;
             SelectionEntity.AddComponent(SelectionSprite);
+            SelectionEntity.LocalPosition = new float3(0f, 0f, -0.01f);
 
             // Create text component
             TextEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Text-box visuals require an owning core."));
@@ -308,7 +281,6 @@ namespace helengine {
             TextComponent = new TextComponent();
             TextComponent.Font = FontValue;
             TextComponent.Color = new byte4(255, 255, 255, 255);
-            TextComponent.RenderOrder2D = textOrder;
             TextEntity.AddComponent(TextComponent);
 
             // Create interactable component for mouse clicks
@@ -924,6 +896,9 @@ namespace helengine {
     /// <summary>
     /// Helper update component that forwards updates to its owning text box.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     class TextBoxUpdateComponent : UpdateComponent {
         TextBoxComponent TextBox;
 

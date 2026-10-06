@@ -61,10 +61,6 @@ namespace helengine.editor {
         const int ModelToolbarIconSize = 14;
 
         /// <summary>
-        /// Render order used for the preview sprite.
-        /// </summary>
-        readonly byte spriteOrder;
-        /// <summary>
         /// Runtime texture used by the model-grid toolbar button.
         /// </summary>
         readonly RuntimeTexture modelGridIcon;
@@ -245,8 +241,6 @@ namespace helengine.editor {
 
             Title = "Preview";
             MinSize = new int2(metrics.ScalePixels(220), metrics.ScalePixels(160));
-
-            spriteOrder = RenderOrder2D.PanelForeground;
             modelGridIcon = gridIcon;
             IsModelGridVisibleValue = true;
 
@@ -265,7 +259,6 @@ namespace helengine.editor {
             modelToolbarBackground = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfacePrimary,
-                RenderOrder2D = RenderOrder2D.PanelSurface
             };
             modelToolbarRoot.AddComponent(modelToolbarBackground);
 
@@ -276,7 +269,6 @@ namespace helengine.editor {
 
             gridButtonBackground = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
-                RenderOrder2D = RenderOrder2D.PanelSurface
             };
             gridButtonRoot.AddComponent(gridButtonBackground);
 
@@ -290,7 +282,6 @@ namespace helengine.editor {
                 Texture = modelGridIcon,
                 Color = new byte4(255, 255, 255, 224),
                 Size = new int2(ModelToolbarIconSize, ModelToolbarIconSize),
-                RenderOrder2D = spriteOrder
             };
             gridIconHost.AddComponent(gridButtonIcon);
 
@@ -320,7 +311,6 @@ namespace helengine.editor {
 
             boundsButtonBackground = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
-                RenderOrder2D = RenderOrder2D.PanelSurface
             };
             boundsButtonRoot.AddComponent(boundsButtonBackground);
 
@@ -334,7 +324,6 @@ namespace helengine.editor {
                 Font = TitleFont,
                 Text = "B",
                 Color = new byte4(255, 255, 255, 224),
-                RenderOrder2D = spriteOrder
             };
             boundsButtonLabelHost.AddComponent(boundsButtonText);
 
@@ -363,7 +352,6 @@ namespace helengine.editor {
             contentRoot.AddChild(textureHost);
 
             textureSprite = new SpriteComponent();
-            textureSprite.RenderOrder2D = spriteOrder;
             textureSprite.Color = new byte4(255, 255, 255, 255);
             textureSprite.Size = new int2(1, 1);
             textureHost.AddComponent(textureSprite);
@@ -377,7 +365,6 @@ namespace helengine.editor {
             resolutionLabelText.Font = TitleFont;
             resolutionLabelText.Text = string.Empty;
             resolutionLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            resolutionLabelText.RenderOrder2D = spriteOrder;
             resolutionLabelHost.AddComponent(resolutionLabelText);
 
             ClearPreview();
@@ -751,6 +738,7 @@ namespace helengine.editor {
 
             if (ActivePreviewSourceValue != null) {
                 ActivePreviewSourceValue.Resize(GetPreviewContentSize());
+                textureSprite.Texture = ActivePreviewSourceValue.Texture;
             }
 
             LayoutModelToolbar();
@@ -766,6 +754,10 @@ namespace helengine.editor {
             textureHost.Position = new float3(GetContentPaddingPixels(), GetContentPaddingPixels(), 0.2f);
             resolutionLabelText.Font = TitleFont;
             boundsButtonText.Font = TitleFont;
+            if (ActivePreviewSourceValue != null) {
+                ActivePreviewSourceValue.Resize(GetPreviewContentSize());
+                textureSprite.Texture = ActivePreviewSourceValue.Texture;
+            }
             LayoutModelToolbar();
             LayoutPreview();
         }

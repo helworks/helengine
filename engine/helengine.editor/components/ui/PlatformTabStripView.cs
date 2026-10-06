@@ -116,19 +116,6 @@ namespace helengine.editor {
         /// </summary>
         readonly List<EditorFocusTarget> TabFocusTargets;
         /// <summary>
-        /// Tracks whether custom render orders were supplied for the strip buttons.
-        /// </summary>
-        bool HasRenderOrderOverrides;
-        /// <summary>
-        /// Render order applied to tab and arrow backgrounds when overrides are enabled.
-        /// </summary>
-        byte BackgroundRenderOrder;
-        /// <summary>
-        /// Render order applied to tab and arrow labels when overrides are enabled.
-        /// </summary>
-        byte TextRenderOrder;
-
-        /// <summary>
         /// Callback invoked when the selected platform changes.
         /// </summary>
         Action<string> SelectionChanged;
@@ -466,28 +453,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Overrides the render order used by the generated tab and arrow visuals.
-        /// </summary>
-        /// <param name="backgroundOrder">Render order used for button backgrounds.</param>
-        /// <param name="textOrder">Render order used for button labels.</param>
-        public void SetRenderOrders(byte backgroundOrder, byte textOrder) {
-            HasRenderOrderOverrides = true;
-            BackgroundRenderOrder = backgroundOrder;
-            TextRenderOrder = textOrder;
-            LeftArrowButton.SetRenderOrders(backgroundOrder, textOrder);
-            RightArrowButton.SetRenderOrders(backgroundOrder, textOrder);
-            if (LeftArrowIconSprite != null) {
-                LeftArrowIconSprite.RenderOrder2D = textOrder;
-                RightArrowIconSprite.RenderOrder2D = textOrder;
-            }
-            EnvironmentAddButton.SetRenderOrders(backgroundOrder, textOrder);
-
-            for (int i = 0; i < Tabs.Count; i++) {
-                Tabs[i].SetRenderOrders(backgroundOrder, textOrder);
-            }
-        }
-
-        /// <summary>
         /// Returns whether the supplied platform tab is fully visible inside the clipped viewport.
         /// </summary>
         /// <param name="platformId">Platform identifier whose visibility should be checked.</param>
@@ -593,8 +558,7 @@ namespace helengine.editor {
             SpriteComponent iconSprite = new SpriteComponent {
                 Texture = iconTexture,
                 Size = new int2(iconSize, iconSize),
-                Color = ThemeManager.Colors.AccentQuaternary,
-                RenderOrder2D = RenderOrder2D.PanelForeground
+                Color = ThemeManager.Colors.AccentQuaternary
             };
             iconHost.AddComponent(iconSprite);
             return iconSprite;
@@ -638,9 +602,6 @@ namespace helengine.editor {
             TabsContentRoot.AddChild(tabHost);
 
             TabComponent tab = new TabComponent(platformId, new int2(TabWidthValue, TabHeightValue), Font, () => HandleTabClicked(platformId));
-            if (HasRenderOrderOverrides) {
-                tab.SetRenderOrders(BackgroundRenderOrder, TextRenderOrder);
-            }
             tab.SetHoverCursor(PointerCursorKind.Hand);
             tabHost.AddComponent(tab);
 

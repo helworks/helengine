@@ -20,6 +20,7 @@ namespace helengine.editor {
         public EditorViewportCameraComponent() {
             ProjectionModeValue = CameraProjectionMode.Perspective;
             OrthographicVerticalSpanValue = 10f;
+            FilterEditorHiddenEntities = true;
         }
 
         /// <summary>

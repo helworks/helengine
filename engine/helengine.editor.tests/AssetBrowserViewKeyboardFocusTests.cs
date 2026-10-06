@@ -46,10 +46,6 @@ namespace helengine.editor.tests {
                 CreateFont(),
                 projectRoot,
                 EditorLayerMasks.EditorUi,
-                1,
-                2,
-                3,
-                4,
                 true,
                 focusGroup.FocusGroup,
                 GeneratedAssetProviders);
@@ -82,10 +78,6 @@ namespace helengine.editor.tests {
                 CreateFont(),
                 projectRoot,
                 EditorLayerMasks.EditorUi,
-                1,
-                2,
-                3,
-                4,
                 true,
                 null,
                 GeneratedAssetProviders);
@@ -117,10 +109,6 @@ namespace helengine.editor.tests {
                 CreateFont(),
                 projectRoot,
                 EditorLayerMasks.EditorUi,
-                1,
-                2,
-                3,
-                4,
                 true,
                 focusGroup.FocusGroup,
                 GeneratedAssetProviders);
@@ -165,10 +153,6 @@ namespace helengine.editor.tests {
                 CreateFont(),
                 projectRoot,
                 EditorLayerMasks.EditorUi,
-                1,
-                2,
-                3,
-                4,
                 true,
                 null,
                 GeneratedAssetProviders);
@@ -176,7 +160,7 @@ namespace helengine.editor.tests {
             int browserHeight = AssetBrowserView.ToolbarHeight + (AssetBrowserView.RowHeight * 4) - 1;
             browserView.UpdateLayout(320, browserHeight);
 
-            ScrollComponent scrollComponent = GetPrivateField<ScrollComponent>(browserView, "ListScrollComponent");
+            ScrollComponent scrollComponent = GetPrivateField<EditorScrollComponent>(browserView, "ListScrollComponent");
             EditorEntity listRoot = GetPrivateField<EditorEntity>(browserView, "ListRoot");
             float4 clipRect = scrollComponent.GetClipRect();
 
@@ -213,10 +197,6 @@ namespace helengine.editor.tests {
                 CreateFont(),
                 projectRoot,
                 EditorLayerMasks.EditorUi,
-                1,
-                2,
-                3,
-                4,
                 true,
                 null,
                 GeneratedAssetProviders);

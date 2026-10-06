@@ -208,7 +208,6 @@ namespace helengine.editor {
                 Text = string.Empty,
                 Color = ThemeManager.Colors.StateWarning,
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
-                RenderOrder2D = DialogTextOrder
             };
             StatusHost.AddComponent(StatusText);
 
@@ -221,7 +220,6 @@ namespace helengine.editor {
 
             CancelButton = new ButtonComponent("Cancel", GetCancelButtonSize(), DialogFont, HandleCancelClicked, 0f);
             CancelButtonHost.AddComponent(CancelButton);
-            CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
             SaveButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
@@ -232,7 +230,6 @@ namespace helengine.editor {
 
             SaveButton = new ButtonComponent("Save", GetSaveButtonSize(), DialogFont, HandleSaveClicked, 0f);
             SaveButtonHost.AddComponent(SaveButton);
-            SaveButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
             CreateTableHeaders();
 
@@ -382,7 +379,6 @@ namespace helengine.editor {
                 Text = BuildPlatformLabelText(platform),
                 Color = GetPlatformLabelColor(platform),
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
-                RenderOrder2D = DialogTextOrder
             };
             labelHost.AddComponent(labelText);
             PlatformLabelTexts.Add(labelText);
@@ -400,7 +396,6 @@ namespace helengine.editor {
                 Text = BuildPlatformStatusText(platform),
                 Color = GetPlatformStatusColor(platform),
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
-                RenderOrder2D = DialogTextOrder
             };
             statusHost.AddComponent(statusText);
             PlatformStatusTexts.Add(statusText);
@@ -415,7 +410,6 @@ namespace helengine.editor {
 
             CheckBoxComponent checkBox = new CheckBoxComponent(GetCheckBoxSize(), DialogFont, isChecked);
             checkBoxHost.AddComponent(checkBox);
-            checkBox.SetRenderOrders(DialogTextOrder, DialogTextOrder);
             PlatformCheckBoxes.Add(checkBox);
         }
 
@@ -587,7 +581,6 @@ namespace helengine.editor {
                 Text = text,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
-                RenderOrder2D = DialogTextOrder
             };
             headerHost.AddComponent(headerText);
             PlatformHeaderTexts.Add(headerText);

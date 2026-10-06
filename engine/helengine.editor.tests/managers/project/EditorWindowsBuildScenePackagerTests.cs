@@ -2434,7 +2434,6 @@ namespace helengine.editor.tests {
             Assert.Equal(new float4(0f, 0f, 1f, 1f), loadedSpriteComponent.SourceRect);
             Assert.Equal(new int2(32, 14), loadedSpriteComponent.Size);
             Assert.Equal(new byte4(249, 243, 255, 255), loadedSpriteComponent.Color);
-            Assert.Equal(34, loadedSpriteComponent.RenderOrder2D);
         }
 
         /// <summary>
@@ -4609,8 +4608,7 @@ namespace helengine.editor.tests {
             FPSComponent fpsComponent = new FPSComponent {
                 Font = CreatePackagedFontAsset(),
                 RefreshIntervalSeconds = 0.5d,
-                Padding = new int2(8, 6),
-                RenderOrder2D = 250
+                Padding = new int2(8, 6)
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference("Font", CreateEditorFontReference());
@@ -4628,8 +4626,7 @@ namespace helengine.editor.tests {
             DebugComponent debugComponent = new DebugComponent {
                 Font = CreatePackagedFontAsset(),
                 RefreshIntervalSeconds = 0.5d,
-                Padding = new int2(8, 6),
-                RenderOrder2D = 250
+                Padding = new int2(8, 6)
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             SceneAssetReference resolvedFontReference = fontReference ?? CreateEditorFontReference();
@@ -4783,7 +4780,6 @@ namespace helengine.editor.tests {
                 SourceRect = new float4(0.1f, 0.2f, 0.3f, 0.4f),
                 Rotation = 0.25f,
                 FontScale = 2f,
-                RenderOrder2D = 19,
                 SelectionEnabled = true
             };
             System.Reflection.PropertyInfo alignmentProperty = typeof(TextComponent).GetProperty("Alignment");
@@ -4813,7 +4809,6 @@ namespace helengine.editor.tests {
                 SourceRect = new float4(0.1f, 0.2f, 0.3f, 0.4f),
                 Rotation = 0.25f,
                 FontScale = 2f,
-                RenderOrder2D = 19,
                 SelectionEnabled = true,
                 ConvertTextToSprite = convertTextToSprite
             };
@@ -4838,7 +4833,6 @@ namespace helengine.editor.tests {
                 SourceRect = new float4(0f, 0f, 1f, 1f),
                 Size = new int2(32, 14),
                 Color = new byte4(249, 243, 255, 255),
-                RenderOrder2D = 34,
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference("Texture", textureReference);
@@ -5028,7 +5022,6 @@ namespace helengine.editor.tests {
         byte[] WriteRoundedRectPayload() {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             RoundedRectComponent roundedRectComponent = new RoundedRectComponent {
-                RenderOrder2D = 8,
                 Corners = RoundedRectCorners.All,
                 Rotation = 0.45f,
                 Color = new byte4(1, 2, 3, 4),

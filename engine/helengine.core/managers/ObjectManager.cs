@@ -559,6 +559,12 @@ namespace helengine {
                 return false;
             }
 
+            if (camera is CameraComponent cameraComponent &&
+                cameraComponent.FilterEditorHiddenEntities &&
+                drawableOwner.IsRenderHierarchySuppressed) {
+                return false;
+            }
+
             if ((drawableOwner.LayerMask & camera.LayerMask) == 0) {
                 return false;
             }
@@ -621,6 +627,10 @@ namespace helengine {
 
                 for (int i = 0; i < Updateables.Count; i++) {
                     IUpdateable item = Updateables[i];
+                    if (item is Component component && component.Parent != null
+                        && !ComponentExecutionPolicy.ShouldRunComponentLifecycle(component, component.Parent)) {
+                        continue;
+                    }
                     LastUpdateableDiagnosticPass = DiagnosticUpdatePassCount;
                     LastUpdateableDiagnosticIndex = i;
                     LastUpdateableDiagnosticTypeHash = ResolveStableTypeNameHash(item);

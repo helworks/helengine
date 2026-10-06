@@ -2,6 +2,9 @@ namespace helengine {
     /// <summary>
     /// Forwards per-frame updates to a combo box component.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     class ComboBoxUpdateComponent : UpdateComponent {
         /// <summary>
         /// Combo box that receives forwarded update calls.

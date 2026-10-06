@@ -136,6 +136,39 @@ namespace helengine.editor.tests {
             Assert.Equal(0, sceneCamera.RenderQueue2D.Count);
         }
 
+        /// <summary>Hidden viewport-owned sprites must not be re-added to the scene camera's direct 2D queue.</summary>
+        [Fact]
+        public void SynchronizeViewportOwnedSceneQueue_WhenSourceIsHidden_DoesNotPresentItAsDirect2D() {
+            EditorEntity sceneCameraEntity = new EditorEntity(CoreValue, InteractionServices);
+            CameraComponent sceneCamera = new CameraComponent {
+                LayerMask = EditorLayerMasks.SceneObjects,
+                FilterEditorHiddenEntities = true
+            };
+            sceneCameraEntity.AddComponent(sceneCamera);
+
+            EditorEntity viewportRoot = new EditorEntity(CoreValue, InteractionServices) {
+                LayerMask = EditorLayerMasks.SceneObjects
+            };
+            viewportRoot.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ExplicitCameraBindingMode,
+                BoundCameraComponent = sceneCamera
+            });
+            EditorEntity source = new EditorEntity(CoreValue, InteractionServices) {
+                LayerMask = EditorLayerMasks.SceneObjects
+            };
+            SpriteComponent sprite = new SpriteComponent {
+                Size = new int2(32, 32),
+                Texture = CoreValue.RenderManager2D.PixelTexture
+            };
+            source.AddComponent(sprite);
+            viewportRoot.AddChild(source);
+
+            source.RenderSuppressed = true;
+            EditorViewportDirect2DPresentationService.SynchronizeViewportOwnedSceneQueue(sceneCamera, CoreValue.ObjectManager);
+
+            Assert.Equal(0, sceneCamera.RenderQueue2D.Count);
+        }
+
         /// <summary>
         /// Ensures viewport-owned rounded-rectangle drawables leave the scene camera queue when an exact world-preview path is available.
         /// </summary>

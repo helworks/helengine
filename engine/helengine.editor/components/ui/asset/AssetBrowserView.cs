@@ -128,22 +128,6 @@ namespace helengine.editor {
         /// </summary>
         readonly List<AssetBrowserRow> Rows;
         /// <summary>
-        /// Render order used for toolbar backgrounds.
-        /// </summary>
-        readonly byte ToolbarOrder;
-        /// <summary>
-        /// Render order used for row backgrounds.
-        /// </summary>
-        readonly byte RowBackgroundOrder;
-        /// <summary>
-        /// Render order used for icon backgrounds.
-        /// </summary>
-        readonly byte IconBackgroundOrder;
-        /// <summary>
-        /// Render order used for text labels.
-        /// </summary>
-        readonly byte TextOrder;
-        /// <summary>
         /// Focus group that owns the asset-browser controls when keyboard traversal is enabled.
         /// </summary>
         readonly IFocusGroup FocusGroup;
@@ -186,10 +170,6 @@ namespace helengine.editor {
         /// <param name="font">Font used for labels.</param>
         /// <param name="projectPath">Path to the project root.</param>
         /// <param name="layerMask">Layer mask for all entities in the view.</param>
-        /// <param name="toolbarOrder">Render order for toolbar backgrounds.</param>
-        /// <param name="rowBackgroundOrder">Render order for row backgrounds.</param>
-        /// <param name="iconBackgroundOrder">Render order for icon backgrounds.</param>
-        /// <param name="textOrder">Render order for text labels.</param>
         /// <param name="includeGeneratedEntries">True to include generated-provider roots and entries.</param>
         /// <param name="focusGroup">Dock focus group that owns the browser controls, or null for non-traversable modal uses.</param>
         public AssetBrowserView(
@@ -198,10 +178,6 @@ namespace helengine.editor {
             FontAsset font,
             string projectPath,
             ushort layerMask,
-            byte toolbarOrder,
-            byte rowBackgroundOrder,
-            byte iconBackgroundOrder,
-            byte textOrder,
             bool includeGeneratedEntries,
             IFocusGroup focusGroup,
             GeneratedAssetProviderRegistry generatedAssetProviders)
@@ -212,10 +188,6 @@ namespace helengine.editor {
                 EditorUiMetrics.Default,
                 projectPath,
                 layerMask,
-                toolbarOrder,
-                rowBackgroundOrder,
-                iconBackgroundOrder,
-                textOrder,
                 includeGeneratedEntries,
                 focusGroup,
                 new AssetBrowserDataSource(new EditorAssetManager(projectPath), generatedAssetProviders, includeGeneratedEntries)) {
@@ -228,10 +200,6 @@ namespace helengine.editor {
         /// <param name="metrics">Scaled editor UI metrics used to size the browser toolbar and rows.</param>
         /// <param name="projectPath">Path to the project root.</param>
         /// <param name="layerMask">Layer mask for all entities in the view.</param>
-        /// <param name="toolbarOrder">Render order for toolbar backgrounds.</param>
-        /// <param name="rowBackgroundOrder">Render order for row backgrounds.</param>
-        /// <param name="iconBackgroundOrder">Render order for icon backgrounds.</param>
-        /// <param name="textOrder">Render order for text labels.</param>
         /// <param name="includeGeneratedEntries">True to include generated-provider roots and entries.</param>
         /// <param name="focusGroup">Dock focus group that owns the browser controls, or null for non-traversable modal uses.</param>
         public AssetBrowserView(
@@ -241,10 +209,6 @@ namespace helengine.editor {
             EditorUiMetrics metrics,
             string projectPath,
             ushort layerMask,
-            byte toolbarOrder,
-            byte rowBackgroundOrder,
-            byte iconBackgroundOrder,
-            byte textOrder,
             bool includeGeneratedEntries,
             IFocusGroup focusGroup,
             GeneratedAssetProviderRegistry generatedAssetProviders)
@@ -255,10 +219,6 @@ namespace helengine.editor {
                 metrics,
                 projectPath,
                 layerMask,
-                toolbarOrder,
-                rowBackgroundOrder,
-                iconBackgroundOrder,
-                textOrder,
                 includeGeneratedEntries,
                 focusGroup,
                 new AssetBrowserDataSource(new EditorAssetManager(projectPath), generatedAssetProviders, includeGeneratedEntries)) {
@@ -271,10 +231,6 @@ namespace helengine.editor {
         /// <param name="metrics">Scaled editor UI metrics used to size the browser toolbar and rows.</param>
         /// <param name="projectPath">Path to the project root.</param>
         /// <param name="layerMask">Layer mask for all entities in the view.</param>
-        /// <param name="toolbarOrder">Render order for toolbar backgrounds.</param>
-        /// <param name="rowBackgroundOrder">Render order for row backgrounds.</param>
-        /// <param name="iconBackgroundOrder">Render order for icon backgrounds.</param>
-        /// <param name="textOrder">Render order for text labels.</param>
         /// <param name="includeGeneratedEntries">True to include generated-provider roots and entries.</param>
         /// <param name="focusGroup">Dock focus group that owns the browser controls, or null for non-traversable modal uses.</param>
         /// <param name="dataSource">Data source supplied by the project owner, or null to create one.</param>
@@ -285,10 +241,6 @@ namespace helengine.editor {
             EditorUiMetrics metrics,
             string projectPath,
             ushort layerMask,
-            byte toolbarOrder,
-            byte rowBackgroundOrder,
-            byte iconBackgroundOrder,
-            byte textOrder,
             bool includeGeneratedEntries,
             IFocusGroup focusGroup,
             AssetBrowserDataSource dataSource) {
@@ -307,10 +259,6 @@ namespace helengine.editor {
             InteractionServicesValue = interactionServices ?? throw new ArgumentNullException(nameof(interactionServices));
             Metrics = metrics;
             DataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
-            ToolbarOrder = toolbarOrder;
-            RowBackgroundOrder = rowBackgroundOrder;
-            IconBackgroundOrder = iconBackgroundOrder;
-            TextOrder = textOrder;
             FocusGroup = focusGroup;
 
             Root = new EditorEntity(ownerCore, interactionServices) {
@@ -326,8 +274,7 @@ namespace helengine.editor {
 
             ToolbarBackground = new SpriteComponent {
                 Texture = Root.OwnerCore.RenderManager2D.PixelTexture,
-                Color = ThemeManager.Colors.SurfacePrimary,
-                RenderOrder2D = ToolbarOrder
+                Color = ThemeManager.Colors.SurfacePrimary
             };
             ToolbarRoot.AddComponent(ToolbarBackground);
 
@@ -357,8 +304,7 @@ namespace helengine.editor {
                 Size = GetUpButtonSize(),
                 Corners = RoundedRectCorners.All,
                 FillColor = ThemeManager.Colors.AccentTertiary,
-                BorderColor = ThemeManager.Colors.AccentSecondary,
-                RenderOrder2D = RenderOrder2D.PanelSurface
+                BorderColor = ThemeManager.Colors.AccentSecondary
             };
             TopLabelHost.AddComponent(TopLabelBackground);
 
@@ -372,8 +318,7 @@ namespace helengine.editor {
                 Font = font,
                 Text = TopLabelText,
                 Color = ThemeManager.Colors.TextSecondary,
-                Size = new int2(1, (int)MathF.Ceiling(lineHeight)),
-                RenderOrder2D = RenderOrder2D.PanelForeground
+                Size = new int2(1, (int)MathF.Ceiling(lineHeight))
             };
             TopLabelTextHost.AddComponent(TopLabel);
 
@@ -387,8 +332,7 @@ namespace helengine.editor {
                 Font = font,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(1, (int)MathF.Ceiling(lineHeight)),
-                RenderOrder2D = TextOrder
+                Size = new int2(1, (int)MathF.Ceiling(lineHeight))
             };
             PathTextHost.AddComponent(PathText);
 
@@ -410,7 +354,7 @@ namespace helengine.editor {
             };
             ListHitHost.AddChild(ListRoot);
 
-            ListScrollComponent = new ScrollComponent();
+            ListScrollComponent = new EditorScrollComponent();
             ListScrollComponent.ContentRoot = ListRoot;
             ListHitHost.AddComponent(ListScrollComponent);
 
@@ -448,17 +392,6 @@ namespace helengine.editor {
         /// Gets a value indicating whether the current directory accepts filesystem creation commands.
         /// </summary>
         public bool CanCreateFileSystemEntries => DataSource.CanCreateFileSystemEntries;
-
-        /// <summary>
-        /// Overrides the toolbar button render orders for modal or overlay contexts.
-        /// </summary>
-        /// <param name="backgroundOrder">Render order used for the button background.</param>
-        /// <param name="textOrder">Render order used for the button label.</param>
-        public void SetToolbarButtonRenderOrders(byte backgroundOrder, byte textOrder) {
-            UpButton.SetRenderOrders(backgroundOrder, textOrder);
-            TopLabelBackground.RenderOrder2D = backgroundOrder;
-            TopLabel.RenderOrder2D = textOrder;
-        }
 
         /// <summary>
         /// Sets an extension filter without refreshing entries.
@@ -665,8 +598,7 @@ namespace helengine.editor {
 
             var background = new SpriteComponent {
                 Texture = Root.OwnerCore.RenderManager2D.PixelTexture,
-                Color = ThemeManager.Colors.SurfacePrimary,
-                RenderOrder2D = RowBackgroundOrder
+                Color = ThemeManager.Colors.SurfacePrimary
             };
             rowEntity.AddComponent(background);
 
@@ -678,8 +610,7 @@ namespace helengine.editor {
 
             var iconBackground = new SpriteComponent {
                 Texture = Root.OwnerCore.RenderManager2D.PixelTexture,
-                Color = ThemeManager.Colors.AccentSecondary,
-                RenderOrder2D = IconBackgroundOrder
+                Color = ThemeManager.Colors.AccentSecondary
             };
             iconHost.AddComponent(iconBackground);
 
@@ -693,8 +624,7 @@ namespace helengine.editor {
                 Font = Font,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.TextOnAccent,
-                Size = new int2(1, 1),
-                RenderOrder2D = TextOrder
+                Size = new int2(1, 1)
             };
             iconTextHost.AddComponent(iconText);
 
@@ -708,8 +638,7 @@ namespace helengine.editor {
                 Font = Font,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(100, GetRowHeightPixels()),
-                RenderOrder2D = TextOrder
+                Size = new int2(100, GetRowHeightPixels())
             };
             labelHost.AddComponent(label);
 

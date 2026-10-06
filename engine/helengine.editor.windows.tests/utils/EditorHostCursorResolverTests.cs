@@ -60,5 +60,26 @@ namespace helengine.editor.windows.tests.utils {
 
             Assert.Same(Cursors.SizeNESW, cursor);
         }
+
+        /// <summary>
+        /// Ensures active browser-style autoscroll leaves the native cursor free so the editor can draw the fixed indicator.
+        /// </summary>
+        [Fact]
+        public void Resolve_WhenAutoScrollIsActive_LeavesTheNativeCursorAtDefaultForBothAxes() {
+            Cursor cursor = EditorHostCursorResolver.Resolve(
+                DockingCursorState.VerticalSplit,
+                PointerCursorKind.AutoScrollVertical,
+                true,
+                Cursors.SizeWE);
+
+            Assert.Same(Cursors.Default, cursor);
+            Assert.Same(
+                Cursors.Default,
+                EditorHostCursorResolver.Resolve(
+                    DockingCursorState.Default,
+                    PointerCursorKind.AutoScrollHorizontal,
+                    false,
+                    Cursors.SizeNS));
+        }
     }
 }

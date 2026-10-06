@@ -15,9 +15,7 @@ namespace helengine.editor {
                 return false;
             } else if (IsPreviewProxyEntity(entity)) {
                 return false;
-            } else if (entity is EditorEntity editorEntity && editorEntity.InternalEntity) {
-                return false;
-            } else if (!EditorViewportSceneSelectionFilter.ShouldSelectEntity(entity)) {
+            } else if (HasInternalEditorAncestor(entity)) {
                 return false;
             }
 
@@ -29,6 +27,27 @@ namespace helengine.editor {
                     sourceComponent = candidateComponent;
                     return true;
                 }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Determines whether an entity belongs to editor-internal infrastructure, while deliberately ignoring its
+        /// render-hidden state so the preview synchronizer can keep an existing proxy alive and suppress it.
+        /// </summary>
+        /// <param name="entity">Entity whose parent chain should be inspected.</param>
+        /// <returns>True when the entity or one of its ancestors is internal editor infrastructure.</returns>
+        /// <summary>Returns whether an entity belongs to editor-only infrastructure regardless of render visibility.</summary>
+        /// <param name="entity">Entity or hierarchy member to inspect.</param>
+        /// <returns>True when the entity or one of its ancestors is marked as internal editor infrastructure.</returns>
+        public static bool HasInternalEditorAncestor(Entity entity) {
+            Entity current = entity;
+            while (current != null) {
+                if (current is EditorEntity editorEntity && editorEntity.InternalEntity) {
+                    return true;
+                }
+                current = current.Parent;
             }
 
             return false;

@@ -14,5 +14,7 @@ namespace helengine.directx11 {
         /// Color provided to the effect shader.
         /// </summary>
         public float4 color;
+        /// <summary>Enables texture alpha rejection in X and supplies the minimum visible coverage in Y; Z/W are reserved.</summary>
+        public float4 AlphaTest;
     }
 }

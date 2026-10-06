@@ -89,7 +89,7 @@ namespace helengine.editor.tests {
                 new int2(40, 24),
                 new int2(320, (ContextMenu.PaddingY * 2) + (ContextMenu.RowHeight * 3) + (ContextMenu.RowHeight / 2)));
 
-            ScrollComponent scrollComponent = GetPrivateField<ScrollComponent>(menu, "ScrollComponent");
+            ScrollComponent scrollComponent = GetPrivateField<EditorScrollComponent>(menu, "ScrollComponent");
 
             Assert.Equal(4, scrollComponent.VisibleItemCount);
         }
@@ -248,7 +248,7 @@ namespace helengine.editor.tests {
             AdvanceCoreInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
             AdvanceCoreInput(new MouseState(rowPointer.X, rowPointer.Y, -120, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
 
-            Assert.Equal(1, GetPrivateField<ScrollComponent>(menu, "ScrollComponent").ScrollOffset);
+            Assert.Equal(1, GetPrivateField<EditorScrollComponent>(menu, "ScrollComponent").ScrollOffset);
         }
 
         /// <summary>
@@ -268,7 +268,7 @@ namespace helengine.editor.tests {
             SpriteComponent blockerSurface = GetPrivateField<SpriteComponent>(menu, "BackgroundBlockerSurface");
 
             Assert.Single(rows, row => row.Entity.Enabled);
-            Assert.True(blockerSurface.RenderOrder2D < rows[0].Background.RenderOrder2D);
+            Assert.True(RenderDepthOrder2D.CompareDrawables(blockerSurface, rows[0].Background) < 0);
         }
 
         /// <summary>
@@ -435,7 +435,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Input-bound context menu.</returns>
         ContextMenu CreateMenu() {
-            ContextMenu menu = new ContextMenu(Core.Instance, CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground, InteractionServices);
+            ContextMenu menu = new ContextMenu(Core.Instance, CreateFont(), 0b0000000000000010, InteractionServices);
             menu.SetInput(Core.Instance.Input);
             menu.Entity.InitializeHierarchy();
             return menu;

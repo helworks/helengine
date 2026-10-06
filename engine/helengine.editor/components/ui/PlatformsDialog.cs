@@ -216,7 +216,7 @@ namespace helengine.editor {
             PlatformListRoot = CreateInternalHost();
             DialogPanelRoot.AddChild(PlatformListRoot);
 
-            PlatformListScrollComponent = new ScrollComponent();
+            PlatformListScrollComponent = new EditorScrollComponent();
             PlatformListScrollComponent.ScrollOffsetChanged += HandlePlatformListScrollOffsetChanged;
             PlatformListRoot.AddComponent(PlatformListScrollComponent);
 
@@ -230,7 +230,6 @@ namespace helengine.editor {
             ActivePlatformComboBoxHost = CreateInternalHost();
             DialogPanelRoot.AddChild(ActivePlatformComboBoxHost);
             ActivePlatformComboBox = new ComboBoxComponent(GetActivePlatformComboBoxSize(), DialogFont, Array.Empty<string>(), -1);
-            ConfigureDialogComboBox(ActivePlatformComboBox);
             ActivePlatformComboBoxHost.AddComponent(ActivePlatformComboBox);
 
             StatusHost = CreateInternalHost();
@@ -240,20 +239,17 @@ namespace helengine.editor {
                 Text = string.Empty,
                 Color = ThemeManager.Colors.StateWarning,
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
-                RenderOrder2D = DialogTextOrder
             };
             StatusHost.AddComponent(StatusText);
 
             CancelButtonHost = CreateInternalHost();
             DialogPanelRoot.AddChild(CancelButtonHost);
             CancelButton = new ButtonComponent("Cancel", GetFooterButtonSize(CancelButtonBaseSize), DialogFont, HandleCancelClicked, 0f);
-            CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
             CancelButtonHost.AddComponent(CancelButton);
 
             SaveButtonHost = CreateInternalHost();
             DialogPanelRoot.AddChild(SaveButtonHost);
             SaveButton = new ButtonComponent("Save", GetFooterButtonSize(SaveButtonBaseSize), DialogFont, HandleSaveClicked, 0f);
-            SaveButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
             SaveButtonHost.AddComponent(SaveButton);
 
             Enabled = false;
@@ -385,7 +381,7 @@ namespace helengine.editor {
         /// <param name="count">Minimum number of pooled rows required.</param>
         void EnsurePlatformRowPool(int count) {
             for (int index = PlatformRows.Count; index < count; index++) {
-                PlatformsDialogRow row = new PlatformsDialogRow(OwnerCore, InteractionServices, DialogFont, LayerMask, GetPlatformCheckBoxSize(), DialogTextOrder);
+                PlatformsDialogRow row = new PlatformsDialogRow(OwnerCore, InteractionServices, DialogFont, LayerMask, GetPlatformCheckBoxSize());
                 PlatformListRoot.AddChild(row.CheckBoxHost);
                 PlatformListRoot.AddChild(row.LabelHost);
                 row.CheckBox.CheckedChanged += HandlePlatformCheckBoxChanged;
@@ -632,7 +628,6 @@ namespace helengine.editor {
                 Font = DialogFont,
                 Text = text,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                RenderOrder2D = DialogTextOrder
             };
         }
 

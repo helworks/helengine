@@ -2,11 +2,8 @@ namespace helengine.editor {
     /// <summary>
     /// Keeps the translation gizmo aligned to the currently selected entity.
     /// </summary>
+    [RunInEditor]
     public class TransformTranslationGizmoFollowComponent : UpdateComponent {
-        /// <summary>
-        /// Perspective vertical field of view used by the 3D renderer.
-        /// </summary>
-        const double PerspectiveVerticalFieldOfViewRadians = Math.PI / 4.0;
         /// <summary>
         /// Fraction of viewport height the translation axis should occupy on screen.
         /// </summary>
@@ -123,6 +120,7 @@ namespace helengine.editor {
             BaseHandleOrientations = new Dictionary<Entity, float4>();
             HandleBaseTransformsCached = false;
             CurrentYawFacingOrientationValue = float4.Identity;
+            UpdateOrder = TransformGizmoUpdateOrder.Follow;
         }
 
         internal void SetInput(InputSystem input) {
@@ -159,6 +157,7 @@ namespace helengine.editor {
             BaseHandleOrientations = new Dictionary<Entity, float4>();
             HandleBaseTransformsCached = false;
             CurrentYawFacingOrientationValue = float4.Identity;
+            UpdateOrder = TransformGizmoUpdateOrder.Follow;
         }
 
         /// <summary>

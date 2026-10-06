@@ -58,7 +58,7 @@ public class CameraPreviewSourceTests : IDisposable {
             source.Update();
 
             Assert.Equal(new float3(3f, 4f, -9f), source.PreviewCamera.Parent.Position);
-            Assert.Equal(7, source.PreviewCamera.CameraDrawOrder);
+            Assert.Equal(EditorUiCameraDrawOrders.SharedUi - 1, source.PreviewCamera.CameraDrawOrder);
             Assert.Equal(EditorLayerMasks.SceneObjects, source.PreviewCamera.LayerMask);
             Assert.Equal(new CameraClearSettings(true, new float4(0.2f, 0.3f, 0.4f, 1f), true, 1f, false, 0), source.PreviewCamera.ClearSettings);
         }
@@ -84,10 +84,10 @@ public class CameraPreviewSourceTests : IDisposable {
         }
 
         /// <summary>
-        /// Ensures suppressed authored scene cameras preserve their authored viewport dimensions when previewed.
+        /// Ensures camera previews redraw at panel resolution while retaining their authored logical canvas.
         /// </summary>
         [Fact]
-        public void Resize_WhenSuppressedSceneCameraUsesAuthoredViewport_PreservesAuthoredViewportDimensions() {
+        public void Resize_WhenSuppressedSceneCameraUsesAuthoredViewport_PreservesLogicalCanvasAtPanelResolution() {
             EditorEntity cameraEntity = CreateCameraEntity(new float4(0f, 0f, 1280f, 720f));
             CameraComponent liveCamera = Assert.IsType<CameraComponent>(Assert.Single(cameraEntity.Components, component => component is CameraComponent));
             EditorSceneCameraSuppressionService.AttachAndSuppress(cameraEntity, GeneratedAssetGraph.ObjectManager);
@@ -96,9 +96,16 @@ public class CameraPreviewSourceTests : IDisposable {
             source.Resize(new int2(320, 180));
 
             TestRenderTarget resizedRenderTarget = Assert.IsType<TestRenderTarget>(source.RenderTarget);
-            Assert.Equal(1280, resizedRenderTarget.Width);
-            Assert.Equal(720, resizedRenderTarget.Height);
-            Assert.Equal(new float4(0f, 0f, 1280f, 720f), source.PreviewCamera.Viewport);
+            Assert.Equal(320, resizedRenderTarget.Width);
+            Assert.Equal(180, resizedRenderTarget.Height);
+            Assert.Equal(new float4(0f, 0f, 320f, 180f), source.PreviewCamera.Viewport);
+            Assert.Equal(new int2(1280, 720), Assert.IsType<CameraPreviewComponent>(source.PreviewCamera).LogicalViewportSize);
+
+            source.Resize(new int2(640, 400));
+            Assert.True(resizedRenderTarget.WasDisposed);
+            Assert.Equal(640, source.RenderTarget.Width);
+            Assert.Equal(400, source.RenderTarget.Height);
+            Assert.Equal(new int2(1280, 720), Assert.IsType<CameraPreviewComponent>(source.PreviewCamera).LogicalViewportSize);
         }
 
         /// <summary>
@@ -107,6 +114,101 @@ public class CameraPreviewSourceTests : IDisposable {
         /// <returns>Editor entity with one camera component.</returns>
         EditorEntity CreateCameraEntity() {
             return CreateCameraEntity(new float4(0f, 0f, 128f, 72f));
+        }
+
+        /// <summary>Changing the logical canvas refreshes projection without reallocating an unchanged panel texture.</summary>
+        [Fact]
+        public void Update_WhenCanvasSizeChanges_RefreshesTargetAndReusesItOnUnchangedFrames() {
+            EditorEntity cameraEntity = CreateCameraEntity();
+            CameraComponent camera = Assert.IsType<CameraComponent>(Assert.Single(cameraEntity.Components, component => component is CameraComponent));
+            EditorSceneCanvasProfileState profile = new EditorSceneCanvasProfileState();
+            using CameraPreviewSource source = new CameraPreviewSource(cameraEntity, camera, CoreValue.RenderManager3D, profile, GeneratedAssetGraph.RendererResources);
+            source.Resize(new int2(320, 180));
+            TestRenderTarget previousTarget = Assert.IsType<TestRenderTarget>(source.RenderTarget);
+            profile.SetCanvasWidth(640);
+            profile.SetCanvasHeight(360);
+
+            source.Update();
+
+            Assert.False(previousTarget.WasDisposed);
+            Assert.Same(previousTarget, source.RenderTarget);
+            Assert.Equal(320, source.RenderTarget.Width);
+            Assert.Equal(180, source.RenderTarget.Height);
+            Assert.Equal(new float4(0, 0, 320, 180), source.PreviewCamera.Viewport);
+            Assert.Equal(new int2(640, 360), Assert.IsType<CameraPreviewComponent>(source.PreviewCamera).LogicalViewportSize);
+            RenderTarget updatedTarget = source.RenderTarget;
+            source.Update();
+            Assert.Same(updatedTarget, source.RenderTarget);
+        }
+
+        /// <summary>Authored text stays on the world-preview path so a fixed screen-space copy cannot hide camera movement.</summary>
+        /// <param name="hasViewport">Whether text belongs to an authored viewport bound to the selected camera.</param>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Update_WithSceneText_UsesWorldPreviewAcrossEditsAndResizes(bool hasViewport) {
+            EditorEntity cameraEntity = CreateCameraEntity();
+            CameraComponent camera = Assert.IsType<CameraComponent>(Assert.Single(cameraEntity.Components, component => component is CameraComponent));
+            EditorEntity root = new EditorEntity(CoreValue, InteractionServices);
+            if (hasViewport) {
+                root.AddComponent(new ViewportComponent {
+                    BindingMode = ViewportComponent.ExplicitCameraBindingMode, BoundCameraComponent = camera
+                });
+            }
+            EditorEntity labelEntity = new EditorEntity(CoreValue, InteractionServices) { LayerMask = EditorLayerMasks.SceneObjects };
+            root.AddChild(labelEntity);
+            TextComponent text = new TextComponent { Font = CreateFont(), Text = "A", Size = new int2(64, 32) };
+            labelEntity.AddComponent(text);
+            EditorEntity syncHost = new EditorEntity(CoreValue, InteractionServices) { InternalEntity = true };
+            EditorWorldSpace2DPreviewSyncComponent sync = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
+            syncHost.AddComponent(sync);
+            sync.Update();
+            EditorSceneCameraSuppressionService.AttachAndSuppress(cameraEntity, GeneratedAssetGraph.ObjectManager);
+            using CameraPreviewSource source = new CameraPreviewSource(cameraEntity, camera, CoreValue.RenderManager3D, GeneratedAssetGraph.RendererResources);
+            source.Resize(new int2(320, 180));
+            source.Update();
+
+            Assert.Contains(source.PreviewCamera, CoreValue.ObjectManager.Cameras);
+            Assert.Equal(0, source.PreviewCamera.RenderQueue2D.Count);
+            Assert.Equal(1, source.PreviewCamera.RenderQueue3D.Count);
+            text.Text = "B";
+            text.FontScale = 2f;
+            cameraEntity.Position = new float3(10, 20, -30);
+            source.Resize(new int2(640, 360));
+            source.Update();
+            Assert.Equal(cameraEntity.Position, source.PreviewCamera.Parent.Position);
+            Assert.Equal(0, source.PreviewCamera.RenderQueue2D.Count);
+            Assert.Equal(1, source.PreviewCamera.RenderQueue3D.Count);
+
+            EditorEntity secondLabelEntity = new EditorEntity(CoreValue, InteractionServices) { LayerMask = EditorLayerMasks.SceneObjects };
+            root.AddChild(secondLabelEntity);
+            secondLabelEntity.AddComponent(new TextComponent { Font = text.Font, Text = "C", Size = new int2(64, 32) });
+            sync.Update();
+            source.Update();
+            Assert.Equal(0, source.PreviewCamera.RenderQueue2D.Count);
+            Assert.Equal(2, source.PreviewCamera.RenderQueue3D.Count);
+            root.RemoveChild(secondLabelEntity);
+            secondLabelEntity.Dispose();
+            sync.Update();
+            source.Update();
+            Assert.Equal(1, source.PreviewCamera.RenderQueue3D.Count);
+        }
+
+        /// <summary>The live preview follows authored projection changes without requiring a panel resize or reselection.</summary>
+        [Fact]
+        public void Update_WhenCameraProjectionChanges_MirrorsProjectionState() {
+            EditorEntity cameraEntity = CreateCameraEntity();
+            CameraComponent camera = Assert.IsType<CameraComponent>(Assert.Single(cameraEntity.Components, component => component is CameraComponent));
+            using CameraPreviewSource source = new CameraPreviewSource(cameraEntity, camera, CoreValue.RenderManager3D, GeneratedAssetGraph.RendererResources);
+            camera.FieldOfView = 0.9f;
+            camera.NearPlaneDistance = 0.25f;
+            camera.FarPlaneDistance = 750f;
+
+            source.Update();
+
+            Assert.Equal(camera.FieldOfView, source.PreviewCamera.FieldOfView);
+            Assert.Equal(camera.NearPlaneDistance, source.PreviewCamera.NearPlaneDistance);
+            Assert.Equal(camera.FarPlaneDistance, source.PreviewCamera.FarPlaneDistance);
         }
 
         /// <summary>

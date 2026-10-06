@@ -2,6 +2,7 @@ namespace helengine {
     /// <summary>
     /// Renders the hidden editor-only camera icon attached to user camera entities.
     /// </summary>
+    [RunInEditor]
     public class EditorCameraVisualComponent : MeshComponent, IEditorHiddenComponent {
         readonly helengine.editor.EngineGeneratedMaterialCache GeneratedMaterialCache;
         readonly helengine.EditorCameraVisualResources VisualResources;

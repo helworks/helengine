@@ -54,9 +54,7 @@ namespace helengine {
         /// <param name="ownerCore">Core that owns the item hierarchy.</param>
         /// <param name="font">Font used for the item label.</param>
         /// <param name="layerMask">Layer mask applied to the item entities.</param>
-        /// <param name="backgroundOrder">Render order used for the background.</param>
-        /// <param name="textOrder">Render order used for the label text.</param>
-        public ComboBoxItemVisual(Core ownerCore, FontAsset font, ushort layerMask, byte backgroundOrder, byte textOrder) {
+        public ComboBoxItemVisual(Core ownerCore, FontAsset font, ushort layerMask) {
             if (ownerCore == null) {
                 throw new ArgumentNullException(nameof(ownerCore));
             }
@@ -71,7 +69,6 @@ namespace helengine {
             Root.InitChildren();
 
             Background = new RoundedRectComponent();
-            Background.RenderOrder2D = backgroundOrder;
             Background.BorderThickness = 1f;
             Root.AddComponent(Background);
 
@@ -87,7 +84,6 @@ namespace helengine {
 
             Label = new TextComponent();
             Label.Font = font;
-            Label.RenderOrder2D = textOrder;
             LabelHost.AddComponent(Label);
         }
 

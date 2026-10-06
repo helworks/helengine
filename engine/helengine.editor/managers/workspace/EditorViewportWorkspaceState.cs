@@ -18,6 +18,7 @@ namespace helengine.editor {
         /// <param name="pickerCamera">Hidden camera used for picker rendering.</param>
         /// <param name="pickerRenderTarget">Render target used by the picker camera when supported.</param>
         /// <param name="cameraController">Viewport-local camera controller that owns orbit state and input-driven navigation.</param>
+        /// <param name="navigationController">Viewport-local navigation-cube controller.</param>
         /// <param name="translationGizmoRoot">Root entity for the viewport-local translation gizmo.</param>
         /// <param name="rotationGizmoRoot">Root entity for the viewport-local rotation gizmo.</param>
         /// <param name="scaleGizmoRoot">Root entity for the viewport-local scale gizmo.</param>
@@ -34,6 +35,7 @@ namespace helengine.editor {
             CameraComponent pickerCamera,
             RenderTarget pickerRenderTarget,
             EditorViewportCameraController cameraController,
+            EditorViewportNavigationController navigationController,
             EditorEntity translationGizmoRoot,
             EditorEntity rotationGizmoRoot,
             EditorEntity scaleGizmoRoot) {
@@ -49,6 +51,7 @@ namespace helengine.editor {
             PickerCamera = pickerCamera ?? throw new ArgumentNullException(nameof(pickerCamera));
             PickerRenderTarget = pickerRenderTarget;
             CameraController = cameraController ?? throw new ArgumentNullException(nameof(cameraController));
+            NavigationController = navigationController ?? throw new ArgumentNullException(nameof(navigationController));
             TranslationGizmoRoot = translationGizmoRoot ?? throw new ArgumentNullException(nameof(translationGizmoRoot));
             RotationGizmoRoot = rotationGizmoRoot ?? throw new ArgumentNullException(nameof(rotationGizmoRoot));
             ScaleGizmoRoot = scaleGizmoRoot ?? throw new ArgumentNullException(nameof(scaleGizmoRoot));
@@ -102,6 +105,14 @@ namespace helengine.editor {
         /// Gets the viewport-local camera controller that owns orbit state and camera navigation.
         /// </summary>
         public EditorViewportCameraController CameraController { get; }
+        /// <summary>
+        /// Gets the viewport-local controller that owns navigation-cube transitions and projection actions.
+        /// </summary>
+        public EditorViewportNavigationController NavigationController { get; }
+        /// <summary>
+        /// Gets the navigation cube view installed in this viewport's UI hierarchy.
+        /// </summary>
+        public EditorViewportNavigationCube NavigationCube => Viewport.NavigationCube;
         /// <summary>
         /// Gets the root entity for the viewport-local translation gizmo.
         /// </summary>

@@ -18,4 +18,14 @@ namespace helengine.editor.tests.testing {
         /// </summary>
         public int SortOrder { get; set; }
     }
+
+    /// <summary>
+    /// Custom component fixture proving that a user-authored member may retain the legacy built-in field's name.
+    /// </summary>
+    public sealed class TestCustomRenderOrder2DSerializableComponent : Component {
+        /// <summary>
+        /// Gets or sets a user-defined value whose name happens to match the removed built-in drawable setting.
+        /// </summary>
+        public byte RenderOrder2D { get; set; }
+    }
 }

@@ -57,5 +57,11 @@ namespace helengine.editor {
         /// Layer mask used by offscreen model preview scenes so preview meshes stay out of the main viewport.
         /// </summary>
         public const ushort SceneModelPreview = 0b0000000000100000;
+
+        /// <summary>Isolates navigation-cube cameras from asset previews and authored scene content.</summary>
+        public const ushort NavigationCubePreview = 0b0000000000010000;
+
+        /// <summary>Isolates the fixed autoscroll indicator from all authored and editor UI content.</summary>
+        public const ushort AutoScrollIndicator = 0b0000000000001000;
     }
 }

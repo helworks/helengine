@@ -16,41 +16,15 @@ namespace helengine {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
-            if (ComponentExecutionContext.CurrentMode != ComponentExecutionMode.Editor) {
-                return true;
-            }
-            if (!HasEditorUpdateExecutionSuppressionMarker(entity)) {
+            if (entity.OwnerCore.ExecutionMode != ComponentExecutionMode.Editor
+                && ComponentExecutionContext.CurrentMode != ComponentExecutionMode.Editor) {
                 return true;
             }
 #if HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
             return false;
 #else
-            if (component is not UpdateComponent) {
-                return true;
-            }
-
-            return Attribute.IsDefined(component.GetType(), typeof(RunInEditorAttribute), true);
+            return Attribute.IsDefined(component.GetType(), typeof(RunInEditorAttribute), false);
 #endif
-        }
-
-        /// <summary>
-        /// Returns whether the supplied entity carries the editor-only marker that suppresses gameplay update execution during authoring.
-        /// </summary>
-        /// <param name="entity">Entity whose component collection should be inspected.</param>
-        /// <returns>True when the marker exists; otherwise false.</returns>
-        static bool HasEditorUpdateExecutionSuppressionMarker(Entity entity) {
-            if (entity.Components == null) {
-                return false;
-            }
-
-            for (int index = 0; index < entity.Components.Count; index++) {
-                Component component = entity.Components[index];
-                if (component != null && component.IsEditorUpdateExecutionSuppressionMarker) {
-                    return true;
-                }
-            }
-
-            return false;
         }
     }
 }

@@ -43,6 +43,12 @@ namespace helengine.editor {
         /// Root-relative path for the viewport stats toolbar icon.
         /// </summary>
         static readonly string StatsIconPath = Path.Combine("content", "icons", "toolbar", "stats.png");
+        /// <summary>Root-relative path for the scene-hierarchy disclosure chevron.</summary>
+        static readonly string HierarchyDisclosureIconPath = Path.Combine("content", "icons", "toolbar", "hierarchy-disclosure.png");
+        /// <summary>Root-relative path for the visible scene-hierarchy eye.</summary>
+        static readonly string HierarchyVisibleIconPath = Path.Combine("content", "icons", "toolbar", "hierarchy-visible.png");
+        /// <summary>Root-relative path for the hidden scene-hierarchy eye.</summary>
+        static readonly string HierarchyHiddenIconPath = Path.Combine("content", "icons", "toolbar", "hierarchy-hidden.png");
         /// <summary>
         /// Root-relative path for the editor title-bar icon.
         /// </summary>
@@ -77,6 +83,9 @@ namespace helengine.editor {
             RuntimeTexture ctrlKeyIcon = LoadTexture(content, applicationRootPath, CtrlKeyIconPath, renderManager2D);
             RuntimeTexture shiftKeyIcon = LoadTexture(content, applicationRootPath, ShiftKeyIconPath, renderManager2D);
             RuntimeTexture statsIcon = LoadTexture(content, applicationRootPath, StatsIconPath, renderManager2D);
+            RuntimeTexture hierarchyDisclosureIcon = LoadTexture(content, applicationRootPath, HierarchyDisclosureIconPath, renderManager2D);
+            RuntimeTexture hierarchyVisibleIcon = LoadTexture(content, applicationRootPath, HierarchyVisibleIconPath, renderManager2D);
+            RuntimeTexture hierarchyHiddenIcon = LoadTexture(content, applicationRootPath, HierarchyHiddenIconPath, renderManager2D);
             return new EditorViewportToolbarIconSet(
                 translateIcon,
                 rotateIcon,
@@ -88,7 +97,10 @@ namespace helengine.editor {
                 magnetIcon,
                 ctrlKeyIcon,
                 shiftKeyIcon,
-                statsIcon);
+                statsIcon,
+                hierarchyDisclosureIcon,
+                hierarchyVisibleIcon,
+                hierarchyHiddenIcon);
         }
 
         /// <summary>

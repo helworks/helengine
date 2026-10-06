@@ -38,6 +38,10 @@ namespace helengine.editor {
         /// </summary>
         const int DefaultPickerRenderTargetHeight = 360;
         /// <summary>
+        /// Minimum camera-to-pivot separation accepted when restoring a workspace pose.
+        /// </summary>
+        const double MinimumWorkspaceOrbitDistance = 0.001;
+        /// <summary>
         /// Shared JSON options used to deserialize persisted viewport state payloads written with camelCase names.
         /// </summary>
         static JsonSerializerOptions ViewportStateJsonSerializerOptions { get; } = new JsonSerializerOptions {
@@ -144,6 +148,13 @@ namespace helengine.editor {
                 CameraOrientationY = State.SceneCameraEntity.Orientation.Y,
                 CameraOrientationZ = State.SceneCameraEntity.Orientation.Z,
                 CameraOrientationW = State.SceneCameraEntity.Orientation.W,
+                ProjectionMode = GetProjectionSettings(State.SceneCamera).ProjectionMode,
+                OrthographicVerticalSpan = GetCapturedOrthographicSpan(State.SceneCamera, State.SceneCameraEntity.Position,
+                    State.CameraController.GetOrbitTarget()),
+                HasOrbitPivot = true,
+                OrbitPivotX = State.CameraController.GetOrbitTarget().X,
+                OrbitPivotY = State.CameraController.GetOrbitTarget().Y,
+                OrbitPivotZ = State.CameraController.GetOrbitTarget().Z,
                 ToolMode = State.Viewport.ToolMode,
                 NearPlaneDistance = State.SceneCamera.NearPlaneDistance,
                 FarPlaneDistance = State.SceneCamera.FarPlaneDistance,
@@ -173,15 +184,41 @@ namespace helengine.editor {
             }
 
             ViewportWorkspacePanelStateDocument document = ResolveStateDocument(state);
-            State.SceneCameraEntity.Position = new float3(
+            ValidateNavigationState(document);
+            float3 cameraPosition = new float3(
                 document.CameraPositionX,
                 document.CameraPositionY,
                 document.CameraPositionZ);
-            State.SceneCameraEntity.Orientation = new float4(
+            float4 cameraOrientation = new float4(
                 document.CameraOrientationX,
                 document.CameraOrientationY,
                 document.CameraOrientationZ,
                 document.CameraOrientationW);
+            ValidateCameraPose(cameraPosition, cameraOrientation);
+            cameraOrientation.Normalize();
+            State.NavigationController.CancelTransition();
+            State.SceneCameraEntity.Position = cameraPosition;
+            State.SceneCameraEntity.Orientation = cameraOrientation;
+            float3 orbitPivot;
+            double orbitDistance;
+            if (document.HasOrbitPivot) {
+                orbitPivot = new float3(document.OrbitPivotX, document.OrbitPivotY, document.OrbitPivotZ);
+                orbitDistance = GetDistance(cameraPosition, orbitPivot);
+                State.CameraController.SetOrbitState(orbitPivot, orbitDistance);
+            } else {
+                State.CameraController.ResetOrbitTargetFromCamera();
+                orbitPivot = State.CameraController.GetOrbitTarget();
+                orbitDistance = GetDistance(cameraPosition, orbitPivot);
+            }
+            if (!double.IsFinite(orbitDistance) || orbitDistance < MinimumWorkspaceOrbitDistance) {
+                throw new ArgumentOutOfRangeException(nameof(state), "The saved camera pose must have a finite, non-zero orbit distance.");
+            }
+            float resolvedSpan = document.OrthographicVerticalSpan == 0f
+                ? DeriveOrthographicSpan(State.SceneCamera, orbitDistance)
+                : document.OrthographicVerticalSpan;
+            ICameraProjectionSettings projectionSettings = GetProjectionSettings(State.SceneCamera);
+            projectionSettings.OrthographicVerticalSpan = resolvedSpan;
+            projectionSettings.ProjectionMode = document.ProjectionMode;
             State.Viewport.ToolMode = document.ToolMode;
             State.SceneCamera.NearPlaneDistance = document.NearPlaneDistance;
             State.SceneCamera.FarPlaneDistance = document.FarPlaneDistance;
@@ -201,12 +238,14 @@ namespace helengine.editor {
             RestoreSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap2, document.RotateSnap2);
             RestoreSnapValue(EditorViewportToolMode.Scale, TransformGizmoSnapSlot.Snap1, document.ScaleSnap1);
             RestoreSnapValue(EditorViewportToolMode.Scale, TransformGizmoSnapSlot.Snap2, document.ScaleSnap2);
+            SynchronizeCameraStack(State);
         }
 
         /// <summary>
         /// Disposes the viewport panel and its independent runtime camera stack.
         /// </summary>
         public void Dispose() {
+            State.Viewport.DetachNavigationCube();
             State.Viewport.ClearInputBlockers();
             EditorSessionInteractionServices.From(State.Viewport).GizmoHover.ClearHoveredHandle(State.SceneCamera);
             EditorSessionInteractionServices.From(State.Viewport).GizmoDrag.EndDrag(State.SceneCamera);
@@ -256,6 +295,8 @@ namespace helengine.editor {
             EditorViewportCameraController cameraController = new EditorViewportCameraController(sceneCamera, RendererResources.Input);
             viewport.CameraController = cameraController;
             sceneCameraEntity.AddComponent(cameraController);
+            EditorViewportNavigationController navigationController = new EditorViewportNavigationController(cameraController);
+            viewport.AttachNavigationCube(navigationController);
             viewport.FocusSelectionRequested = HandleFocusSelectionRequested;
             RuntimeMaterial transformGizmoMaterial = BuildTransformGizmoNormalMaterial(render3D);
             RuntimeMaterial transformGizmoHighlightMaterial = BuildTransformGizmoHighlightMaterial(render3D);
@@ -286,7 +327,7 @@ namespace helengine.editor {
                 translationGizmoRoot,
                 rotationGizmoRoot,
                 scaleGizmoRoot);
-            sceneCameraEntity.AddComponent(new EditorViewportGizmoRenderQueueComponent(gizmoCamera, gizmoDrawableCollector, RendererResources.ObjectManager));
+            sceneCameraEntity.AddComponent(new EditorViewportGizmoRenderQueueComponent(sceneCamera, gizmoCamera, gizmoDrawableCollector, RendererResources.ObjectManager));
             EditorEntity pickerCameraEntity = CreatePickerCameraEntity(sceneCameraEntity);
             CameraComponent pickerCamera = CreatePickerCamera();
             pickerCameraEntity.AddComponent(pickerCamera);
@@ -311,6 +352,7 @@ namespace helengine.editor {
                 pickerCamera,
                 pickerRenderTarget,
                 cameraController,
+                navigationController,
                 translationGizmoRoot,
                 rotationGizmoRoot,
                 scaleGizmoRoot);
@@ -333,14 +375,137 @@ namespace helengine.editor {
             }
 
             state.Viewport.FocusSelectionRequested = HandleFocusSelectionRequested;
+            state.NavigationController.CameraStateChanged = () => SynchronizeCameraStack(state);
         }
 
         /// <summary>
         /// Frames the current editor selection inside this viewport's scene camera.
         /// </summary>
         void HandleFocusSelectionRequested() {
-            SelectionFramingService.FocusSelection(State.SceneCamera, State.CameraController, EditorSessionInteractionServices.From(State.Viewport).Selection.SelectedEntity);
-            SynchronizeGizmoCameraProjection(State.SceneCamera, State.GizmoCamera);
+            Entity selectedEntity = EditorSessionInteractionServices.From(State.Viewport).Selection.SelectedEntity;
+            if (selectedEntity == null) {
+                return;
+            }
+
+            State.NavigationController.CancelTransition();
+            SelectionFramingService.FocusSelection(State.SceneCamera, State.CameraController, selectedEntity);
+            SynchronizeCameraStack(State);
+        }
+
+        /// <summary>
+        /// Copies the active scene camera projection and pose into the gizmo and picker cameras for one viewport stack.
+        /// </summary>
+        /// <param name="state">Viewport camera stack receiving synchronized state.</param>
+        void SynchronizeCameraStack(EditorViewportWorkspaceState state) {
+            if (state == null) {
+                throw new ArgumentNullException(nameof(state));
+            }
+
+            state.GizmoCamera.Viewport = state.SceneCamera.Viewport;
+            EditorViewportCameraProjectionSynchronizer.Synchronize(state.SceneCamera, state.GizmoCamera);
+            state.PickerCameraEntity.Position = state.SceneCameraEntity.Position;
+            state.PickerCameraEntity.Orientation = state.SceneCameraEntity.Orientation;
+            EditorViewportCameraProjectionSynchronizer.Synchronize(state.SceneCamera, state.PickerCamera);
+        }
+
+        /// <summary>
+        /// Reads the optional editor projection contract from one workspace camera.
+        /// </summary>
+        /// <param name="camera">Editor viewport camera.</param>
+        /// <returns>Optional projection settings exposed by the editor camera.</returns>
+        static ICameraProjectionSettings GetProjectionSettings(CameraComponent camera) {
+            if (camera is not ICameraProjectionSettings projectionSettings) {
+                throw new InvalidOperationException("Workspace viewport cameras must support editor projection settings.");
+            }
+
+            return projectionSettings;
+        }
+
+        /// <summary>
+        /// Captures a perspective-equivalent orthographic span or preserves the active orthographic span.
+        /// </summary>
+        /// <param name="camera">Viewport camera whose field of view and projection state are captured.</param>
+        /// <param name="cameraPosition">Current camera world position.</param>
+        /// <param name="orbitPivot">Current viewport orbit pivot.</param>
+        /// <returns>Vertical world-space span to use in orthographic mode.</returns>
+        static float GetCapturedOrthographicSpan(CameraComponent camera, float3 cameraPosition, float3 orbitPivot) {
+            ICameraProjectionSettings settings = GetProjectionSettings(camera);
+            if (settings.ProjectionMode == CameraProjectionMode.Orthographic) {
+                return settings.OrthographicVerticalSpan;
+            }
+
+            return DeriveOrthographicSpan(camera, GetDistance(cameraPosition, orbitPivot));
+        }
+
+        /// <summary>
+        /// Derives the orthographic vertical span that has the same scale as a perspective camera at one distance.
+        /// </summary>
+        /// <param name="camera">Camera whose field of view defines the scale.</param>
+        /// <param name="distance">Distance between camera and orbit pivot.</param>
+        /// <returns>Finite positive vertical world-space span.</returns>
+        static float DeriveOrthographicSpan(CameraComponent camera, double distance) {
+            float fieldOfView = camera.FieldOfView;
+            if (!float.IsFinite(fieldOfView) || fieldOfView <= 0f || !double.IsFinite(distance) || distance <= 0.0) {
+                throw new ArgumentOutOfRangeException(nameof(distance), "Camera field of view and pivot distance must be finite and positive.");
+            }
+
+            double span = 2.0 * distance * Math.Tan(CameraProjectionUtils.ClampFieldOfView(fieldOfView) * 0.5);
+            if (!double.IsFinite(span) || span < CameraProjectionUtils.MinimumOrthographicVerticalSpan || span > float.MaxValue) {
+                throw new ArgumentOutOfRangeException(nameof(distance), "The camera pose cannot be represented by an orthographic span.");
+            }
+
+            return (float)span;
+        }
+
+        /// <summary>
+        /// Validates projection and pivot fields, allowing zero span only as the marker for a missing legacy value.
+        /// </summary>
+        /// <param name="document">Workspace state document to validate.</param>
+        static void ValidateNavigationState(ViewportWorkspacePanelStateDocument document) {
+            if (document.ProjectionMode != CameraProjectionMode.Perspective && document.ProjectionMode != CameraProjectionMode.Orthographic) {
+                throw new ArgumentOutOfRangeException(nameof(document.ProjectionMode), document.ProjectionMode, "Workspace camera projection mode is not supported.");
+            }
+            if (!float.IsFinite(document.OrthographicVerticalSpan) || document.OrthographicVerticalSpan < 0f ||
+                (document.OrthographicVerticalSpan > 0f && document.OrthographicVerticalSpan < CameraProjectionUtils.MinimumOrthographicVerticalSpan)) {
+                throw new ArgumentOutOfRangeException(nameof(document.OrthographicVerticalSpan), "Workspace orthographic span must be finite and positive when present.");
+            }
+            if (!float.IsFinite(document.OrbitPivotX) || !float.IsFinite(document.OrbitPivotY) || !float.IsFinite(document.OrbitPivotZ)) {
+                throw new ArgumentOutOfRangeException(nameof(document.OrbitPivotX), "Workspace orbit pivot must contain only finite values.");
+            }
+        }
+
+        /// <summary>
+        /// Rejects camera positions and quaternions that cannot define a stable workspace camera pose.
+        /// </summary>
+        /// <param name="position">Restored camera world position.</param>
+        /// <param name="orientation">Restored camera orientation.</param>
+        static void ValidateCameraPose(float3 position, float4 orientation) {
+            if (!float.IsFinite(position.X) || !float.IsFinite(position.Y) || !float.IsFinite(position.Z)) {
+                throw new ArgumentOutOfRangeException(nameof(position), "Workspace camera position must contain only finite values.");
+            }
+            if (!float.IsFinite(orientation.X) || !float.IsFinite(orientation.Y) || !float.IsFinite(orientation.Z) || !float.IsFinite(orientation.W)) {
+                throw new ArgumentOutOfRangeException(nameof(orientation), "Workspace camera orientation must contain only finite values.");
+            }
+
+            double lengthSquared =
+                (orientation.X * orientation.X) + (orientation.Y * orientation.Y) +
+                (orientation.Z * orientation.Z) + (orientation.W * orientation.W);
+            if (!double.IsFinite(lengthSquared) || lengthSquared <= 0.000001) {
+                throw new ArgumentOutOfRangeException(nameof(orientation), "Workspace camera orientation must have non-zero magnitude.");
+            }
+        }
+
+        /// <summary>
+        /// Computes the Euclidean camera-to-pivot distance without reducing precision to a single-precision vector length.
+        /// </summary>
+        /// <param name="cameraPosition">Camera world position.</param>
+        /// <param name="orbitPivot">World-space orbit pivot.</param>
+        /// <returns>Distance in world units.</returns>
+        static double GetDistance(float3 cameraPosition, float3 orbitPivot) {
+            double deltaX = cameraPosition.X - orbitPivot.X;
+            double deltaY = cameraPosition.Y - orbitPivot.Y;
+            double deltaZ = cameraPosition.Z - orbitPivot.Z;
+            return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
         }
 
         /// <summary>
@@ -361,7 +526,7 @@ namespace helengine.editor {
         /// <param name="sceneCameraEntity">Entity that owns the camera.</param>
         /// <returns>Created scene camera.</returns>
         CameraComponent CreateSceneCamera(EditorEntity sceneCameraEntity) {
-            CameraComponent sceneCamera = new CameraComponent();
+            CameraComponent sceneCamera = new EditorViewportCameraComponent();
             sceneCamera.LayerMask = EditorLayerMasks.SceneObjects | EditorLayerMasks.SceneGrid | EditorLayerMasks.SceneCameraVisuals | EditorLayerMasks.SceneCanvasPlane;
             sceneCamera.CameraDrawOrder = SceneCameraDrawOrder;
             sceneCamera.FarPlaneDistance = DefaultSceneCameraFarPlaneDistance;
@@ -386,7 +551,7 @@ namespace helengine.editor {
         /// <param name="sceneCamera">Primary scene camera whose viewport rectangle is mirrored.</param>
         /// <returns>Created gizmo overlay camera.</returns>
         CameraComponent CreateGizmoCamera(EditorEntity sceneCameraEntity, CameraComponent sceneCamera) {
-            CameraComponent gizmoCamera = new CameraComponent();
+            CameraComponent gizmoCamera = new EditorViewportCameraComponent();
             gizmoCamera.LayerMask = EditorLayerMasks.SceneGizmo;
             gizmoCamera.CameraDrawOrder = GizmoCameraDrawOrder;
             gizmoCamera.ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0);
@@ -409,8 +574,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(gizmoCamera));
             }
 
-            gizmoCamera.NearPlaneDistance = sceneCamera.NearPlaneDistance;
-            gizmoCamera.FarPlaneDistance = sceneCamera.FarPlaneDistance;
+            EditorViewportCameraProjectionSynchronizer.Synchronize(sceneCamera, gizmoCamera);
         }
 
         /// <summary>
@@ -433,7 +597,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Created picker camera.</returns>
         CameraComponent CreatePickerCamera() {
-            CameraComponent pickerCamera = new CameraComponent();
+            CameraComponent pickerCamera = new EditorViewportCameraComponent();
             pickerCamera.LayerMask = EditorLayerMasks.SceneObjects | EditorLayerMasks.SceneCameraVisuals;
             pickerCamera.Viewport = new float4(0f, 0f, DefaultPickerRenderTargetWidth, DefaultPickerRenderTargetHeight);
             pickerCamera.ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0);

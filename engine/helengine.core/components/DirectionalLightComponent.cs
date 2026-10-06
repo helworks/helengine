@@ -2,6 +2,9 @@ namespace helengine {
     /// <summary>
     /// Represents one authored directional light in the scene.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class DirectionalLightComponent : LightComponent {
         /// <summary>
         /// Default directional shadow cutoff distance used by newly created lights.

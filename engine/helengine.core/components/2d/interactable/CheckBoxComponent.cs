@@ -2,6 +2,9 @@ namespace helengine {
     /// <summary>
     /// Renders one reusable checkbox control with hover, press, and checked-state visuals.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class CheckBoxComponent : Component {
         /// <summary>
         /// Size of the checkbox in pixels.
@@ -23,18 +26,6 @@ namespace helengine {
         /// Tracks whether the checkbox is currently pressed.
         /// </summary>
         bool IsPressed;
-        /// <summary>
-        /// Tracks whether custom render orders were supplied for the checkbox visuals.
-        /// </summary>
-        bool HasRenderOrderOverrides;
-        /// <summary>
-        /// Render order override for the checkbox background.
-        /// </summary>
-        byte BackgroundRenderOrder;
-        /// <summary>
-        /// Render order override for the checkbox check-mark text.
-        /// </summary>
-        byte CheckMarkRenderOrder;
         /// <summary>
         /// Background rectangle that renders the checkbox border and fill.
         /// </summary>
@@ -108,43 +99,16 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Overrides the render orders used for the checkbox background and check mark.
-        /// </summary>
-        /// <param name="backgroundOrder">Render order for the checkbox background.</param>
-        /// <param name="checkMarkOrder">Render order for the checkbox check mark.</param>
-        public void SetRenderOrders(byte backgroundOrder, byte checkMarkOrder) {
-            HasRenderOrderOverrides = true;
-            BackgroundRenderOrder = backgroundOrder;
-            CheckMarkRenderOrder = checkMarkOrder;
-
-            if (Background != null) {
-                Background.RenderOrder2D = backgroundOrder;
-            }
-
-            if (CheckMark != null) {
-                CheckMark.RenderOrder2D = checkMarkOrder;
-            }
-        }
-
-        /// <summary>
         /// Creates the checkbox visuals and input region when the component is added to an entity.
         /// </summary>
         /// <param name="entity">Owning entity.</param>
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            byte backgroundOrder = RenderOrder2D.PanelSurface;
-            byte textOrder = RenderOrder2D.PanelForeground;
-            if (HasRenderOrderOverrides) {
-                backgroundOrder = BackgroundRenderOrder;
-                textOrder = CheckMarkRenderOrder;
-            }
-
             Background = new RoundedRectComponent();
             Background.Size = SizeValue;
             Background.Radius = (float)(Math.Min(SizeValue.X, SizeValue.Y) * 0.15d);
             Background.BorderThickness = 2f;
-            Background.RenderOrder2D = backgroundOrder;
             entity.AddComponent(Background);
 
             Interactable = new InteractableComponent();
@@ -167,7 +131,6 @@ namespace helengine {
             CheckMark = new TextComponent();
             CheckMark.Font = Font;
             CheckMark.Color = ThemeManager.Colors.InputForegroundPrimary;
-            CheckMark.RenderOrder2D = textOrder;
             CheckMarkEntity.AddComponent(CheckMark);
 
             UpdateCheckMarkLayout();

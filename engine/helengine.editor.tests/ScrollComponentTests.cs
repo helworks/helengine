@@ -4,7 +4,7 @@ using Xunit;
 
 namespace helengine.editor.tests {
     /// <summary>
-    /// Verifies wheel-driven scroll behavior for reusable scroll components.
+    /// Verifies wheel and middle-button autoscroll behavior for reusable scroll components.
     /// </summary>
     public class ScrollComponentTests : IDisposable {
         /// <summary>
@@ -21,14 +21,18 @@ namespace helengine.editor.tests {
         /// Initializes the core services required by the scroll-component tests.
         /// </summary>
         public ScrollComponentTests() {
-            TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-scrollcomponent-tests", Guid.NewGuid().ToString("N"));
+            TempRootPath = Path.Combine(AppContext.BaseDirectory, "test-artifacts", "scroll-component", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
 
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             Input = new TestInputBackend();
-            core.Initialize(null, new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
+            core.Initialize(
+                null,
+                new TestRenderManager2D(),
+                Input,
+                new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>
@@ -260,6 +264,38 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a scroll viewport inherits the fixed origin of its ancestor clip when its parent content moves.
+        /// </summary>
+        [Fact]
+        public void ScrollComponent_WhenParentContentMoves_AnchorsClipBoundsToAncestorClipRect() {
+            EditorEntity viewport = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+                Position = new float3(20f, 30f, 0f)
+            };
+            viewport.AddComponent(new ClipRectComponent {
+                Size = new int2(160, 100)
+            });
+
+            EditorEntity movingContentRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            viewport.AddChild(movingContentRoot);
+            ScrollComponent scroll = new ScrollComponent {
+                Size = new int2(160, 100),
+                ItemCount = 24,
+                VisibleItemCount = 8
+            };
+            movingContentRoot.AddComponent(scroll);
+            viewport.InitializeHierarchy();
+
+            movingContentRoot.Position = new float3(0f, -40f, 0f);
+
+            float4 clipRect = scroll.GetClipRect();
+
+            Assert.Equal(20f, clipRect.X);
+            Assert.Equal(30f, clipRect.Y);
+            Assert.Equal(160f, clipRect.Z);
+            Assert.Equal(100f, clipRect.W);
+        }
+
+        /// <summary>
         /// Ensures the scroll component can derive its visible item count and translate a bound content root automatically.
         /// </summary>
         [Fact]
@@ -295,6 +331,131 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a middle-button click released inside the viewport activates browser-style autoscroll.
+        /// </summary>
+        [Fact]
+        public void ScrollComponent_WhenMiddleButtonClickIsReleased_EntersAutoScrollModeAndTracksPointerDirection() {
+            EditorEntity viewport = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+                Position = new float3(20f, 30f, 0f)
+            };
+            ScrollComponent scroll = new ScrollComponent {
+                Size = new int2(160, 100),
+                ItemCount = 24,
+                ItemExtent = 10
+            };
+            viewport.AddComponent(scroll);
+            viewport.InitializeHierarchy();
+
+            AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            AdvanceInput(new MouseState(40, 60, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 0.25d);
+
+            Assert.Equal(1, scroll.ScrollOffset);
+            Assert.Equal(PointerCursorKind.AutoScrollVertical, Core.Instance.PointerInteractionSystem.HoverCursor);
+            Assert.Equal(new int2(40, 50), Core.Instance.PointerInteractionSystem.CursorOverridePosition);
+
+            AdvanceInput(new MouseState(40, 40, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 0.25d);
+            Assert.Equal(0, scroll.ScrollOffset);
+
+            AdvanceInput(new MouseState(40, 60, 0, ButtonState.Released, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            AdvanceInput(new MouseState(40, 60, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            Assert.Equal(PointerCursorKind.Default, Core.Instance.PointerInteractionSystem.HoverCursor);
+            Assert.Equal(new int2(0, 0), Core.Instance.PointerInteractionSystem.CursorOverridePosition);
+            AdvanceInput(new MouseState(40, 40, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d);
+            Assert.Equal(0, scroll.ScrollOffset);
+        }
+
+        /// <summary>
+        /// Ensures a middle-button click outside the viewport does not activate autoscroll when the pointer later moves inside.
+        /// </summary>
+        [Fact]
+        public void ScrollComponent_WhenMiddleButtonClickStartsOutsideViewport_DoesNotActivateAutoScroll() {
+            EditorEntity host = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+                Position = new float3(20f, 30f, 0f)
+            };
+            ScrollComponent scroll = new ScrollComponent {
+                Size = new int2(160, 100),
+                ItemCount = 24,
+                ItemExtent = 10
+            };
+            host.AddComponent(scroll);
+            host.InitializeHierarchy();
+
+            AdvanceInput(new MouseState(5, 5, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            AdvanceInput(new MouseState(5, 5, 0, ButtonState.Released, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            AdvanceInput(new MouseState(5, 5, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            AdvanceInput(new MouseState(40, 30, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d);
+
+            Assert.Equal(0, scroll.ScrollOffset);
+        }
+
+        /// <summary>
+        /// Ensures horizontal scrolling uses horizontal extent, pointer distance, and content translation while retaining the click anchor.
+        /// </summary>
+        [Fact]
+        public void ScrollComponent_WhenHorizontalAutoScrollIsActive_UsesHorizontalAxisAndKeepsIndicatorAnchorFixed() {
+            using EditorAutoScrollIndicatorOverlay overlay = new EditorAutoScrollIndicatorOverlay(
+                Core.Instance,
+                new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity viewport = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+                Position = new float3(20f, 30f, 0f)
+            };
+            EditorEntity contentRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+                Position = new float3(0f, 7f, 3f)
+            };
+            viewport.AddChild(contentRoot);
+
+            ScrollComponent scroll = new ScrollComponent {
+                Orientation = ScrollOrientation.Horizontal,
+                Size = new int2(160, 100),
+                ItemCount = 24,
+                ItemExtent = 10
+            };
+            viewport.AddComponent(scroll);
+            scroll.ContentRoot = contentRoot;
+            viewport.InitializeHierarchy();
+
+            int initialCameraCount = Core.Instance.ObjectManager.Cameras.Count;
+            Assert.Equal(16, scroll.VisibleItemCount);
+            Assert.Equal(8, scroll.MaximumScrollOffset);
+            overlay.Update();
+            Assert.False(overlay.IsVisible);
+            Assert.Equal(initialCameraCount, Core.Instance.ObjectManager.Cameras.Count);
+
+            AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            AdvanceInput(new MouseState(40, 60, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 0.5d);
+
+            Assert.Equal(0, scroll.ScrollOffset);
+            Assert.Equal(new int2(40, 50), Core.Instance.PointerInteractionSystem.CursorOverridePosition);
+            overlay.Update();
+            Assert.True(overlay.IsVisible);
+            Assert.Equal(ScrollOrientation.Horizontal, overlay.VisibleOrientation);
+            Assert.Equal(new int2(24, 34), overlay.IndicatorTopLeft);
+            Assert.Equal(initialCameraCount + 1, Core.Instance.ObjectManager.Cameras.Count);
+
+            AdvanceInput(new MouseState(50, 50, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 0.25d);
+
+            Assert.Equal(1, scroll.ScrollOffset);
+            Assert.Equal(PointerCursorKind.AutoScrollHorizontal, Core.Instance.PointerInteractionSystem.HoverCursor);
+            Assert.Equal(-10f, contentRoot.LocalPosition.X);
+            Assert.Equal(7f, contentRoot.LocalPosition.Y);
+            Assert.Equal(3f, contentRoot.LocalPosition.Z);
+            Assert.Equal(new int2(40, 50), Core.Instance.PointerInteractionSystem.CursorOverridePosition);
+
+            overlay.Update();
+            Assert.Equal(new int2(24, 34), overlay.IndicatorTopLeft);
+
+            AdvanceInput(new MouseState(50, 50, 0, ButtonState.Released, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            AdvanceInput(new MouseState(50, 50, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            overlay.Update();
+            Assert.False(overlay.IsVisible);
+            Assert.Equal(initialCameraCount, Core.Instance.ObjectManager.Cameras.Count);
+        }
+
+        /// <summary>
         /// Ensures a partially fitting trailing item does not reduce the scroll range required to show the final item completely.
         /// </summary>
         [Fact]
@@ -309,6 +470,145 @@ namespace helengine.editor.tests {
             Assert.Equal(5, scroll.MaximumScrollOffset);
         }
 
+        /// <summary>Checks arrow feedback against the scroll axis, neutral position, content limits, and cancellation.</summary>
+        [Theory]
+        [InlineData(ScrollOrientation.Vertical)]
+        [InlineData(ScrollOrientation.Horizontal)]
+        public void AutoScrollIndicator_HighlightsOnlyTheDirectionThatCanScroll(ScrollOrientation orientation) {
+            using EditorAutoScrollIndicatorOverlay overlay = new EditorAutoScrollIndicatorOverlay(
+                Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity viewport = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+                Position = new float3(20f, 30f, 0f)
+            };
+            ScrollComponent scroll = new ScrollComponent {
+                Orientation = orientation,
+                Size = new int2(160, 100),
+                ItemCount = 40,
+                ItemExtent = 10
+            };
+            viewport.AddComponent(scroll);
+            viewport.InitializeHierarchy();
+            scroll.ScrollTo(5);
+            AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            overlay.Update();
+
+            string backwardName = orientation == ScrollOrientation.Vertical ? "Autoscroll Up Arrow" : "Autoscroll Left Arrow";
+            string forwardName = orientation == ScrollOrientation.Vertical ? "Autoscroll Down Arrow" : "Autoscroll Right Arrow";
+            SpriteComponent backward = FindAutoScrollSprite(backwardName);
+            SpriteComponent forward = FindAutoScrollSprite(forwardName);
+            _ = FindAutoScrollSprite("Autoscroll Center Dot");
+            byte4 neutral = backward.Color;
+            Assert.Equal(neutral, forward.Color);
+
+            AdvanceInput(new MouseState(orientation == ScrollOrientation.Vertical ? 70 : 40,
+                orientation == ScrollOrientation.Horizontal ? 80 : 50, 0,
+                ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            overlay.Update();
+            Assert.Equal(neutral, backward.Color);
+            Assert.Equal(neutral, forward.Color);
+
+            AdvanceInput(new MouseState(orientation == ScrollOrientation.Horizontal ? 30 : 40,
+                orientation == ScrollOrientation.Vertical ? 40 : 50, 0,
+                ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            overlay.Update();
+            Assert.NotEqual(neutral, backward.Color);
+            Assert.Equal(neutral, forward.Color);
+
+            scroll.ScrollTo(0);
+            overlay.Update();
+            Assert.Equal(neutral, backward.Color);
+
+            AdvanceInput(new MouseState(orientation == ScrollOrientation.Horizontal ? 50 : 40,
+                orientation == ScrollOrientation.Vertical ? 60 : 50, 0,
+                ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            overlay.Update();
+            Assert.Equal(neutral, backward.Color);
+            Assert.NotEqual(neutral, forward.Color);
+
+            scroll.ScrollTo(scroll.MaximumScrollOffset);
+            overlay.Update();
+            Assert.Equal(neutral, forward.Color);
+            AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            overlay.Update();
+            Assert.Equal(neutral, backward.Color);
+            Assert.Equal(neutral, forward.Color);
+
+            AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            overlay.Update();
+            Assert.False(overlay.IsVisible);
+        }
+
+        /// <summary>Ensures indicator updates reuse one atlas and teardown releases it and the entities exactly once.</summary>
+        [Fact]
+        public void AutoScrollIndicator_ReusesAndReleasesItsOwnedAtlas() {
+            TestRenderManager2D renderer = (TestRenderManager2D)Core.Instance.RenderManager2D;
+            int textureCount = renderer.BuildTextureFromRawCallCount;
+            int releasedCount = renderer.ReleasedTextures.Count;
+            int entityCount = Core.Instance.ObjectManager.Entities.Count;
+            EditorAutoScrollIndicatorOverlay overlay = new EditorAutoScrollIndicatorOverlay(
+                Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            overlay.Update();
+            overlay.Update();
+            Assert.Equal(textureCount + 1, renderer.BuildTextureFromRawCallCount);
+            overlay.Dispose();
+            overlay.Dispose();
+            Assert.Equal(releasedCount + 1, renderer.ReleasedTextures.Count);
+            Assert.Equal(entityCount, Core.Instance.ObjectManager.Entities.Count);
+        }
+
+        /// <summary>Finds a rendered indicator sprite by its semantic direction name.</summary>
+        /// <param name="name">Indicator element whose currently rendered sprite is required.</param>
+        /// <returns>The visible sprite submitted by the overlay.</returns>
+        SpriteComponent FindAutoScrollSprite(string name) {
+            return Assert.Single(Core.Instance.ObjectManager.Drawables2D.OfType<SpriteComponent>(),
+                sprite => sprite.Parent is EditorEntity entity && entity.Name == name);
+        }
+
+        /// <summary>Checks that either primary mouse button cancels autoscroll immediately, even outside its viewport.</summary>
+        [Theory]
+        [InlineData(ScrollOrientation.Vertical, true)]
+        [InlineData(ScrollOrientation.Vertical, false)]
+        [InlineData(ScrollOrientation.Horizontal, true)]
+        [InlineData(ScrollOrientation.Horizontal, false)]
+        public void ScrollComponent_LeftOrRightClickOutsideViewport_StopsAutoScroll(ScrollOrientation orientation, bool leftButton) {
+            using EditorAutoScrollIndicatorOverlay overlay = new EditorAutoScrollIndicatorOverlay(
+                Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity viewport = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+                Position = new float3(20f, 30f, 0f)
+            };
+            ScrollComponent scroll = new ScrollComponent {
+                Orientation = orientation,
+                Size = new int2(160, 100),
+                ItemCount = 100,
+                ItemExtent = 10
+            };
+            viewport.AddComponent(scroll);
+            viewport.InitializeHierarchy();
+            AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d / 60d);
+            AdvanceInput(new MouseState(orientation == ScrollOrientation.Horizontal ? 50 : 40,
+                orientation == ScrollOrientation.Vertical ? 60 : 50, 0,
+                ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 0.25d);
+            overlay.Update();
+            Assert.True(overlay.IsVisible);
+            Assert.Equal(1, scroll.ScrollOffset);
+
+            AdvanceInput(new MouseState(500, 500, 0,
+                leftButton ? ButtonState.Pressed : ButtonState.Released, ButtonState.Released,
+                leftButton ? ButtonState.Released : ButtonState.Pressed, ButtonState.Released, ButtonState.Released), 0.25d);
+            overlay.Update();
+            Assert.False(overlay.IsVisible);
+            Assert.Equal(PointerCursorKind.Default, Core.Instance.PointerInteractionSystem.HoverCursor);
+            Assert.Equal(0, scroll.AutoScrollDirection);
+            Assert.Equal(1, scroll.ScrollOffset);
+
+            AdvanceInput(new MouseState(400, 400, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released), 1d);
+            Assert.Equal(1, scroll.ScrollOffset);
+        }
+
         /// <summary>
         /// Advances the simulated raw input state by one engine frame.
         /// </summary>
@@ -316,6 +616,16 @@ namespace helengine.editor.tests {
         void AdvanceInput(MouseState mouseState) {
             Input.SetMouseState(mouseState);
             Core.Instance.Update();
+        }
+
+        /// <summary>
+        /// Advances the simulated raw input state by one engine frame with a deterministic elapsed time.
+        /// </summary>
+        /// <param name="mouseState">Mouse state to expose during the frame.</param>
+        /// <param name="elapsedSeconds">Frame time in seconds.</param>
+        void AdvanceInput(MouseState mouseState, double elapsedSeconds) {
+            Input.SetMouseState(mouseState);
+            Core.Instance.Update(elapsedSeconds);
         }
     }
 }

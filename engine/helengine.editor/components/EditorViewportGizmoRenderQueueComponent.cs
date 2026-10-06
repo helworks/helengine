@@ -2,7 +2,12 @@ namespace helengine.editor {
     /// <summary>
     /// Rebuilds one viewport gizmo camera queue from only the gizmo entities owned by that viewport.
     /// </summary>
+    [RunInEditor]
     public sealed class EditorViewportGizmoRenderQueueComponent : UpdateComponent {
+        /// <summary>
+        /// Scene camera whose current projection the overlay camera follows.
+        /// </summary>
+        readonly CameraComponent SceneCamera;
         /// <summary>
         /// Gizmo overlay camera whose render queue should contain only viewport-owned gizmo drawables.
         /// </summary>
@@ -16,9 +21,12 @@ namespace helengine.editor {
         /// <summary>
         /// Initializes one queue rebuilder for a viewport-local gizmo camera.
         /// </summary>
+        /// <param name="sceneCamera">Scene camera whose projection should match the overlay.</param>
         /// <param name="gizmoCamera">Gizmo overlay camera that renders viewport-owned gizmos.</param>
         /// <param name="drawableCollector">Collector that resolves viewport-owned gizmo drawables.</param>
-        public EditorViewportGizmoRenderQueueComponent(CameraComponent gizmoCamera, EditorViewportGizmoDrawableCollector drawableCollector, ObjectManager objectManager) {
+        /// <param name="objectManager">Object manager that determines the queue rebuild update order.</param>
+        public EditorViewportGizmoRenderQueueComponent(CameraComponent sceneCamera, CameraComponent gizmoCamera, EditorViewportGizmoDrawableCollector drawableCollector, ObjectManager objectManager) {
+            SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
             GizmoCamera = gizmoCamera ?? throw new ArgumentNullException(nameof(gizmoCamera));
             DrawableCollector = drawableCollector ?? throw new ArgumentNullException(nameof(drawableCollector));
             ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
@@ -45,6 +53,8 @@ namespace helengine.editor {
         /// Clears and repopulates the gizmo camera queue from viewport-owned drawables only.
         /// </summary>
         void RebuildRenderQueue() {
+            GizmoCamera.Viewport = SceneCamera.Viewport;
+            EditorViewportCameraProjectionSynchronizer.Synchronize(SceneCamera, GizmoCamera);
             IRenderQueue3D renderQueue = GizmoCamera.RenderQueue3D;
             renderQueue.Clear();
             DrawableCollector.PopulateRenderQueue(renderQueue);

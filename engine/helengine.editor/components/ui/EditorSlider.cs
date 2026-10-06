@@ -130,8 +130,7 @@ namespace helengine.editor {
                 Radius = TrackHeight * 0.5f,
                 BorderThickness = 1f,
                 FillColor = ThemeManager.Colors.SurfaceInput,
-                BorderColor = ThemeManager.Colors.SurfacePrimary,
-                RenderOrder2D = RenderOrder2D.PanelSurface
+                BorderColor = ThemeManager.Colors.SurfacePrimary
             };
             TrackHost.AddComponent(TrackBackground);
 
@@ -140,8 +139,7 @@ namespace helengine.editor {
                 Radius = TrackHeight * 0.5f,
                 BorderThickness = 0f,
                 FillColor = ThemeManager.Colors.AccentPrimary,
-                BorderColor = ThemeManager.Colors.AccentPrimary,
-                RenderOrder2D = RenderOrder2D.PanelForeground
+                BorderColor = ThemeManager.Colors.AccentPrimary
             };
             TrackHost.AddComponent(TrackFill);
 
@@ -157,8 +155,7 @@ namespace helengine.editor {
                 Radius = Math.Max(2f, ThumbHeight * 0.35f),
                 BorderThickness = 1f,
                 FillColor = ThemeManager.Colors.AccentPrimary,
-                BorderColor = ThemeManager.Colors.AccentPrimary,
-                RenderOrder2D = RenderOrder2D.PanelForeground
+                BorderColor = ThemeManager.Colors.AccentPrimary
             };
             ThumbHost.AddComponent(Thumb);
 
@@ -200,17 +197,6 @@ namespace helengine.editor {
             LayerMask = layerMask;
             TrackHost.LayerMask = layerMask;
             ThumbHost.LayerMask = layerMask;
-        }
-
-        /// <summary>
-        /// Applies render orders to the track surface and the active foreground visuals.
-        /// </summary>
-        /// <param name="surfaceOrder">Render order used by the background track.</param>
-        /// <param name="foregroundOrder">Render order used by the fill and thumb visuals.</param>
-        public void SetRenderOrders(byte surfaceOrder, byte foregroundOrder) {
-            TrackBackground.RenderOrder2D = surfaceOrder;
-            TrackFill.RenderOrder2D = foregroundOrder;
-            Thumb.RenderOrder2D = foregroundOrder;
         }
 
         /// <summary>

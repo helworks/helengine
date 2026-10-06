@@ -81,6 +81,8 @@ namespace helengine.editor {
         /// Editor core driving updates and rendering.
         /// </summary>
         readonly EditorCore core;
+        /// <summary>Host capability propagated to every primary, duplicated, and restored viewport for hover and selection picking.</summary>
+        readonly IEditorPickingBackendFactory PickingBackendFactory;
         /// <summary>
         /// Project path used for asset browsing.
         /// </summary>
@@ -230,6 +232,10 @@ namespace helengine.editor {
         /// Modal UI camera entity used for dialog-shell rendering above panel-content cameras.
         /// </summary>
         readonly EditorEntity modalUiCameraEntity;
+        /// <summary>
+        /// Screen-space autoscroll indicator that remains anchored to the middle-click point.
+        /// </summary>
+        readonly EditorAutoScrollIndicatorOverlay autoScrollIndicatorOverlay;
         /// <summary>
         /// Scene camera entity used for 3D rendering.
         /// </summary>
@@ -432,6 +438,11 @@ namespace helengine.editor {
         /// Service that builds and hot-reloads the generated game scripting assembly.
         /// </summary>
         readonly EditorGameScriptHotReloadService scriptHotReloadService;
+
+        /// <summary>
+        /// Last script bootstrap or manual rebuild result; failed compilation blocks scene loading before type resolution.
+        /// </summary>
+        EditorBuildExecutionResult ProjectScriptLoadResult;
         /// <summary>
         /// Modal dialog used to confirm whether pending scene transitions should save dirty changes.
         /// </summary>
@@ -632,6 +643,7 @@ namespace helengine.editor {
         /// <param name="browseOutputFolderResolver">Host callback that opens a folder picker for build output selection.</param>
         /// <param name="shaderBackendRegistry">Registry populated by bootstrap code with the shader backends available to the editor host.</param>
         /// <param name="platformProviderResolver">Explicit platform-provider resolver owned by the editor composition root.</param>
+        /// <param name="pickingBackendFactory">Host factory for viewport picking; null for hosts without native picking support.</param>
         public EditorSession(
             EditorCore core,
             string projectPath,
@@ -650,7 +662,8 @@ namespace helengine.editor {
             Func<string> browseOutputFolderResolver,
             ShaderBackendRegistry shaderBackendRegistry,
             AvailablePlatformProviderResolver platformProviderResolver,
-            IEditorMaterialInstanceFactory materialInstanceFactory = null) {
+            IEditorMaterialInstanceFactory materialInstanceFactory = null,
+            IEditorPickingBackendFactory pickingBackendFactory = null) {
             ProjectLifecycleCoordinator = new EditorProjectLifecycleCoordinator();
             EditorSessionConstructionLedger constructionLedger = ProjectLifecycleCoordinator.Ledger;
             constructionLedger.BeforeCleanupAction = sequence => DisposalCheckpointForTests?.Invoke(sequence);
@@ -660,6 +673,7 @@ namespace helengine.editor {
             // touching interaction state or event publishers.
             RegisterSessionCleanupActions(constructionLedger);
             this.core = core ?? throw new ArgumentNullException(nameof(core));
+            PickingBackendFactory = pickingBackendFactory;
             constructionLedger.Register(this.core);
             ConstructionCheckpointForTests?.Invoke("after-core-acquired");
             BrowseOutputFolderResolver = browseOutputFolderResolver ?? throw new ArgumentNullException(nameof(browseOutputFolderResolver));
@@ -763,6 +777,9 @@ namespace helengine.editor {
             modalUiCameraComponent.ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 0f), false, 1.0f, false, 0);
             modalUiCameraEntity.AddComponent(modalUiCameraComponent);
 
+            autoScrollIndicatorOverlay = new EditorAutoScrollIndicatorOverlay(core, interactionServices);
+            constructionLedger.Register(autoScrollIndicatorOverlay, EditorSessionCleanupPhase.Panel);
+
             ViewportWorkspacePanelController primaryViewportController = CreatePrimaryViewportController();
             RegisterWorkspaceController(primaryViewportController);
             ConstructionCheckpointForTests?.Invoke("after-primary-viewport-acquired");
@@ -787,7 +804,8 @@ namespace helengine.editor {
                 UndoShortcutRequested = HandleGlobalUndoShortcut,
                 RedoShortcutRequested = HandleGlobalRedoShortcut,
                 DeleteShortcutRequested = HandleGlobalDeleteShortcut,
-                DuplicateShortcutRequested = HandleGlobalDuplicateShortcut
+                DuplicateShortcutRequested = HandleGlobalDuplicateShortcut,
+                FocusSelectionShortcutRequested = HandleGlobalFocusSelectionShortcut
             };
             keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);
             keyboardFocusEntity.InitializeHierarchy();
@@ -812,7 +830,7 @@ namespace helengine.editor {
             EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
             EditorFileSystemTextureResolver fileSystemTextureResolver = new EditorFileSystemTextureResolver(assetImportManager);
             EditorBootTimeline.Mark("panels: docking manager and resolvers");
-            sceneHierarchyPanel = new SceneHierarchyPanel(core, interactionServices, uiFont, CurrentUiMetrics);
+            sceneHierarchyPanel = new SceneHierarchyPanel(core, interactionServices, uiFont, CurrentUiMetrics, ViewportToolbarIcons.HierarchyDisclosureIcon, ViewportToolbarIcons.HierarchyVisibleIcon, ViewportToolbarIcons.HierarchyHiddenIcon);
             sceneHierarchyPanel.SetObjectManager(core.ObjectManager);
             sceneHierarchyPanel.RefreshHierarchy();
             constructionLedger.Register(sceneHierarchyPanel);
@@ -1031,6 +1049,7 @@ namespace helengine.editor {
             EditorBuildExecutionResult startupProjectLibraryLoadResult = LoadProjectLibrariesOnStartup(
                 scriptHotReloadService,
                 titleBar.ApplyProjectMenus);
+            ProjectScriptLoadResult = startupProjectLibraryLoadResult;
             if (!startupProjectLibraryLoadResult.Succeeded) {
                 Logger.WriteError(startupProjectLibraryLoadResult.Message);
             }
@@ -1277,8 +1296,7 @@ namespace helengine.editor {
         void SynchronizeViewportOverlayCameras() {
             if (PanelInstances == null) {
                 gizmoCameraComponent.Viewport = sceneCameraComponent.Viewport;
-                gizmoCameraComponent.NearPlaneDistance = sceneCameraComponent.NearPlaneDistance;
-                gizmoCameraComponent.FarPlaneDistance = sceneCameraComponent.FarPlaneDistance;
+                EditorViewportCameraProjectionSynchronizer.Synchronize(sceneCameraComponent, gizmoCameraComponent);
                 return;
             }
 
@@ -1286,8 +1304,9 @@ namespace helengine.editor {
             for (int index = 0; index < viewportInstances.Count; index++) {
                 if (viewportInstances[index].Controller is ViewportWorkspacePanelController viewportController) {
                     viewportController.ViewportState.GizmoCamera.Viewport = viewportController.ViewportState.SceneCamera.Viewport;
-                    viewportController.ViewportState.GizmoCamera.NearPlaneDistance = viewportController.ViewportState.SceneCamera.NearPlaneDistance;
-                    viewportController.ViewportState.GizmoCamera.FarPlaneDistance = viewportController.ViewportState.SceneCamera.FarPlaneDistance;
+                    EditorViewportCameraProjectionSynchronizer.Synchronize(
+                        viewportController.ViewportState.SceneCamera,
+                        viewportController.ViewportState.GizmoCamera);
                 }
             }
         }
@@ -1505,6 +1524,7 @@ namespace helengine.editor {
                 UpdateLayout(renderWidth, renderHeight);
             }
             RefreshHierarchy();
+            autoScrollIndicatorOverlay.Update();
             Draw();
         }
 
@@ -1566,6 +1586,7 @@ namespace helengine.editor {
             titleBar.UpdateLayout(width, height);
             uiCameraComponent.Viewport = new float4(0, 0, width, height);
             modalUiCameraComponent.Viewport = new float4(0, 0, width, height);
+            autoScrollIndicatorOverlay.SetViewport(width, height);
 
             int availableHeight = Math.Max(0, height - titleBar.Height);
             dockingManager.Layout.Layout(new int2(width, availableHeight), new float3(0, titleBar.Height, 0));
@@ -2088,6 +2109,7 @@ namespace helengine.editor {
             ledger.BeforeCleanupAction = sequence => DisposalCheckpointForTests?.Invoke(sequence);
             ledger.Register(ClearSceneSelectionBeforeTeardown, EditorSessionCleanupPhase.Reset);
             RegisterCurrentScaleSensitiveDialogCleanup(ledger);
+            ledger.Register(autoScrollIndicatorOverlay, EditorSessionCleanupPhase.Panel);
             ledger.Register(() => shaderModuleManager?.Dispose(), EditorSessionCleanupPhase.Dispose);
             // Keep fallback fixtures on the same ordered, dependency-aware
             // scene teardown graph as the fully initialized session. A fixture
@@ -2324,7 +2346,8 @@ namespace helengine.editor {
                 floatingTitleBarHeight = titleBar.Height;
             }
 
-            controller.Dockable.Position = EditorWorkspacePanelCoordinator.ResolveCenteredFloatingPanelPosition(LastLayoutWidth, LastLayoutHeight, floatingTitleBarHeight, descriptor.DefaultSize);
+            float3 floatingPosition = EditorWorkspacePanelCoordinator.ResolveCenteredFloatingPanelPosition(LastLayoutWidth, LastLayoutHeight, floatingTitleBarHeight, descriptor.DefaultSize);
+            controller.Dockable.Position = new float3(floatingPosition.X, floatingPosition.Y, EditorUiDepths.FloatingPanel);
             InitializeWorkspacePanelInstance(instance);
             return instance;
         }
@@ -2506,7 +2529,8 @@ namespace helengine.editor {
                 session.CurrentUiMetrics,
                 session.builtInShaderAssetLibrary,
                 session.generatedMaterialCache,
-                session.rendererResources);
+                session.rendererResources,
+                session.PickingBackendFactory);
         }
 
         /// <summary>
@@ -2515,7 +2539,7 @@ namespace helengine.editor {
         /// <param name="session">Owning editor session.</param>
         /// <returns>Created scene hierarchy panel controller.</returns>
         IEditorWorkspacePanelController CreateSceneHierarchyPanelController(EditorSession session) {
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(session.core, session.interactionServices, session.uiFont, session.CurrentUiMetrics);
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(session.core, session.interactionServices, session.uiFont, session.CurrentUiMetrics, session.ViewportToolbarIcons.HierarchyDisclosureIcon, session.ViewportToolbarIcons.HierarchyVisibleIcon, session.ViewportToolbarIcons.HierarchyHiddenIcon);
             panel.SetObjectManager(session.core.ObjectManager);
             panel.SetInput(session.core.Input);
             panel.RefreshHierarchy();
@@ -2716,7 +2740,7 @@ namespace helengine.editor {
                 instance.Dockable.Title = string.IsNullOrWhiteSpace(panel.Title) ? instance.DisplayTitle : panel.Title;
 
                 if (floatingPanelsByInstanceId.TryGetValue(panel.InstanceId, out EditorWorkspaceFloatingPanelDocument floatingPanel)) {
-                    instance.Dockable.Position = new float3(floatingPanel.X, floatingPanel.Y, 0f);
+                    instance.Dockable.Position = new float3(floatingPanel.X, floatingPanel.Y, EditorUiDepths.FloatingPanel);
                     instance.Dockable.Size = new int2(floatingPanel.Width, floatingPanel.Height);
                 }
             }
@@ -3030,6 +3054,20 @@ namespace helengine.editor {
 
             if (!UndoRedoService.Redo()) {
                 Logger.WriteLine("Redo shortcut received but redo history is empty.");
+            }
+        }
+
+        /// <summary>
+        /// Frames the selection in the last focused viewport while respecting modal dialogs and camera navigation.
+        /// </summary>
+        void HandleGlobalFocusSelectionShortcut() {
+            if (IsEditorGlobalShortcutBlocked() || core.Input.GetMouseRightButtonState() == ButtonState.Pressed) {
+                return;
+            }
+
+            ViewportWorkspacePanelController controller = GetFocusedViewportController();
+            if (controller != null && controller.ViewportState.Viewport.Enabled) {
+                controller.ViewportState.Viewport.FocusSelectionRequested?.Invoke();
             }
         }
 
@@ -3456,6 +3494,7 @@ namespace helengine.editor {
         void HandleBuildScriptsRequested() {
             // The manual command is the escape hatch for changes the build fingerprint cannot see, so it always builds.
             EditorBuildExecutionResult result = scriptHotReloadService.BuildAndReload(forceBuild: true);
+            ProjectScriptLoadResult = result;
             if (!result.Succeeded) {
                 Logger.WriteError(result.Message);
                 return;
@@ -3972,6 +4011,14 @@ namespace helengine.editor {
         void LoadSceneIntoSession(string fullPath) {
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Scene path must be provided.", nameof(fullPath));
+            }
+
+            if (ProjectScriptLoadResult != null && !ProjectScriptLoadResult.Succeeded) {
+                string message = $"Scene opening is unavailable because project scripts failed to load. Fix the script errors and rebuild scripts, then reopen the scene.\n{ProjectScriptLoadResult.Message}";
+                Logger.WriteError(message);
+                openFileDialog.Show(string.Empty);
+                openFileDialog.ShowError(message);
+                return;
             }
 
             List<EditorEntity> existingSceneEntities = CaptureUserSceneEntities();

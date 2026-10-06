@@ -79,10 +79,6 @@ namespace helengine.editor {
         /// </summary>
         readonly FontAsset Font;
 
-        /// <summary>
-        /// Render order used for text labels and values.
-        /// </summary>
-        readonly byte TextOrder;
 
         /// <summary>
         /// Root entity that owns view visuals.
@@ -210,7 +206,6 @@ namespace helengine.editor {
             ProjectRootPath = string.IsNullOrWhiteSpace(projectRootPath)
                 ? null
                 : Path.GetFullPath(projectRootPath);
-            TextOrder = RenderOrder2D.PanelForeground;
             SupportedPlatformIds = new List<string>(4);
             PlatformPanels = new Dictionary<string, MaterialAssetPlatformPanel>(StringComparer.OrdinalIgnoreCase);
             SettingsService = string.IsNullOrWhiteSpace(ProjectRootPath)
@@ -224,7 +219,6 @@ namespace helengine.editor {
 
             PlatformTabStrip = new PlatformTabStripView(RootEntity.OwnerCore, RootEntity.InteractionServices, font, layerMask, 88, RowHeight, 0, RowHeight);
             PlatformTabStrip.Root.Enabled = false;
-            PlatformTabStrip.SetRenderOrders(RenderOrder2D.PanelSurface, TextOrder);
             PlatformTabStrip.Root.Position = float3.Zero;
             RootEntity.AddChild(PlatformTabStrip.Root);
 
@@ -1124,7 +1118,7 @@ namespace helengine.editor {
         /// <param name="platformId">Platform identifier represented by the new panel.</param>
         /// <returns>Created platform panel.</returns>
         MaterialAssetPlatformPanel CreatePlatformPanel(string platformId) {
-            MaterialAssetPlatformPanel panel = new MaterialAssetPlatformPanel(RootEntity.OwnerCore, RootEntity.InteractionServices, platformId, Font, RootEntity.LayerMask, TextOrder);
+            MaterialAssetPlatformPanel panel = new MaterialAssetPlatformPanel(RootEntity.OwnerCore, RootEntity.InteractionServices, platformId, Font, RootEntity.LayerMask);
             panel.SchemaComboBoxControl.SelectionChanged += (index, value) => HandleSchemaSelectionChanged(platformId, index, value);
             return panel;
         }
@@ -1257,7 +1251,6 @@ namespace helengine.editor {
             textComponent.Font = Font;
             textComponent.Text = text;
             textComponent.Color = ThemeManager.Colors.InputForegroundPrimary;
-            textComponent.RenderOrder2D = TextOrder;
             host.AddComponent(textComponent);
             return host;
         }

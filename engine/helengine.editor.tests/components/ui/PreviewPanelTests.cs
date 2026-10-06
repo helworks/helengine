@@ -115,6 +115,29 @@ namespace helengine.editor.tests {
             Assert.Equal("120 x 80", resolutionLabelText.Text);
         }
 
+        /// <summary>Resizing a camera preview immediately replaces the displayed texture and preserves the scene's logical canvas.</summary>
+        [Fact]
+        public void Resize_WithCameraPreview_BindsNewTargetImmediately() {
+            PreviewPanel panel = CreatePanel();
+            panel.Size = new int2(320, 180);
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, GeneratedAssetGraph.InteractionServices);
+            CameraComponent camera = new CameraComponent { Viewport = new float4(0, 0, 1280, 720) };
+            cameraEntity.AddComponent(camera);
+            EditorSceneCameraSuppressionService.AttachAndSuppress(cameraEntity, GeneratedAssetGraph.ObjectManager);
+            using CameraPreviewSource source = new CameraPreviewSource(cameraEntity, camera, CoreValue.RenderManager3D, GeneratedAssetGraph.RendererResources);
+            panel.SetPreviewSource(source);
+            TestRenderTarget previousTarget = Assert.IsType<TestRenderTarget>(source.RenderTarget);
+            SpriteComponent textureSprite = GetPrivateField<SpriteComponent>(panel, "textureSprite");
+
+            panel.Size = new int2(640, 400);
+
+            Assert.True(previousTarget.WasDisposed);
+            Assert.Same(source.Texture, textureSprite.Texture);
+            Assert.Equal(textureSprite.Size.X, source.RenderTarget.Width);
+            Assert.Equal(textureSprite.Size.Y, source.RenderTarget.Height);
+            Assert.Equal(new int2(1280, 720), Assert.IsType<CameraPreviewComponent>(source.PreviewCamera).LogicalViewportSize);
+        }
+
         /// <summary>
         /// Ensures non-texture previews hide the resolution label instead of leaving stale text visible.
         /// </summary>

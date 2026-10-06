@@ -46,16 +46,6 @@ namespace helengine.editor {
         readonly FontAsset Font;
 
         /// <summary>
-        /// Render order used by background controls.
-        /// </summary>
-        readonly byte PanelOrder;
-
-        /// <summary>
-        /// Render order used by foreground text.
-        /// </summary>
-        readonly byte TextOrder;
-
-        /// <summary>
         /// Label column width used by row layout.
         /// </summary>
         readonly int LabelColumnWidth;
@@ -96,16 +86,12 @@ namespace helengine.editor {
         /// <param name="parent">Parent dialog entity that owns the section.</param>
         /// <param name="layerMask">Layer mask used for all section entities.</param>
         /// <param name="font">Font used by row labels and values.</param>
-        /// <param name="panelOrder">Render order used by surfaces.</param>
-        /// <param name="textOrder">Render order used by text.</param>
         /// <param name="labelColumnWidth">Width reserved for row labels.</param>
         /// <param name="valueColumnWidth">Width reserved for row value controls.</param>
         public EditorPlatformSettingsSection(
             EditorEntity parent,
             ushort layerMask,
             FontAsset font,
-            byte panelOrder,
-            byte textOrder,
             int labelColumnWidth,
             int valueColumnWidth) {
             if (parent == null) {
@@ -122,8 +108,6 @@ namespace helengine.editor {
             }
 
             Font = font;
-            PanelOrder = panelOrder;
-            TextOrder = textOrder;
             LabelColumnWidth = labelColumnWidth;
             ValueColumnWidth = valueColumnWidth;
             Rows = new List<EditorPlatformSettingBinding>();
@@ -146,8 +130,7 @@ namespace helengine.editor {
                 Font = Font,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(LabelColumnWidth + ValueColumnWidth + 12, EditorPlatformSettingsSection.RowHeight),
-                RenderOrder2D = TextOrder
+                Size = new int2(LabelColumnWidth + ValueColumnWidth + 12, EditorPlatformSettingsSection.RowHeight)
             };
             TitleHost.AddComponent(TitleText);
         }
@@ -179,8 +162,6 @@ namespace helengine.editor {
                 EditorPlatformSettingBinding binding = new EditorPlatformSettingBinding(
                     RootHost,
                     Font,
-                    PanelOrder,
-                    TextOrder,
                     LabelColumnWidth,
                     ValueColumnWidth,
                     setting,
@@ -291,8 +272,6 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="parent">Parent settings section entity.</param>
         /// <param name="font">Font used by labels and control text.</param>
-        /// <param name="panelOrder">Render order used by background surfaces.</param>
-        /// <param name="textOrder">Render order used by text.</param>
         /// <param name="labelColumnWidth">Width reserved for the row label.</param>
         /// <param name="valueColumnWidth">Width reserved for the row control.</param>
         /// <param name="setting">Builder-defined setting metadata.</param>
@@ -300,8 +279,6 @@ namespace helengine.editor {
         public EditorPlatformSettingBinding(
             EditorEntity parent,
             FontAsset font,
-            byte panelOrder,
-            byte textOrder,
             int labelColumnWidth,
             int valueColumnWidth,
             PlatformSettingDefinition setting,
@@ -339,8 +316,7 @@ namespace helengine.editor {
                 Font = font,
                 Text = setting.DisplayName,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(labelColumnWidth, EditorPlatformSettingsSection.RowHeight),
-                RenderOrder2D = textOrder
+                Size = new int2(labelColumnWidth, EditorPlatformSettingsSection.RowHeight)
             };
             LabelHost.AddComponent(LabelText);
 
@@ -354,13 +330,11 @@ namespace helengine.editor {
             switch (setting.SettingKind) {
                 case PlatformSettingKind.Boolean:
                     CheckBox = new CheckBoxComponent(EditorPlatformSettingsSection.CheckBoxSize, font, ParseBoolean(value, ParseBoolean(setting.DefaultValue, false)));
-                    CheckBox.SetRenderOrders(panelOrder, textOrder);
                     CheckBox.CheckedChanged += HandleCheckBoxChanged;
                     ControlHost.AddComponent(CheckBox);
                     break;
                 case PlatformSettingKind.Choice:
                     ComboBox = new ComboBoxComponent(new int2(valueColumnWidth, EditorPlatformSettingsSection.RowHeight), font, setting.AllowedValues ?? Array.Empty<string>(), ResolveChoiceIndex(setting.AllowedValues, value, setting.DefaultValue));
-                    ComboBox.UseModalPresentation();
                     ComboBox.SelectionChanged += HandleComboBoxSelectionChanged;
                     ControlHost.AddComponent(ComboBox);
                     break;
@@ -368,7 +342,6 @@ namespace helengine.editor {
                 default:
                     TextBox = new TextBoxComponent(new int2(valueColumnWidth, EditorPlatformSettingsSection.RowHeight), font, string.Empty);
                     TextBox.Text = value;
-                    TextBox.SetRenderOrders(panelOrder, textOrder);
                     TextBox.TextChanged += HandleTextBoxChanged;
                     ControlHost.AddComponent(TextBox);
                     break;

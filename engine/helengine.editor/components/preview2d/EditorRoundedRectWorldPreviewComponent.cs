@@ -2,6 +2,7 @@ namespace helengine {
     /// <summary>
     /// Renders one editor-only world-space mesh proxy for an authored rounded-rectangle component.
     /// </summary>
+    [RunInEditor]
     public sealed class EditorRoundedRectWorldPreviewComponent : EditorExact2DWorldPreviewComponentBase {
         /// <summary>
         /// Authored rounded-rectangle component mirrored by this preview proxy.

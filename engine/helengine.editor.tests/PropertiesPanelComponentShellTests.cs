@@ -672,7 +672,7 @@ namespace helengine.editor.tests {
 
             panel.ShowEntityProperties(entity);
 
-            ScrollComponent scrollComponent = GetPrivateField<ScrollComponent>(panel, "ContentScrollComponent");
+            ScrollComponent scrollComponent = GetPrivateField<EditorScrollComponent>(panel, "ContentScrollComponent");
             int expectedViewportHeight = Math.Max(panel.Size.Y, panel.MinSize.Y);
 
             Assert.True(scrollComponent.MaximumScrollOffset > 0);
@@ -694,7 +694,7 @@ namespace helengine.editor.tests {
 
             panel.ShowEntityProperties(entity);
 
-            ScrollComponent scrollComponent = GetPrivateField<ScrollComponent>(panel, "ContentScrollComponent");
+            ScrollComponent scrollComponent = GetPrivateField<EditorScrollComponent>(panel, "ContentScrollComponent");
 
             Assert.Equal(24, scrollComponent.ScrollStepCount);
         }

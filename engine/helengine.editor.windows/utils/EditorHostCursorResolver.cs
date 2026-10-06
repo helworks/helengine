@@ -14,6 +14,11 @@ namespace helengine.editor.windows {
         /// <param name="resizeCursor">Resize cursor returned by border-resize hit testing.</param>
         /// <returns>The native Windows cursor the editor host should display.</returns>
         public static Cursor Resolve(DockingCursorState dockingCursorState, PointerCursorKind hoverCursor, bool hasResizeCursor, Cursor resizeCursor) {
+            if (hoverCursor == PointerCursorKind.AutoScrollVertical ||
+                hoverCursor == PointerCursorKind.AutoScrollHorizontal) {
+                return Cursors.Default;
+            }
+
             switch (dockingCursorState) {
                 case DockingCursorState.VerticalSplit:
                     return Cursors.VSplit;
@@ -38,5 +43,6 @@ namespace helengine.editor.windows {
                     return Cursors.Default;
             }
         }
+
     }
 }

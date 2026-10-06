@@ -139,7 +139,7 @@ namespace helengine.editor.tests {
             List<PlatformsDialogRow> platformRows = GetPrivateField<List<PlatformsDialogRow>>(dialog, "PlatformRows");
             Assert.Equal(PlatformsDialog.PlatformVisibleRowCount, platformRows.Count(row => row.PlatformIndex >= 0));
 
-            ScrollComponent scrollComponent = GetPrivateField<ScrollComponent>(dialog, "PlatformListScrollComponent");
+            ScrollComponent scrollComponent = GetPrivateField<EditorScrollComponent>(dialog, "PlatformListScrollComponent");
             bool scrolled = scrollComponent.ScrollTo(3);
             Assert.True(scrolled);
 
@@ -157,7 +157,7 @@ namespace helengine.editor.tests {
 
             dialog.Show(new[] { "windows", "ps2", "linux" }, new[] { "windows" }, "windows");
 
-            ScrollBarComponent scrollBar = GetPrivateField<ScrollComponent>(dialog, "PlatformListScrollComponent").ScrollBar;
+            ScrollBarComponent scrollBar = GetPrivateField<EditorScrollComponent>(dialog, "PlatformListScrollComponent").ScrollBar;
             Assert.False(scrollBar.IsVisible);
         }
 
@@ -176,13 +176,15 @@ namespace helengine.editor.tests {
 
             dialog.Show(availablePlatformIds, new[] { availablePlatformIds[0] }, availablePlatformIds[0]);
 
-            ScrollBarComponent scrollBar = GetPrivateField<ScrollComponent>(dialog, "PlatformListScrollComponent").ScrollBar;
-            ScrollComponent scrollComponent = GetPrivateField<ScrollComponent>(dialog, "PlatformListScrollComponent");
+            ScrollBarComponent scrollBar = GetPrivateField<EditorScrollComponent>(dialog, "PlatformListScrollComponent").ScrollBar;
+            ScrollComponent scrollComponent = GetPrivateField<EditorScrollComponent>(dialog, "PlatformListScrollComponent");
             Assert.True(scrollBar.IsVisible);
             Assert.Equal(0, scrollComponent.ScrollOffset);
 
             int2 pressAtTrackBottom = new int2(0, scrollBar.Size.Y - 1);
-            InvokePrivate(scrollBar, "HandleCursorEvent", pressAtTrackBottom, int2.Zero, PointerInteraction.Press);
+            InteractableComponent trackInput = Assert.Single(scrollBar.Parent.Children[0].Components.OfType<InteractableComponent>());
+            trackInput.OnCursor(pressAtTrackBottom, int2.Zero, PointerInteraction.Press);
+            trackInput.OnCursor(pressAtTrackBottom, int2.Zero, PointerInteraction.Release);
 
             Assert.Equal(scrollComponent.MaximumScrollOffset, scrollComponent.ScrollOffset);
         }

@@ -31,14 +31,22 @@ namespace helengine {
 
             ushort cameraLayerMask = camera.LayerMask;
             IInteractable2D hit = null;
-            byte hitRenderOrder = 0;
-            int hitDrawableIndex = -1;
             int hitInteractableIndex = -1;
 
             for (int interactableIndex = 0; interactableIndex < interactables.Count; interactableIndex++) {
                 IInteractable2D interactable = interactables[interactableIndex];
-                if ((interactable.Parent.LayerMask & cameraLayerMask) == 0) {
+                if (interactable == null || interactable.Parent == null || !interactable.Parent.IsHierarchyEnabled || (interactable.Parent.LayerMask & cameraLayerMask) == 0) {
                     continue;
+                }
+
+                ICameraBoundViewportOwner viewportOwner = FindNearestViewportOwner(interactable.Parent);
+                if (viewportOwner != null) {
+                    CameraComponent boundCamera = viewportOwner.GetBoundCameraComponent();
+                    if ((viewportOwner.BindingMode == ViewportComponent.ExplicitCameraBindingMode ||
+                         (viewportOwner.BindingMode == ViewportComponent.AncestorCameraBindingMode && boundCamera != null)) &&
+                        !ReferenceEquals(boundCamera, camera)) {
+                        continue;
+                    }
                 }
 
                 ResolvePointerInInteractableSpace(interactable, camera, pointerX, pointerY, out int localPointerX, out int localPointerY);
@@ -52,16 +60,16 @@ namespace helengine {
                     continue;
                 }
 
-                byte candidateRenderOrder = GetTopDrawableRenderOrder(drawables2D, interactable, cameraLayerMask, out int candidateDrawableIndex);
-                if (hit == null ||
-                    CandidateIsInFront(candidateRenderOrder, candidateDrawableIndex, interactableIndex, hitRenderOrder, hitDrawableIndex, hitInteractableIndex)) {
+                int comparison = hit == null ? 1 : RenderDepthOrder2D.CompareEntities(interactable.Parent, hit.Parent);
+                if (comparison == 0 && hit != null && ReferenceEquals(interactable.Parent, hit.Parent)
+                    && interactable is Component candidateComponent && hit is Component hitComponent) {
+                    comparison = interactable.Parent.Components.IndexOf(candidateComponent).CompareTo(interactable.Parent.Components.IndexOf(hitComponent));
+                }
+                if (hit == null || comparison > 0 || (comparison == 0 && interactableIndex > hitInteractableIndex)) {
                     hit = interactable;
-                    hitRenderOrder = candidateRenderOrder;
-                    hitDrawableIndex = candidateDrawableIndex;
                     hitInteractableIndex = interactableIndex;
                 }
             }
-
             return hit;
         }
 
@@ -180,71 +188,6 @@ namespace helengine {
             }
 
             return null;
-        }
-
-        /// <summary>
-        /// Chooses the strongest drawable render order associated with one interactable.
-        /// </summary>
-        /// <param name="drawables2D">Registered 2D drawables.</param>
-        /// <param name="interactable">Interactable being evaluated.</param>
-        /// <param name="cameraLayerMask">Layer mask rendered by the active camera.</param>
-        /// <param name="candidateDrawableIndex">Receives the drawable index used for tie-breaking.</param>
-        /// <returns>Highest drawable render order associated with the interactable.</returns>
-        static byte GetTopDrawableRenderOrder(
-            List<IDrawable2D> drawables2D,
-            IInteractable2D interactable,
-            ushort cameraLayerMask,
-            out int candidateDrawableIndex) {
-            candidateDrawableIndex = -1;
-            byte renderOrder = 0;
-            if (drawables2D == null || interactable == null) {
-                return renderOrder;
-            }
-
-            for (int drawableIndex = 0; drawableIndex < drawables2D.Count; drawableIndex++) {
-                IDrawable2D drawable = drawables2D[drawableIndex];
-                if (drawable.Parent != interactable.Parent) {
-                    continue;
-                }
-                if ((drawable.Parent.LayerMask & cameraLayerMask) == 0) {
-                    continue;
-                }
-
-                if (candidateDrawableIndex < 0 || drawable.RenderOrder2D >= renderOrder) {
-                    renderOrder = drawable.RenderOrder2D;
-                    candidateDrawableIndex = drawableIndex;
-                }
-            }
-
-            return renderOrder;
-        }
-
-        /// <summary>
-        /// Determines whether one candidate should replace the current winning hit.
-        /// </summary>
-        /// <param name="candidateRenderOrder">Candidate render order.</param>
-        /// <param name="candidateDrawableIndex">Candidate drawable index.</param>
-        /// <param name="candidateInteractableIndex">Candidate interactable registration index.</param>
-        /// <param name="currentRenderOrder">Current winning render order.</param>
-        /// <param name="currentDrawableIndex">Current winning drawable index.</param>
-        /// <param name="currentInteractableIndex">Current winning interactable registration index.</param>
-        /// <returns>True when the candidate is visually in front of the current winner.</returns>
-        static bool CandidateIsInFront(
-            byte candidateRenderOrder,
-            int candidateDrawableIndex,
-            int candidateInteractableIndex,
-            byte currentRenderOrder,
-            int currentDrawableIndex,
-            int currentInteractableIndex) {
-            if (candidateRenderOrder != currentRenderOrder) {
-                return candidateRenderOrder > currentRenderOrder;
-            }
-
-            if (candidateDrawableIndex != currentDrawableIndex) {
-                return candidateDrawableIndex > currentDrawableIndex;
-            }
-
-            return candidateInteractableIndex > currentInteractableIndex;
         }
 
     }

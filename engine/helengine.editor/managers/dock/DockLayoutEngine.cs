@@ -166,7 +166,7 @@ namespace helengine.editor {
                 return;
             }
 
-            root.Layout(left, top, right, bottom, origin.Z, gap);
+            root.Layout(left, top, right, bottom, origin.Z + EditorUiDepths.DockedPanel, gap);
         }
 
         /// <summary>
@@ -1052,8 +1052,7 @@ namespace helengine.editor {
 
                 separatorSprite = new SpriteComponent {
                     Texture = CreateSeparatorTexture(renderManager2D),
-                    Color = SeparatorColor,
-                    RenderOrder2D = RenderOrder2D.PanelForeground
+                    Color = SeparatorColor
                 };
                 separatorEntity.AddComponent(separatorSprite);
             }
@@ -1121,7 +1120,7 @@ namespace helengine.editor {
                     First.Layout(left, top, firstRight, bottom, z, gap);
                     Second.Layout(secondLeft, top, right, bottom, z, gap);
 
-                    separatorEntity.Position = new float3(separatorX, top, z + 0.3f);
+                    separatorEntity.Position = new float3(separatorX, top, z + EditorUiDepths.DockSplitSeparatorOffset);
                     separatorSprite.Size = new int2(1, (int)separatorHeight);
                 } else {
                     float availableHeight = bottom - top;
@@ -1149,7 +1148,7 @@ namespace helengine.editor {
                     First.Layout(left, top, right, firstBottom, z, gap);
                     Second.Layout(left, secondTop, right, bottom, z, gap);
 
-                    separatorEntity.Position = new float3(left, separatorY, z + 0.3f);
+                    separatorEntity.Position = new float3(left, separatorY, z + EditorUiDepths.DockSplitSeparatorOffset);
                     separatorSprite.Size = new int2((int)separatorWidth, 1);
                 }
             }

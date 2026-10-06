@@ -49,6 +49,12 @@ namespace helengine {
         public bool Enabled { get; set; } = true;
 
         /// <summary>
+        /// Gets or sets whether this entity is hidden in editor scene views.
+        /// This editor-only state does not disable the entity or affect packaged runtime scenes.
+        /// </summary>
+        public bool HiddenInEditor { get; set; }
+
+        /// <summary>
         /// Gets or sets the entity layer mask that controls camera, light, and input filtering after the scene loads.
         /// </summary>
         public ushort LayerMask { get; set; }

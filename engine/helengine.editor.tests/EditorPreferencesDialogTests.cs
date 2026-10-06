@@ -59,22 +59,22 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the preferences dialog routes all combo-box drop-down content through the modal overlay render band.
+        /// Ensures preferences dropdown backgrounds render above their owning fields.
         /// </summary>
         [Fact]
-        public void Constructor_WhenComboBoxesAreCreated_UsesModalOverlayRenderOrdersForDropdowns() {
+        public void Constructor_WhenComboBoxesAreCreated_PlacesDropdownsAboveTheirFields() {
             EditorPreferencesDialog dialog = new EditorPreferencesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new EditorUiMetrics(1d));
 
             ComboBoxComponent themeComboBox = GetPrivateField<ComboBoxComponent>(dialog, "ThemeComboBox");
             ComboBoxComponent scaleModeComboBox = GetPrivateField<ComboBoxComponent>(dialog, "ScaleModeComboBox");
             ComboBoxComponent scalePercentComboBox = GetPrivateField<ComboBoxComponent>(dialog, "ScalePercentComboBox");
 
-            Assert.Equal(RenderOrder2D.ModalOverlayBackground, GetPrivateField<byte>(themeComboBox, "ListBackgroundOrder"));
-            Assert.Equal(RenderOrder2D.ModalOverlayForeground, GetPrivateField<byte>(themeComboBox, "ListTextOrder"));
-            Assert.Equal(RenderOrder2D.ModalOverlayBackground, GetPrivateField<byte>(scaleModeComboBox, "ListBackgroundOrder"));
-            Assert.Equal(RenderOrder2D.ModalOverlayForeground, GetPrivateField<byte>(scaleModeComboBox, "ListTextOrder"));
-            Assert.Equal(RenderOrder2D.ModalOverlayBackground, GetPrivateField<byte>(scalePercentComboBox, "ListBackgroundOrder"));
-            Assert.Equal(RenderOrder2D.ModalOverlayForeground, GetPrivateField<byte>(scalePercentComboBox, "ListTextOrder"));
+            foreach (ComboBoxComponent comboBox in new[] { themeComboBox, scaleModeComboBox, scalePercentComboBox }) {
+                RoundedRectComponent background = GetPrivateField<RoundedRectComponent>(comboBox, "Background");
+                RoundedRectComponent popup = GetPrivateField<RoundedRectComponent>(comboBox, "ListBackground");
+                Assert.True(background.Parent.Position.Z > dialog.Position.Z);
+                Assert.True(RenderDepthOrder2D.CompareDrawables(background, popup) < 0);
+            }
         }
 
         /// <summary>

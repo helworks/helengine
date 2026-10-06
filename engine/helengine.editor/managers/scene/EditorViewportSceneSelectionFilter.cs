@@ -22,6 +22,10 @@ namespace helengine.editor {
         /// <param name="entity">Entity candidate to evaluate.</param>
         /// <returns>True when the entity and its parents are not marked as internal editor infrastructure.</returns>
         public static bool ShouldSelectEntity(Entity entity) {
+            if (entity == null || entity.IsRenderHierarchySuppressed) {
+                return false;
+            }
+
             Entity current = entity;
             while (current != null) {
                 if (current is EditorEntity editorEntity && editorEntity.InternalEntity) {
@@ -31,7 +35,7 @@ namespace helengine.editor {
                 current = current.Parent;
             }
 
-            return entity != null;
+            return true;
         }
 
         /// <summary>
@@ -44,7 +48,14 @@ namespace helengine.editor {
         public static Entity ResolveSelectableEntity(Entity entity) {
             Entity previewSourceEntity = EditorWorldSpace2DPreviewMapper.ResolveSourceSelectionEntity(entity);
             if (previewSourceEntity != null) {
+                if (previewSourceEntity.IsRenderHierarchySuppressed) {
+                    return null;
+                }
                 return ResolveBlueprintInstanceRoot(previewSourceEntity);
+            }
+
+            if (entity == null || entity.IsRenderHierarchySuppressed) {
+                return null;
             }
 
             Entity current = entity;

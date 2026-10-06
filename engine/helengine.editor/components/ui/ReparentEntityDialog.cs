@@ -141,11 +141,10 @@ namespace helengine.editor {
                 Text = string.Empty,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
-                RenderOrder2D = DialogTextOrder
             };
             TargetHost.AddComponent(TargetText);
 
-            ParentHierarchyView = new SceneHierarchyPickerView(OwnerCore, InteractionServices, DialogFont, LayerMask, DialogPanelOrder, DialogTextOrder);
+            ParentHierarchyView = new SceneHierarchyPickerView(OwnerCore, InteractionServices, DialogFont, LayerMask);
             ParentHierarchyView.Entity.InternalEntity = true;
             ParentHierarchyView.ParentEntitySelected += HandleParentEntitySelected;
             DialogPanelRoot.AddChild(ParentHierarchyView.Entity);
@@ -162,7 +161,6 @@ namespace helengine.editor {
                 Text = string.Empty,
                 Color = ThemeManager.Colors.StateWarning,
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
-                RenderOrder2D = DialogTextOrder
             };
             StatusHost.AddComponent(StatusText);
 
@@ -175,7 +173,6 @@ namespace helengine.editor {
 
             CancelButton = new ButtonComponent("Cancel", GetFooterButtonSize(), DialogFont, HandleCancelClicked, 0f);
             CancelButtonHost.AddComponent(CancelButton);
-            CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
             ApplyButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
@@ -186,7 +183,6 @@ namespace helengine.editor {
 
             ApplyButton = new ButtonComponent("Apply", GetFooterButtonSize(), DialogFont, HandleApplyClicked, 0f);
             ApplyButtonHost.AddComponent(ApplyButton);
-            ApplyButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
             Enabled = false;
             IsInitialized = true;

@@ -9,8 +9,8 @@ $WrapperPath = Join-Path $RepositoryRootPath "scripts\build-platform.ps1"
 $FixtureRootPath = Join-Path $PSScriptRoot "fixtures\build-platform-smoke-project"
 $WindowsPlatformSourcePath = "C:\dev\helworks\helengine-windows"
 $WindowsBuilderAssemblyPath = Join-Path $WindowsPlatformSourcePath "builder\bin\Debug\net9.0\helengine.windows.builder.dll"
-$TemporaryRootPath = [System.IO.Path]::GetFullPath("C:\tmp")
-$TestRootPath = Join-Path $TemporaryRootPath ("hbp-" + [Guid]::NewGuid().ToString("N"))
+$SmokeRootPath = [System.IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $RepositoryRootPath) "builds\ncs"))
+$TestRootPath = Join-Path $SmokeRootPath ("hbp-" + [Guid]::NewGuid().ToString("N"))
 $TestRootCreated = $false
 $ProjectRootPath = Join-Path $TestRootPath "authored-project"
 $ProjectPath = Join-Path $ProjectRootPath "project.heproj"
@@ -155,15 +155,12 @@ function Assert-CurrentSucceededState {
 
 try {
     if (-not (Test-Path -LiteralPath 'C:\dev\helworks\helengine-windows' -PathType Container)) { throw 'Windows platform source is required.' }
-    if ($null -eq (Get-Command cmake.exe -ErrorAction SilentlyContinue)) { throw 'cmake.exe is required.' }
     if (-not (Test-Path -LiteralPath $WindowsBuilderAssemblyPath -PathType Leaf)) {
         throw "Windows builder assembly is required at '$WindowsBuilderAssemblyPath'."
     }
-    if (-not (Test-Path -LiteralPath $TemporaryRootPath -PathType Container)) {
-        throw "Short native smoke temporary root '$TemporaryRootPath' is required."
-    }
-    if (-not (Test-StrictDescendantPath -ParentPath $TemporaryRootPath -CandidatePath $TestRootPath)) {
-        throw "Disposable native smoke root '$TestRootPath' must be a strict descendant of '$TemporaryRootPath'."
+    $null = New-Item -ItemType Directory -Path $SmokeRootPath -Force -ErrorAction Stop
+    if (-not (Test-StrictDescendantPath -ParentPath $SmokeRootPath -CandidatePath $TestRootPath)) {
+        throw "Disposable native smoke root '$TestRootPath' must be a strict descendant of '$SmokeRootPath'."
     }
     if (Test-Path -LiteralPath $TestRootPath) {
         throw "Disposable native smoke root '$TestRootPath' unexpectedly already exists."
@@ -260,8 +257,8 @@ try {
 } finally {
     $env:HELENGINE_ENGINE_USER_SETTINGS_ROOT = $OriginalEngineUserSettingsRoot
     if ($TestRootCreated) {
-        if (-not (Test-StrictDescendantPath -ParentPath $TemporaryRootPath -CandidatePath $TestRootPath)) {
-            throw "Refusing to remove disposable native smoke root '$TestRootPath' outside temporary root '$TemporaryRootPath'."
+        if (-not (Test-StrictDescendantPath -ParentPath $SmokeRootPath -CandidatePath $TestRootPath)) {
+            throw "Refusing to remove disposable native smoke root '$TestRootPath' outside smoke root '$SmokeRootPath'."
         }
         if (Test-Path -LiteralPath $TestRootPath) {
             Remove-Item -LiteralPath $TestRootPath -Recurse -Force

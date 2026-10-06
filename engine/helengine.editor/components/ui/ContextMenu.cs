@@ -80,7 +80,6 @@ namespace helengine.editor {
         /// <summary>
         /// Render order used for menu text.
         /// </summary>
-        readonly byte TextOrder;
         /// <summary>
         /// Row pool used to display menu items.
         /// </summary>
@@ -129,7 +128,7 @@ namespace helengine.editor {
         /// <param name="layerMask">Layer mask for menu entities.</param>
         /// <param name="backgroundOrder">Render order for menu backgrounds.</param>
         /// <param name="textOrder">Render order for menu text.</param>
-        public ContextMenu(Core ownerCore, FontAsset font, ushort layerMask, byte backgroundOrder, byte textOrder, EditorSessionInteractionServices interactionServices) {
+        public ContextMenu(Core ownerCore, FontAsset font, ushort layerMask, EditorSessionInteractionServices interactionServices) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -139,10 +138,9 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(ownerCore));
             }
             InitialInteractionServices = interactionServices ?? throw new ArgumentNullException(nameof(interactionServices));
-            TextOrder = textOrder;
             Rows = new List<ContextMenuRow>(8);
             ActiveItems = new List<ContextMenuItem>(8);
-            ScrollComponent = new ScrollComponent();
+            ScrollComponent = new EditorScrollComponent();
             MenuSize = new int2(0, 0);
             MenuPosition = new int2(0, 0);
             HostSize = new int2(1, 1);
@@ -150,7 +148,7 @@ namespace helengine.editor {
             Root = new EditorEntity(ownerCore, InitialInteractionServices) {
                 InternalEntity = true,
                 LayerMask = layerMask,
-                Position = float3.Zero,
+                Position = new float3(0f, 0f, EditorUiDepths.Overlay),
                 Enabled = false
             };
 
@@ -159,12 +157,10 @@ namespace helengine.editor {
                 BorderColor = ThemeManager.Colors.AccentTertiary,
                 BorderThickness = BackgroundBorderThickness,
                 Radius = BackgroundRadius,
-                RenderOrder2D = backgroundOrder,
                 Size = new int2(0, 0)
             };
             Root.AddComponent(Background);
 
-            byte blockerOrder = backgroundOrder > 0 ? (byte)(backgroundOrder - 1) : backgroundOrder;
             BackgroundBlockerEntity = new EditorEntity(Root.OwnerCore, InitialInteractionServices) {
                 InternalEntity = true,
                 LayerMask = layerMask,
@@ -175,8 +171,7 @@ namespace helengine.editor {
             BackgroundBlockerSurface = new SpriteComponent {
                 Texture = Root.OwnerCore.RenderManager2D.PixelTexture,
                 Color = new byte4(255, 255, 255, 0),
-                Size = new int2(0, 0),
-                RenderOrder2D = blockerOrder
+                Size = new int2(0, 0)
             };
             BackgroundBlockerEntity.AddComponent(BackgroundBlockerSurface);
 
@@ -369,7 +364,6 @@ namespace helengine.editor {
             var background = new SpriteComponent {
                 Texture = Root.OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfacePrimary,
-                RenderOrder2D = Background.RenderOrder2D
             };
             rowEntity.AddComponent(background);
 
@@ -383,8 +377,7 @@ namespace helengine.editor {
                 Font = Font,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(1, 1),
-                RenderOrder2D = TextOrder
+                Size = new int2(1, 1)
             };
             labelHost.AddComponent(label);
 
@@ -398,8 +391,7 @@ namespace helengine.editor {
                 Font = Font,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(1, 1),
-                RenderOrder2D = TextOrder
+                Size = new int2(1, 1)
             };
             indicatorHost.AddComponent(indicator);
 
@@ -459,7 +451,7 @@ namespace helengine.editor {
             FirstVisibleItemIndex = ScrollComponent.ScrollOffset;
             MenuSize = new int2(width, ComputeMenuHeight(visibleRowCount));
             MenuPosition = ClampPosition(MenuPosition, MenuSize, HostSize);
-            Root.Position = new float3(MenuPosition.X, MenuPosition.Y, 0.2f);
+            Root.Position = new float3(MenuPosition.X, MenuPosition.Y, EditorUiDepths.Overlay + 0.2f);
 
             Background.Size = MenuSize;
             BackgroundBlockerSurface.Size = MenuSize;

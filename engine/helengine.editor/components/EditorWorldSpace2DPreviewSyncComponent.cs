@@ -2,6 +2,7 @@ namespace helengine {
     /// <summary>
     /// Creates, updates, and removes the editor-only world-space 2D preview proxies needed by the active scene.
     /// </summary>
+    [RunInEditor]
     public sealed class EditorWorldSpace2DPreviewSyncComponent : UpdateComponent, IEditorHiddenComponent {
         /// <summary>
         /// Preview proxies currently created by this synchronizer, keyed by authored source entity.
@@ -52,6 +53,7 @@ namespace helengine {
                 }
 
                 EditorEntity previewEntity = EnsurePreviewEntity(sourceEntity, sourceComponent);
+                previewEntity.RenderSuppressed = sourceEntity.IsRenderHierarchySuppressed;
                 EditorWorldSpace2DPreviewComponentBase previewComponent = ResolvePreviewComponent(previewEntity);
                 previewComponent.SynchronizeFromSource();
             }

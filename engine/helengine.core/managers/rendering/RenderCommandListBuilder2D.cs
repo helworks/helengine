@@ -153,7 +153,7 @@ namespace helengine {
 
             unchecked {
                 for (int index = 0; index < renderList.Count; index++) {
-                    IDrawable2D drawable = renderList[index];
+                    IDrawable2D drawable = renderList.GetPreparedDrawable(index);
                     if (!(drawable is ITextDrawable2D)) {
                         return false;
                     }

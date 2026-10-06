@@ -22,5 +22,10 @@ namespace helengine.editor {
         /// Draw order used by clipped modal sub-viewports that must render above the dialog shell.
         /// </summary>
         public const byte ModalContent = 255;
+
+        /// <summary>
+        /// Draw order used by the fixed autoscroll indicator above every editor viewport and modal.
+        /// </summary>
+        public const byte AutoScrollIndicator = byte.MaxValue;
     }
 }

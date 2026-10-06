@@ -3,6 +3,8 @@ namespace helengine.editor {
     /// Preview source that renders one selected scene camera into its own offscreen render target.
     /// </summary>
     public class CameraPreviewSource : IPreviewSource {
+        /// <summary>Renders after editor capture cameras and before UI cameras that sample the preview texture.</summary>
+        const byte PreviewCameraDrawOrder = EditorUiCameraDrawOrders.SharedUi - 1;
         /// <summary>
         /// Owning renderer used to allocate preview render targets.
         /// </summary>
@@ -27,7 +29,7 @@ namespace helengine.editor {
         /// <summary>
         /// Offscreen camera component used by the preview source.
         /// </summary>
-        readonly CameraComponent previewCameraComponent;
+        readonly CameraPreviewComponent previewCameraComponent;
         /// <summary>
         /// Current render target used by the preview camera.
         /// </summary>
@@ -75,7 +77,7 @@ namespace helengine.editor {
             previewEntity = new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore));
             previewEntity.InternalEntity = true;
             previewEntity.LayerMask = EditorLayerMasks.SceneObjects;
-            previewCameraComponent = new CameraComponent();
+            previewCameraComponent = new CameraPreviewComponent();
             previewEntity.AddComponent(previewCameraComponent);
 
             contentSize = new int2(1, 1);
@@ -106,7 +108,7 @@ namespace helengine.editor {
             previewEntity = new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore));
             previewEntity.InternalEntity = true;
             previewEntity.LayerMask = EditorLayerMasks.SceneObjects;
-            previewCameraComponent = new CameraComponent();
+            previewCameraComponent = new CameraPreviewComponent();
             previewEntity.AddComponent(previewCameraComponent);
 
             contentSize = new int2(1, 1);
@@ -141,9 +143,7 @@ namespace helengine.editor {
                 return;
             }
 
-            previewEntity.Position = sourceEntity.Position;
-            previewEntity.Orientation = sourceEntity.Orientation;
-            ApplyMirroredState();
+            Resize(contentSize);
         }
 
         /// <summary>
@@ -160,11 +160,11 @@ namespace helengine.editor {
             }
 
             this.contentSize = new int2(Math.Max(1, contentSize.X), Math.Max(1, contentSize.Y));
-            int2 previewTargetSize = ResolvePreviewTargetSize();
+            int2 previewTargetSize = this.contentSize;
             int targetWidth = previewTargetSize.X;
             int targetHeight = previewTargetSize.Y;
             if (renderTarget != null && renderTarget.Width == targetWidth && renderTarget.Height == targetHeight) {
-                previewCameraComponent.Viewport = BuildPreviewViewport();
+                ApplyMirroredState();
                 return;
             }
 
@@ -191,14 +191,21 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Mirrors the selected camera state into the preview camera.
+        /// Mirrors the selected camera transform and state during creation, resizing, and each live frame.
         /// </summary>
         void ApplyMirroredState() {
-            previewCameraComponent.CameraDrawOrder = sourceCameraComponent.CameraDrawOrder;
+            previewEntity.Position = sourceEntity.Position;
+            previewEntity.Orientation = sourceEntity.Orientation;
+            previewCameraComponent.CameraDrawOrder = PreviewCameraDrawOrder;
             previewCameraComponent.LayerMask = ResolvePreviewLayerMask(sourceCameraComponent.LayerMask);
             previewCameraComponent.ClearSettings = sourceCameraComponent.ClearSettings;
             previewCameraComponent.RenderSettings = new CameraRenderSettings(sourceCameraComponent.RenderSettings);
+            previewCameraComponent.FieldOfView = sourceCameraComponent.FieldOfView;
+            previewCameraComponent.NearPlaneDistance = sourceCameraComponent.NearPlaneDistance;
+            previewCameraComponent.FarPlaneDistance = sourceCameraComponent.FarPlaneDistance;
+            previewCameraComponent.LogicalViewportSize = ResolveLogicalViewportSize();
             previewCameraComponent.Viewport = BuildPreviewViewport();
+            EditorViewportDirect2DPresentationService.SynchronizeViewportOwnedSceneQueue(previewCameraComponent, objectManager);
         }
 
         /// <summary>
@@ -227,19 +234,19 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the preview viewport used to preserve authored scene-camera dimensions when suppression metadata exists.
+        /// Builds the physical viewport matching the current preview panel resolution.
         /// </summary>
         /// <returns>Viewport applied to the preview camera.</returns>
         float4 BuildPreviewViewport() {
-            int2 previewSize = ResolvePreviewTargetSize();
+            int2 previewSize = contentSize;
             return new float4(0f, 0f, previewSize.X, previewSize.Y);
         }
 
         /// <summary>
-        /// Resolves the render-target size used by the preview source.
+        /// Resolves the authored logical canvas independently of the preview render-target size.
         /// </summary>
-        /// <returns>Render-target size that should be allocated for the preview camera.</returns>
-        int2 ResolvePreviewTargetSize() {
+        /// <returns>Logical dimensions used to project the camera's 2D content.</returns>
+        int2 ResolveLogicalViewportSize() {
             if (sceneCanvasProfileState != null) {
                 return new int2(
                     Math.Max(1, sceneCanvasProfileState.CanvasWidth),

@@ -768,7 +768,7 @@ namespace helengine.directx11 {
             float4 viewport = CameraViewportResolver.ResolveViewport(camera.Viewport, directX11Target.Width, directX11Target.Height);
             context.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
 
-            float4x4 projection = CameraProjectionUtils.CreatePerspectiveProjection(camera, viewport.Z / viewport.W);
+            float4x4 projection = CameraProjectionUtils.CreateProjection(camera, viewport.Z / viewport.W);
 
             float4x4.Multiply(ref view, ref projection, out CurrentViewProjection);
 
@@ -888,7 +888,7 @@ namespace helengine.directx11 {
             float4 viewport = ResolveCameraViewport(camera, context.Surface);
             deviceContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
 
-            float4x4 projection = CameraProjectionUtils.CreatePerspectiveProjection(camera, viewport.Z / viewport.W);
+            float4x4 projection = CameraProjectionUtils.CreateProjection(camera, viewport.Z / viewport.W);
 
             float4x4.Multiply(ref view, ref projection, out CurrentViewProjection);
 
@@ -1608,9 +1608,11 @@ namespace helengine.directx11 {
                 }
 
                 byte4 customColor = CustomColorProvider(drawable);
+                bool alphaTest = MaterialBinder.BindCustomPassMaterial(runtimeMaterial);
                 var customData = new CustomEffectShaderData {
                     worldViewProj = worldViewProjTransposed,
-                    color = new float4(customColor.X / 255f, customColor.Y / 255f, customColor.Z / 255f, customColor.W / 255f)
+                    color = new float4(customColor.X / 255f, customColor.Y / 255f, customColor.Z / 255f, customColor.W / 255f),
+                    AlphaTest = new float4(alphaTest ? 1f : 0f, 0.001f, 0f, 0f)
                 };
                 context.UpdateSubresource(ref customData, CustomPassConstantBuffer);
             } else {

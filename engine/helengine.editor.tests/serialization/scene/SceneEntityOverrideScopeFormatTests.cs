@@ -86,7 +86,7 @@ namespace helengine.editor.tests.serialization.scene {
 
         [Fact]
         public void Versions_MovedTogether() {
-            Assert.Equal(9, helengine.files.SceneEntityPayloadFormat.SceneEntityPayloadVersion);
+            Assert.Equal(10, helengine.files.SceneEntityPayloadFormat.SceneEntityPayloadVersion);
             Assert.Equal(25, helengine.files.EditorAssetBinarySerializer.CurrentVersion);
             Assert.Equal(25, PackagedAssetBinarySerializer.CurrentVersion);
         }

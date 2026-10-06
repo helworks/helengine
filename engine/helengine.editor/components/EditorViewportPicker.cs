@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Triggers one-frame picker renders for scene selection and transform-axis hover detection.
     /// </summary>
+    [RunInEditor]
     public class EditorViewportPicker : UpdateComponent {
         /// <summary>
         /// Picker mode used to resolve scene object selection from a click.
@@ -114,6 +115,7 @@ namespace helengine.editor {
             RendererResources = rendererResources;
             PickColors = new Dictionary<IDrawable3D, byte4>();
             PickEntitiesById = new Dictionary<int, Entity>();
+            UpdateOrder = TransformGizmoUpdateOrder.Picking;
         }
 
         /// <summary>
@@ -217,8 +219,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(sourceCamera));
             }
 
-            PickerCamera.NearPlaneDistance = sourceCamera.NearPlaneDistance;
-            PickerCamera.FarPlaneDistance = sourceCamera.FarPlaneDistance;
+            EditorViewportCameraProjectionSynchronizer.Synchronize(sourceCamera, PickerCamera);
         }
 
         /// <summary>
@@ -255,12 +256,6 @@ namespace helengine.editor {
             Entity screenSpace2DEntity = ResolveScreenSpace2DSelection();
             if (screenSpace2DEntity != null) {
                 SelectEntity(screenSpace2DEntity);
-                return;
-            }
-
-            Entity worldPreviewEntity = ResolveWorldPreview2DSelection();
-            if (worldPreviewEntity != null) {
-                SelectEntity(worldPreviewEntity);
                 return;
             }
 
@@ -623,23 +618,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves one screen-space 2D scene selection from the current viewport pointer before world-preview and generic 3D fallback are considered.
+        /// Resolves screen-space 2D selection before the alpha-tested GPU result for world previews and 3D meshes.
         /// </summary>
         /// <returns>Selectable screen-space 2D scene entity under the pointer, or null when no screen-space 2D scene entity is hit.</returns>
         Entity ResolveScreenSpace2DSelection() {
             return EditorViewportDirect2DPresentationService.ResolveSelectableEntityAtPointer(
-                SceneCamera,
-                PendingViewport,
-                PendingPointer,
-                RendererResources.ObjectManager);
-        }
-
-        /// <summary>
-        /// Resolves one authored world-preview 2D scene selection from the current viewport pointer before generic 3D mesh selection is considered.
-        /// </summary>
-        /// <returns>Selectable world-preview 2D scene entity under the pointer, or null when no world-preview entity is hit.</returns>
-        Entity ResolveWorldPreview2DSelection() {
-            return EditorViewportDirect2DPresentationService.ResolveSelectableWorldPreviewEntityAtPointer(
                 SceneCamera,
                 PendingViewport,
                 PendingPointer,

@@ -259,7 +259,10 @@ namespace helengine.editor.app {
                 bootstrap.AvailablePlatformProviderResolver,
                 renderer3D is DirectX11Renderer3D
                     ? new DirectX11EditorMaterialInstanceFactory()
-                    : new GenericEditorMaterialInstanceFactory());
+                    : new GenericEditorMaterialInstanceFactory(),
+                renderer3D is DirectX11Renderer3D pickingRenderer
+                    ? new DirectX11EditorPickingBackendFactory(pickingRenderer)
+                    : null);
 
             EditorBootTimeline.Mark("editor session construction");
             editorSession.TitleChanged += SetWindowTitle;

@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Update component that forwards per-frame work into the preview panel.
     /// </summary>
+    [RunInEditor]
     public class PreviewPanelUpdater : UpdateComponent {
         /// <summary>
         /// Preview panel that owns the active preview source.
@@ -10,6 +11,7 @@ namespace helengine.editor {
 
         /// <summary>
         /// Initializes a new updater for one preview panel.
+        /// Runs after transform tools and property edits so previews render the current frame's authored state.
         /// </summary>
         /// <param name="panel">Preview panel to update.</param>
         public PreviewPanelUpdater(PreviewPanel panel) {
@@ -18,6 +20,7 @@ namespace helengine.editor {
             }
 
             this.panel = panel;
+            UpdateOrder = byte.MaxValue;
         }
 
         /// <summary>

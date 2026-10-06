@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Stores read-only source identity for one inherited live component expanded from a blueprint asset.
     /// </summary>
+    [RunInEditor]
     public sealed class BlueprintInheritedComponentMarker : Component, IEditorHiddenComponent {
         /// <summary>
         /// Gets or sets the project-relative blueprint asset path that produced the inherited component.

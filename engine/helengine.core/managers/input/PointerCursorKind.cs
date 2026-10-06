@@ -23,6 +23,14 @@ namespace helengine {
         /// <summary>
         /// Uses the diagonal resize cursor for top-right and bottom-left corner grips.
         /// </summary>
-        ResizeNorthEastSouthWest
+        ResizeNorthEastSouthWest,
+        /// <summary>
+        /// Signals that the editor should show its vertical autoscroll indicator at the activation point.
+        /// </summary>
+        AutoScrollVertical,
+        /// <summary>
+        /// Signals that the editor should show its horizontal autoscroll indicator at the activation point.
+        /// </summary>
+        AutoScrollHorizontal
     }
 }

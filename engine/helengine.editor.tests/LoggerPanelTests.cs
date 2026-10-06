@@ -83,9 +83,37 @@ namespace helengine.editor.tests {
             try {
                 panel.FlushPendingEntries();
 
-                ScrollComponent scrollComponent = GetPrivateField<ScrollComponent>(panel, "ScrollComponent");
+                ScrollComponent scrollComponent = GetPrivateField<EditorScrollComponent>(panel, "ScrollComponent");
 
                 Assert.Equal(4, scrollComponent.VisibleItemCount);
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures the logger's scroll hit region stays anchored to the fixed viewport while its content moves.
+        /// </summary>
+        [Fact]
+        public void ScrollComponent_WhenLoggerContentScrolls_KeepsHitRegionAnchoredToViewport() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3", "row-4");
+            panel.MinSize = new int2(0, 0);
+            panel.Size = new int2(320, LoggerPanel.RowHeight);
+
+            try {
+                ScrollComponent scrollComponent = GetPrivateField<EditorScrollComponent>(panel, "ScrollComponent");
+                float4 initialClipRect = scrollComponent.GetClipRect();
+                int pointerX = (int)initialClipRect.X + 1;
+                int pointerY = (int)initialClipRect.Y + 1;
+
+                Assert.True(scrollComponent.ContainsScreenPoint(pointerX, pointerY));
+                Assert.True(scrollComponent.ScrollTo(1));
+
+                float4 scrolledClipRect = scrollComponent.GetClipRect();
+
+                Assert.Equal(initialClipRect.X, scrolledClipRect.X);
+                Assert.Equal(initialClipRect.Y, scrolledClipRect.Y);
+                Assert.True(scrollComponent.ContainsScreenPoint(pointerX, pointerY));
             } finally {
                 panel.Detach();
             }

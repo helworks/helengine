@@ -2,27 +2,10 @@ namespace helengine {
     /// <summary>
     /// Renders a rounded rectangle shape using the 2D render manager.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class RoundedRectComponent : Component, IRoundedRectDrawable2D, IAnchorSizeProvider {
-        byte RenderOrder2DValue;
-
-        /// <summary>
-        /// Gets or sets the render order for this shape.
-        /// </summary>
-        public byte RenderOrder2D {
-            get { return RenderOrder2DValue; }
-            set {
-                if (RenderOrder2DValue != value) {
-                    if (Parent != null && Parent.IsHierarchyEnabled) {
-                        OwnerCore.ObjectManager.RemoveFromRender2D(this);
-                        RenderOrder2DValue = value;
-                        OwnerCore.ObjectManager.RegisterForRender2D(this);
-                    } else {
-                        RenderOrder2DValue = value;
-                    }
-                }
-            }
-        }
-
         /// <summary>
         /// Gets or sets the corners that remain rounded on this shape.
         /// </summary>

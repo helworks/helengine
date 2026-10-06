@@ -129,6 +129,30 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
+        /// Binds the visible material's culling and primary alpha texture without replacing the custom pass shaders or ID output state.
+        /// </summary>
+        /// <param name="material">Material assigned to this submesh, or null for untextured default geometry.</param>
+        /// <returns>True when the custom shader should reject transparent pixels from the primary texture.</returns>
+        public bool BindCustomPassMaterial(RuntimeMaterial material) {
+            DeviceContext context = Device.ImmediateContext;
+            ClearActiveMaterialTextureBindings();
+            ActiveMaterial = null;
+            ShaderResourceView resourceView = null;
+            if (material == null) {
+                context.Rasterizer.State = PipelineStateCache.DefaultRasterizerState;
+            } else {
+                context.Rasterizer.State = PipelineStateCache.ResolveRasterizerState(material.RenderState);
+                if (material.RenderState.BlendMode == MaterialBlendMode.AlphaBlend) {
+                    resourceView = ResolveMaterialTextureResourceView(RequireShaderRuntimeMaterial(material));
+                }
+            }
+            context.PixelShader.SetShaderResource(0, resourceView);
+            context.PixelShader.SetSampler(0, resourceView == null ? null : MaterialTextureSampler);
+            TrackActiveMaterialTextureSlot(0);
+            return resourceView != null;
+        }
+
+        /// <summary>
         /// Applies per-material constant-buffer payloads for the current draw.
         /// </summary>
         /// <param name="material">Resolved runtime material instance that provides constant-buffer values.</param>

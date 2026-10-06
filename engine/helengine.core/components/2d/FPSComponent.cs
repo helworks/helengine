@@ -109,21 +109,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Gets or sets the render order used by the overlay text.
-        /// </summary>
-        public byte RenderOrder2D {
-            get { return RenderOrder2DValue; }
-            set {
-                if (RenderOrder2DValue == value) {
-                    return;
-                }
-
-                RenderOrder2DValue = value;
-                ApplyRenderOrder();
-            }
-        }
-
-        /// <summary>
         /// Gets or sets the font used by both overlay lines.
         /// </summary>
         public FontAsset Font {
@@ -207,9 +192,9 @@ namespace helengine {
         int2 PaddingValue = new int2(8, 6);
 
         /// <summary>
-        /// Stores the current render order used by both overlay text rows.
+        /// Physical depth used to keep the diagnostics overlay above ordinary screen-space content.
         /// </summary>
-        byte RenderOrder2DValue = 250;
+        const float OverlayDepth = 250f;
 
         /// <summary>
         /// Creates a new FPS overlay with no implicit font fallback.
@@ -293,13 +278,11 @@ namespace helengine {
                 ResetSamplingWindow();
                 ApplyCurrentOverlayText();
                 ApplyPadding();
-                ApplyRenderOrder();
                 ApplyOverlayPresentationVisibility();
                 return;
             }
 
             ApplyFont();
-            ApplyRenderOrder();
             ApplyPadding();
             ApplyOverlayPresentationVisibility();
         }
@@ -428,7 +411,7 @@ namespace helengine {
                 return;
             }
 
-            OverlayHost.LocalPosition = new float3(PaddingValue.X, PaddingValue.Y, 0f);
+            OverlayHost.LocalPosition = new float3(PaddingValue.X, PaddingValue.Y, OverlayDepth);
         }
 
         /// <summary>
@@ -442,28 +425,6 @@ namespace helengine {
 
             Core core = OwnerCore;
             OverlayHost.Enabled = !ShouldUsePlatformOwnedOverlayPresentation(core);
-        }
-
-        /// <summary>
-        /// Applies the configured render order to the overlay text rows.
-        /// </summary>
-        void ApplyRenderOrder() {
-            if (!EnsureOverlayHierarchyIsLive()) {
-                ReleaseOverlayReferences();
-                return;
-            }
-
-            if (UpdateTextComponent != null) {
-                UpdateTextComponent.RenderOrder2D = RenderOrder2D;
-            }
-
-            if (RenderTextComponent != null) {
-                RenderTextComponent.RenderOrder2D = RenderOrder2D;
-            }
-
-            for (int lineIndex = 0; lineIndex < AdditionalLineTextComponents.Count; lineIndex++) {
-                AdditionalLineTextComponents[lineIndex].RenderOrder2D = RenderOrder2D;
-            }
         }
 
         /// <summary>
@@ -702,7 +663,6 @@ namespace helengine {
                 textComponent.Text = lineText;
             }
 
-            ApplyRenderOrder();
             ApplyRowLayout();
         }
 

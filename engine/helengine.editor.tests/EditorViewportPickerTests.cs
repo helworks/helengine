@@ -91,7 +91,7 @@ namespace helengine.editor.tests {
         /// Ensures picker projection synchronization mirrors the gizmo camera clip range so large scene-view gizmos remain hoverable when the visible overlay camera frames far-away content.
         /// </summary>
         [Fact]
-        public void SynchronizePickerCameraProjection_WhenGizmoCameraUsesExtendedClipRange_MirrorsClipPlanesOntoPickerCamera() {
+        public void SynchronizePickerCameraProjection_WhenSourceIsOrthographic_MirrorsCompleteProjectionOntoPickerCamera() {
             TestInputBackend inputBackend = new TestInputBackend();
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new FakeContentStreamSource()
@@ -104,20 +104,26 @@ namespace helengine.editor.tests {
                 generatedAssetGraph.InteractionServices.GizmoHover.ClearHoveredHandle();
 
                 EditorEntity sceneCameraEntity = new EditorEntity(core, generatedAssetGraph.InteractionServices);
-                CameraComponent sceneCamera = new CameraComponent {
-                    Viewport = new float4(0f, 0f, 100f, 100f)
+                EditorViewportCameraComponent sceneCamera = new EditorViewportCameraComponent {
+                    Viewport = new float4(0f, 0f, 100f, 100f),
+                    FieldOfView = (float)(Math.PI / 3.0),
+                    NearPlaneDistance = 2f,
+                    FarPlaneDistance = 8000f,
+                    ProjectionMode = CameraProjectionMode.Orthographic,
+                    OrthographicVerticalSpan = 37f
                 };
                 sceneCameraEntity.AddComponent(sceneCamera);
 
-                CameraComponent gizmoCamera = new CameraComponent {
+                EditorViewportCameraComponent gizmoCamera = new EditorViewportCameraComponent {
                     Viewport = new float4(0f, 0f, 100f, 100f),
-                    NearPlaneDistance = 2f,
-                    FarPlaneDistance = 8000f
+                    FieldOfView = CameraProjectionUtils.DefaultFieldOfView,
+                    NearPlaneDistance = CameraProjectionUtils.MinimumNearPlaneDistance,
+                    FarPlaneDistance = 1000f
                 };
                 sceneCameraEntity.AddComponent(gizmoCamera);
 
                 EditorEntity pickerCameraEntity = new EditorEntity(core, generatedAssetGraph.InteractionServices);
-                CameraComponent pickerCamera = new CameraComponent();
+                EditorViewportCameraComponent pickerCamera = new EditorViewportCameraComponent();
                 pickerCameraEntity.AddComponent(pickerCamera);
                 EditorEntity translationGizmoRoot = new EditorEntity(core, generatedAssetGraph.InteractionServices);
                 EditorEntity rotationGizmoRoot = new EditorEntity(core, generatedAssetGraph.InteractionServices);
@@ -138,10 +144,30 @@ namespace helengine.editor.tests {
                     generatedAssetGraph.RendererResources);
                 sceneCameraEntity.AddComponent(picker);
 
+                EditorViewportGizmoRenderQueueComponent gizmoCameraSynchronizer = new EditorViewportGizmoRenderQueueComponent(
+                    sceneCamera,
+                    gizmoCamera,
+                    gizmoDrawableCollector,
+                    generatedAssetGraph.RendererResources.ObjectManager);
+                gizmoCameraSynchronizer.Update();
                 InvokeSynchronizePickerCameraProjection(picker, gizmoCamera);
 
+                Assert.Equal(sceneCamera.NearPlaneDistance, gizmoCamera.NearPlaneDistance);
+                Assert.Equal(sceneCamera.FarPlaneDistance, gizmoCamera.FarPlaneDistance);
+                Assert.Equal(sceneCamera.FieldOfView, gizmoCamera.FieldOfView);
+                Assert.Equal(sceneCamera.ProjectionMode, gizmoCamera.ProjectionMode);
+                Assert.Equal(sceneCamera.OrthographicVerticalSpan, gizmoCamera.OrthographicVerticalSpan);
                 Assert.Equal(gizmoCamera.NearPlaneDistance, pickerCamera.NearPlaneDistance);
                 Assert.Equal(gizmoCamera.FarPlaneDistance, pickerCamera.FarPlaneDistance);
+                Assert.Equal(gizmoCamera.FieldOfView, pickerCamera.FieldOfView);
+                Assert.Equal(gizmoCamera.ProjectionMode, pickerCamera.ProjectionMode);
+                Assert.Equal(gizmoCamera.OrthographicVerticalSpan, pickerCamera.OrthographicVerticalSpan);
+                Assert.Equal(
+                    CameraProjectionUtils.CreateProjection(sceneCamera, 1.0f),
+                    CameraProjectionUtils.CreateProjection(gizmoCamera, 1.0f));
+                Assert.Equal(
+                    CameraProjectionUtils.CreateProjection(gizmoCamera, 1.0f),
+                    CameraProjectionUtils.CreateProjection(pickerCamera, 1.0f));
             } finally {
                 generatedAssetGraph.InteractionServices.GizmoHover.ClearHoveredHandle();
                 generatedAssetGraph?.Dispose();

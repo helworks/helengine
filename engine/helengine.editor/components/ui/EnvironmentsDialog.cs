@@ -164,7 +164,7 @@ namespace helengine.editor {
 
             EnvironmentListRoot = CreateInternalHost();
             DialogPanelRoot.AddChild(EnvironmentListRoot);
-            EnvironmentListScrollComponent = new ScrollComponent();
+            EnvironmentListScrollComponent = new EditorScrollComponent();
             EnvironmentListScrollComponent.ScrollOffsetChanged += HandleEnvironmentListScrollOffsetChanged;
             EnvironmentListRoot.AddComponent(EnvironmentListScrollComponent);
 
@@ -173,7 +173,6 @@ namespace helengine.editor {
             EditorEntity inputHost = CreateInternalHost();
             DialogPanelRoot.AddChild(inputHost);
             EnvironmentIdTextBox = new TextBoxComponent(GetEnvironmentIdTextBoxSize(), DialogFont, "Environment id");
-            EnvironmentIdTextBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             inputHost.AddComponent(EnvironmentIdTextBox);
 
             AddButton = CreateActionButton("Add", HandleAddClicked);
@@ -190,21 +189,18 @@ namespace helengine.editor {
                 Text = string.Empty,
                 Color = ThemeManager.Colors.StateWarning,
                 Size = new int2(1, GetDialogLineHeight()),
-                RenderOrder2D = DialogTextOrder
             };
             StatusHost.AddComponent(StatusText);
 
             EditorEntity footerHost = CreateInternalHost();
             DialogPanelRoot.AddChild(footerHost);
             CancelButton = new ButtonComponent("Cancel", GetFooterButtonSize(), DialogFont, HandleCancelClicked, 0f);
-            CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
             footerHost.AddChild(CreateInternalHost());
             footerHost.AddComponent(CancelButton);
 
             EditorEntity saveHost = CreateInternalHost();
             DialogPanelRoot.AddChild(saveHost);
             SaveButton = new ButtonComponent("Save", GetFooterButtonSize(), DialogFont, HandleSaveClicked, 0f);
-            SaveButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
             saveHost.AddComponent(SaveButton);
 
             Enabled = false;
@@ -431,7 +427,6 @@ namespace helengine.editor {
                     DialogFont,
                     LayerMask,
                     GetEnvironmentRowButtonSize(),
-                    DialogTextOrder,
                     HandleEnvironmentRowClicked);
                 EnvironmentListRoot.AddChild(row.SelectHost);
                 EnvironmentListRoot.AddChild(row.ProtectedHost);
@@ -557,7 +552,6 @@ namespace helengine.editor {
             EditorEntity host = CreateInternalHost();
             DialogPanelRoot.AddChild(host);
             ButtonComponent button = new ButtonComponent(label, GetActionButtonSize(), DialogFont, onClick, 0f);
-            button.SetRenderOrders(DialogTextOrder, DialogTextOrder);
             host.AddComponent(button);
             return button;
         }
@@ -584,7 +578,6 @@ namespace helengine.editor {
                 Font = DialogFont,
                 Text = text,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                RenderOrder2D = DialogTextOrder
             };
         }
 

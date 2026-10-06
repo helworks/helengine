@@ -28,7 +28,10 @@ namespace helengine.editor {
             RuntimeTexture magnetIcon,
             RuntimeTexture ctrlKeyIcon,
             RuntimeTexture shiftKeyIcon,
-            RuntimeTexture statsIcon) {
+            RuntimeTexture statsIcon,
+            RuntimeTexture hierarchyDisclosureIcon = null,
+            RuntimeTexture hierarchyVisibleIcon = null,
+            RuntimeTexture hierarchyHiddenIcon = null) {
             TranslateIcon = translateIcon ?? throw new ArgumentNullException(nameof(translateIcon));
             RotateIcon = rotateIcon ?? throw new ArgumentNullException(nameof(rotateIcon));
             ScaleIcon = scaleIcon ?? throw new ArgumentNullException(nameof(scaleIcon));
@@ -40,6 +43,9 @@ namespace helengine.editor {
             CtrlKeyIcon = ctrlKeyIcon ?? throw new ArgumentNullException(nameof(ctrlKeyIcon));
             ShiftKeyIcon = shiftKeyIcon ?? throw new ArgumentNullException(nameof(shiftKeyIcon));
             StatsIcon = statsIcon ?? throw new ArgumentNullException(nameof(statsIcon));
+            HierarchyDisclosureIcon = hierarchyDisclosureIcon;
+            HierarchyVisibleIcon = hierarchyVisibleIcon;
+            HierarchyHiddenIcon = hierarchyHiddenIcon;
         }
 
         /// <summary>
@@ -86,6 +92,16 @@ namespace helengine.editor {
         /// Gets the texture used by the viewport stats toggle button.
         /// </summary>
         public RuntimeTexture StatsIcon { get; }
+
+        /// <summary>Gets the SVG-derived texture shown by Scene Hierarchy disclosure buttons.</summary>
+        public RuntimeTexture HierarchyDisclosureIcon { get; }
+
+        /// <summary>Gets the SVG-derived open-eye texture shown for visible scene entities.</summary>
+        public RuntimeTexture HierarchyVisibleIcon { get; }
+
+        /// <summary>Gets the SVG-derived crossed-eye texture shown for hidden scene entities.</summary>
+        public RuntimeTexture HierarchyHiddenIcon { get; }
+
 
         /// <summary>
         /// Resolves the toolbar icon texture for the provided viewport tool mode.

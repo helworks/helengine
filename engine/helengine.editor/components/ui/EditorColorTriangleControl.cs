@@ -89,8 +89,7 @@ namespace helengine.editor {
 
             TriangleSprite = new SpriteComponent {
                 Size = new int2(TriangleSizeValue, TriangleSizeValue),
-                Texture = EditorColorUtils.BuildTriangleTexture(TriangleSizeValue, HueValue, RenderManager2D),
-                RenderOrder2D = RenderOrder2D.ModalOverlayForeground
+                Texture = EditorColorUtils.BuildTriangleTexture(TriangleSizeValue, HueValue, RenderManager2D)
             };
             TriangleHost.AddComponent(TriangleSprite);
 
@@ -109,8 +108,7 @@ namespace helengine.editor {
                 Radius = MarkerSize * 0.5f,
                 BorderThickness = 2f,
                 FillColor = ThemeManager.Colors.TextOnAccent,
-                BorderColor = ThemeManager.Colors.SurfacePrimary,
-                RenderOrder2D = RenderOrder2D.ModalOverlayForeground
+                BorderColor = ThemeManager.Colors.SurfacePrimary
             };
             MarkerHost.AddComponent(SelectionMarker);
 

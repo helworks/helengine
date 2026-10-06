@@ -23,15 +23,6 @@ namespace helengine.editor {
         /// </summary>
         FontAsset font;
         /// <summary>
-        /// Render order used for row backgrounds.
-        /// </summary>
-        readonly byte rowBackgroundOrder;
-        /// <summary>
-        /// Render order used for row text.
-        /// </summary>
-        readonly byte textOrder;
-
-        /// <summary>
         /// Shared clipped scroll body that clips scrolled rows against the visible panel body.
         /// </summary>
         readonly EditorClippedScrollBody ScrollBody;
@@ -136,9 +127,6 @@ namespace helengine.editor {
             Title = "Logger";
             MinSize = new int2(metrics.ScalePixels(260), metrics.ScalePixels(160));
 
-            rowBackgroundOrder = RenderOrder2D.PanelSurface;
-            textOrder = RenderOrder2D.PanelForeground;
-
             ScrollBody = new EditorClippedScrollBody(OwnerCore, InteractionServices, LayerMask);
             AddChild(ScrollBody.HostEntity);
             contentRoot = ScrollBody.ContentRoot;
@@ -156,9 +144,9 @@ namespace helengine.editor {
             RowContextMenuItems = new List<ContextMenuItem> {
                 new ContextMenuItem("Copy", HandleCopyContextMenuRequested)
             };
-            RowContextMenu = new ContextMenu(OwnerCore, font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground, InteractionServices);
+            RowContextMenu = new ContextMenu(OwnerCore, font, LayerMask, InteractionServices);
             AddChild(RowContextMenu.Entity);
-            ScrollComponent = new ScrollComponent();
+            ScrollComponent = new EditorScrollComponent();
             // The clipped scroll body cuts the trailing partial row off at the panel bottom instead of
             // leaving empty space at the end of the scrolled range.
             ScrollComponent.ShowsPartialTrailingItem = true;
@@ -306,14 +294,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="count">Number of rows required.</param>
         void EnsureRowCount(int count) {
-            bool created = false;
             for (int i = rows.Count; i < count; i++) {
                 rows.Add(CreateRow());
-                created = true;
-            }
-
-            if (created) {
-                RefreshRenderOrderBias();
             }
         }
 
@@ -329,7 +311,6 @@ namespace helengine.editor {
             var background = new SpriteComponent();
             background.Texture = OwnerCore.RenderManager2D.PixelTexture;
             background.Color = ThemeManager.Colors.SurfacePrimary;
-            background.RenderOrder2D = rowBackgroundOrder;
             rowEntity.AddComponent(background);
 
             var interactable = new InteractableComponent();
@@ -346,7 +327,6 @@ namespace helengine.editor {
             text.Text = string.Empty;
             text.Color = ThemeManager.Colors.InputForegroundPrimary;
             text.Size = new int2(100, GetRowHeightPixels());
-            text.RenderOrder2D = textOrder;
             labelHost.AddComponent(text);
 
             contentRoot.AddChild(rowEntity);

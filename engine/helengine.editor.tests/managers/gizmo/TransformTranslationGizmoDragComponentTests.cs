@@ -73,6 +73,29 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
+        /// Ensures an orthographic drag maps pointer movement to the expected world-space displacement.
+        /// </summary>
+        [Fact]
+        public void Update_WhenPlaneDraggingWithOrthographicCamera_MapsPixelsToWorldUnits() {
+            InitializeCore();
+            EditorViewportCameraComponent sceneCamera = CreateOrthographicSceneCamera();
+            EditorEntity selectedEntity = new EditorEntity(CoreValue, InteractionServices) {
+                LocalPosition = new float3(0f, 0f, 25f)
+            };
+            Entity handleEntity = CreateHandleEntity();
+            TransformTranslationGizmoDragComponent component = CreateDragComponent(sceneCamera);
+            float3 presentedStartPosition = selectedEntity.Position;
+
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
+            InitializeActivePlaneDrag(component, selectedEntity, handleEntity, presentedStartPosition, presentedStartPosition);
+
+            CompleteDragFrame(component, CreateMouseState(270, 200, ButtonState.Pressed));
+
+            AssertFloat3ApproximatelyEqual(new float3(1f, 0f, 25f), selectedEntity.Position, 0.001f);
+        }
+
+        /// <summary>
         /// Ensures axis dragging one viewport-owned 2D entity along the presented downward axis restores a positive stored Y position behind the scenes.
         /// </summary>
         [Fact]
@@ -187,6 +210,27 @@ namespace helengine.editor.tests.managers.gizmo {
 
             CameraComponent sceneCamera = new CameraComponent {
                 Viewport = new float4(0f, 0f, 500f, 400f)
+            };
+            cameraEntity.AddComponent(sceneCamera);
+            SceneCameraValue = sceneCamera;
+            return sceneCamera;
+        }
+
+        /// <summary>
+        /// Creates an editor viewport camera with a known orthographic span and viewport for drag-pixel tests.
+        /// </summary>
+        /// <returns>Configured orthographic editor camera.</returns>
+        EditorViewportCameraComponent CreateOrthographicSceneCamera() {
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices) {
+                InternalEntity = true,
+                Position = new float3(0f, 0f, 100f),
+                Orientation = float4.Identity
+            };
+
+            EditorViewportCameraComponent sceneCamera = new EditorViewportCameraComponent {
+                Viewport = new float4(0f, 0f, 500f, 400f),
+                ProjectionMode = CameraProjectionMode.Orthographic,
+                OrthographicVerticalSpan = 20f
             };
             cameraEntity.AddComponent(sceneCamera);
             SceneCameraValue = sceneCamera;

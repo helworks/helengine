@@ -123,7 +123,7 @@ namespace helengine.editor.tests {
 
             panel.RefreshHierarchy();
 
-            ScrollComponent scrollComponent = GetPrivateField<ScrollComponent>(panel, "scrollComponent");
+            ScrollComponent scrollComponent = GetPrivateField<EditorScrollComponent>(panel, "scrollComponent");
 
             Assert.Equal(8, scrollComponent.VisibleItemCount);
         }

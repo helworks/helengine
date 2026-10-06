@@ -116,7 +116,6 @@ namespace helengine.editor {
             RootEntity.Enabled = false;
 
             PlatformTabStrip = new PlatformTabStripView(ownerCore, interactionServices, font, layerMask, TabWidth, TabHeight, 0, ArrowButtonWidth);
-            PlatformTabStrip.SetRenderOrders(RenderOrder2D.PanelSurface, RenderOrder2D.PanelForeground);
             PlatformTabStrip.Root.Enabled = false;
             RootEntity.AddChild(PlatformTabStrip.Root);
         }

@@ -133,6 +133,67 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures former built-in drawable payloads can discard the removed 2D draw-order field and save the component without restoring it.
+        /// </summary>
+        [Fact]
+        public void DeserializeComponent_WhenLegacyRenderOrder2DFieldIsPresent_ForBuiltInDrawableLoadsAndOmitsItWhenResaved() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField("RenderOrder2D", fieldWriter => fieldWriter.WriteByte(211));
+            SceneComponentAssetRecord legacyRecord = new SceneComponentAssetRecord {
+                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(RoundedRectComponent)),
+                ComponentIndex = 0,
+                Payload = writer.BuildPayload()
+            };
+
+            RoundedRectComponent restored = Assert.IsType<RoundedRectComponent>(
+                descriptor.DeserializeComponent(legacyRecord, null, null));
+            SceneComponentAssetRecord resavedRecord = descriptor.SerializeComponent(restored, 0, new EntityComponentSaveState());
+            EditorTaggedSceneComponentFieldReader resavedPayload = new EditorTaggedSceneComponentFieldReader(resavedRecord.Payload);
+
+            Assert.False(resavedPayload.TryGetFieldReader("RenderOrder2D", out EngineBinaryReader obsoleteFieldReader));
+            Assert.Null(obsoleteFieldReader);
+        }
+
+        /// <summary>
+        /// Ensures an obsolete-order-named field from a custom component is still rejected when it is not in that component's current schema.
+        /// </summary>
+        [Fact]
+        public void DeserializeComponent_WhenUnknownRenderOrder2DFieldIsPresent_ForCustomComponentStillRejectsIt() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField(nameof(TestScriptSerializableComponent.DisplayName), fieldWriter => fieldWriter.WriteString("Menu Row"));
+            writer.WriteField("RenderOrder2D", fieldWriter => fieldWriter.WriteByte(211));
+            SceneComponentAssetRecord record = new SceneComponentAssetRecord {
+                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestScriptSerializableComponent)),
+                ComponentIndex = 0,
+                Payload = writer.BuildPayload()
+            };
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => descriptor.DeserializeComponent(record, null, null));
+
+            Assert.Contains("unsupported field 'RenderOrder2D'", exception.Message, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures a custom component's current public field named RenderOrder2D round-trips as authored data.
+        /// </summary>
+        [Fact]
+        public void SerializeAndDeserialize_WhenCustomComponentDefinesRenderOrder2D_PreservesItsValue() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            TestCustomRenderOrder2DSerializableComponent component = new TestCustomRenderOrder2DSerializableComponent {
+                RenderOrder2D = 173
+            };
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(component, 0, new EntityComponentSaveState());
+            TestCustomRenderOrder2DSerializableComponent restored = Assert.IsType<TestCustomRenderOrder2DSerializableComponent>(
+                descriptor.DeserializeComponent(record, null, null));
+
+            Assert.Equal(173, restored.RenderOrder2D);
+        }
+
+        /// <summary>
         /// Characterises the reflected read walk shared by the editor descriptor and the runtime deserializer by round-tripping
         /// every directly supported leaf type from the editor write path through the runtime ordinal read path.
         /// </summary>
@@ -517,7 +578,6 @@ namespace helengine.editor.tests.serialization.scene {
                 SourceRect = new float4(0.05f, 0.1f, 0.9f, 0.8f),
                 Rotation = 0.25f,
                 FontScale = 2.0f,
-                RenderOrder2D = 22,
                 SelectionEnabled = true,
                 Texture = new TestRuntimeTexture()
             };
@@ -545,7 +605,6 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(0.25f, restored.Rotation);
             Assert.Equal(2.0f, restored.FontScale);
             Assert.Equal("Right", alignmentProperty.GetValue(restored)?.ToString());
-            Assert.Equal((byte)22, restored.RenderOrder2D);
             Assert.True(restored.SelectionEnabled);
             Assert.Null(restored.Texture);
             Assert.True(loadedSaveComponent.TryGetComponentState(restored, out EntityComponentSaveState loadedSaveState));
@@ -678,9 +737,10 @@ namespace helengine.editor.tests.serialization.scene {
                 VisibleItemCount = 4,
                 ScrollStepCount = 2,
                 WheelNotchSize = 120,
+                RequiresPointerInside = false,
                 ShowScrollBar = false,
                 ScrollBarThickness = 12,
-                RequiresPointerInside = false
+                Orientation = ScrollOrientation.Horizontal
             };
             component.ContentRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
 
@@ -697,6 +757,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.False(deserialized.ShowScrollBar);
             Assert.Equal(12, deserialized.ScrollBarThickness);
             Assert.Null(deserialized.ScrollBar);
+            Assert.Equal(ScrollOrientation.Horizontal, deserialized.Orientation);
             Assert.Null(deserialized.ContentRoot);
         }
 

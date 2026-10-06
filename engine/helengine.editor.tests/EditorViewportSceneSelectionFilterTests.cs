@@ -30,6 +30,17 @@ namespace helengine.editor.tests {
             Assert.False(result);
         }
 
+        /// <summary>Ensures an editor-hidden scene drawable cannot be selected in the viewport.</summary>
+        [Fact]
+        public void ShouldIncludeDrawableForSelection_WhenDrawableBelongsToHiddenEntity_ReturnsFalse() {
+            MeshComponent meshComponent = CreateMeshComponent(false);
+            meshComponent.Parent.RenderSuppressed = true;
+
+            bool result = EditorViewportSceneSelectionFilter.ShouldIncludeDrawableForSelection(meshComponent);
+
+            Assert.False(result);
+        }
+
         /// <summary>
         /// Ensures hidden drawable children still participate in viewport selection when their owning entity is user-authored.
         /// </summary>

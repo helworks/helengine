@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Rotates the selected entity while the user drags a hovered rotation gizmo ring.
     /// </summary>
+    [RunInEditor]
     public class TransformRotationGizmoDragComponent : UpdateComponent {
         InputSystem Input;
         /// <summary>
@@ -64,10 +65,12 @@ namespace helengine.editor {
 
         /// <summary>
         /// Initializes a new rotation gizmo drag controller.
+        /// Runs after viewport picking so the current hover readback is available when processing a mouse press.
         /// </summary>
         /// <param name="sceneCamera">Scene camera used for mouse ray construction.</param>
         public TransformRotationGizmoDragComponent(CameraComponent sceneCamera) {
             SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
+            UpdateOrder = TransformGizmoUpdateOrder.Drag;
         }
 
         internal void SetInput(InputSystem input) {
@@ -371,7 +374,7 @@ namespace helengine.editor {
             float3 planeOrigin,
             float3 planeNormal,
             out float3 planePoint) {
-            if (!EditorViewportPointerRayBuilder.TryBuildPerspectiveCameraRay(SceneCamera, pointer, out float3 rayOrigin, out float3 rayDirection)) {
+            if (!EditorViewportPointerRayBuilder.TryBuildCameraRay(SceneCamera, pointer, out float3 rayOrigin, out float3 rayDirection)) {
                 planePoint = float3.Zero;
                 return false;
             }

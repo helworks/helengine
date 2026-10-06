@@ -79,16 +79,14 @@ namespace helengine.editor.tests.managers.project {
         public void Create_WhenWindowsNativeObjectPathIsBudgeted_LeavesCmakeObjectPathHeadroom() {
             const int CmakeObjectPathLimit = 250;
             const int RequiredPathHeadroom = 8;
-            EditorPlatformBuildGraphWorkspaceFactory factory = new(Path.Combine(
+            string projectRootPath = Path.Combine(
                 Path.GetTempPath(),
                 "helengine-isolation-tests",
-                "windows-native-path-budget-project"));
-
-            EditorPlatformBuildGraphWorkspace workspace = factory.Create(
-                "windows",
-                "editor-platform-build-queue-item-with-a-long-stable-id-20260901");
+                "windows-native-path-budget-project");
             string nativeObjectPath = Path.Combine(
-                workspace.BuilderWorkingRootPath,
+                EditorWindowsNativeBuildCache.ResolveCacheRootPath(projectRootPath, "debug"),
+                "work",
+                "native",
                 "CMakeFiles",
                 "helengine_windows.dir",
                 "src",
@@ -177,6 +175,47 @@ namespace helengine.editor.tests.managers.project {
                 firstWorkspace.BuilderWorkingRootPath.StartsWith(
                     firstWorkspace.ExecutionRootPath + Path.DirectorySeparatorChar,
                     StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// Ensures direct editor builds keep graph scratch disposable and place native objects in the project profile cache.
+        /// </summary>
+        [Fact]
+        public void Create_WhenDirectBuildUsesProfile_SeparatesScratchFromPersistentNativeCache() {
+            string projectRootPath = Path.Combine(Path.GetTempPath(), "helengine-isolation-tests", "native-cache-project");
+            EditorPlatformBuildGraphWorkspaceFactory factory = new(projectRootPath);
+
+            EditorPlatformBuildGraphWorkspace workspace = factory.Create("ps2", "release", "queue-456");
+
+            Assert.Equal(
+                Path.Combine(projectRootPath, "cache", "build", "ps2", "release", "native"),
+                workspace.NativeObjectCacheRootPath);
+            Assert.StartsWith(workspace.ExecutionRootPath, workspace.BuilderWorkingRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.False(
+                workspace.NativeObjectCacheRootPath.StartsWith(
+                    workspace.ExecutionRootPath + Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// Keeps Windows native objects stable while generating a fresh source tree for content-aware cache synchronization.
+        /// </summary>
+        [Fact]
+        public void Create_WhenStableCacheIsConfiguredForWindows_UsesFreshGeneratedCoreAndPersistentNativeRoot() {
+            string cacheRootPath = Path.Combine(Directory.GetCurrentDirectory(), "builds", "windows-workspace-factory-tests", Guid.NewGuid().ToString("N"));
+            Environment.SetEnvironmentVariable("HELENGINE_BUILD_CACHE_ROOT", cacheRootPath);
+            Environment.SetEnvironmentVariable("HELENGINE_BUILD_CONFIGURATION", "debug");
+            Environment.SetEnvironmentVariable("HELENGINE_BUILD_PROFILE", "release");
+            EditorPlatformBuildGraphWorkspaceFactory factory = new("C:\\Dev\\HelWorks\\SampleProject\\");
+
+            EditorPlatformBuildGraphWorkspace firstWorkspace = factory.Create("windows", "queue-a");
+            EditorPlatformBuildGraphWorkspace secondWorkspace = factory.Create("windows", "queue-b");
+
+            Assert.Equal(firstWorkspace.ExecutionRootPath, secondWorkspace.ExecutionRootPath);
+            Assert.Equal(firstWorkspace.BuilderWorkingRootPath, secondWorkspace.BuilderWorkingRootPath);
+            Assert.Equal(Path.Combine(firstWorkspace.ExecutionRootPath, "generated-core"), firstWorkspace.GeneratedCoreRootPath);
+            Assert.EndsWith(Path.Combine("debug", "release", "native"), firstWorkspace.BuilderWorkingRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.False(firstWorkspace.BuilderWorkingRootPath.StartsWith(firstWorkspace.ExecutionRootPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>

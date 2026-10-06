@@ -9,14 +9,10 @@ namespace helengine.editor {
         /// <param name="dockable">Dockable window represented by the tab.</param>
         /// <param name="font">Font used for the tab label.</param>
         /// <param name="layerMask">Layer mask used for rendering and hit testing.</param>
-        /// <param name="backgroundOrder">Render order for the tab background.</param>
-        /// <param name="textOrder">Render order for the tab text.</param>
         public DockTabEntry(
             DockableEntity dockable,
             FontAsset font,
-            ushort layerMask,
-            byte backgroundOrder,
-            byte textOrder) {
+            ushort layerMask) {
             Dockable = dockable;
             Root = new EditorEntity(Dockable.OwnerCore, Dockable.InteractionServices) {
                 LayerMask = layerMask,
@@ -25,8 +21,7 @@ namespace helengine.editor {
 
             Background = new SpriteComponent {
                 Texture = Dockable.OwnerCore.RenderManager2D.PixelTexture,
-                Color = ThemeManager.Colors.AccentSecondary,
-                RenderOrder2D = backgroundOrder
+                Color = ThemeManager.Colors.AccentSecondary
             };
             Root.AddComponent(Background);
 
@@ -40,8 +35,7 @@ namespace helengine.editor {
                 Font = font,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.TextOnAccent,
-                Size = new int2(1, 1),
-                RenderOrder2D = textOrder
+                Size = new int2(1, 1)
             };
             LabelHost.AddComponent(Label);
 

@@ -57,14 +57,6 @@ namespace helengine.editor {
         const int SnapValueWidth = 52;
 
         /// <summary>
-        /// Render order used for toolbar surfaces.
-        /// </summary>
-        readonly byte ToolbarSurfaceOrder;
-        /// <summary>
-        /// Render order used for toolbar foreground content such as icons and text.
-        /// </summary>
-        readonly byte ToolbarForegroundOrder;
-        /// <summary>
         /// Owner key used to register the toolbar input blocker.
         /// </summary>
         readonly object ToolbarInputBlockerOwner;
@@ -213,6 +205,18 @@ namespace helengine.editor {
         /// </summary>
         EditorViewportCameraAngleOverlayComponent CameraAngleOverlayComponentValue;
         /// <summary>
+        /// Viewport-local navigation controller shared by the overlay and workspace state.
+        /// </summary>
+        EditorViewportNavigationController NavigationControllerValue;
+        /// <summary>
+        /// View that renders and routes input for the navigation cube.
+        /// </summary>
+        EditorViewportNavigationCube NavigationCubeValue;
+        /// <summary>
+        /// Updater that owns the navigation view's editor lifecycle.
+        /// </summary>
+        EditorViewportNavigationCubeUpdateComponent NavigationCubeUpdateComponentValue;
+        /// <summary>
         /// Scene-owned canvas profile state used by viewport previews.
         /// </summary>
         readonly EditorSceneCanvasProfileState SceneCanvasProfileStateValue;
@@ -355,9 +359,6 @@ namespace helengine.editor {
             CanvasPreviewSettingsValue = new EditorViewportCanvasPreviewSettings();
             Title = "Viewport";
             SetContentBackgroundColor(new byte4(0, 0, 0, 0));
-
-            ToolbarSurfaceOrder = RenderOrder2D.PanelSurface;
-            ToolbarForegroundOrder = RenderOrder2D.PanelForeground;
             ToolbarInputBlockerOwner = new object();
             ContentFocusGroup = new EditorFocusGroup(this, 0, () => Enabled, ContainsViewportContentPoint, HandleSubviewGroupActiveChanged);
             ToolbarFocusGroup = new EditorFocusGroup(this, 1, () => Enabled, ContainsToolbarPoint, HandleSubviewGroupActiveChanged);
@@ -421,7 +422,6 @@ namespace helengine.editor {
             ToolbarBackground = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfacePrimary,
-                RenderOrder2D = ToolbarSurfaceOrder
             };
             ToolbarRoot.AddComponent(ToolbarBackground);
 
@@ -434,7 +434,6 @@ namespace helengine.editor {
             CameraAngleOverlayComponentValue = new EditorViewportCameraAngleOverlayComponent(Camera, Font, ToolbarHeight, false, BuiltInShaderLibrary, RendererResources);
             AddComponent(CameraAngleOverlayComponentValue);
             ToolMode = EditorSessionInteractionServices.From(this).ViewportTool.GetToolMode(Camera);
-            RefreshRenderOrderBias();
             UpdateViewport();
         }
 
@@ -446,6 +445,14 @@ namespace helengine.editor {
         /// Gets or sets the viewport-local camera controller that owns editor navigation state.
         /// </summary>
         public EditorViewportCameraController CameraController { get; set; }
+        /// <summary>
+        /// Gets the camera navigation controller associated with this viewport's cube overlay.
+        /// </summary>
+        public EditorViewportNavigationController NavigationController => NavigationControllerValue;
+        /// <summary>
+        /// Gets the camera-facing navigation cube overlay owned by this viewport.
+        /// </summary>
+        public EditorViewportNavigationCube NavigationCube => NavigationCubeValue;
         /// <summary>
         /// Gets the shared scene-owned canvas profile state used by viewport previews.
         /// </summary>
@@ -545,6 +552,8 @@ namespace helengine.editor {
         /// <param name="metrics">Updated scaled editor UI metrics.</param>
         public override void ApplyUiMetrics(FontAsset font, EditorUiMetrics metrics) {
             base.ApplyUiMetrics(font, metrics);
+            Font = font ?? throw new ArgumentNullException(nameof(font));
+            NavigationCubeValue?.ApplyUiMetrics(font, metrics);
         }
 
         /// <summary>
@@ -566,6 +575,56 @@ namespace helengine.editor {
             base.ApplyUiMetrics(font, metrics);
             UpdateToolbarTextFonts();
             LayoutToolbar();
+            NavigationCubeValue?.ApplyUiMetrics(font, metrics);
+        }
+
+        /// <summary>
+        /// Installs the viewport-local navigation controller and creates its UI overlay updater.
+        /// </summary>
+        /// <param name="navigationController">Controller that owns this viewport's camera transitions.</param>
+        public void AttachNavigationCube(EditorViewportNavigationController navigationController) {
+            if (navigationController == null) {
+                throw new ArgumentNullException(nameof(navigationController));
+            }
+            if (NavigationCubeUpdateComponentValue != null) {
+                throw new InvalidOperationException("A navigation cube is already attached to this viewport.");
+            }
+            if (CameraController == null || !ReferenceEquals(navigationController.ViewportCameraController, CameraController)) {
+                throw new InvalidOperationException("The navigation controller must own this viewport's camera controller.");
+            }
+
+            NavigationControllerValue = navigationController;
+            NavigationCubeValue = new EditorViewportNavigationCube(
+                this,
+                Camera,
+                navigationController,
+                RendererResources.RenderManager2D,
+                RendererResources.Input,
+                Font,
+                UiMetrics,
+                EditorSessionInteractionServices.From(this),
+                RendererResources.FrameDeltaSecondsProvider,
+                BuiltInShaderLibrary);
+            NavigationCubeUpdateComponentValue = new EditorViewportNavigationCubeUpdateComponent(NavigationCubeValue);
+            NavigationCubeUpdateComponentValue.UpdateOrder = 0;
+            AddComponent(NavigationCubeUpdateComponentValue);
+            UpdateViewport();
+        }
+
+        /// <summary>
+        /// Removes and disposes the navigation overlay when the workspace closes its viewport stack.
+        /// </summary>
+        public void DetachNavigationCube() {
+            if (NavigationCubeUpdateComponentValue == null) {
+                return;
+            }
+
+            if (Components.Contains(NavigationCubeUpdateComponentValue)) {
+                RemoveComponent(NavigationCubeUpdateComponentValue);
+            }
+            NavigationCubeUpdateComponentValue = null;
+            NavigationCubeValue = null;
+            NavigationControllerValue = null;
         }
 
         /// <summary>
@@ -592,6 +651,10 @@ namespace helengine.editor {
         public void RefreshInputBlockers() {
             if (!Enabled) {
                 ClearInputBlockers();
+                if (NavigationCubeValue != null) {
+                    NavigationCubeValue.CancelInteraction();
+                    NavigationCubeValue.Resize(new int2(0, 0), (float)UiMetrics.Scale);
+                }
                 return;
             }
 
@@ -620,7 +683,6 @@ namespace helengine.editor {
             SpriteComponent buttonBackground = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfaceInput,
-                RenderOrder2D = ToolbarSurfaceOrder
             };
             buttonRoot.AddComponent(buttonBackground);
 
@@ -634,7 +696,6 @@ namespace helengine.editor {
                 Texture = ToolbarIcons.SettingsIcon,
                 Color = new byte4(255, 255, 255, 224),
                 Size = new int2(ToolButtonIconSize, ToolButtonIconSize),
-                RenderOrder2D = ToolbarForegroundOrder
             };
             iconHost.AddComponent(buttonIcon);
 
@@ -698,7 +759,6 @@ namespace helengine.editor {
             SpriteComponent buttonBackground = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfaceInput,
-                RenderOrder2D = ToolbarSurfaceOrder
             };
             buttonRoot.AddComponent(buttonBackground);
 
@@ -712,7 +772,6 @@ namespace helengine.editor {
                 Texture = ToolbarIcons.StatsIcon,
                 Color = new byte4(255, 255, 255, 224),
                 Size = new int2(ToolButtonIconSize, ToolButtonIconSize),
-                RenderOrder2D = ToolbarForegroundOrder
             };
             iconHost.AddComponent(buttonIcon);
 
@@ -877,7 +936,6 @@ namespace helengine.editor {
             SpriteComponent buttonBackground = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.AccentSecondary,
-                RenderOrder2D = ToolbarSurfaceOrder
             };
             buttonRoot.AddComponent(buttonBackground);
 
@@ -891,7 +949,6 @@ namespace helengine.editor {
                 Texture = iconTexture,
                 Color = new byte4(255, 255, 255, 224),
                 Size = new int2(ToolButtonIconSize, ToolButtonIconSize),
-                RenderOrder2D = ToolbarForegroundOrder
             };
             iconHost.AddComponent(buttonIcon);
 
@@ -952,7 +1009,6 @@ namespace helengine.editor {
                 Texture = ToolbarIcons.MagnetIcon,
                 Color = new byte4(255, 255, 255, 255),
                 Size = new int2(SnapLabelIconHeight, SnapLabelIconHeight),
-                RenderOrder2D = ToolbarForegroundOrder
             };
             magnetIconRoot.AddComponent(magnetIcon);
 
@@ -967,7 +1023,6 @@ namespace helengine.editor {
                 Text = GetSnapModifierLabel(snapSlot),
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(1, 1),
-                RenderOrder2D = ToolbarForegroundOrder
             };
             modifierTextRoot.AddComponent(modifierText);
 
@@ -979,7 +1034,6 @@ namespace helengine.editor {
 
             TextBoxComponent valueTextBox = new TextBoxComponent(new int2(SnapValueWidth, ToolButtonHeight), Font);
             valueTextBox.UseFocusedBorderOnly = true;
-            valueTextBox.SetRenderOrders(ToolbarSurfaceOrder, ToolbarForegroundOrder);
             int capturedSlotIndex = slotIndex;
             valueTextBox.Submitted += textBox => HandleSnapValueSubmitted(capturedSlotIndex, textBox);
             valueRoot.AddComponent(valueTextBox);
@@ -1035,7 +1089,6 @@ namespace helengine.editor {
             SpriteComponent buttonBackground = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfaceInput,
-                RenderOrder2D = ToolbarSurfaceOrder
             };
             buttonRoot.AddComponent(buttonBackground);
 
@@ -1049,7 +1102,6 @@ namespace helengine.editor {
                 Texture = iconTexture,
                 Color = new byte4(255, 255, 255, 224),
                 Size = new int2(SnapButtonIconWidth, SnapButtonIconHeight),
-                RenderOrder2D = ToolbarForegroundOrder
             };
             iconHost.AddComponent(buttonIcon);
 
@@ -1648,6 +1700,9 @@ namespace helengine.editor {
             Camera.Viewport = new float4(Position.X, viewportTop, viewportWidth, viewportHeight);
             LayoutToolbar();
             RefreshInputBlockers();
+            if (NavigationCubeValue != null) {
+                NavigationCubeValue.Resize(new int2((int)Math.Round(viewportWidth), (int)Math.Round(viewportHeight)), (float)UiMetrics.Scale);
+            }
         }
 
         /// <summary>

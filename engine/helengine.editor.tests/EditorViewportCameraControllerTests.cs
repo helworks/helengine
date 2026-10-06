@@ -8,6 +8,44 @@ namespace helengine.editor.tests {
     /// Verifies viewport camera movement paths that are driven by direct mouse input.
     /// </summary>
     public class EditorViewportCameraControllerTests : IDisposable {
+        /// <summary>F scales perspective navigation to a container's children without changing orthographic speeds.</summary>
+        [Theory]
+        [InlineData(CameraProjectionMode.Perspective)]
+        [InlineData(CameraProjectionMode.Orthographic)]
+        public void FocusSelection_MenuHierarchyUpdatesPerspectiveSpeedsOnly(CameraProjectionMode mode) {
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices);
+            EditorViewportCameraComponent camera = new EditorViewportCameraComponent {
+                Viewport = new float4(100, 100, 800, 600), ProjectionMode = mode
+            };
+            cameraEntity.AddComponent(camera);
+            EditorViewportCameraController controller = CreateController(cameraEntity, camera);
+            EditorEntity root = new EditorEntity(CoreValue, InteractionServices);
+            root.AddChild(CreateSpriteEntity(new int2(2000, 1200)));
+            InteractionServices.Selection.SetSelectedEntity(root);
+            EditorViewportSelectionFramingService framing = new EditorViewportSelectionFramingService();
+            framing.FocusSelection(camera, controller, root);
+            if (mode == CameraProjectionMode.Perspective) {
+                Assert.True(controller.MoveSpeed >= 8f);
+                Assert.True(controller.WheelZoomSpeed >= 50);
+            } else {
+                Assert.Equal(EditorViewportCameraController.DefaultMoveSpeed, controller.MoveSpeed);
+                Assert.Equal(EditorViewportCameraController.DefaultWheelZoomSpeed, controller.WheelZoomSpeed);
+            }
+            float moveSpeed = controller.MoveSpeed;
+            double zoomSpeed = controller.WheelZoomSpeed;
+            CompleteInputFrame(InputValue, CreateMouseState(150, 150, 0));
+            AdvanceInput(InputValue, CreateMouseState(150, 150, 120));
+            float3 previousPosition = cameraEntity.Position;
+            controller.Update();
+            Assert.Equal(moveSpeed, controller.MoveSpeed);
+            Assert.Equal(zoomSpeed, controller.WheelZoomSpeed);
+            if (mode == CameraProjectionMode.Perspective) {
+                Assert.InRange(previousPosition.Z - cameraEntity.Position.Z, (float)zoomSpeed - 0.01f, (float)zoomSpeed + 0.01f);
+            } else {
+                Assert.Equal(previousPosition, cameraEntity.Position);
+            }
+        }
+
         /// <summary>Rejects an unrepresentable camera position before changing its orientation, position, or orbit state.</summary>
         [Fact]
         public void SetViewPose_WhenPositionWouldOverflow_PreservesPreviousCameraState() {
@@ -125,6 +163,164 @@ namespace helengine.editor.tests {
             Assert.Equal(0f, cameraEntity.Position.X);
             Assert.Equal(0f, cameraEntity.Position.Y);
             Assert.Equal(2f, cameraEntity.Position.Z);
+        }
+
+        /// <summary>
+        /// Ensures switching projection modes preserves the orbit pivot, camera orientation, and apparent scale.
+        /// </summary>
+        [Fact]
+        public void SetProjectionMode_RoundTrip_PreservesPivotOrientationAndScale() {
+            EditorEntity cameraEntity = CreateEditorCameraEntity(out EditorViewportCameraComponent camera);
+            EditorViewportCameraController controller = CreateController(cameraEntity, camera);
+            float3 pivot = new float3(3f, -2f, 5f);
+            float4 orientation;
+            float4.CreateFromYawPitchRoll(0.35f, -0.2f, 0f, out orientation);
+            const double distance = 18.0;
+            controller.SetViewPose(pivot, orientation, distance);
+            double initialScale = CameraProjectionUtils.GetWorldUnitsPerPixel(camera, distance, camera.Viewport.W);
+
+            controller.SetProjectionMode(CameraProjectionMode.Orthographic);
+            double orthographicScale = CameraProjectionUtils.GetWorldUnitsPerPixel(camera, distance, camera.Viewport.W);
+            float3 orthographicPosition = cameraEntity.Position;
+            controller.SetProjectionMode(CameraProjectionMode.Perspective);
+            double restoredScale = CameraProjectionUtils.GetWorldUnitsPerPixel(camera, distance, camera.Viewport.W);
+
+            Assert.Equal(pivot, controller.GetOrbitTarget());
+            Assert.Equal(orientation, cameraEntity.Orientation);
+            Assert.Equal(initialScale, orthographicScale, 5);
+            Assert.Equal(initialScale, restoredScale, 5);
+            Assert.Equal(orthographicPosition, cameraEntity.Position);
+        }
+
+        /// <summary>
+        /// Ensures 2D pan tracks pointer pixels at the current zoom without multiplying by selection size, fly speed, or viewport aspect.
+        /// </summary>
+        [Theory]
+        [InlineData(1000, 1000, 20, 0, false, 1)]
+        [InlineData(1600, 900, 1200, 2000, false, 1)]
+        [InlineData(600, 1200, 1200, 2000, false, 1)]
+        [InlineData(1600, 900, 20, 8, false, 1)]
+        [InlineData(1600, 900, 20, 2000, true, 1)]
+        [InlineData(1600, 900, 20, 2000, false, 2)]
+        public void Update_WhenOrthographicMiddleMousePans_UsesWorldUnitsPerPixel(int width, int height, float span, int selectionSize, bool manualSpeed, double panRatio) {
+            TestInputBackend input = InitializeCore();
+            EditorEntity cameraEntity = CreateEditorCameraEntity(out EditorViewportCameraComponent camera);
+            cameraEntity.Position = new float3(0f, 0f, 10f);
+            camera.Viewport = new float4(0f, 0f, width, height);
+            camera.ProjectionMode = CameraProjectionMode.Orthographic;
+            camera.OrthographicVerticalSpan = span;
+            EditorViewportCameraController controller = CreateController(cameraEntity, camera);
+            controller.PanSpeed = EditorViewportCameraController.DefaultPanSpeed * panRatio;
+            if (selectionSize > 0) {
+                InteractionServices.Selection.SetSelectedEntity(CreateSpriteEntity(new int2(selectionSize, selectionSize)));
+            }
+            if (manualSpeed) {
+                controller.SpeedMode = EditorViewportCameraSpeedMode.ManualOverride;
+                controller.ManualSpeedOverride = 100;
+            }
+            controller.SetOrbitTarget(float3.Zero);
+
+            CompleteInputFrame(input, CreateMouseState(200, 150, 0));
+            AdvanceInput(input, CreateMouseState(200, 150, 0, ButtonState.Released, ButtonState.Pressed));
+            CompleteControllerFrame(input, controller);
+            AdvanceInput(input, CreateMouseState(210, 160, 0, ButtonState.Released, ButtonState.Pressed));
+            controller.Update();
+
+            double worldUnitsPerPixel = span / height;
+            Assert.Equal(-10 * panRatio, cameraEntity.Position.X / worldUnitsPerPixel, 3);
+            Assert.Equal(10 * panRatio, cameraEntity.Position.Y / worldUnitsPerPixel, 3);
+            if (selectionSize == 0) {
+                Assert.Equal(cameraEntity.Position.X, controller.GetOrbitTarget().X, 4);
+                Assert.Equal(cameraEntity.Position.Y, controller.GetOrbitTarget().Y, 4);
+            } else {
+                Assert.Equal(float3.Zero, InteractionServices.Selection.SelectedEntity.Position);
+            }
+            Assert.Equal(10f, cameraEntity.Position.Z);
+        }
+
+        /// <summary>Measures actual projected pixel movement when panning 2D content in perspective, including off-axis selection and rolled cameras.</summary>
+        [Theory]
+        [InlineData(100, 0, false, 0, false)]
+        [InlineData(100, 2000, false, 0, false)]
+        [InlineData(5000, 2000, false, 20000, false)]
+        [InlineData(100, 2000, true, 0, false)]
+        [InlineData(5000, 2000, true, 20000, false)]
+        [InlineData(100, 2000, false, 0, true)]
+        public void Update_WhenPerspectiveMiddleMousePans_ContentTracksPointerPixels(float depth, int selectionSize, bool manualSpeed, float selectionOffset, bool rolled) {
+            TestInputBackend input = InitializeCore();
+            EditorEntity cameraEntity = CreateEditorCameraEntity(out EditorViewportCameraComponent camera);
+            cameraEntity.Position = new float3(0, 0, depth);
+            camera.Viewport = new float4(0, 0, 1600, 900);
+            if (rolled) {
+                float4.CreateFromAxisAngle(new float3(0, 0, 1), 0.7f, out float4 orientation);
+                cameraEntity.Orientation = orientation;
+            }
+            EditorViewportCameraController controller = CreateController(cameraEntity, camera);
+            controller.SetOrbitTarget(float3.Zero);
+            if (selectionSize > 0) {
+                Entity selected = CreateSpriteEntity(new int2(selectionSize, selectionSize));
+                selected.Position = new float3(selectionOffset, 0, 0);
+                InteractionServices.Selection.SetSelectedEntity(selected);
+            }
+            if (manualSpeed) {
+                controller.SpeedMode = EditorViewportCameraSpeedMode.ManualOverride;
+                controller.ManualSpeedOverride = 100;
+            }
+            CompleteInputFrame(input, CreateMouseState(200, 150, 0));
+            AdvanceInput(input, CreateMouseState(200, 150, 0, ButtonState.Released, ButtonState.Pressed));
+            CompleteControllerFrame(input, controller);
+            float2 before = ProjectToViewport(camera, float3.Zero);
+            AdvanceInput(input, CreateMouseState(210, 160, 0, ButtonState.Released, ButtonState.Pressed));
+            CompleteControllerFrame(input, controller);
+            float2 after = ProjectToViewport(camera, float3.Zero);
+            Assert.Equal(10, after.X - before.X, 2);
+            Assert.Equal(10, after.Y - before.Y, 2);
+            AdvanceInput(input, CreateMouseState(211, 161, 0, ButtonState.Released, ButtonState.Pressed));
+            controller.Update();
+            float2 next = ProjectToViewport(camera, float3.Zero);
+            Assert.Equal(1, next.X - after.X, 2);
+            Assert.Equal(1, next.Y - after.Y, 2);
+        }
+
+        /// <summary>Projects a fixed world point through the same view and projection matrices used by the renderer.</summary>
+        /// <param name="camera">Camera after the current input frame.</param>
+        /// <param name="point">Stationary scene point whose apparent movement is measured.</param>
+        /// <returns>Pixel position in the camera viewport.</returns>
+        static float2 ProjectToViewport(CameraComponent camera, float3 point) {
+            float3 position = camera.Parent.Position;
+            float3 target = position + float4.RotateVector(new float3(0, 0, -1), camera.Parent.Orientation);
+            float3 up = float4.RotateVector(new float3(0, 1, 0), camera.Parent.Orientation);
+            float4x4.CreateLookAt(ref position, ref target, ref up, out float4x4 view);
+            float4x4 projection = CameraProjectionUtils.CreateProjection(camera, camera.Viewport.Z / camera.Viewport.W);
+            float4x4.Multiply(ref view, ref projection, out float4x4 matrix);
+            double clipX = point.X * matrix.M11 + point.Y * matrix.M21 + point.Z * matrix.M31 + matrix.M41;
+            double clipY = point.X * matrix.M12 + point.Y * matrix.M22 + point.Z * matrix.M32 + matrix.M42;
+            double clipW = point.X * matrix.M14 + point.Y * matrix.M24 + point.Z * matrix.M34 + matrix.M44;
+            return new float2((float)(camera.Viewport.X + (clipX / clipW + 1) * camera.Viewport.Z / 2),
+                (float)(camera.Viewport.Y + (1 - clipY / clipW) * camera.Viewport.W / 2));
+        }
+
+        /// <summary>
+        /// Ensures orthographic wheel zoom changes the visible span while preserving camera pose and orbit pivot.
+        /// </summary>
+        [Fact]
+        public void Update_WhenOrthographicWheelScrolls_ChangesSpanWithoutMovingCamera() {
+            TestInputBackend input = InitializeCore();
+            EditorEntity cameraEntity = CreateEditorCameraEntity(out EditorViewportCameraComponent camera);
+            cameraEntity.Position = new float3(0f, 0f, 10f);
+            camera.ProjectionMode = CameraProjectionMode.Orthographic;
+            camera.OrthographicVerticalSpan = 20f;
+            EditorViewportCameraController controller = CreateController(cameraEntity, camera);
+            controller.SetOrbitTarget(float3.Zero);
+            float3 initialPosition = cameraEntity.Position;
+
+            CompleteInputFrame(input, CreateMouseState(150, 150, 0));
+            AdvanceInput(input, CreateMouseState(150, 150, 120));
+            controller.Update();
+
+            Assert.True(camera.OrthographicVerticalSpan < 20f);
+            Assert.Equal(initialPosition, cameraEntity.Position);
+            Assert.Equal(float3.Zero, controller.GetOrbitTarget());
         }
 
         /// <summary>
@@ -452,6 +648,20 @@ namespace helengine.editor.tests {
             EditorViewportCameraController controller = new EditorViewportCameraController(camera, (ownerCore ?? CoreValue).Input);
             cameraEntity.AddComponent(controller);
             return controller;
+        }
+
+        /// <summary>
+        /// Creates an editor viewport camera whose optional projection state can be changed by the controller.
+        /// </summary>
+        /// <param name="camera">Receives the editor viewport camera component.</param>
+        /// <returns>Entity owning the camera and its transform.</returns>
+        EditorEntity CreateEditorCameraEntity(out EditorViewportCameraComponent camera) {
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices);
+            camera = new EditorViewportCameraComponent {
+                Viewport = new float4(100f, 100f, 300f, 200f)
+            };
+            cameraEntity.AddComponent(camera);
+            return cameraEntity;
         }
 
         /// <summary>

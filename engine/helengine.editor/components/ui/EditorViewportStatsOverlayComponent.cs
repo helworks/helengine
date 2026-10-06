@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Draws a toggleable Unity-style stats box over an editor viewport showing frame rate and scene metrics.
     /// </summary>
+    [RunInEditor]
     public class EditorViewportStatsOverlayComponent : UpdateComponent {
         /// <summary>
         /// Horizontal pixel padding applied to overlay text.
@@ -150,7 +151,6 @@ namespace helengine.editor {
                 FillColor = new byte4(0, 0, 0, 145),
                 BorderColor = new byte4(255, 255, 255, 64),
                 Size = new int2(1, 1),
-                RenderOrder2D = RenderOrder2D.OverlayBackground
             };
             OverlayRoot.AddComponent(OverlayBackground);
 
@@ -164,7 +164,6 @@ namespace helengine.editor {
             OverlayText = new TextComponent {
                 Font = Font,
                 Color = new byte4(235, 235, 235, 255),
-                RenderOrder2D = RenderOrder2D.OverlayForeground,
                 Size = new int2(1, 1),
                 Text = string.Empty
             };

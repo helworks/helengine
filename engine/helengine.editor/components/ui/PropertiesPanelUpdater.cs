@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Update component that applies property edits from the properties panel.
     /// </summary>
+    [RunInEditor]
     public class PropertiesPanelUpdater : UpdateComponent {
         /// <summary>
         /// Properties panel to update.

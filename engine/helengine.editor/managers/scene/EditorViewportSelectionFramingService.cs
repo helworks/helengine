@@ -13,6 +13,9 @@ namespace helengine.editor {
         /// </summary>
         const double FocusPaddingFactor = 1.1;
 
+        /// <summary>Applies the requested successive 35 and 30 percent distance reductions to perspective framing of 2D content.</summary>
+        const double Perspective2DDistanceFactor = 0.455;
+
         /// <summary>
         /// Minimum radius used when framing point-like selections with no meaningful spatial extent.
         /// </summary>
@@ -45,7 +48,7 @@ namespace helengine.editor {
 
             float3 focusCenter;
             double focusRadius;
-            ResolveFocusBounds(selectedEntity, out focusCenter, out focusRadius);
+            ResolveFocusBounds(selectedEntity, out focusCenter, out focusRadius, out float3[] focusPoints, out bool is2DSelection);
             if (!float.IsFinite(focusCenter.X) || !float.IsFinite(focusCenter.Y) || !float.IsFinite(focusCenter.Z) ||
                 !double.IsFinite(focusRadius)) {
                 return;
@@ -77,6 +80,10 @@ namespace helengine.editor {
                 double halfHorizontalFieldOfView = Math.Atan(Math.Tan(halfVerticalFieldOfView) * aspectRatio);
                 double limitingHalfFieldOfView = Math.Min(halfVerticalFieldOfView, halfHorizontalFieldOfView);
                 requiredDistance = focusRadius * FocusPaddingFactor / Math.Sin(limitingHalfFieldOfView);
+                if (is2DSelection) {
+                    requiredDistance = Resolve2DPerspectiveDistance(focusPoints, focusCenter, cameraController.Parent.Orientation,
+                        Math.Tan(halfHorizontalFieldOfView), Math.Tan(halfVerticalFieldOfView), requiredDistance * Perspective2DDistanceFactor);
+                }
                 if (requiredDistance < MinimumFocusRadius) {
                     requiredDistance = MinimumFocusRadius;
                 }
@@ -99,6 +106,9 @@ namespace helengine.editor {
             if (requiredFarPlane > sceneCamera.FarPlaneDistance) {
                 sceneCamera.FarPlaneDistance = (float)requiredFarPlane;
             }
+            if (sceneCamera is not ICameraProjectionSettings settings || settings.ProjectionMode == CameraProjectionMode.Perspective) {
+                cameraController.RefreshNavigationSpeeds(this);
+            }
         }
 
         /// <summary>Measures the visible hierarchy framed by F for perspective navigation speed.</summary>
@@ -109,7 +119,7 @@ namespace helengine.editor {
                 return 0.0;
             }
             List<float3> points = new List<float3>();
-            CollectVisibleBounds(selectedEntity, points);
+            CollectVisibleBounds(selectedEntity, points, out _, out _);
             if (points.Count == 0) {
                 return 0.0;
             }
@@ -137,11 +147,15 @@ namespace helengine.editor {
         /// <param name="selectedEntity">Selected entity that should be framed.</param>
         /// <param name="focusCenter">Receives the resolved focus center.</param>
         /// <param name="focusRadius">Receives the resolved bounding radius.</param>
-        void ResolveFocusBounds(Entity selectedEntity, out float3 focusCenter, out double focusRadius) {
+        /// <param name="focusPoints">Receives the actual corners used to keep tighter 2D framing inside the viewport.</param>
+        /// <param name="is2DSelection">True when the visible bounds consist of 2D content without meshes.</param>
+        void ResolveFocusBounds(Entity selectedEntity, out float3 focusCenter, out double focusRadius, out float3[] focusPoints, out bool is2DSelection) {
             List<float3> points = new List<float3>();
-            CollectVisibleBounds(selectedEntity, points);
+            CollectVisibleBounds(selectedEntity, points, out bool has2DBounds, out bool hasMeshBounds);
+            focusPoints = points.ToArray();
+            is2DSelection = has2DBounds && !hasMeshBounds;
             if (points.Count > 0) {
-                ResolveBoundsFromPoints(points.ToArray(), out focusCenter, out focusRadius);
+                ResolveBoundsFromPoints(focusPoints, out focusCenter, out focusRadius);
                 return;
             }
             focusCenter = EditorViewportDirect2DPresentationService.ResolvePresentedWorldPosition(selectedEntity);
@@ -151,16 +165,44 @@ namespace helengine.editor {
         /// <summary>Collects the actual presented corners of visible authored content throughout a selection subtree.</summary>
         /// <param name="entity">Current selected entity or descendant.</param>
         /// <param name="points">Shared world-space corner collection.</param>
-        void CollectVisibleBounds(Entity entity, List<float3> points) {
+        /// <param name="has2DBounds">Receives whether this visible subtree contains supported 2D bounds.</param>
+        /// <param name="hasMeshBounds">Receives whether this visible subtree contains mesh bounds.</param>
+        void CollectVisibleBounds(Entity entity, List<float3> points, out bool has2DBounds, out bool hasMeshBounds) {
+            has2DBounds = false;
+            hasMeshBounds = false;
             if (!entity.IsHierarchyEnabled || entity is EditorEntity editorEntity && editorEntity.InternalEntity) {
                 return;
             }
-            TryResolveViewportBounds(entity, out _, out _, out _, points);
-            TryResolveMeshBounds(entity, out _, out _, out _, points);
-            TryResolveSpriteBounds(entity, out _, out _, out _, points);
+            has2DBounds = TryResolveViewportBounds(entity, out _, out _, out _, points);
+            hasMeshBounds = TryResolveMeshBounds(entity, out _, out _, out _, points);
+            has2DBounds |= TryResolveSpriteBounds(entity, out _, out _, out _, points);
             foreach (Entity child in entity.Children) {
-                CollectVisibleBounds(child, points);
+                CollectVisibleBounds(child, points, out bool childHas2DBounds, out bool childHasMeshBounds);
+                has2DBounds |= childHas2DBounds;
+                hasMeshBounds |= childHasMeshBounds;
             }
+        }
+
+        /// <summary>Limits the requested closer view to the distance that still contains every 2D corner with framing clearance.</summary>
+        /// <param name="points">Presented selection corners in world space.</param>
+        /// <param name="center">Orbit target at the selection center.</param>
+        /// <param name="orientation">Camera orientation retained by framing.</param>
+        /// <param name="horizontalTangent">Tangent of the horizontal half field of view.</param>
+        /// <param name="verticalTangent">Tangent of the vertical half field of view.</param>
+        /// <param name="distance">Desired camera distance after the 2D proximity adjustment.</param>
+        /// <returns>Closest requested distance that preserves the full selection in the current view.</returns>
+        double Resolve2DPerspectiveDistance(float3[] points, float3 center, float4 orientation, double horizontalTangent, double verticalTangent, double distance) {
+            float3 right = float4.RotateVector(new float3(1, 0, 0), orientation);
+            float3 up = float4.RotateVector(new float3(0, 1, 0), orientation);
+            float3 forward = float4.RotateVector(new float3(0, 0, -1), orientation);
+            foreach (float3 point in points) {
+                float3 offset = point - center;
+                double depth = float3.Dot(offset, forward);
+                double horizontalDistance = Math.Abs(float3.Dot(offset, right)) * FocusPaddingFactor / horizontalTangent - depth;
+                double verticalDistance = Math.Abs(float3.Dot(offset, up)) * FocusPaddingFactor / verticalTangent - depth;
+                distance = Math.Max(distance, Math.Max(horizontalDistance, verticalDistance));
+            }
+            return distance;
         }
 
         /// <summary>
@@ -265,10 +307,13 @@ namespace helengine.editor {
         /// <returns>True when supported 2D bounds were resolved successfully.</returns>
         bool TryResolveSpriteBounds(Entity selectedEntity, out float3 focusCenter, out double focusRadius, out double selectionExtent, List<float3> points = null) {
             int2 size;
+            float3 localOrigin = float3.Zero;
             if (TryGetComponent(selectedEntity, out SpriteComponent spriteComponent)) {
                 size = spriteComponent.Size;
             } else if (TryGetComponent(selectedEntity, out TextComponent textComponent)) {
-                size = textComponent.Size;
+                float4 textBounds = EditorTextPreviewBoundsService.ResolveBounds(textComponent);
+                size = new int2((int)textBounds.Z, (int)textBounds.W);
+                localOrigin = EditorViewportDirect2DPresentationService.ResolvePresentedComponentOffset(selectedEntity, new float3(textBounds.X, textBounds.Y, 0));
             } else if (TryGetComponent(selectedEntity, out RoundedRectComponent roundedRectComponent)) {
                 size = roundedRectComponent.Size;
             } else {
@@ -281,10 +326,10 @@ namespace helengine.editor {
             int height = Math.Max(1, size.Y);
             int2 presentedSize = EditorViewportDirect2DPresentationService.ResolvePresentedComponentSize(selectedEntity, new int2(width, height));
             float3[] corners = new[] {
-                TransformViewportPoint(selectedEntity, new float3(0f, 0f, 0f)),
-                TransformViewportPoint(selectedEntity, new float3(presentedSize.X, 0f, 0f)),
-                TransformViewportPoint(selectedEntity, new float3(0f, presentedSize.Y, 0f)),
-                TransformViewportPoint(selectedEntity, new float3(presentedSize.X, presentedSize.Y, 0f))
+                TransformViewportPoint(selectedEntity, localOrigin),
+                TransformViewportPoint(selectedEntity, localOrigin + new float3(presentedSize.X, 0f, 0f)),
+                TransformViewportPoint(selectedEntity, localOrigin + new float3(0f, presentedSize.Y, 0f)),
+                TransformViewportPoint(selectedEntity, localOrigin + new float3(presentedSize.X, presentedSize.Y, 0f))
             };
             points?.AddRange(corners);
             ResolveBoundsFromPoints(corners, out focusCenter, out focusRadius);

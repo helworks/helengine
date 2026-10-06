@@ -7,6 +7,8 @@ namespace helengine {
         /// Backing list of drawables.
         /// </summary>
         readonly List<IDrawable3D> Items;
+        /// <summary>Reusable per-camera view of the queue for transparent composition.</summary>
+        readonly List<IDrawable3D> CameraItems;
 
         /// <summary>
         /// Initializes a new render list with the specified capacity.
@@ -18,6 +20,7 @@ namespace helengine {
             }
 
             Items = new List<IDrawable3D>(initialCapacity);
+            CameraItems = new List<IDrawable3D>(initialCapacity);
         }
 
         /// <summary>
@@ -80,6 +83,8 @@ namespace helengine {
         /// </summary>
         public void Dispose() {
             Items.Clear();
+            CameraItems.Clear();
+            NativeOwnership.Delete(CameraItems);
             NativeOwnership.Delete(Items);
         }
 
@@ -119,6 +124,34 @@ namespace helengine {
 
             for (int i = 0; i < Items.Count; i++) {
                 visitor.Visit(Items[i]);
+            }
+        }
+
+        /// <summary>Visits opaque content followed by camera-sorted transparent content without mutating registration order.</summary>
+        /// <param name="visitor">Backend consuming this camera's drawables.</param>
+        /// <param name="camera">Camera supplying the transparent view direction.</param>
+        public void VisitCameraOrdered(IRenderVisitor3D visitor, ICamera camera) {
+            if (visitor == null) {
+                throw new ArgumentNullException(nameof(visitor));
+            } else if (camera == null) {
+                throw new ArgumentNullException(nameof(camera));
+            }
+            CameraItems.Clear();
+            float3 forward = float4.RotateVector(new float3(0, 0, -1), camera.Parent.Orientation);
+            for (int index = 0; index < Items.Count; index++) {
+                IDrawable3D drawable = Items[index];
+                if (!CameraDepthOrder.IsTransparent(drawable)) {
+                    visitor.Visit(drawable);
+                    continue;
+                }
+                int insertionIndex = CameraItems.Count;
+                while (insertionIndex > 0 && CameraDepthOrder.CompareTransparent(drawable, CameraItems[insertionIndex - 1], forward, camera.Parent.Position) < 0) {
+                    insertionIndex--;
+                }
+                CameraItems.Insert(insertionIndex, drawable);
+            }
+            for (int index = 0; index < CameraItems.Count; index++) {
+                visitor.Visit(CameraItems[index]);
             }
         }
 

@@ -2,6 +2,7 @@ namespace helengine {
     /// <summary>
     /// Creates, updates, and removes editor-only world-space border gizmos for authored viewport entities.
     /// </summary>
+    [RunInEditor]
     public sealed class EditorViewportBorderGizmoSyncComponent : UpdateComponent, IEditorHiddenComponent {
         /// <summary>
         /// Owned gizmo entities keyed by the authored entity that owns each mirrored viewport component.

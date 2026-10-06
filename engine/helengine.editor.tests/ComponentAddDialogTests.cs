@@ -49,7 +49,7 @@ namespace helengine.editor.tests {
             EditorEntity searchFieldHost = GetPrivateField<EditorEntity>(dialog, "SearchFieldHost");
             EditorEntity listHost = GetPrivateField<EditorEntity>(dialog, "ListHost");
             EditorEntity footerHost = GetPrivateField<EditorEntity>(dialog, "FooterHost");
-            ScrollComponent listScrollComponent = GetPrivateField<ScrollComponent>(dialog, "ListScrollComponent");
+            ScrollComponent listScrollComponent = GetPrivateField<EditorScrollComponent>(dialog, "ListScrollComponent");
 
             Assert.Same(dialogContentRoot, searchFieldHost.Parent);
             Assert.Same(dialogContentRoot, listHost.Parent);
@@ -73,7 +73,7 @@ namespace helengine.editor.tests {
 
             dialog.Show(targetEntity);
 
-            ScrollComponent listScrollComponent = GetPrivateField<ScrollComponent>(dialog, "ListScrollComponent");
+            ScrollComponent listScrollComponent = GetPrivateField<EditorScrollComponent>(dialog, "ListScrollComponent");
             int rowStride = ComponentAddDialog.RowHeight + ComponentAddDialog.RowSpacing;
             int expectedVisibleRowCount = Math.Max(1, listScrollComponent.Size.Y / rowStride);
 

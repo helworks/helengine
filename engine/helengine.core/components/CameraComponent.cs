@@ -2,6 +2,9 @@ namespace helengine {
     /// <summary>
     /// Provides camera state for rendering scenes in 2D and 3D.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class CameraComponent : Component, ICamera {
         /// <summary>
         /// Cached camera draw order value.
@@ -34,6 +37,13 @@ namespace helengine {
         /// Cached far clip-plane distance used for perspective projection creation.
         /// </summary>
         float FarPlaneDistanceValue;
+
+        /// <summary>
+        /// Gets or sets whether this camera excludes entities hidden by editor visibility controls.
+        /// </summary>
+        [EditorPropertyHidden]
+        [ScenePersistenceIgnore]
+        public bool FilterEditorHiddenEntities { get; set; }
 
         /// <summary>
         /// 2D render list for this camera.

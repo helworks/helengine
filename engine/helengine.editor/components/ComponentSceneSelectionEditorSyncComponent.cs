@@ -2,6 +2,7 @@ namespace helengine {
     /// <summary>
     /// Creates, updates, and removes registered per-component scene selection visuals for the currently selected entity.
     /// </summary>
+    [RunInEditor]
     public sealed class ComponentSceneSelectionEditorSyncComponent : UpdateComponent, IEditorHiddenComponent {
         /// <summary>
         /// Renderer used to build selection visual resources.

@@ -40,6 +40,10 @@
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 			<TargetPath>content\icons\toolbar\%(Filename)%(Extension)</TargetPath>
 		</Content>
+		<Content Include="content\icons\toolbar\*.svg">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<TargetPath>content\icons\toolbar\%(Filename)%(Extension)</TargetPath>
+		</Content>
 		<Content Include="content\icons\titlebar\*.png">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 			<TargetPath>content\icons\titlebar\%(Filename)%(Extension)</TargetPath>

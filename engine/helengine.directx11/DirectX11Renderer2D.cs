@@ -161,14 +161,20 @@ namespace helengine.directx11 {
             ConfigureSpritePipeline(SpriteInputLayout);
 
             float4 viewport = ResolveCameraViewport(camera);
+            float4 projectionViewport = viewport;
+            if (camera is ICamera2DProjectionSettings projectionSettings) {
+                int2 logicalSize = projectionSettings.LogicalViewportSize;
+                projectionViewport = new float4(0f, 0f, logicalSize.X, logicalSize.Y);
+            }
             Device.ImmediateContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
             ClipScissorStack.SetCameraViewport(viewport);
+            ClipScissorStack.SetProjectionViewport(projectionViewport);
             ClipScissorStack.Clear();
             float4x4.CreateOrthographicOffCenter(
-                viewport.X,
-                viewport.X + viewport.Z,
-                -(viewport.Y + viewport.W),
-                -viewport.Y,
+                projectionViewport.X,
+                projectionViewport.X + projectionViewport.Z,
+                -(projectionViewport.Y + projectionViewport.W),
+                -projectionViewport.Y,
                 -10,
                 10,
                 out ProjectionMatrix2D);
@@ -715,7 +721,7 @@ namespace helengine.directx11 {
                         DestinationBlend = BlendOption.InverseSourceAlpha,
                         BlendOperation = BlendOperation.Add,
                         SourceAlphaBlend = BlendOption.One,
-                        DestinationAlphaBlend = BlendOption.Zero,
+                        DestinationAlphaBlend = BlendOption.InverseSourceAlpha,
                         AlphaBlendOperation = BlendOperation.Add,
                         RenderTargetWriteMask = ColorWriteMaskFlags.All
                     }
