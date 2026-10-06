@@ -84,7 +84,7 @@ namespace helengine.editor.tests.managers.project {
             Assert.Equal(executionRootPath, repeatedRootPath);
             Assert.StartsWith(platformRootPath + Path.DirectorySeparatorChar, executionRootPath, StringComparison.OrdinalIgnoreCase);
             Assert.Equal(["w"], relativeSegments[..1]);
-            Assert.Matches("^[0-9a-f]{16}$", relativeSegments[1]);
+            Assert.Matches("^[0-9a-v]{13}$", relativeSegments[1]);
             Assert.DoesNotContain("queue-123", executionRootPath, StringComparison.OrdinalIgnoreCase);
         }
 
@@ -108,8 +108,8 @@ namespace helengine.editor.tests.managers.project {
             Assert.NotEqual(firstRootPath, otherExecutionRootPath);
             Assert.Equal(3, relativeSegments.Length);
             Assert.Equal("w", relativeSegments[0]);
-            Assert.Matches("^[0-9a-f]{16}$", relativeSegments[1]);
-            Assert.Matches("^[0-9a-f]{16}$", relativeSegments[2]);
+            Assert.Matches("^[0-9a-v]{13}$", relativeSegments[1]);
+            Assert.Matches("^[0-9a-v]{13}$", relativeSegments[2]);
             Assert.DoesNotContain("queue-a", firstRootPath, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("execution-a", firstRootPath, StringComparison.OrdinalIgnoreCase);
         }

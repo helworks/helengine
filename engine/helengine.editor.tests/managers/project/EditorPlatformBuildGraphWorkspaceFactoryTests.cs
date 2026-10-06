@@ -65,8 +65,8 @@ namespace helengine.editor.tests.managers.project {
             Assert.StartsWith(Path.Combine(Path.GetTempPath(), "helengine-builds"), firstWorkspace.ExecutionRootPath, StringComparison.OrdinalIgnoreCase);
             Assert.Equal("ps2", relativeSegments[1]);
             Assert.Equal("w", relativeSegments[2]);
-            Assert.Matches("^[0-9a-f]{16}$", relativeSegments[3]);
-            Assert.Matches("^[0-9a-f]{16}$", relativeSegments[4]);
+            Assert.Matches("^[0-9a-v]{13}$", relativeSegments[3]);
+            Assert.Matches("^[0-9a-v]{13}$", relativeSegments[4]);
             Assert.DoesNotContain("queue-123", firstWorkspace.ExecutionRootPath, StringComparison.OrdinalIgnoreCase);
             Assert.Equal(Path.Combine(firstWorkspace.ExecutionRootPath, "generated-core"), firstWorkspace.GeneratedCoreRootPath);
             Assert.Equal(Path.Combine(firstWorkspace.ExecutionRootPath, "builder"), firstWorkspace.BuilderWorkingRootPath);

@@ -42,6 +42,16 @@ namespace helengine.editor {
         const int InvocationHashByteCount = 8;
 
         /// <summary>
+        /// Number of lowercase base-32 digits needed to preserve every retained invocation hash bit.
+        /// </summary>
+        const int InvocationHashCharacterCount = (InvocationHashByteCount * 8 + 4) / 5;
+
+        /// <summary>
+        /// Case-independent filename alphabet that encodes five hash bits in each character.
+        /// </summary>
+        const string InvocationHashAlphabet = "0123456789abcdefghijklmnopqrstuv";
+
+        /// <summary>
         /// Short marker used to identify the default temporary workspace branch.
         /// </summary>
         const string DefaultWorkspaceMarker = "w";
@@ -253,16 +263,22 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Computes one compact deterministic invocation segment from a sanitized identifier.
+        /// Computes a thirteen-character lowercase base-32 segment that preserves the retained 64 hash bits.
         /// </summary>
         /// <param name="identifier">Queue or execution identifier used by the default temporary layout.</param>
-        /// <returns>Lowercase fixed-width hexadecimal SHA-256 segment.</returns>
+        /// <returns>Fixed-width filename segment with identical identity on case-insensitive filesystems.</returns>
         static string ComputeInvocationSegment(string identifier) {
             string sanitizedIdentifier = SanitizePathSegment(identifier);
             byte[] hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(sanitizedIdentifier));
-            StringBuilder builder = new StringBuilder(InvocationHashByteCount * 2);
+            ulong hashValue = 0UL;
             for (int index = 0; index < InvocationHashByteCount; index++) {
-                builder.Append(hashBytes[index].ToString("x2"));
+                hashValue = (hashValue << 8) | hashBytes[index];
+            }
+
+            StringBuilder builder = new StringBuilder(InvocationHashCharacterCount);
+            for (int index = InvocationHashCharacterCount - 1; index >= 0; index--) {
+                int digit = (int)((hashValue >> (index * 5)) & 31UL);
+                builder.Append(InvocationHashAlphabet[digit]);
             }
 
             return builder.ToString();
