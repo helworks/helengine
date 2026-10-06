@@ -8,6 +8,26 @@ namespace helengine.editor.tests {
     /// Verifies viewport camera movement paths that are driven by direct mouse input.
     /// </summary>
     public class EditorViewportCameraControllerTests : IDisposable {
+        /// <summary>Rejects an unrepresentable camera position before changing its orientation, position, or orbit state.</summary>
+        [Fact]
+        public void SetViewPose_WhenPositionWouldOverflow_PreservesPreviousCameraState() {
+            EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
+            EditorViewportCameraController controller = CreateController(cameraEntity, camera);
+            controller.SetViewPose(new float3(1f, 2f, 3f), float4.Identity, 10.0);
+            float3 originalPosition = cameraEntity.Position;
+            float4 originalOrientation = cameraEntity.Orientation;
+            float3 originalPivot = controller.GetOrbitTarget();
+            float4 orientation = float4.Identity;
+            float3 axis = new float3(1f, 0f, 0f);
+            float4.CreateFromAxisAngle(ref axis, 0.5f, out orientation);
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => controller.SetViewPose(float3.Zero, orientation, 1e100));
+
+            Assert.Equal(originalPosition, cameraEntity.Position);
+            Assert.Equal(originalOrientation, cameraEntity.Orientation);
+            Assert.Equal(originalPivot, controller.GetOrbitTarget());
+        }
+
         readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         readonly Core CoreValue;
         readonly TestInputBackend InputValue;

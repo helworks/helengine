@@ -6,6 +6,54 @@ namespace helengine.editor.tests {
     /// Verifies editor-only viewport selection framing behavior for scene-view focus operations.
     /// </summary>
     public sealed class EditorViewportSelectionFramingServiceTests : IDisposable {
+        /// <summary>Checks that averaging large finite bounds does not overflow the focus center.</summary>
+        [Fact]
+        public void FocusSelection_WithLargeFiniteCenter_PreservesFiniteCameraAndPivot() {
+            CameraComponent camera = CreateSceneCamera();
+            EditorViewportCameraController controller = CreateCameraController(camera, out EditorEntity cameraEntity);
+            EditorEntity selected = new EditorEntity(Core.Instance, InteractionServices) {
+                Position = new float3(3e38f, 3e38f, 0f)
+            };
+            selected.AddComponent(new SpriteComponent { Size = new int2(64, 96) });
+
+            new EditorViewportSelectionFramingService().FocusSelection(camera, controller, selected);
+
+            Assert.Equal(selected.Position, controller.GetOrbitTarget());
+            Assert.True(float.IsFinite(cameraEntity.Position.X));
+            Assert.True(float.IsFinite(cameraEntity.Position.Y));
+            Assert.True(float.IsFinite(cameraEntity.Position.Z));
+        }
+
+        /// <summary>Unrepresentable focus bounds leave the existing view and clipping range intact.</summary>
+        [Theory]
+        [InlineData(CameraProjectionMode.Perspective)]
+        [InlineData(CameraProjectionMode.Orthographic)]
+        public void FocusSelection_WithUnrepresentableBounds_PreservesCameraState(CameraProjectionMode mode) {
+            EditorViewportCameraComponent camera = new EditorViewportCameraComponent {
+                Viewport = new float4(0, 0, 1280, 720), ProjectionMode = mode,
+                OrthographicVerticalSpan = 20, FarPlaneDistance = 5000
+            };
+            EditorViewportCameraController controller = CreateCameraController(camera, out EditorEntity cameraEntity);
+            controller.SetViewPose(new float3(1, 2, 3), float4.Identity, 10);
+            float3 previousPosition = cameraEntity.Position;
+            float3 previousPivot = controller.GetOrbitTarget();
+            EditorEntity root = new EditorEntity(Core.Instance, InteractionServices);
+            foreach (float coordinate in new[] { -3e38f, 3e38f }) {
+                EditorEntity child = new EditorEntity(Core.Instance, InteractionServices) {
+                    LocalPosition = new float3(coordinate, 0, 0)
+                };
+                root.AddChild(child);
+                child.AddComponent(new SpriteComponent { Size = new int2(64, 96) });
+            }
+
+            new EditorViewportSelectionFramingService().FocusSelection(camera, controller, root);
+
+            Assert.Equal(previousPosition, cameraEntity.Position);
+            Assert.Equal(previousPivot, controller.GetOrbitTarget());
+            Assert.Equal(20f, camera.OrthographicVerticalSpan);
+            Assert.Equal(5000f, camera.FarPlaneDistance);
+        }
+
         readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Initializes the core services required by editor viewport framing tests.

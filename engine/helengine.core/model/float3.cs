@@ -142,6 +142,19 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Computes the distance between two vectors in double precision, preserving finite distances for large coordinates.
+        /// </summary>
+        /// <param name="left">First position.</param>
+        /// <param name="right">Second position.</param>
+        /// <returns>Euclidean distance, with subtraction and squared components evaluated in double precision.</returns>
+        public static double Distance(float3 left, float3 right) {
+            double deltaX = (double)left.X - right.X;
+            double deltaY = (double)left.Y - right.Y;
+            double deltaZ = (double)left.Z - right.Z;
+            return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
+        }
+
+        /// <summary>
         /// Returns a string representing the vector components.
         /// </summary>
         /// <returns>Formatted string.</returns>

@@ -4,14 +4,14 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorViewportSelectionFramingService {
         /// <summary>
-        /// Perspective field of view currently used by the editor scene viewport renderer.
-        /// </summary>
-        const double PerspectiveFieldOfViewRadians = Math.PI / 4.0;
-
-        /// <summary>
         /// Extra distance added beyond the framed selection radius so the target does not touch the clip plane.
         /// </summary>
         const double FarPlaneMargin = 8.0;
+
+        /// <summary>
+        /// Fractional clearance applied around the resolved selection bounds.
+        /// </summary>
+        const double FocusPaddingFactor = 1.1;
 
         /// <summary>
         /// Minimum radius used when framing point-like selections with no meaningful spatial extent.
@@ -38,28 +38,88 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Viewport camera controller must be attached to a camera entity before focus operations can run.");
             }
 
+            float4 viewport = sceneCamera.Viewport;
+            if (!float.IsFinite(viewport.Z) || !float.IsFinite(viewport.W) || viewport.Z <= 1f || viewport.W <= 1f) {
+                return;
+            }
+
             float3 focusCenter;
             double focusRadius;
             ResolveFocusBounds(selectedEntity, out focusCenter, out focusRadius);
+            if (!float.IsFinite(focusCenter.X) || !float.IsFinite(focusCenter.Y) || !float.IsFinite(focusCenter.Z) ||
+                !double.IsFinite(focusRadius)) {
+                return;
+            }
 
-            float4 viewport = sceneCamera.Viewport;
-            double viewportWidth = Math.Max(1.0, viewport.Z);
-            double viewportHeight = Math.Max(1.0, viewport.W);
+            double viewportWidth = viewport.Z;
+            double viewportHeight = viewport.W;
             double aspectRatio = viewportWidth / viewportHeight;
-            double halfVerticalFieldOfView = PerspectiveFieldOfViewRadians * 0.5;
-            double halfHorizontalFieldOfView = Math.Atan(Math.Tan(halfVerticalFieldOfView) * aspectRatio);
-            double limitingHalfFieldOfView = Math.Min(halfVerticalFieldOfView, halfHorizontalFieldOfView);
-            double requiredDistance = focusRadius / Math.Tan(limitingHalfFieldOfView);
-            if (requiredDistance < MinimumFocusRadius) {
-                requiredDistance = MinimumFocusRadius;
+            if (!double.IsFinite(aspectRatio) || aspectRatio <= 0.0) {
+                return;
+            }
+
+            double requiredDistance;
+            double verticalSpan = 0.0;
+            if (sceneCamera is ICameraProjectionSettings projectionSettings && projectionSettings.ProjectionMode == CameraProjectionMode.Orthographic) {
+                verticalSpan = 2.0 * focusRadius * FocusPaddingFactor * Math.Max(1.0, 1.0 / aspectRatio);
+                if (!double.IsFinite(verticalSpan) || verticalSpan < CameraProjectionUtils.MinimumOrthographicVerticalSpan || verticalSpan > float.MaxValue) {
+                    return;
+                }
+
+                requiredDistance = Math.Max(focusRadius + Math.Max(0.1, sceneCamera.NearPlaneDistance),
+                    GetDistance(cameraController.Parent.Position, cameraController.GetOrbitTarget()));
+            } else {
+                float fieldOfView = sceneCamera.FieldOfView;
+                if (!float.IsFinite(fieldOfView) || fieldOfView <= 0f) {
+                    return;
+                }
+                double halfVerticalFieldOfView = CameraProjectionUtils.ClampFieldOfView(fieldOfView) * 0.5;
+                double halfHorizontalFieldOfView = Math.Atan(Math.Tan(halfVerticalFieldOfView) * aspectRatio);
+                double limitingHalfFieldOfView = Math.Min(halfVerticalFieldOfView, halfHorizontalFieldOfView);
+                requiredDistance = focusRadius * FocusPaddingFactor / Math.Sin(limitingHalfFieldOfView);
+                if (requiredDistance < MinimumFocusRadius) {
+                    requiredDistance = MinimumFocusRadius;
+                }
+            }
+
+            requiredDistance = Math.Max(requiredDistance, focusRadius + Math.Max(0.1, sceneCamera.NearPlaneDistance));
+            double requiredFarPlane = requiredDistance + focusRadius + FarPlaneMargin;
+            // Reject bounds that cannot fit within the camera's single-precision world and clipping range before changing its state.
+            if (!double.IsFinite(requiredFarPlane) || requiredFarPlane > float.MaxValue ||
+                Math.Abs((double)focusCenter.X) + requiredDistance > float.MaxValue ||
+                Math.Abs((double)focusCenter.Y) + requiredDistance > float.MaxValue ||
+                Math.Abs((double)focusCenter.Z) + requiredDistance > float.MaxValue) {
+                return;
             }
 
             ApplyFocusedCameraTransform(cameraController, selectedEntity, focusCenter, requiredDistance);
-
-            double requiredFarPlane = requiredDistance + focusRadius + FarPlaneMargin;
+            if (verticalSpan > 0.0) {
+                ((ICameraProjectionSettings)sceneCamera).OrthographicVerticalSpan = (float)verticalSpan;
+            }
             if (requiredFarPlane > sceneCamera.FarPlaneDistance) {
                 sceneCamera.FarPlaneDistance = (float)requiredFarPlane;
             }
+        }
+
+        /// <summary>Measures the visible hierarchy framed by F for perspective navigation speed.</summary>
+        /// <param name="selectedEntity">Selected root, including its visible descendants.</param>
+        /// <returns>Largest world-space bounds dimension, or zero for an unsupported selection.</returns>
+        public double ResolveHierarchySelectionExtent(Entity selectedEntity) {
+            if (selectedEntity == null) {
+                return 0.0;
+            }
+            List<float3> points = new List<float3>();
+            CollectVisibleBounds(selectedEntity, points);
+            if (points.Count == 0) {
+                return 0.0;
+            }
+            float3 minimum = points[0];
+            float3 maximum = points[0];
+            foreach (float3 point in points) {
+                minimum = new float3(Math.Min(minimum.X, point.X), Math.Min(minimum.Y, point.Y), Math.Min(minimum.Z, point.Z));
+                maximum = new float3(Math.Max(maximum.X, point.X), Math.Max(maximum.Y, point.Y), Math.Max(maximum.Z, point.Z));
+            }
+            return Math.Max((double)maximum.X - minimum.X, Math.Max((double)maximum.Y - minimum.Y, (double)maximum.Z - minimum.Z));
         }
 
         /// <summary>
@@ -78,18 +138,29 @@ namespace helengine.editor {
         /// <param name="focusCenter">Receives the resolved focus center.</param>
         /// <param name="focusRadius">Receives the resolved bounding radius.</param>
         void ResolveFocusBounds(Entity selectedEntity, out float3 focusCenter, out double focusRadius) {
-            if (TryResolveViewportBounds(selectedEntity, out focusCenter, out focusRadius, out _)) {
+            List<float3> points = new List<float3>();
+            CollectVisibleBounds(selectedEntity, points);
+            if (points.Count > 0) {
+                ResolveBoundsFromPoints(points.ToArray(), out focusCenter, out focusRadius);
                 return;
             }
-            if (TryResolveMeshBounds(selectedEntity, out focusCenter, out focusRadius, out _)) {
-                return;
-            }
-            if (TryResolveSpriteBounds(selectedEntity, out focusCenter, out focusRadius, out _)) {
-                return;
-            }
-
             focusCenter = EditorViewportDirect2DPresentationService.ResolvePresentedWorldPosition(selectedEntity);
             focusRadius = MinimumFocusRadius;
+        }
+
+        /// <summary>Collects the actual presented corners of visible authored content throughout a selection subtree.</summary>
+        /// <param name="entity">Current selected entity or descendant.</param>
+        /// <param name="points">Shared world-space corner collection.</param>
+        void CollectVisibleBounds(Entity entity, List<float3> points) {
+            if (!entity.IsHierarchyEnabled || entity is EditorEntity editorEntity && editorEntity.InternalEntity) {
+                return;
+            }
+            TryResolveViewportBounds(entity, out _, out _, out _, points);
+            TryResolveMeshBounds(entity, out _, out _, out _, points);
+            TryResolveSpriteBounds(entity, out _, out _, out _, points);
+            foreach (Entity child in entity.Children) {
+                CollectVisibleBounds(child, points);
+            }
         }
 
         /// <summary>
@@ -121,8 +192,10 @@ namespace helengine.editor {
         /// <param name="selectedEntity">Selected entity that may own a viewport component.</param>
         /// <param name="focusCenter">Receives the resolved focus center.</param>
         /// <param name="focusRadius">Receives the resolved bounding radius.</param>
+        /// <param name="selectionExtent">Largest viewport dimension.</param>
+        /// <param name="points">Optional collection receiving the presented corners.</param>
         /// <returns>True when viewport bounds were resolved successfully.</returns>
-        bool TryResolveViewportBounds(Entity selectedEntity, out float3 focusCenter, out double focusRadius, out double selectionExtent) {
+        bool TryResolveViewportBounds(Entity selectedEntity, out float3 focusCenter, out double focusRadius, out double selectionExtent, List<float3> points = null) {
             if (!TryGetComponent(selectedEntity, out ViewportComponent viewportComponent)) {
                 focusCenter = float3.Zero;
                 focusRadius = 0.0;
@@ -137,6 +210,7 @@ namespace helengine.editor {
                 TransformViewportPoint(selectedEntity, new float3(0f, viewportSize.Y, 0f)),
                 TransformViewportPoint(selectedEntity, new float3(viewportSize.X, viewportSize.Y, 0f))
             };
+            points?.AddRange(corners);
             ResolveBoundsFromPoints(corners, out focusCenter, out focusRadius);
             selectionExtent = Math.Max(viewportSize.X, viewportSize.Y);
             return true;
@@ -148,8 +222,10 @@ namespace helengine.editor {
         /// <param name="selectedEntity">Selected entity that may own a mesh component.</param>
         /// <param name="focusCenter">Receives the resolved focus center.</param>
         /// <param name="focusRadius">Receives the resolved bounding radius.</param>
+        /// <param name="selectionExtent">Largest scaled mesh dimension.</param>
+        /// <param name="points">Optional collection receiving transformed model corners.</param>
         /// <returns>True when mesh bounds were resolved successfully.</returns>
-        bool TryResolveMeshBounds(Entity selectedEntity, out float3 focusCenter, out double focusRadius, out double selectionExtent) {
+        bool TryResolveMeshBounds(Entity selectedEntity, out float3 focusCenter, out double focusRadius, out double selectionExtent, List<float3> points = null) {
             if (!TryGetComponent(selectedEntity, out MeshComponent meshComponent) || meshComponent.Model == null) {
                 focusCenter = float3.Zero;
                 focusRadius = 0.0;
@@ -169,31 +245,40 @@ namespace helengine.editor {
                 TransformModelPoint(selectedEntity, new float3(boundsMin.X, boundsMax.Y, boundsMax.Z)),
                 TransformModelPoint(selectedEntity, new float3(boundsMax.X, boundsMax.Y, boundsMax.Z))
             };
+            points?.AddRange(corners);
             ResolveBoundsFromPoints(corners, out focusCenter, out focusRadius);
-            double width = Math.Abs((boundsMax.X - boundsMin.X) * selectedEntity.Scale.X);
-            double height = Math.Abs((boundsMax.Y - boundsMin.Y) * selectedEntity.Scale.Y);
-            double depth = Math.Abs((boundsMax.Z - boundsMin.Z) * selectedEntity.Scale.Z);
+            double width = Math.Abs(((double)boundsMax.X - boundsMin.X) * selectedEntity.Scale.X);
+            double height = Math.Abs(((double)boundsMax.Y - boundsMin.Y) * selectedEntity.Scale.Y);
+            double depth = Math.Abs(((double)boundsMax.Z - boundsMin.Z) * selectedEntity.Scale.Z);
             selectionExtent = Math.Max(width, Math.Max(height, depth));
             return true;
         }
 
         /// <summary>
-        /// Resolves framing bounds from one sprite component when no viewport or mesh bounds are available.
+        /// Resolves the presented rectangle of a sprite, text, or rounded panel.
         /// </summary>
         /// <param name="selectedEntity">Selected entity that may own a sprite component.</param>
         /// <param name="focusCenter">Receives the resolved focus center.</param>
         /// <param name="focusRadius">Receives the resolved bounding radius.</param>
-        /// <returns>True when sprite bounds were resolved successfully.</returns>
-        bool TryResolveSpriteBounds(Entity selectedEntity, out float3 focusCenter, out double focusRadius, out double selectionExtent) {
-            if (!TryGetComponent(selectedEntity, out SpriteComponent spriteComponent)) {
+        /// <param name="selectionExtent">Largest presented rectangle dimension.</param>
+        /// <param name="points">Optional collection receiving the presented corners.</param>
+        /// <returns>True when supported 2D bounds were resolved successfully.</returns>
+        bool TryResolveSpriteBounds(Entity selectedEntity, out float3 focusCenter, out double focusRadius, out double selectionExtent, List<float3> points = null) {
+            int2 size;
+            if (TryGetComponent(selectedEntity, out SpriteComponent spriteComponent)) {
+                size = spriteComponent.Size;
+            } else if (TryGetComponent(selectedEntity, out TextComponent textComponent)) {
+                size = textComponent.Size;
+            } else if (TryGetComponent(selectedEntity, out RoundedRectComponent roundedRectComponent)) {
+                size = roundedRectComponent.Size;
+            } else {
                 focusCenter = float3.Zero;
                 focusRadius = 0.0;
                 selectionExtent = 0.0;
                 return false;
             }
-
-            int width = Math.Max(1, spriteComponent.Size.X);
-            int height = Math.Max(1, spriteComponent.Size.Y);
+            int width = Math.Max(1, size.X);
+            int height = Math.Max(1, size.Y);
             int2 presentedSize = EditorViewportDirect2DPresentationService.ResolvePresentedComponentSize(selectedEntity, new int2(width, height));
             float3[] corners = new[] {
                 TransformViewportPoint(selectedEntity, new float3(0f, 0f, 0f)),
@@ -201,6 +286,7 @@ namespace helengine.editor {
                 TransformViewportPoint(selectedEntity, new float3(0f, presentedSize.Y, 0f)),
                 TransformViewportPoint(selectedEntity, new float3(presentedSize.X, presentedSize.Y, 0f))
             };
+            points?.AddRange(corners);
             ResolveBoundsFromPoints(corners, out focusCenter, out focusRadius);
             selectionExtent = Math.Max(presentedSize.X, presentedSize.Y);
             return true;
@@ -215,8 +301,7 @@ namespace helengine.editor {
         /// <param name="requiredDistance">Required camera distance from the focus center.</param>
         void ApplyFocusedCameraTransform(EditorViewportCameraController cameraController, Entity selectedEntity, float3 focusCenter, double requiredDistance) {
             Entity cameraEntity = cameraController.Parent;
-            float3 cameraForward = float4.RotateVector(new float3(0f, 0f, -1f), cameraEntity.Orientation);
-            cameraEntity.Position = focusCenter - (cameraForward * (float)requiredDistance);
+            cameraController.SetViewPose(focusCenter, cameraEntity.Orientation, requiredDistance);
             cameraController.SetSelectionOrbitTargetOverride(selectedEntity, focusCenter);
         }
 
@@ -249,9 +334,9 @@ namespace helengine.editor {
             }
 
             focusCenter = new float3(
-                (minimum.X + maximum.X) * 0.5f,
-                (minimum.Y + maximum.Y) * 0.5f,
-                (minimum.Z + maximum.Z) * 0.5f);
+                (float)(((double)minimum.X + maximum.X) * 0.5),
+                (float)(((double)minimum.Y + maximum.Y) * 0.5),
+                (float)(((double)minimum.Z + maximum.Z) * 0.5));
             focusRadius = 0.0;
             for (int pointIndex = 0; pointIndex < points.Length; pointIndex++) {
                 double distance = GetDistance(points[pointIndex], focusCenter);
@@ -331,10 +416,8 @@ namespace helengine.editor {
         /// <param name="right">Second point.</param>
         /// <returns>Distance between the two points.</returns>
         double GetDistance(float3 left, float3 right) {
-            double deltaX = left.X - right.X;
-            double deltaY = left.Y - right.Y;
-            double deltaZ = left.Z - right.Z;
-            return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
+            return float3.Distance(left, right);
         }
+
     }
 }

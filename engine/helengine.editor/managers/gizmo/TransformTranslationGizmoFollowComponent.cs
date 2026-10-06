@@ -502,21 +502,13 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Transform gizmo axis length must be greater than zero.");
             }
 
-            float3 offset = origin - cameraPosition;
-            double distance = Math.Sqrt(
-                offset.X * offset.X +
-                offset.Y * offset.Y +
-                offset.Z * offset.Z);
+            double distance = float3.Distance(origin, cameraPosition);
             if (distance < MinimumDistance) {
                 distance = MinimumDistance;
             }
 
-            double tanHalfFov = Math.Tan(PerspectiveVerticalFieldOfViewRadians * 0.5);
-            if (tanHalfFov <= 0.0) {
-                throw new InvalidOperationException("Perspective field of view must produce a positive tangent value.");
-            }
-
-            double targetWorldAxisLength = targetAxisPixels * (2.0 * distance * tanHalfFov) / viewportHeight;
+            double worldUnitsPerPixel = CameraProjectionUtils.GetWorldUnitsPerPixel(SceneCamera, distance, viewportHeight);
+            double targetWorldAxisLength = targetAxisPixels * worldUnitsPerPixel;
             return targetWorldAxisLength / TransformTranslationGizmoFactory.AxisLength;
         }
 
