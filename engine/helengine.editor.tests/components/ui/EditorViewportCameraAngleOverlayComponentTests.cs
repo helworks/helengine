@@ -49,6 +49,63 @@ namespace helengine.editor.tests.components.ui {
             Assert.Equal(3, new HashSet<string>(StringComparer.Ordinal) { xLabel, yLabel, zLabel }.Count);
         }
 
+        /// <summary>Checks that finite coordinates remain projectable when float subtraction or squared distance would overflow.</summary>
+        /// <param name="mode">Projection used for the gizmo and labels.</param>
+        /// <param name="coordinate">Magnitude of the camera and selected positions on opposite sides of the origin.</param>
+        [Theory]
+        [InlineData(CameraProjectionMode.Perspective, 1e20f)]
+        [InlineData(CameraProjectionMode.Perspective, 3e38f)]
+        [InlineData(CameraProjectionMode.Orthographic, 1e20f)]
+        [InlineData(CameraProjectionMode.Orthographic, 3e38f)]
+        public void OverlayScale_WithLargeFiniteCoordinates_DoesNotOverflow(CameraProjectionMode mode, float coordinate) {
+            InitializeCore();
+            EditorViewportCameraComponent camera = new EditorViewportCameraComponent {
+                Viewport = new float4(0f, 0f, 1280f, 720f),
+                ProjectionMode = mode,
+                OrthographicVerticalSpan = 20f
+            };
+            EditorViewportCameraAngleOverlayComponent overlay = new EditorViewportCameraAngleOverlayComponent(
+                camera, CreateTestFont(), 0, false, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
+            float3 origin = new float3(coordinate, coordinate, coordinate);
+            float3 cameraPosition = new float3(-coordinate, -coordinate, -coordinate);
+            double distance = 2.0 * coordinate * Math.Sqrt(3.0);
+            double expectedUnits = CameraProjectionUtils.GetWorldUnitsPerPixel(camera, distance, 720.0);
+
+            double units = InvokeComputeWorldUnitsPerPixel(overlay, origin, cameraPosition);
+            double scale = InvokeComputeGizmoScale(overlay, origin, cameraPosition);
+            Assert.True(double.IsFinite(units));
+            Assert.True(double.IsFinite(scale));
+            Assert.InRange(Math.Abs(units / expectedUnits - 1.0), 0.0, 1e-12);
+        }
+
+        /// <summary>
+        /// Invokes the overlay's projection-aware world-units-per-pixel calculation.
+        /// </summary>
+        /// <param name="overlayComponent">Overlay whose camera scale is measured.</param>
+        /// <param name="origin">World-space position of the label or gizmo.</param>
+        /// <param name="cameraPosition">World-space camera position.</param>
+        /// <returns>World-space size of one vertical viewport pixel.</returns>
+        static double InvokeComputeWorldUnitsPerPixel(EditorViewportCameraAngleOverlayComponent overlayComponent, float3 origin, float3 cameraPosition) {
+            MethodInfo method = typeof(EditorViewportCameraAngleOverlayComponent).GetMethod(
+                "ComputeWorldUnitsPerPixel",
+                BindingFlags.Instance | BindingFlags.NonPublic) ?? throw new InvalidOperationException("Expected ComputeWorldUnitsPerPixel method.");
+            return (double)method.Invoke(overlayComponent, new object[] { origin, cameraPosition });
+        }
+
+        /// <summary>
+        /// Invokes the overlay's current translation-gizmo sizing calculation.
+        /// </summary>
+        /// <param name="overlayComponent">Overlay whose gizmo scale is measured.</param>
+        /// <param name="origin">World-space gizmo origin.</param>
+        /// <param name="cameraPosition">World-space camera position.</param>
+        /// <returns>World scale required to preserve the intended screen size.</returns>
+        static double InvokeComputeGizmoScale(EditorViewportCameraAngleOverlayComponent overlayComponent, float3 origin, float3 cameraPosition) {
+            MethodInfo method = typeof(EditorViewportCameraAngleOverlayComponent).GetMethod(
+                "ComputeGizmoScale",
+                BindingFlags.Instance | BindingFlags.NonPublic) ?? throw new InvalidOperationException("Expected ComputeGizmoScale method.");
+            return (double)method.Invoke(overlayComponent, new object[] { origin, cameraPosition });
+        }
+
         /// <summary>
         /// Initializes a fresh core so camera components can be constructed in isolation tests.
         /// </summary>

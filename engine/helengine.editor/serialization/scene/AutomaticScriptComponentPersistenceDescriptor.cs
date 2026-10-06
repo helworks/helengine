@@ -401,10 +401,10 @@ namespace helengine.editor {
                 throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
             }
 
-            Type componentType = PersistedComponentTypeResolver.TryResolve(componentTypeId);
-            if (componentType == null && ScriptTypeResolver != null) {
-                componentType = ScriptTypeResolver.Resolve(componentTypeId);
-            }
+            // Project modules belong to the script host's reloadable context, not the default assembly loader.
+            Type componentType = ScriptTypeResolver != null && componentTypeId.Contains(',', StringComparison.Ordinal)
+                ? ScriptTypeResolver.Resolve(componentTypeId)
+                : PersistedComponentTypeResolver.TryResolve(componentTypeId);
             if (componentType == null) {
                 throw new InvalidOperationException($"Scripted component type '{componentTypeId}' could not be resolved.");
             }

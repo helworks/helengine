@@ -254,7 +254,7 @@ namespace helengine.editor.tests {
             };
             entity.AddComponent(camera);
 
-            panel.ShowEntityProperties(entity, new[] { "windows" });
+            panel.ShowEntityProperties(entity, new[] { "windows" }, TestInspectorPlatformDefinitions.Create("windows"));
             SelectInspectorPlatform(panel, "windows");
 
             ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
@@ -281,7 +281,7 @@ namespace helengine.editor.tests {
                 Name = "PlatformEntity"
             };
 
-            panel.ShowEntityProperties(entity, new[] { "nintendo3ds" });
+            panel.ShowEntityProperties(entity, new[] { "nintendo3ds" }, TestInspectorPlatformDefinitions.Create("nintendo3ds"));
             SelectInspectorPlatform(panel, "nintendo3ds");
 
             CheckBoxComponent existsCheckBox = GetPrivateField<CheckBoxComponent>(panel, "ExistsCheckBox");
@@ -311,7 +311,7 @@ namespace helengine.editor.tests {
                 Orientation = float4.Identity
             };
 
-            panel.ShowEntityProperties(entity, new[] { "ps2" });
+            panel.ShowEntityProperties(entity, new[] { "ps2" }, TestInspectorPlatformDefinitions.Create("ps2"));
             SelectInspectorPlatform(panel, "ps2");
 
             TextBoxComponent[] positionFields = GetPrivateField<TextBoxComponent[]>(panel, "PositionFields");
@@ -343,7 +343,7 @@ namespace helengine.editor.tests {
                 Orientation = float4.Identity
             };
 
-            panel.ShowEntityProperties(entity, new[] { "ps2" });
+            panel.ShowEntityProperties(entity, new[] { "ps2" }, TestInspectorPlatformDefinitions.Create("ps2"));
             SelectInspectorPlatform(panel, "ps2");
 
             TextBoxComponent[] positionFields = GetPrivateField<TextBoxComponent[]>(panel, "PositionFields");
@@ -389,7 +389,7 @@ namespace helengine.editor.tests {
             };
             entity.AddComponent(camera);
 
-            panel.ShowEntityProperties(entity, new[] { "windows" });
+            panel.ShowEntityProperties(entity, new[] { "windows" }, TestInspectorPlatformDefinitions.Create("windows"));
             SelectInspectorPlatform(panel, "windows");
 
             ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
@@ -444,7 +444,7 @@ namespace helengine.editor.tests {
                 true,
                 target => target.AddComponent(new CameraComponent()));
 
-            panel.ShowEntityProperties(entity, new[] { "windows" });
+            panel.ShowEntityProperties(entity, new[] { "windows" }, TestInspectorPlatformDefinitions.Create("windows"));
             SelectInspectorPlatform(panel, "windows");
             InvokePrivate(panel, "HandleAddComponentSelected", descriptor);
             SelectInspectorPlatform(panel, "windows");
@@ -517,7 +517,7 @@ namespace helengine.editor.tests {
             MeshComponent mesh = new MeshComponent();
             entity.AddComponent(mesh);
 
-            panel.ShowEntityProperties(entity, new[] { "ps2", "windows" });
+            panel.ShowEntityProperties(entity, new[] { "ps2", "windows" }, TestInspectorPlatformDefinitions.Create("ps2", "windows"));
             SelectInspectorPlatform(panel, "ps2");
 
             ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
@@ -570,7 +570,7 @@ namespace helengine.editor.tests {
             MeshComponent mesh = new MeshComponent();
             entity.AddComponent(mesh);
 
-            panel.ShowEntityProperties(entity, new[] { "ps2", "windows" });
+            panel.ShowEntityProperties(entity, new[] { "ps2", "windows" }, TestInspectorPlatformDefinitions.Create("ps2", "windows"));
             SelectInspectorPlatform(panel, "ps2");
 
             EntityComponentSaveState saveState = GetSaveComponent(entity).GetOrCreateComponentState(mesh);
@@ -625,7 +625,7 @@ namespace helengine.editor.tests {
             MeshComponent mesh = new MeshComponent();
             entity.AddComponent(mesh);
 
-            panel.ShowEntityProperties(entity, new[] { "ps2", "windows" });
+            panel.ShowEntityProperties(entity, new[] { "ps2", "windows" }, TestInspectorPlatformDefinitions.Create("ps2", "windows"));
             SelectInspectorPlatform(panel, "ps2");
 
             EntityComponentSaveState saveState = GetSaveComponent(entity).GetOrCreateComponentState(mesh);
@@ -664,6 +664,49 @@ namespace helengine.editor.tests {
 
             // A unit cube half-extent of 0.5 with the default tiling of 1 spans +/-0.5 repeats; the entity scale is ignored.
             Assert.Equal(0.5f, maxAbsU, 3);
+        }
+
+        /// <summary>
+        /// Missing builders keep their inspector scope read-only and leave opaque override data untouched.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenBuilderIsMissing_PreservesOverridesAndBlocksEdits() {
+            PropertiesPanel panel = CreatePanel();
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) { Name = "Menu" };
+            CameraComponent camera = new CameraComponent { FarPlaneDistance = 100f };
+            entity.AddComponent(camera);
+            EntitySaveComponent save = GetSaveComponent(entity);
+            EntityComponentSaveState state = save.GetOrCreateComponentState(camera);
+            EntityComponentPlatformOverrideState stored = new EntityComponentPlatformOverrideState();
+            stored.SetMemberValue("DreamcastSetting", "keep-this-value");
+            state.SetPlatformOverride("dc", stored);
+            SceneEntityPlatformTransformOverrideAsset transform = save.GetOrCreateTransformPlatformOverride("dc");
+            transform.HasLocalPositionOverride = true;
+            transform.LocalPosition = float3.Zero;
+            ComponentPlatformOverridePayloadService payloadService = new ComponentPlatformOverridePayloadService();
+            SceneComponentAssetRecord record = new SceneComponentAssetRecord { ComponentTypeId = "helengine.CameraComponent", Payload = new byte[] { 1, 2, 3 } };
+            byte[] before = payloadService.Wrap(record, state).Payload;
+
+            panel.ShowEntityProperties(entity, new[] { "dc" }, new Dictionary<string, PlatformDefinition>());
+            SelectInspectorPlatform(panel, "dc");
+            ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            Assert.Equal(ComponentPropertyRowKind.ReadOnly, GetSingleRow(view, "Far Plane Distance").Kind);
+            Assert.False(GetPrivateField<EditorEntity>(panel, "AddComponentButtonRoot").Enabled);
+            Assert.Contains(GetPrivateField<List<TextComponent>>(panel, "lineTexts"), line => line.Text == "DreamcastSetting: keep-this-value");
+            TextBoxComponent[] positions = GetPrivateField<TextBoxComponent[]>(panel, "PositionFields");
+            positions[0].Text = "999";
+            SetPrivateField(panel, "ApplyTransformRequested", true);
+            panel.UpdateTransformEdits();
+            Assert.Equal(float3.Zero, entity.LocalPosition);
+            InvokePrivate(panel, "HandlePositionOverrideRevertClicked");
+            InvokePrivate(panel, "HandleComponentEnvironmentOverrideRequested", "dc");
+            SelectInspectorPlatform(panel, "common");
+
+            Assert.True(save.TryGetTransformPlatformOverride("dc", out var remaining));
+            Assert.True(remaining.HasLocalPositionOverride);
+            Assert.Equal(before, payloadService.Wrap(record, state).Payload);
+            Assert.Equal(ComponentPropertyRowKind.Scalar, GetSingleRow(view, "Far Plane Distance").Kind);
+            Assert.True(GetPrivateField<EditorEntity>(panel, "PositionRow").Enabled);
         }
 
         PropertiesPanel CreatePanel() {

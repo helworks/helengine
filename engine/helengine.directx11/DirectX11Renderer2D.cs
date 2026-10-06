@@ -45,6 +45,22 @@ namespace helengine.directx11 {
         InputLayout BasicColorInputLayout = null!;
         VertexShader SpriteVertexShader = null!;
         PixelShader SpritePixelShader = null!;
+        /// <summary>
+        /// Composites runtime font RGB coverage using dual-source blending on the main surface.
+        /// </summary>
+        PixelShader FontClearTypePixelShader;
+        /// <summary>
+        /// Samples grayscale coverage when text is scaled or drawn to an intermediate surface.
+        /// </summary>
+        PixelShader FontGrayscalePixelShader;
+        /// <summary>
+        /// Uses each glyph's second shader output to attenuate the background independently per channel.
+        /// </summary>
+        BlendState FontClearTypeBlendState;
+        /// <summary>
+        /// Tracks whether the current camera draws directly to the opaque window surface.
+        /// </summary>
+        bool IsMainTextSurface;
         VertexShader UiShapeVertexShader = null!;
         PixelShader UiShapePixelShader = null!;
         VertexShader BasicColorVertexShader = null!;
@@ -119,6 +135,11 @@ namespace helengine.directx11 {
         public D3DDevice Device { get; }
 
         /// <summary>
+        /// Gets whether the renderer supports runtime RGB font coverage and its grayscale fallback.
+        /// </summary>
+        public override bool SupportsRgbFontCoverage => true;
+
+        /// <summary>
         /// Gets the currently selected rounded-rect backend.
         /// </summary>
         internal RoundedRectBackend CurrentRoundedRectBackend => RoundedRectBackendValue;
@@ -136,6 +157,7 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="camera">Camera supplying the render queue.</param>
         internal void RenderCamera(ICamera camera) {
+            IsMainTextSurface = camera.RenderTarget == null;
             ConfigureSpritePipeline(SpriteInputLayout);
 
             float4 viewport = ResolveCameraViewport(camera);
@@ -293,6 +315,13 @@ namespace helengine.directx11 {
 
             string text = drawable.Text ?? string.Empty;
             double fontScale = Math.Max((double)drawable.FontScale, 0.0001d);
+            bool useClearType = data.UsesRgbFontCoverage && IsMainTextSurface && Math.Abs(fontScale - 1d) < 0.00001d;
+            if (data.UsesRgbFontCoverage) {
+                context.PixelShader.Set(useClearType ? FontClearTypePixelShader : FontGrayscalePixelShader);
+                if (useClearType) {
+                    context.OutputMerger.SetBlendState(FontClearTypeBlendState);
+                }
+            }
             if (drawable.WrapText) {
                 text = TextLayoutUtils.WrapText(text, font, Math.Max(1, (int)Math.Round(drawable.Size.X / fontScale)));
             }
@@ -351,6 +380,10 @@ namespace helengine.directx11 {
                         (float)pixelW,
                         (float)pixelH
                     );
+                    if (useClearType) {
+                        shaderData.destRect.X = (float)Math.Round(shaderData.destRect.X);
+                        shaderData.destRect.Y = (float)Math.Round(shaderData.destRect.Y);
+                    }
 
                     context.UpdateSubresource(ref shaderData, SpriteConstantBuffer);
                     context.Draw(4, 0);
@@ -510,6 +543,9 @@ namespace helengine.directx11 {
             BasicColorInputLayout?.Dispose();
             SpriteVertexShader?.Dispose();
             SpritePixelShader?.Dispose();
+            FontClearTypePixelShader?.Dispose();
+            FontGrayscalePixelShader?.Dispose();
+            FontClearTypeBlendState?.Dispose();
             UiShapeVertexShader?.Dispose();
             UiShapePixelShader?.Dispose();
             BasicColorVertexShader?.Dispose();
@@ -626,6 +662,12 @@ namespace helengine.directx11 {
             using (var spritePs = DirectX11ShaderSourceCompiler.CompileFromContent("shaders\\SpriteShader.fx", "PS", "ps_4_0")) {
                 SpritePixelShader = new PixelShader(Device, spritePs);
             }
+            using (var fontPs = DirectX11ShaderSourceCompiler.CompileFromContent("shaders\\SpriteShader.fx", "FontClearTypePS", "ps_4_0")) {
+                FontClearTypePixelShader = new PixelShader(Device, fontPs);
+            }
+            using (var fontPs = DirectX11ShaderSourceCompiler.CompileFromContent("shaders\\SpriteShader.fx", "FontGrayscalePS", "ps_4_0")) {
+                FontGrayscalePixelShader = new PixelShader(Device, fontPs);
+            }
 
             using (var uiVs = DirectX11ShaderSourceCompiler.CompileFromContent("shaders\\UIShapeShader.fx", "VS", "vs_4_0")) {
                 UiShapeVertexShader = new VertexShader(Device, uiVs);
@@ -674,6 +716,21 @@ namespace helengine.directx11 {
                         BlendOperation = BlendOperation.Add,
                         SourceAlphaBlend = BlendOption.One,
                         DestinationAlphaBlend = BlendOption.Zero,
+                        AlphaBlendOperation = BlendOperation.Add,
+                        RenderTargetWriteMask = ColorWriteMaskFlags.All
+                    }
+                }
+            });
+
+            FontClearTypeBlendState = new BlendState(Device, new BlendStateDescription {
+                RenderTarget = {
+                    [0] = new RenderTargetBlendDescription {
+                        IsBlendEnabled = true,
+                        SourceBlend = BlendOption.One,
+                        DestinationBlend = BlendOption.InverseSecondarySourceColor,
+                        BlendOperation = BlendOperation.Add,
+                        SourceAlphaBlend = BlendOption.One,
+                        DestinationAlphaBlend = BlendOption.InverseSecondarySourceAlpha,
                         AlphaBlendOperation = BlendOperation.Add,
                         RenderTargetWriteMask = ColorWriteMaskFlags.All
                     }

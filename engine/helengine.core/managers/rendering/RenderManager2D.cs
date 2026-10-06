@@ -51,6 +51,12 @@ namespace helengine {
         public abstract RuntimeTexture BuildTextureFromRaw([NativeNoEscape] TextureAsset data);
 
         /// <summary>
+        /// Gets whether runtime UI font atlases may use independent RGB coverage rather than ordinary alpha coverage.
+        /// Backends must explicitly opt in after implementing both subpixel blending and grayscale fallback.
+        /// </summary>
+        public virtual bool SupportsRgbFontCoverage => false;
+
+        /// <summary>
         /// Updates one pixel rectangle in a renderer-owned runtime texture from an RGBA8 source buffer.
         /// </summary>
         /// <param name="texture">Runtime texture that receives the update.</param>

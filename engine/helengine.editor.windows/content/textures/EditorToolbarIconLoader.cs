@@ -1,8 +1,12 @@
 namespace helengine.editor {
     /// <summary>
-    /// Loads the default viewport toolbar PNGs and converts them into runtime textures.
+    /// Loads viewport toolbar PNGs and generates snap-arrow SVGs in memory as runtime textures.
     /// </summary>
     public static class EditorToolbarIconLoader {
+        /// <summary>
+        /// Physical pixel size used by the viewport's snap arrow sprites.
+        /// </summary>
+        const int SnapArrowPixelSize = 16;
         /// <summary>
         /// Root-relative path for the translate toolbar icon.
         /// </summary>
@@ -23,14 +27,6 @@ namespace helengine.editor {
         /// Root-relative path for the viewport settings toolbar icon.
         /// </summary>
         static readonly string SettingsIconPath = Path.Combine("content", "icons", "toolbar", "settings.png");
-        /// <summary>
-        /// Root-relative path for the snap increase toolbar icon.
-        /// </summary>
-        static readonly string SnapIncreaseIconPath = Path.Combine("content", "icons", "toolbar", "snap-increase.png");
-        /// <summary>
-        /// Root-relative path for the snap decrease toolbar icon.
-        /// </summary>
-        static readonly string SnapDecreaseIconPath = Path.Combine("content", "icons", "toolbar", "snap-decrease.png");
         /// <summary>
         /// Root-relative path for the snap magnet toolbar label icon.
         /// </summary>
@@ -75,8 +71,8 @@ namespace helengine.editor {
             RuntimeTexture scaleIcon = LoadTexture(content, applicationRootPath, ScaleIconPath, renderManager2D);
             RuntimeTexture gridIcon = LoadTexture(content, applicationRootPath, GridIconPath, renderManager2D);
             RuntimeTexture settingsIcon = LoadTexture(content, applicationRootPath, SettingsIconPath, renderManager2D);
-            RuntimeTexture snapIncreaseIcon = LoadTexture(content, applicationRootPath, SnapIncreaseIconPath, renderManager2D);
-            RuntimeTexture snapDecreaseIcon = LoadTexture(content, applicationRootPath, SnapDecreaseIconPath, renderManager2D);
+            RuntimeTexture snapIncreaseIcon = CreateSnapArrowTexture(true, renderManager2D);
+            RuntimeTexture snapDecreaseIcon = CreateSnapArrowTexture(false, renderManager2D);
             RuntimeTexture magnetIcon = LoadTexture(content, applicationRootPath, MagnetIconPath, renderManager2D);
             RuntimeTexture ctrlKeyIcon = LoadTexture(content, applicationRootPath, CtrlKeyIconPath, renderManager2D);
             RuntimeTexture shiftKeyIcon = LoadTexture(content, applicationRootPath, ShiftKeyIconPath, renderManager2D);
@@ -123,6 +119,21 @@ namespace helengine.editor {
         /// <returns>Absolute path to the title-bar icon PNG.</returns>
         public static string GetTitleBarIconPath(string applicationRootPath) {
             return ResolveApplicationContentPath(applicationRootPath, TitleBarIconPath);
+        }
+
+        /// <summary>
+        /// Generates a snap arrow SVG in memory and uploads its mask at the toolbar's final display size.
+        /// </summary>
+        /// <param name="isIncreaseButton">True for the upward increase arrow; false for the downward decrease arrow.</param>
+        /// <param name="renderManager2D">Session renderer that owns the uploaded texture.</param>
+        /// <returns>Runtime arrow texture shared by the CTRL and SHIFT snap groups.</returns>
+        static RuntimeTexture CreateSnapArrowTexture(bool isIncreaseButton, RenderManager2D renderManager2D) {
+            TextureAsset asset = EditorSnapArrowIconBuilder.CreateTextureAsset(isIncreaseButton, SnapArrowPixelSize);
+            try {
+                return renderManager2D.BuildTextureFromRaw(asset);
+            } finally {
+                NativeOwnership.DisposeAndDelete(asset);
+            }
         }
 
         /// <summary>

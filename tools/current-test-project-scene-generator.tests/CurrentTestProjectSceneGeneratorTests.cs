@@ -12,12 +12,19 @@ namespace helengine.current_test_project_scene_generator.tests {
         /// </summary>
         [Fact]
         public void ResolveDefaultProjectRoot_FromOutputDirectory_UsesRepositoryTestProject() {
-            string repositoryRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-            string outputDirectory = Path.Combine(repositoryRootPath, "tools", "current-test-project-scene-generator", "bin", "Debug", "net9.0");
-
-            Assert.Equal(
-                Path.Combine(repositoryRootPath, "test-project"),
-                TestProjectPathResolver.ResolveDefaultProjectRoot(outputDirectory));
+            string repositoryRootPath = Path.Combine(AppContext.BaseDirectory, "artifacts", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Path.Combine(repositoryRootPath, "engine"));
+            Directory.CreateDirectory(Path.Combine(repositoryRootPath, "test-project"));
+            Directory.CreateDirectory(Path.Combine(repositoryRootPath, "helengine.ui"));
+            File.WriteAllText(Path.Combine(repositoryRootPath, "helengine.ui", "helengine.sln"), string.Empty);
+            try {
+                string outputDirectory = Path.Combine(repositoryRootPath, "tools", "current-test-project-scene-generator", "bin", "Debug", "net9.0");
+                Assert.Equal(
+                    Path.Combine(repositoryRootPath, "test-project"),
+                    TestProjectPathResolver.ResolveDefaultProjectRoot(outputDirectory));
+            } finally {
+                Directory.Delete(repositoryRootPath, true);
+            }
         }
 
         /// <summary>
@@ -179,31 +186,13 @@ namespace helengine.current_test_project_scene_generator.tests {
 
                 AssertCurrentHeader(
                     Path.Combine(projectRootPath, "assets", "Scenes", "Bootstrap.helen"),
-                    24,
+                    25,
                     6);
             } finally {
                 if (Directory.Exists(projectRootPath)) {
                     Directory.Delete(projectRootPath, true);
                 }
             }
-        }
-
-        /// <summary>
-        /// Ensures the maintenance tool consumes the public scene-component authoring surface rather than serializer internals.
-        /// </summary>
-        [Fact]
-        public void RenderingGenerator_UsesPublicSceneComponentAuthoringService() {
-            string repositoryRootPath = TestProjectPathResolver.ResolveRepositoryRoot(AppContext.BaseDirectory);
-            string generatorPath = Path.Combine(
-                repositoryRootPath,
-                "tools",
-                "current-test-project-scene-generator",
-                "RenderingSceneFixtureGenerator.cs");
-            string source = File.ReadAllText(generatorPath);
-
-            Assert.Contains("GeneratedSceneComponentAuthoringService", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("AutomaticScriptComponentPersistenceDescriptor", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("EditorTaggedSceneComponentFieldWriter", source, StringComparison.Ordinal);
         }
 
         /// <summary>

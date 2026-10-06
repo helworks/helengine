@@ -1,4 +1,5 @@
 using helengine.directx11;
+using helengine.baseplatform.Definitions;
 using helengine.editor.tests.testing;
 
 namespace helengine.editor.tests.managers.project;
@@ -93,7 +94,14 @@ public sealed class EditorWindowsBuildScenePackagerAudioTests : IDisposable {
             });
         WriteSceneAsset(scenePath, [SceneAssetReferenceTestFactory.CreateFileSystemAudio(audioRelativePath)]);
 
-        EditorPlatformBuildScenePackager packager = CreatePackager("ds");
+        PlatformDefinition platform = new PlatformDefinition("ds", "Nintendo DS", [], [], [], [], [], [], [], [],
+            assetCookCapabilities: [new PlatformAssetCookCapabilityDefinition(
+                "audio", "runtime-audio", PlatformAssetCookOwnershipKind.EditorOwned, "ds-audio-settings",
+                string.Empty, null, string.Empty, PlatformAssetNamingPolicy.PreserveAssetId,
+                new PlatformAudioLimits(32768, 2))]);
+        EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+            ProjectRootPath, [new AudioImporterRegistration("test-audio", new TestAudioImporter(), [".wav"])],
+            platform, TestGeneratedAssetGraph.CreateShaderLibrary());
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.PackagePreservingIdentityPaths([scenePath], [scenePath], BuildRootPath));
 

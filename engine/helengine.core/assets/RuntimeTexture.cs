@@ -24,6 +24,13 @@ namespace helengine {
         public bool IsEngineOwned { get; set; }
 
         /// <summary>
+        /// Gets or sets whether this runtime font atlas stores independent RGB subpixel coverage.
+        /// Its alpha channel retains grayscale coverage for scaled text and transparent render targets.
+        /// This flag belongs to runtime UI fonts and is not part of the cooked texture format.
+        /// </summary>
+        public bool UsesRgbFontCoverage { get; set; }
+
+        /// <summary>
         /// Releases renderer-owned resources associated with this runtime texture.
         /// </summary>
         public virtual void Dispose() {

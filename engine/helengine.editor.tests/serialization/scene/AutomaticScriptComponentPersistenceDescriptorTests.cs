@@ -37,6 +37,44 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures loaded project modules round-trip without probing the default assembly context before their resolver.
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Deserialize_WhenProjectModuleIsRegistered_DoesNotProbeDefaultAssemblyContext(bool useRegistry) {
+            string moduleId = "SceneScriptModule" + Guid.NewGuid().ToString("N");
+            ScriptTypeResolver resolver = new ScriptTypeResolver();
+            resolver.Register(moduleId, typeof(TestScriptSerializableComponent).Assembly);
+            AutomaticScriptComponentPersistenceDescriptor automaticDescriptor = new AutomaticScriptComponentPersistenceDescriptor(
+                new ScriptComponentReflectionSchemaBuilder(), resolver);
+            SceneComponentAssetRecord record = automaticDescriptor.SerializeComponent(
+                new TestScriptSerializableComponent { DisplayName = "Demo menu" }, 0, new EntityComponentSaveState());
+            record.ComponentTypeId = typeof(TestScriptSerializableComponent).FullName + ", " + moduleId;
+            List<string> missingAssemblies = new List<string>();
+            EventHandler<System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs> handler = (sender, args) => {
+                if (args.Exception is FileNotFoundException missing && missing.FileName != null
+                    && missing.FileName.StartsWith(moduleId, StringComparison.Ordinal)) {
+                    missingAssemblies.Add(missing.FileName);
+                }
+            };
+
+            AppDomain.CurrentDomain.FirstChanceException += handler;
+            try {
+                IComponentPersistenceDescriptor descriptor = useRegistry
+                    ? new ComponentPersistenceRegistry(resolver).GetDescriptor(record.ComponentTypeId)
+                    : automaticDescriptor;
+                TestScriptSerializableComponent restored = Assert.IsType<TestScriptSerializableComponent>(
+                    descriptor.DeserializeComponent(record, null, null));
+                Assert.Equal("Demo menu", restored.DisplayName);
+            } finally {
+                AppDomain.CurrentDomain.FirstChanceException -= handler;
+            }
+
+            Assert.Empty(missingAssemblies);
+        }
+
+        /// <summary>
         /// Ensures supported scripted-component members serialize through the reflected fallback and round-trip successfully without warning noise.
         /// </summary>
         [Fact]
@@ -612,6 +650,8 @@ namespace helengine.editor.tests.serialization.scene {
                 VisibleItemCount = 4,
                 ScrollStepCount = 2,
                 WheelNotchSize = 120,
+                ShowScrollBar = false,
+                ScrollBarThickness = 12,
                 RequiresPointerInside = false
             };
             component.ContentRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
@@ -626,6 +666,9 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(2, deserialized.ScrollStepCount);
             Assert.Equal(120, deserialized.WheelNotchSize);
             Assert.False(deserialized.RequiresPointerInside);
+            Assert.False(deserialized.ShowScrollBar);
+            Assert.Equal(12, deserialized.ScrollBarThickness);
+            Assert.Null(deserialized.ScrollBar);
             Assert.Null(deserialized.ContentRoot);
         }
 

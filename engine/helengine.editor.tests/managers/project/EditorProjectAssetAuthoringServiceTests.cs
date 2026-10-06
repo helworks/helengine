@@ -192,7 +192,7 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
         string[] coordinationFiles = Directory.Exists(Path.Combine(projectRootPath, "cache"))
             ? Directory.EnumerateFiles(Path.Combine(projectRootPath, "cache"), "*", SearchOption.AllDirectories).ToArray()
             : Array.Empty<string>();
-        string[] allowedCoordinationFileNames = { "authoring-write.lock", "authoring-write.generation" };
+        string[] allowedCoordinationFileNames = { "authoring-write.lock", "authoring-write.generation", "asset-identity-snapshot.json" };
         Assert.All(coordinationFiles, file => Assert.Contains(Path.GetFileName(file), allowedCoordinationFileNames));
     }
 

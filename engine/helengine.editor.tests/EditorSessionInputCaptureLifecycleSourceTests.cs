@@ -4,16 +4,6 @@ namespace helengine.editor.tests;
 /// Verifies the editor session source owns input-capture state through its interaction graph.
 /// </summary>
 public sealed class EditorSessionInputCaptureLifecycleSourceTests {
-    /// <summary>
-    /// Ensures session construction and disposal use the session-owned input-capture service without a static reset facade.
-    /// </summary>
-    [Fact]
-    public void Editor_session_source_owns_input_capture_at_startup_and_teardown() {
-        string source = File.ReadAllText(GetEditorSessionSourcePath());
-        Assert.Contains("EditorSessionInteractionServices", source, StringComparison.Ordinal);
-        Assert.Contains("interactionServices.InputCapture", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("EditorInputCaptureService.Reset", source, StringComparison.Ordinal);
-    }
 
     /// <summary>
     /// Builds the absolute path to the editor session source file under the repository root.

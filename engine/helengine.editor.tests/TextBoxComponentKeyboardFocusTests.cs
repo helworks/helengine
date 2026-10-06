@@ -6,7 +6,20 @@ namespace helengine.editor.tests {
     /// <summary>
     /// Verifies keyboard-focus behavior for text boxes.
     /// </summary>
-    public class TextBoxComponentKeyboardFocusTests {
+    public class TextBoxComponentKeyboardFocusTests : IDisposable {
+        /// <summary>Core owned by this fixture, including the entities that hold global text focus.</summary>
+        Core CoreValue;
+
+        /// <summary>Retires textbox components so their focus cannot affect the next test session.</summary>
+        public void Dispose() {
+            if (CoreValue != null) {
+                foreach (Entity entity in CoreValue.ObjectManager.Entities.Where(entity => entity.Parent == null).ToArray()) {
+                    entity.Dispose();
+                }
+            }
+            CoreValue?.Dispose();
+        }
+
         /// <summary>
         /// Ensures text-box focus reuses the existing text-entry focus semantics and does not treat Space as activation.
         /// </summary>
@@ -280,8 +293,8 @@ namespace helengine.editor.tests {
         /// Initializes the core services required by keyboard-focus tests.
         /// </summary>
         void InitializeCore() {
-            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
-            core.Initialize(null, new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            CoreValue = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            CoreValue.Initialize(null, new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>

@@ -52,3 +52,25 @@ float4 PS(PS_INPUT input) : SV_TARGET
 {
     return spriteTexture.Sample(samp, input.uv) * color;
 }
+
+// A scaled glyph or an intermediate surface cannot preserve physical RGB subpixel positions.
+float4 FontGrayscalePS(PS_INPUT input) : SV_TARGET
+{
+    return float4(color.rgb, spriteTexture.Sample(samp, input.uv).a * color.a);
+}
+
+// Dual-source blending composites each coverage channel against the actual background.
+struct FontBlendOutput
+{
+    float4 foreground : SV_Target0;
+    float4 coverage : SV_Target1;
+};
+
+FontBlendOutput FontClearTypePS(PS_INPUT input)
+{
+    float4 mask = spriteTexture.Sample(samp, input.uv) * color.a;
+    FontBlendOutput output;
+    output.foreground = float4(color.rgb * mask.rgb, mask.a);
+    output.coverage = mask;
+    return output;
+}

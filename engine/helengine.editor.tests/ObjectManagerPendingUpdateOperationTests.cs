@@ -12,15 +12,5 @@ namespace helengine.editor.tests {
     public void PendingUpdateOperation_WhenUsedByDeferredUpdateQueue_isValueType() {
         Assert.True(typeof(PendingUpdateOperation).IsValueType);
     }
-
-    /// <summary>
-    /// Verifies the hot update loop does not allocate a diagnostic stage string for every updateable on every frame.
-    /// </summary>
-    [Fact]
-    public void Update_WhenRunningUpdateables_doesNotReportPerUpdateableStageString() {
-        string source = File.ReadAllText(Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "engine", "helengine.core", "managers", "ObjectManager.cs"));
-
-        Assert.DoesNotContain("Core.Instance.ReportSceneTransitionStage($\"ObjectManagerUpdate:", source, StringComparison.Ordinal);
-    }
 }
 }

@@ -606,10 +606,9 @@ namespace helengine.editor.tests {
         public void Package_WhenDsBuilderCooksMaterialWithImportedDiffuseTexture_PopulatesTextureRelativePath() {
             string sceneId = "Scenes/TexturedMaterialScene.helen";
             string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.hasset";
-            string textureAssetId = "ff8a0f1fafe1f1c4989f73f39db8b800512e09e26439b011cb7afb0fed44dd5a";
+            string textureAssetId = WriteSourceTextureAssetAndReturnAssetId("Images/diffuse.png", ".png", "ds");
             string expectedTextureRelativePath = $"cooked/imported/{RuntimeAssetIdGenerator.Generate(textureAssetId):x16}.hetex";
 
-            WriteCachedTextureAsset(textureAssetId);
             WriteCityStyleStandardMaterialAsset(materialRelativePath, textureAssetId);
             WriteSceneAsset(sceneId, materialRelativePath);
 
@@ -636,7 +635,7 @@ namespace helengine.editor.tests {
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
-                Array.Empty<IAssetImporterRegistration>(),
+                [new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"])],
                 "ds",
                 materialBuilder,
                 "ds-default",
@@ -4452,7 +4451,9 @@ namespace helengine.editor.tests {
                         "ds-texture-settings",
                         string.Empty,
                         null,
-                        ".hetex")
+                        ".hetex",
+                        PlatformAssetNamingPolicy.RuntimeAssetIdHex16,
+                        null)
                 ]);
         }
 
@@ -5552,7 +5553,8 @@ namespace helengine.editor.tests {
                 new RuntimeGenerationContract(
                     RuntimeMaterialResolutionMode.CookedPlatformOwned,
                     true,
-                    PackagedPathPolicy.ContentRelativeOnly));
+                    PackagedPathPolicy.ContentRelativeOnly),
+                assetCookCapabilities: CreateDsBuilderOwnedTexturePlatformDefinition().AssetCookCapabilities);
         }
 
         /// <summary>

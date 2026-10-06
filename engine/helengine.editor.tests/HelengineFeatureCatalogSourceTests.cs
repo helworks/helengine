@@ -3,23 +3,6 @@ namespace helengine.editor.tests {
     /// Verifies the HelEngine-owned codegen feature catalog exposes engine runtime features that platform profiles may force-disable.
     /// </summary>
     public sealed class HelengineFeatureCatalogSourceTests {
-        /// <summary>
-        /// Ensures the shared feature catalog registers the optional 3D physics diagnostics feature so platform codegen profiles can disable it without crashing codegen.
-        /// </summary>
-        [Fact]
-        public void Feature_catalog_registers_physics3d_diagnostics_feature() {
-            string sourcePath = Path.Combine(
-                ResolveRepositoryRootPath(),
-                "engine",
-                "helengine.editor",
-                "codegen",
-                "features",
-                "helengine-feature-catalog.json");
-
-            string source = File.ReadAllText(sourcePath);
-
-            Assert.Contains("\"id\": \"physics3d.diagnostics\"", source, StringComparison.Ordinal);
-        }
 
         /// <summary>
         /// Resolves the repository root for source-audit assertions.

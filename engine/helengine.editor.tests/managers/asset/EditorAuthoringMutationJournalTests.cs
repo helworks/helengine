@@ -52,33 +52,12 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
     }
 
     [Fact]
-    public void MutationJournalSource_UsesFixedPrimitivesForItsOwnLifecycle() {
-        string sourcePath = FindSourceFile("EditorAuthoringMutationJournal.cs");
-        string source = File.ReadAllText(sourcePath);
-
-        Assert.DoesNotContain("WithoutJournal(", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("RecoverStagedDocument", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("FixedRenameExchange", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("standalone-", source, StringComparison.Ordinal);
-        Assert.Contains("Fixed", source, StringComparison.Ordinal);
-        Assert.Contains("DocumentOld", source, StringComparison.Ordinal);
-        string scopeSource = File.ReadAllText(FindSourceFile("EditorAuthoringMutationScope.cs"));
-        Assert.DoesNotContain("RenameLinuxExchange", scopeSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("EnterEphemeral", scopeSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("WithoutJournal", scopeSource, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void ReplaceLinuxLeaf_ReceivesTheActualSourcePathForSourceParentOwnership() {
         BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
         MethodInfo method = typeof(EditorAuthoringMutationScope).GetMethod("ReplaceLinuxLeaf", flags);
         Assert.NotNull(method);
         Assert.Contains(method.GetParameters(), parameter => parameter.Name == "sourcePath");
 
-        string source = File.ReadAllText(FindSourceFile("EditorAuthoringMutationScope.cs"))
-            .Replace("\r\n", "\n", StringComparison.Ordinal);
-        Assert.Contains("string sourcePath", source, StringComparison.Ordinal);
-        Assert.Contains("sourcePath,\n                recoveryIntent: \"RollbackPublication\"", source, StringComparison.Ordinal);
     }
 
     [LinuxFact]

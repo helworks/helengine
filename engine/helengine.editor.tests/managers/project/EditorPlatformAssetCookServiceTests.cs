@@ -407,7 +407,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     /// <summary>
     /// Verifies the committed point-shadow rendering scene cooks successfully with the installed Windows builder metadata.
     /// </summary>
-    [Fact]
+    [InstalledTestProjectPlatformFact("windows")]
     public void Cook_when_using_committed_point_shadow_scene_with_windows_builder_metadata_succeeds() {
         string repositoryRootPath = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
         string sourceProjectRootPath = Path.Combine(repositoryRootPath, "test-project");
@@ -448,7 +448,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     /// <summary>
     /// Verifies the Windows builder publishes material schema metadata and cooks materials with a base-color buffer.
     /// </summary>
-    [Fact]
+    [InstalledTestProjectPlatformFact("windows")]
     public void Cook_when_builder_definition_publishes_standard_material_schema_cooks_material_with_base_color_buffer() {
         string repositoryRootPath = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
         string sourceProjectRootPath = Path.Combine(repositoryRootPath, "test-project");

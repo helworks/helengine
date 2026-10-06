@@ -85,7 +85,10 @@ namespace helengine.editor {
                 return null;
             }
 
-            return Resolve(platformId).SelectionModel;
+            EnsureLoaded(platformId);
+            return LoadedBuildersByPlatformId.TryGetValue(platformId, out EditorLoadedPlatformBuilder builder)
+                ? builder.SelectionModel
+                : null;
         }
 
         /// <summary>

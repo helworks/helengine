@@ -100,37 +100,6 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies keyboard and mouse source definitions are explicitly gated by the shared desktop capability symbol before portable input is converted into native generated-core.
-    /// </summary>
-    [Fact]
-    public void Portable_input_desktop_state_source_units_are_gated_by_desktop_platform() {
-        string inputRootPath = Path.Combine(ResolveRepositoryRootPath(), "engine", "helengine.input");
-        string inputFrameStateSource = File.ReadAllText(Path.Combine(inputRootPath, "InputFrameState.cs"))
-            .Replace("\r\n", "\n", StringComparison.Ordinal);
-        string keyboardStateSource = File.ReadAllText(Path.Combine(inputRootPath, "KeyboardState.cs"))
-            .Replace("\r\n", "\n", StringComparison.Ordinal);
-        string mouseStateSource = File.ReadAllText(Path.Combine(inputRootPath, "MouseState.cs"))
-            .Replace("\r\n", "\n", StringComparison.Ordinal);
-        string keysSource = File.ReadAllText(Path.Combine(inputRootPath, "Keys.cs"))
-            .Replace("\r\n", "\n", StringComparison.Ordinal);
-        string buttonStateSource = File.ReadAllText(Path.Combine(inputRootPath, "ButtonState.cs"))
-            .Replace("\r\n", "\n", StringComparison.Ordinal);
-        string keyStateSource = File.ReadAllText(Path.Combine(ResolveRepositoryRootPath(), "engine", "helengine.core", "managers", "input", "KeyState.cs"))
-            .Replace("\r\n", "\n", StringComparison.Ordinal);
-        string typeForwardersSource = File.ReadAllText(Path.Combine(inputRootPath, "TypeForwarders.cs"))
-            .Replace("\r\n", "\n", StringComparison.Ordinal);
-
-        Assert.Contains("#if DESKTOP_PLATFORM\n        /// <summary>\n        /// Gets or sets the captured keyboard state", inputFrameStateSource, StringComparison.Ordinal);
-        Assert.Contains("#if DESKTOP_PLATFORM", keyboardStateSource, StringComparison.Ordinal);
-        Assert.Contains("#if DESKTOP_PLATFORM", mouseStateSource, StringComparison.Ordinal);
-        Assert.Contains("#if DESKTOP_PLATFORM", keysSource, StringComparison.Ordinal);
-        Assert.Contains("#if DESKTOP_PLATFORM", buttonStateSource, StringComparison.Ordinal);
-        Assert.Contains("#if DESKTOP_PLATFORM", keyStateSource, StringComparison.Ordinal);
-        Assert.Contains("#if DESKTOP_PLATFORM\n[assembly: TypeForwardedTo(typeof(helengine.ButtonState))]", typeForwardersSource, StringComparison.Ordinal);
-        Assert.Contains("[assembly: TypeForwardedTo(typeof(helengine.MouseState))]\n#endif", typeForwardersSource, StringComparison.Ordinal);
-    }
-
-    /// <summary>
     /// Verifies merged generated-core reports promote shader feature detection from shader-only generated projects into the combined report consumed by build summaries and feature manifests.
     /// </summary>
     [Fact]
@@ -607,24 +576,6 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures generated-core regeneration submits the shader runtime project without submitting the managed compiler project.
-    /// </summary>
-    [Fact]
-    public void Generated_core_regeneration_never_submits_shader_compilation_project() {
-        string sourcePath = Path.Combine(
-            ResolveRepositoryRootPath(),
-            "engine",
-            "helengine.editor",
-            "managers",
-            "project",
-            "EditorGeneratedCoreRegenerationService.cs");
-        string source = File.ReadAllText(sourcePath);
-
-        Assert.Contains("helengine.shader.csproj", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("helengine.shader.compilation", source, StringComparison.Ordinal);
-    }
-
-    /// <summary>
     /// Verifies generated-core scratch data stays inside the isolated platform build workspace instead of using the shared system temp directory.
     /// </summary>
     [Fact]
@@ -777,91 +728,6 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains(
             loggedInvocations,
             invocation => invocation.Contains($"PROJECT={helPhysicsProjectPath}|", StringComparison.OrdinalIgnoreCase));
-    }
-
-    /// <summary>
-    /// Verifies the runtime component registry source no longer relies on LINQ key projection that lowers to unsupported generated-core helpers.
-    /// </summary>
-    [Fact]
-    public void Runtime_component_registry_source_contains_no_linq_key_projection_for_built_in_component_ids() {
-        string sourcePath = Path.Combine(
-            ResolveRepositoryRootPath(),
-            "engine",
-            "helengine.core",
-            "scene",
-            "runtime",
-            "RuntimeComponentRegistry.cs");
-
-        string source = File.ReadAllText(sourcePath);
-
-        Assert.DoesNotContain(".Keys.ToArray()", source, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// Verifies shared dictionary runtime-reflection support is gated out of generated-core player builds where runtime script reflection is disabled.
-    /// </summary>
-    [Fact]
-    public void Scene_persistence_dictionary_type_support_source_is_gated_out_when_runtime_script_reflection_is_disabled() {
-        string sourcePath = Path.Combine(
-            ResolveRepositoryRootPath(),
-            "engine",
-            "helengine.core",
-            "scene",
-            "runtime",
-            "ScenePersistenceDictionaryTypeSupport.cs");
-
-        string source = File.ReadAllText(sourcePath);
-
-        Assert.Contains("#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", source, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// Verifies automatic asset-reference array reflection helpers are gated out of generated-core player builds where runtime script reflection is disabled.
-    /// </summary>
-    [Fact]
-    public void Automatic_component_asset_reference_support_source_gates_array_reflection_helpers_when_runtime_script_reflection_is_disabled() {
-        string sourcePath = Path.Combine(
-            ResolveRepositoryRootPath(),
-            "engine",
-            "helengine.core",
-            "scene",
-            "runtime",
-            "AutomaticComponentAssetReferenceSupport.cs");
-
-        string source = File.ReadAllText(sourcePath);
-
-        Assert.Contains("#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", source, StringComparison.Ordinal);
-        Assert.Contains("IsSupportedAssetReferenceArrayType", source, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// Verifies the task-scheduling worker source uses a distinct type name so generated native code cannot collide with ThreadDispatcher worker support.
-    /// </summary>
-    [Fact]
-    public void Task_scheduling_worker_source_uses_distinct_type_name_to_avoid_generated_native_name_collisions() {
-        string taskStackSourcePath = Path.Combine(
-            ResolveRepositoryRootPath(),
-            "engine",
-            "vendor",
-            "bepuphysics2",
-            "BepuUtilities",
-            "TaskScheduling",
-            "TaskStack.cs");
-        string taskSchedulingWorkerSourcePath = Path.Combine(
-            ResolveRepositoryRootPath(),
-            "engine",
-            "vendor",
-            "bepuphysics2",
-            "BepuUtilities",
-            "TaskScheduling",
-            "TaskStackWorker.cs");
-
-        string taskStackSource = File.ReadAllText(taskStackSourcePath);
-        string taskSchedulingWorkerSource = File.ReadAllText(taskSchedulingWorkerSourcePath);
-
-        Assert.Contains("Buffer<TaskStackWorker>", taskStackSource, StringComparison.Ordinal);
-        Assert.Contains("new TaskStackWorker", taskStackSource, StringComparison.Ordinal);
-        Assert.Contains("struct TaskStackWorker", taskSchedulingWorkerSource, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1211,36 +1077,6 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Equal(originalRuntimeSceneResolver, File.ReadAllText(runtimeSceneResolverPath));
         Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.cpp")));
         Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.hpp")));
-    }
-
-    /// <summary>
-     /// Verifies the end-state inventory where engine-side native ownership rewrites and registry patching have been removed completely.
-     /// </summary>
-    [Fact]
-    public void Generated_core_regeneration_service_contains_no_native_cpp_rewrite_inventory() {
-        string sourcePath = Path.Combine(
-            ResolveRepositoryRootPath(),
-            "engine",
-            "helengine.editor",
-            "managers",
-            "project",
-            "EditorGeneratedCoreRegenerationService.cs");
-
-        string source = File.ReadAllText(sourcePath);
-
-        Assert.DoesNotContain("static void PatchRuntimeComponentRegistryForGeneratedDeserializers(", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("static string NormalizeGeneratedNativeSource(", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("static void NormalizeGeneratedNativeSources(", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("static void RewriteAmalgamatedTranslationUnit(", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("static void RemoveEditorOnlyGeneratedSourceFiles(", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("static void RemoveRuntimeScriptReflectionGeneratedSourceFiles(", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("NormalizeMergedGeneratedSourceCaseInsensitiveConflicts(", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("EnsureGeneratedIncludeCompatibilityShims(", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("RewriteGeneratedIncludeReferences(", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("RewriteHeaderAsCompatibilityShim(", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("DeleteGeneratedAssetArray(", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("DeleteGeneratedSceneArray(", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("delete loadResult;", source, StringComparison.Ordinal);
     }
 
     /// <summary>

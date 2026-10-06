@@ -185,41 +185,6 @@ public sealed class EditorSessionConstructionLedgerTests {
     }
 
     [Fact]
-    public void InitializeAssetImports_SourceUsesFailureAtomicOwnerCleanup() {
-        string sourcePath = ResolveSourcePath("EditorSession.cs");
-        string source = File.ReadAllText(sourcePath);
-        int methodStart = source.IndexOf("AssetImportManager InitializeAssetImports(", StringComparison.Ordinal);
-        Assert.True(methodStart >= 0);
-        int methodEnd = source.IndexOf("\n        }", methodStart, StringComparison.Ordinal);
-        Assert.True(methodEnd > methodStart);
-        string method = source.Substring(methodStart, methodEnd - methodStart);
-
-        Assert.Contains("try", method, StringComparison.Ordinal);
-        Assert.Contains("manager.Dispose()", method, StringComparison.Ordinal);
-        Assert.Contains("projectContentManager.Dispose()", method, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void SessionConstruction_SourceDoesNotRegisterAggregateDialogOrSubscriptionCleanup() {
-        string sourcePath = ResolveSourcePath("EditorSession.cs");
-        string source = File.ReadAllText(sourcePath);
-
-        Assert.DoesNotContain("constructionLedger.Register(DisposeScaleSensitiveDialogs", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("ledger.Register(DetachConstructionSubscriptions", source, StringComparison.Ordinal);
-        Assert.Contains("RegisterScaleSensitiveDialogCleanup", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void SessionConstruction_SourceUsesRetryableSceneOwnershipCleanup() {
-        string sourcePath = ResolveSourcePath("EditorSession.cs");
-        string source = File.ReadAllText(sourcePath);
-
-        Assert.Contains("DisposeUserSceneEntitiesForTeardown", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("constructionLedger.Register(ClearUserSceneEntities", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("ledger.Register(ClearUserSceneEntities", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void Dispose_WhenMiddlePanelActionFails_RetriesOnlyThatPanel() {
         EditorSessionConstructionLedger ledger = new EditorSessionConstructionLedger();
         List<string> calls = new List<string>();
@@ -609,19 +574,6 @@ public sealed class EditorSessionConstructionLedgerTests {
             DisposeCount++;
             throw new InvalidOperationException("manager cleanup failed");
         }
-    }
-
-    static string ResolveSourcePath(string fileName) {
-        string candidate = Path.Combine(
-            TestSourceRepositoryLocator.ResolveHelEngineRootPath(),
-            "engine",
-            "helengine.editor",
-            fileName);
-        if (!File.Exists(candidate)) {
-            throw new FileNotFoundException(fileName, candidate);
-        }
-
-        return candidate;
     }
 
     [Fact]

@@ -367,9 +367,9 @@ namespace helengine.editor.tests {
 
             AssertTitleBarButtonUsesLightText(fileButtonEntity, "File");
             AssertTitleBarButtonUsesLightText(addButtonEntity, "Add");
-            AssertTitleBarButtonUsesLightText(minimizeButtonEntity, "-");
-            AssertTitleBarButtonUsesLightText(maximizeButtonEntity, "Max");
-            AssertTitleBarButtonUsesLightText(closeButtonEntity, "X");
+            Assert.Equal(ThemeManager.Colors.AccentQuaternary, FindComponent<EditorWindowControlIconComponent>(minimizeButtonEntity).Sprite.Color);
+            Assert.Equal(ThemeManager.Colors.AccentQuaternary, FindComponent<EditorWindowControlIconComponent>(maximizeButtonEntity).Sprite.Color);
+            Assert.Equal(ThemeManager.Colors.AccentQuaternary, FindComponent<EditorWindowControlIconComponent>(closeButtonEntity).Sprite.Color);
         }
 
         /// <summary>
@@ -445,6 +445,28 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new FakeContentStreamSource()
             });
             core.Initialize(null, new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+        }
+
+        /// <summary>Checks that SVG window controls are rerasterized at native DPI dimensions and retain their restore state across scale changes.</summary>
+        [Fact]
+        public void ApplyUiMetrics_RerasterizesWindowIconsAndRetainsRestoreState() {
+            InitializeCore();
+            FontAsset font = CreateFont();
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new EditorSessionInteractionServices(), font, 1280, 720, "Editor");
+            EditorEntity maximize = GetPrivateField<EditorEntity>(titleBar, "MaximizeButtonEntity");
+            EditorWindowControlIconComponent icon = FindComponent<EditorWindowControlIconComponent>(maximize);
+            titleBar.SetWindowMaximized(true);
+            RuntimeTexture original = icon.Sprite.Texture;
+            titleBar.ApplyUiMetrics(font, new EditorUiMetrics(1.5d));
+            Assert.Equal(EditorWindowControlIconKind.Restore, icon.Kind);
+            Assert.Equal(new int2(18, 18), icon.Sprite.Size);
+            Assert.Equal(18, icon.Sprite.Texture.Width);
+            Assert.Equal(18, icon.Sprite.Texture.Height);
+            Assert.True(original.IsDisposed);
+            Assert.Equal(18f, icon.Sprite.Parent.LocalPosition.X);
+            Assert.Equal(11f, icon.Sprite.Parent.LocalPosition.Y);
+            titleBar.SetWindowMaximized(false);
+            Assert.Equal(EditorWindowControlIconKind.Maximize, icon.Kind);
         }
 
         /// <summary>

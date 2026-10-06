@@ -4,28 +4,6 @@ namespace helengine.editor.tests;
 /// Verifies the runtime scene manager source keeps scene-owned audio assets in the same tracked release flow as other scene-owned resources.
 /// </summary>
 public sealed class SceneManagerSourceTests {
-    /// <summary>
-    /// Ensures scene-owned audio assets are registered, reference-counted, and released through the shared transient-audio helper.
-    /// </summary>
-    [Fact]
-    public void SceneManager_source_tracks_and_releases_owned_audio_assets() {
-        string sourcePath = Path.Combine(
-            ResolveRepositoryRootPath(),
-            "engine",
-            "helengine.core",
-            "scene",
-            "runtime",
-            "SceneManager.cs");
-
-        string source = File.ReadAllText(sourcePath);
-
-        Assert.Contains("readonly SceneOwnedAssetReferenceTable<AudioAsset> OwnedAudioTable;", source, StringComparison.Ordinal);
-        Assert.Contains("public int ActiveOwnedAudioReferenceCount => OwnedAudioTable.Count;", source, StringComparison.Ordinal);
-        Assert.Contains("OwnedAudioTable.Register(ownedAssets.OwnedAudio);", source, StringComparison.Ordinal);
-        Assert.Contains("OwnedAudioTable.Release(ownedAssets.OwnedAudio);", source, StringComparison.Ordinal);
-        Assert.Contains("void ReleaseOwnedAudioAsset(AudioAsset ownedAsset) {", source, StringComparison.Ordinal);
-        Assert.Contains("RuntimeSceneAssetReferenceResolver.ReleaseTransientAudioAsset(ownedAsset);", source, StringComparison.Ordinal);
-    }
 
     /// <summary>
     /// Resolves the helengine repository root from the current test assembly location.

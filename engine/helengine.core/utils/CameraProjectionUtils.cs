@@ -14,6 +14,11 @@ namespace helengine {
         public const float MinimumPlaneSeparation = 0.01f;
 
         /// <summary>
+        /// Minimum legal full vertical span for an orthographic camera projection.
+        /// </summary>
+        public const float MinimumOrthographicVerticalSpan = 0.001f;
+
+        /// <summary>
         /// Default vertical field of view in radians, 45 degrees. Platform renderers used to
         /// choose this value individually, so the same authored scene framed differently on
         /// each platform. DirectX11, Vulkan, Dreamcast and Xbox 360 each picked 45 degrees,
@@ -72,6 +77,64 @@ namespace helengine {
         /// <param name="fieldOfView">Vertical field of view in radians.</param>
         /// <param name="aspectRatio">Viewport aspect ratio.</param>
         /// <returns>Perspective projection matrix built from validated clip-plane values.</returns>
+        /// <summary>
+        /// Gets the vertical world-space distance represented by one viewport pixel at a given camera distance.
+        /// </summary>
+        /// <param name="camera">Camera defining the active projection.</param>
+        /// <param name="distance">Positive distance from the camera to the projected point.</param>
+        /// <param name="viewportHeight">Positive viewport height measured in pixels.</param>
+        /// <returns>Vertical world-space units represented by one pixel.</returns>
+        public static double GetWorldUnitsPerPixel(ICamera camera, double distance, double viewportHeight) {
+            if (camera == null) {
+                throw new ArgumentNullException(nameof(camera));
+            }
+            ValidatePositiveFinite(distance, nameof(distance));
+            ValidatePositiveFinite(viewportHeight, nameof(viewportHeight));
+
+            ICameraProjectionSettings settings = camera as ICameraProjectionSettings;
+            if (settings != null && settings.ProjectionMode == CameraProjectionMode.Orthographic) {
+                return ValidateOrthographicVerticalSpan(settings.OrthographicVerticalSpan) / viewportHeight;
+            }
+            if (settings != null && settings.ProjectionMode != CameraProjectionMode.Perspective) {
+                throw new ArgumentOutOfRangeException(nameof(settings.ProjectionMode), settings.ProjectionMode, "The camera projection mode is not supported.");
+            }
+
+            float fieldOfView = camera.FieldOfView;
+            if (!float.IsFinite(fieldOfView) || fieldOfView <= 0f) {
+                throw new ArgumentOutOfRangeException(nameof(camera), "The camera field of view must be finite and positive.");
+            }
+            double clampedFieldOfView = ClampFieldOfView(fieldOfView);
+            double worldHeight = 2.0 * distance * Math.Tan(clampedFieldOfView * 0.5);
+            double worldUnitsPerPixel = worldHeight / viewportHeight;
+            if (!double.IsFinite(worldUnitsPerPixel) || worldUnitsPerPixel <= 0.0) {
+                throw new ArgumentOutOfRangeException(nameof(distance), "The requested camera scale is outside the supported numeric range.");
+            }
+            return worldUnitsPerPixel;
+        }
+
+        /// <summary>
+        /// Validates a full vertical span before it is used to create orthographic geometry.
+        /// </summary>
+        /// <param name="span">Requested orthographic vertical span.</param>
+        /// <returns>The validated vertical span.</returns>
+        static float ValidateOrthographicVerticalSpan(float span) {
+            if (!float.IsFinite(span) || span < MinimumOrthographicVerticalSpan) {
+                throw new ArgumentOutOfRangeException(nameof(span), span, "Orthographic vertical span must be finite and at least the configured minimum.");
+            }
+            return span;
+        }
+
+        /// <summary>
+        /// Validates a positive finite scalar used by projection-dependent calculations.
+        /// </summary>
+        /// <param name="value">Value to validate.</param>
+        /// <param name="parameterName">Public parameter name used in validation errors.</param>
+        static void ValidatePositiveFinite(double value, string parameterName) {
+            if (!double.IsFinite(value) || value <= 0.0) {
+                throw new ArgumentOutOfRangeException(parameterName, value, "The value must be finite and positive.");
+            }
+        }
+
         /// <summary>
         /// Creates a validated perspective projection matrix using the camera's own field of view.
         /// </summary>

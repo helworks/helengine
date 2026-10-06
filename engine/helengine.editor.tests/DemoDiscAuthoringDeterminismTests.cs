@@ -785,6 +785,11 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
 
         foreach (string fullPath in Directory.EnumerateFiles(projectRootPath, "*", SearchOption.AllDirectories)) {
             string relativePath = Path.GetRelativePath(projectRootPath, fullPath).Replace('\\', '/');
+            // This disposable startup cache records the last full scan, not authored state.
+            // Incremental writes and identity repairs are reflected on the next scan.
+            if (relativePath == "cache/editor/asset-identity-snapshot.json") {
+                continue;
+            }
             byte[] bytes = File.ReadAllBytes(fullPath);
             snapshot.Add(relativePath, new AuthoredFileSnapshot(
                 bytes,

@@ -185,6 +185,68 @@ namespace helengine.editor {
         public CameraComponent Camera => camera;
 
         /// <summary>
+        /// Sets the camera position and orientation together with its orbit pivot and cached angular state.
+        /// </summary>
+        /// <param name="pivot">World-space orbit pivot.</param>
+        /// <param name="orientation">Camera orientation to apply.</param>
+        /// <param name="distance">Positive distance from the camera to the pivot.</param>
+        public void SetViewPose(float3 pivot, float4 orientation, double distance) {
+            if (!float.IsFinite(pivot.X) || !float.IsFinite(pivot.Y) || !float.IsFinite(pivot.Z)) {
+                throw new ArgumentOutOfRangeException(nameof(pivot), "The orbit pivot must contain only finite values.");
+            }
+            if (!float.IsFinite(orientation.X) || !float.IsFinite(orientation.Y) || !float.IsFinite(orientation.Z) || !float.IsFinite(orientation.W)) {
+                throw new ArgumentOutOfRangeException(nameof(orientation), "The camera orientation must contain only finite values.");
+            }
+            if (!double.IsFinite(distance) || distance < MinOrbitDistance) {
+                throw new ArgumentOutOfRangeException(nameof(distance), distance, "The camera distance must be finite and at least the minimum orbit distance.");
+            }
+            if (Parent == null) {
+                throw new InvalidOperationException("The viewport camera controller must be attached before setting its view pose.");
+            }
+
+            double orientationLengthSquared =
+                (orientation.X * orientation.X) +
+                (orientation.Y * orientation.Y) +
+                (orientation.Z * orientation.Z) +
+                (orientation.W * orientation.W);
+            if (!double.IsFinite(orientationLengthSquared) || orientationLengthSquared <= MinLengthSquared) {
+                throw new ArgumentOutOfRangeException(nameof(orientation), "The camera orientation must have non-zero magnitude.");
+            }
+
+            float4 normalizedOrientation = orientation;
+            normalizedOrientation.Normalize();
+
+            float3 forward = GetForward(normalizedOrientation);
+            double positionX = pivot.X - (forward.X * distance);
+            double positionY = pivot.Y - (forward.Y * distance);
+            double positionZ = pivot.Z - (forward.Z * distance);
+            if (!double.IsFinite(positionX) || Math.Abs(positionX) > float.MaxValue ||
+                !double.IsFinite(positionY) || Math.Abs(positionY) > float.MaxValue ||
+                !double.IsFinite(positionZ) || Math.Abs(positionZ) > float.MaxValue) {
+                throw new ArgumentOutOfRangeException(nameof(distance), distance, "The camera distance must produce a finite world position representable in single precision.");
+            }
+
+            Parent.Orientation = normalizedOrientation;
+            Parent.Position = new float3((float)positionX, (float)positionY, (float)positionZ);
+            virtualTarget = pivot;
+            orbitDistance = distance;
+            hasVirtualTargetState = true;
+            yaw = Math.Atan2(-forward.X, -forward.Z);
+            pitch = Math.Clamp(Math.Asin(forward.Y), -MaxPitch, MaxPitch);
+            hasOrientationState = true;
+
+            Entity selectedEntity = EditorSessionInteractionServices.From(Parent).Selection.SelectedEntity;
+            if (selectedEntity != null) {
+                selectionOrbitTargetOverrideEntity = selectedEntity;
+                selectionOrbitTargetOverride = pivot;
+                hasSelectionOrbitTargetOverride = true;
+            } else {
+                selectionOrbitTargetOverrideEntity = null;
+                hasSelectionOrbitTargetOverride = false;
+            }
+        }
+
+        /// <summary>
         /// Gets the current orbit pivot used by camera pan, orbit, and wheel zoom interactions.
         /// </summary>
         /// <returns>Current world-space orbit target.</returns>
@@ -603,10 +665,7 @@ namespace helengine.editor {
         /// <param name="right">Second world position.</param>
         /// <returns>Distance between the supplied positions.</returns>
         double GetDistance(float3 left, float3 right) {
-            double deltaX = left.X - right.X;
-            double deltaY = left.Y - right.Y;
-            double deltaZ = left.Z - right.Z;
-            return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
+            return float3.Distance(left, right);
         }
 
         /// <summary>

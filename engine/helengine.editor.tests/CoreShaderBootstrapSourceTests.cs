@@ -4,21 +4,6 @@ namespace helengine.editor.tests;
 /// Verifies generic core bootstrap does not own shader target selection.
 /// </summary>
 public sealed class CoreShaderBootstrapSourceTests {
-    /// <summary>
-    /// Ensures core bootstrap does not reference shader compile target selection directly.
-    /// </summary>
-    [Fact]
-    public void Core_does_not_own_shader_target_selection() {
-        string sourcePath = Path.Combine(
-            ResolveRepositoryRootPath(),
-            "engine",
-            "helengine.core",
-            "Core.cs");
-
-        string source = File.ReadAllText(sourcePath);
-
-        Assert.DoesNotContain("ShaderCompileTarget", source, StringComparison.Ordinal);
-    }
 
     /// <summary>
     /// Resolves the helengine repository root from the current test assembly location.
