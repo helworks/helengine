@@ -37,6 +37,34 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Keeps blueprint authoring metadata readable while an empty or runtime-only project script host is active.
+        /// </summary>
+        /// <param name="useRegistry">Whether lookup goes through the registry used by scene packaging.</param>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Deserialize_WhenEditorComponentUsesProjectResolver_RoundTripsBlueprintMetadata(bool useRegistry) {
+            ScriptTypeResolver resolver = new ScriptTypeResolver();
+            AutomaticScriptComponentPersistenceDescriptor automaticDescriptor = new AutomaticScriptComponentPersistenceDescriptor(
+                new ScriptComponentReflectionSchemaBuilder(), resolver);
+            BlueprintInstanceComponent component = new BlueprintInstanceComponent {
+                BlueprintAssetReference = SceneAssetReferenceTestFactory.CreateCurrentFileSystem("Blueprints/Preview.heblueprint")
+            };
+            SceneComponentAssetRecord record = automaticDescriptor.SerializeComponent(component, 0, new EntityComponentSaveState());
+            IComponentPersistenceDescriptor descriptor = useRegistry
+                ? new ComponentPersistenceRegistry(resolver).GetDescriptor(record.ComponentTypeId)
+                : automaticDescriptor;
+
+            BlueprintInstanceComponent restored = Assert.IsType<BlueprintInstanceComponent>(
+                descriptor.DeserializeComponent(record, null, null));
+
+            Assert.Equal(component.BlueprintAssetReference.RelativePath, restored.BlueprintAssetReference.RelativePath);
+            Assert.Equal(component.BlueprintAssetReference.AssetId, restored.BlueprintAssetReference.AssetId);
+            Assert.Equal(component.BlueprintAssetReference.ContentHash, restored.BlueprintAssetReference.ContentHash);
+            Assert.Empty(restored.EntityReferenceOverrides);
+        }
+
+        /// <summary>
         /// Ensures loaded project modules round-trip without probing the default assembly context before their resolver.
         /// </summary>
         [Theory]
