@@ -650,6 +650,8 @@ namespace helengine.editor.tests.serialization.scene {
                 VisibleItemCount = 4,
                 ScrollStepCount = 2,
                 WheelNotchSize = 120,
+                ShowScrollBar = false,
+                ScrollBarThickness = 12,
                 RequiresPointerInside = false
             };
             component.ContentRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
@@ -664,6 +666,9 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(2, deserialized.ScrollStepCount);
             Assert.Equal(120, deserialized.WheelNotchSize);
             Assert.False(deserialized.RequiresPointerInside);
+            Assert.False(deserialized.ShowScrollBar);
+            Assert.Equal(12, deserialized.ScrollBarThickness);
+            Assert.Null(deserialized.ScrollBar);
             Assert.Null(deserialized.ContentRoot);
         }
 

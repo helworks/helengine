@@ -63,11 +63,6 @@ namespace helengine.editor {
         ObjectManager ObjectManager;
 
         /// <summary>
-        /// Scrollbar for the environment list.
-        /// </summary>
-        readonly ScrollBarComponent EnvironmentListScrollBar;
-
-        /// <summary>
         /// Pooled environment rows.
         /// </summary>
         readonly List<EnvironmentsDialogRow> EnvironmentRows;
@@ -173,12 +168,7 @@ namespace helengine.editor {
             EnvironmentListScrollComponent.ScrollOffsetChanged += HandleEnvironmentListScrollOffsetChanged;
             EnvironmentListRoot.AddComponent(EnvironmentListScrollComponent);
 
-            EnvironmentListScrollBar = new ScrollBarComponent(new int2(GetListScrollBarWidthPixels(), GetEnvironmentListViewportHeightPixels()));
-            EnvironmentListScrollBar.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
-            EditorEntity scrollBarHost = CreateInternalHost();
-            DialogPanelRoot.AddChild(scrollBarHost);
-            scrollBarHost.AddComponent(EnvironmentListScrollBar);
-            EnvironmentListScrollBar.Target = EnvironmentListScrollComponent;
+            EnvironmentListScrollComponent.ScrollBarThickness = GetListScrollBarWidthPixels();
 
             EditorEntity inputHost = CreateInternalHost();
             DialogPanelRoot.AddChild(inputHost);
@@ -462,11 +452,10 @@ namespace helengine.editor {
             int contentHeight = GetEnvironmentListViewportHeightPixels();
             EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
                 EnvironmentListScrollComponent,
-                new int2(contentWidth, contentHeight),
+                new int2(GetContentWidth(), contentHeight),
                 GetEnvironmentRowHeightPixels(),
                 WorkingDocument.Environments.Count);
             EnvironmentListScrollComponent.ClampScrollOffset();
-            EnvironmentListScrollBar.Refresh();
 
             int visibleRowCount = EnvironmentListScrollComponent.VisibleItemCount;
             EnsureEnvironmentRowPool(visibleRowCount);
@@ -539,9 +528,7 @@ namespace helengine.editor {
             EnvironmentListRoot.Position = new float3(contentLeft, listTop, 0.1f);
 
             int scrollBarWidth = GetListScrollBarWidthPixels();
-            EditorEntity scrollBarHost = EnvironmentListScrollBar.Parent as EditorEntity;
-            scrollBarHost.Position = new float3(contentLeft + contentWidth - scrollBarWidth, listTop, 0.1f);
-            EnvironmentListScrollBar.Size = new int2(scrollBarWidth, GetEnvironmentListViewportHeightPixels());
+            EnvironmentListScrollComponent.ScrollBarThickness = scrollBarWidth;
 
             int inputTop = listTop + GetEnvironmentListViewportHeightPixels() + GetSectionSpacingPixels();
             EnvironmentIdTextBox.Parent.Position = new float3(contentLeft, inputTop, 0.1f);

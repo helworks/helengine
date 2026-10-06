@@ -2,11 +2,29 @@ namespace helengine {
     /// <summary>
     /// Tracks wheel-driven list scrolling for a rectangular viewport, acts as its own clip region, derives the visible range when needed, and can translate a bound content root automatically.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class ScrollComponent : UpdateComponent, IClipRegion2D {
         /// <summary>
         /// Standard mouse-wheel delta used to represent one notch on Windows-compatible devices.
         /// </summary>
         const int StandardWheelNotch = 120;
+
+        /// <summary>Default thickness of the scrollbar rendered inside the viewport.</summary>
+        const int DefaultScrollBarThickness = 8;
+
+        /// <summary>Controls whether this viewport owns a scrollbar; enabled by default.</summary>
+        bool ShowScrollBarValue = true;
+
+        /// <summary>Thickness in pixels of the scrollbar along its non-scrolling axis.</summary>
+        int ScrollBarThicknessValue = DefaultScrollBarThickness;
+
+        /// <summary>Runtime entity owning the optional scrollbar and its visuals.</summary>
+        Entity ScrollBarHost;
+
+        /// <summary>Runtime scrollbar created only while scrollbar support is enabled.</summary>
+        ScrollBarComponent ScrollBarValue;
 
         /// <summary>
         /// Size of the scroll viewport in screen-space pixels.
@@ -22,6 +40,11 @@ namespace helengine {
         /// Pixel height or extent consumed by one item in the scrolling content.
         /// </summary>
         int ItemExtentValue = 1;
+
+        /// <summary>
+        /// Axis along which this scroll component measures and translates content.
+        /// </summary>
+        ScrollOrientation OrientationValue;
 
         /// <summary>
         /// Number of items visible inside the current viewport, or zero when the component should derive it automatically.
@@ -58,6 +81,42 @@ namespace helengine {
         /// </summary>
         public event Action<ScrollComponent, int> ScrollOffsetChanged;
 
+        /// <summary>Gets or sets whether a scrollbar is created for this viewport. Defaults to true; disabling it disposes the scrollbar without disabling scrolling.</summary>
+        public bool ShowScrollBar {
+            get { return ShowScrollBarValue; }
+            set {
+                if (ShowScrollBarValue == value) {
+                    return;
+                }
+
+                ShowScrollBarValue = value;
+                if (value && Parent != null && ComponentExecutionPolicy.ShouldRunComponentLifecycle(this, Parent)) {
+                    CreateScrollBar();
+                } else if (!value) {
+                    RemoveScrollBar();
+                }
+            }
+        }
+
+        /// <summary>Gets or sets the positive scrollbar thickness in pixels; defaults to eight.</summary>
+        public int ScrollBarThickness {
+            get { return ScrollBarThicknessValue; }
+            set {
+                if (value < 1) {
+                    throw new ArgumentOutOfRangeException(nameof(value), "Scrollbar thickness must be positive.");
+                }
+
+                ScrollBarThicknessValue = value;
+                RefreshScrollBar();
+            }
+        }
+
+        /// <summary>Gets the runtime scrollbar, or null when scrollbar creation is disabled or this component is detached.</summary>
+        [ScenePersistenceIgnore]
+        public ScrollBarComponent ScrollBar {
+            get { return ScrollBarValue; }
+        }
+
         /// <summary>
         /// Gets or sets the viewport size used for pointer hit testing.
         /// </summary>
@@ -69,6 +128,7 @@ namespace helengine {
                 }
 
                 SizeValue = value;
+                ClampScrollOffset();
             }
         }
 
@@ -152,13 +212,16 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Gets or sets the entity whose world position should anchor the scroll viewport.
+        /// Gets or sets the entity whose world position should anchor the scroll viewport. When unset, the component uses the ancestor that owns its viewport clip rectangle, falling back to its parent.
         /// This binding is runtime-only and is excluded from reflected scene persistence.
         /// </summary>
         [ScenePersistenceIgnore]
         public Entity ClipOriginEntity {
             get { return ClipOriginEntityValue; }
-            set { ClipOriginEntityValue = value; }
+            set {
+                ClipOriginEntityValue = value;
+                RefreshScrollBar();
+            }
         }
 
         /// <summary>
@@ -205,10 +268,27 @@ namespace helengine {
         public bool ShowsPartialTrailingItem { get; set; }
 
         /// <summary>
-        /// Advances scrolling from the active mouse wheel while the pointer is inside the viewport.
+        /// Creates the optional scrollbar when the viewport is attached, including initially disabled entities.
         /// </summary>
+        /// <param name="entity">Entity owning the scroll viewport.</param>
+        public override void ComponentAdded(Entity entity) {
+            base.ComponentAdded(entity);
+            if (ShowScrollBarValue) {
+                CreateScrollBar();
+            }
+        }
+
+        /// <summary>Releases the owned scrollbar when the viewport is detached.</summary>
+        /// <param name="entity">Entity losing the scroll viewport.</param>
+        public override void ComponentRemoved(Entity entity) {
+            RemoveScrollBar();
+            base.ComponentRemoved(entity);
+        }
+
+        /// <summary>Advances wheel scrolling and updates the scrollbar layout.</summary>
         public override void Update() {
             TryApplyWheelInput();
+            RefreshScrollBar();
         }
 
         /// <summary>
@@ -241,6 +321,7 @@ namespace helengine {
         /// </summary>
         public void ClampScrollOffset() {
             SetScrollOffset(ScrollOffset, false);
+            RefreshScrollBar();
         }
 
         /// <summary>
@@ -306,7 +387,79 @@ namespace helengine {
             }
 
             ApplyContentRootOffset();
+            RefreshScrollBar();
             return true;
+        }
+
+        /// <summary>
+        /// Gets or sets the axis along which the viewport scrolls. Vertical is the default.
+        /// </summary>
+        public ScrollOrientation Orientation {
+            get { return OrientationValue; }
+            set {
+                if (value != ScrollOrientation.Vertical && value != ScrollOrientation.Horizontal) {
+                    throw new ArgumentOutOfRangeException(nameof(value), "Scroll orientation must be vertical or horizontal.");
+                }
+
+                if (OrientationValue == value) {
+                    return;
+                }
+
+                OrientationValue = value;
+                ClampScrollOffset();
+                ApplyContentRootOffset();
+            }
+        }
+
+        /// <summary>Creates the scrollbar subtree once during attachment or when scrollbar support is enabled.</summary>
+        void CreateScrollBar() {
+            ScrollBarHost = new Entity(OwnerCore);
+            ScrollBarHost.LayerMask = Parent.LayerMask;
+            ScrollBarHost.InitComponents();
+            if (Parent.Children == null) {
+                Parent.InitChildren();
+            }
+
+            Parent.AddChild(ScrollBarHost);
+            ScrollBarValue = new ScrollBarComponent(new int2(1, 1));
+            ScrollBarValue.Target = this;
+            ScrollBarHost.AddComponent(ScrollBarValue);
+            RefreshScrollBar();
+        }
+
+        /// <summary>Disposes the complete scrollbar subtree so disabled scrollbars retain no entities, visuals, or input regions.</summary>
+        void RemoveScrollBar() {
+            if (ScrollBarHost == null) {
+                return;
+            }
+
+            NativeOwnership.DisposeAndDelete(ScrollBarHost);
+            ScrollBarHost = null;
+            ScrollBarValue = null;
+        }
+
+        /// <summary>Anchors the scrollbar to the fixed viewport edge and refreshes its range after layout or scroll changes.</summary>
+        void RefreshScrollBar() {
+            if (ScrollBarValue == null) {
+                return;
+            }
+
+            float4 viewport = GetClipRect();
+            bool horizontal = OrientationValue == ScrollOrientation.Horizontal;
+            int thickness = Math.Min(ScrollBarThicknessValue, (int)(horizontal ? viewport.W : viewport.Z));
+            int trackLength = (int)(horizontal ? viewport.Z : viewport.W);
+            ScrollBarHost.Enabled = thickness > 0 && trackLength > 0;
+            if (!ScrollBarHost.Enabled) {
+                return;
+            }
+
+            ScrollBarHost.LayerMask = Parent.LayerMask;
+            float3 origin = Parent.Position;
+            ScrollBarHost.LocalPosition = new float3(
+                viewport.X - origin.X + (horizontal ? 0f : viewport.Z - thickness),
+                viewport.Y - origin.Y + (horizontal ? viewport.W - thickness : 0f),
+                1f);
+            ScrollBarValue.Size = horizontal ? new int2(trackLength, thickness) : new int2(thickness, trackLength);
         }
 
         /// <summary>
@@ -318,7 +471,11 @@ namespace helengine {
             }
 
             float3 position = ContentRootValue.LocalPosition;
-            ContentRootValue.LocalPosition = new float3(position.X, -(ScrollOffset * ItemExtentValue), position.Z);
+            if (OrientationValue == ScrollOrientation.Horizontal) {
+                ContentRootValue.LocalPosition = new float3(-(ScrollOffset * ItemExtentValue), position.Y, position.Z);
+            } else {
+                ContentRootValue.LocalPosition = new float3(position.X, -(ScrollOffset * ItemExtentValue), position.Z);
+            }
         }
 
         /// <summary>
@@ -369,11 +526,12 @@ namespace helengine {
             }
 
             int2 viewportSize = ResolveViewportSize();
+            int scrollAxisExtent = OrientationValue == ScrollOrientation.Horizontal ? viewportSize.X : viewportSize.Y;
             if (ShowsPartialTrailingItem) {
-                return Math.Max(1, (viewportSize.Y + extent - 1) / extent);
+                return Math.Max(1, (scrollAxisExtent + extent - 1) / extent);
             }
 
-            return Math.Max(1, viewportSize.Y / extent);
+            return Math.Max(1, scrollAxisExtent / extent);
         }
 
         /// <summary>

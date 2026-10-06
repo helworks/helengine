@@ -98,16 +98,6 @@ namespace helengine.editor {
         ObjectManager ObjectManager;
 
         /// <summary>
-        /// Host entity for the platform list's vertical scrollbar.
-        /// </summary>
-        readonly EditorEntity PlatformListScrollBarHost;
-
-        /// <summary>
-        /// Draggable scrollbar reflecting and driving <see cref="PlatformListScrollComponent"/>.
-        /// </summary>
-        readonly ScrollBarComponent PlatformListScrollBar;
-
-        /// <summary>
         /// Pooled, recycled visuals used to render whichever platform rows are currently visible.
         /// </summary>
         readonly List<PlatformsDialogRow> PlatformRows;
@@ -230,13 +220,7 @@ namespace helengine.editor {
             PlatformListScrollComponent.ScrollOffsetChanged += HandlePlatformListScrollOffsetChanged;
             PlatformListRoot.AddComponent(PlatformListScrollComponent);
 
-            PlatformListScrollBarHost = CreateInternalHost();
-            DialogPanelRoot.AddChild(PlatformListScrollBarHost);
-
-            PlatformListScrollBar = new ScrollBarComponent(new int2(GetPlatformListScrollBarWidthPixels(), GetPlatformListViewportHeightPixels()));
-            PlatformListScrollBar.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
-            PlatformListScrollBarHost.AddComponent(PlatformListScrollBar);
-            PlatformListScrollBar.Target = PlatformListScrollComponent;
+            PlatformListScrollComponent.ScrollBarThickness = GetPlatformListScrollBarWidthPixels();
 
             ActivePlatformLabelHost = CreateInternalHost();
             DialogPanelRoot.AddChild(ActivePlatformLabelHost);
@@ -417,11 +401,10 @@ namespace helengine.editor {
             int viewportHeight = GetPlatformListViewportHeightPixels();
             EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
                 PlatformListScrollComponent,
-                new int2(viewportWidth, viewportHeight),
+                new int2(GetContentWidth(), viewportHeight),
                 GetPlatformRowHeightPixels(),
                 AvailablePlatformIds.Count);
             PlatformListScrollComponent.ClampScrollOffset();
-            PlatformListScrollBar.Refresh();
 
             int visibleRowCount = PlatformListScrollComponent.VisibleItemCount;
             EnsurePlatformRowPool(visibleRowCount);
@@ -580,9 +563,7 @@ namespace helengine.editor {
             PlatformListRoot.Position = new float3(contentLeft, firstPlatformRowTop, 0.1f);
 
             int scrollBarWidth = GetPlatformListScrollBarWidthPixels();
-            int scrollBarLeft = contentLeft + contentWidth - scrollBarWidth;
-            PlatformListScrollBarHost.Position = new float3(scrollBarLeft, firstPlatformRowTop, 0.1f);
-            PlatformListScrollBar.Size = new int2(scrollBarWidth, GetPlatformListViewportHeightPixels());
+            PlatformListScrollComponent.ScrollBarThickness = scrollBarWidth;
 
             UpdatePlatformRowsLayout();
 

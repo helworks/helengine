@@ -157,7 +157,7 @@ namespace helengine.editor.tests {
 
             dialog.Show(new[] { "windows", "ps2", "linux" }, new[] { "windows" }, "windows");
 
-            ScrollBarComponent scrollBar = GetPrivateField<ScrollBarComponent>(dialog, "PlatformListScrollBar");
+            ScrollBarComponent scrollBar = GetPrivateField<ScrollComponent>(dialog, "PlatformListScrollComponent").ScrollBar;
             Assert.False(scrollBar.IsVisible);
         }
 
@@ -176,7 +176,7 @@ namespace helengine.editor.tests {
 
             dialog.Show(availablePlatformIds, new[] { availablePlatformIds[0] }, availablePlatformIds[0]);
 
-            ScrollBarComponent scrollBar = GetPrivateField<ScrollBarComponent>(dialog, "PlatformListScrollBar");
+            ScrollBarComponent scrollBar = GetPrivateField<ScrollComponent>(dialog, "PlatformListScrollComponent").ScrollBar;
             ScrollComponent scrollComponent = GetPrivateField<ScrollComponent>(dialog, "PlatformListScrollComponent");
             Assert.True(scrollBar.IsVisible);
             Assert.Equal(0, scrollComponent.ScrollOffset);

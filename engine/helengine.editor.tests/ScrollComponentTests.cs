@@ -40,6 +40,130 @@ namespace helengine.editor.tests {
             }
         }
 
+        /// <summary>Verifies that disabling scrollbar creation allocates no subtree or input regions while wheel scrolling still works.</summary>
+        [Fact]
+        public void ScrollComponent_WithScrollBarDisabled_CreatesNoObjectsAndStillScrolls() {
+            EditorEntity viewport = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            ScrollComponent scroll = new ScrollComponent {
+                ShowScrollBar = false,
+                Size = new int2(160, 100),
+                ItemCount = 24,
+                ItemExtent = 10
+            };
+            int entityCount = Core.Instance.ObjectManager.Entities.Count;
+            viewport.AddComponent(scroll);
+            viewport.InitializeHierarchy();
+
+            Assert.Null(scroll.ScrollBar);
+            Assert.Empty(viewport.Children);
+            Assert.Equal(entityCount, Core.Instance.ObjectManager.Entities.Count);
+            AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceInput(new MouseState(40, 50, -120, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            Assert.Equal(1, scroll.ScrollOffset);
+            Assert.Null(scroll.ScrollBar);
+            Assert.Equal(entityCount, Core.Instance.ObjectManager.Entities.Count);
+        }
+
+        /// <summary>Checks default creation, axis-specific track layout and pointer input, and range refresh without an offset-change event.</summary>
+        /// <param name="orientation">Scrolling axis used by the viewport and scrollbar.</param>
+        [Theory]
+        [InlineData(ScrollOrientation.Vertical)]
+        [InlineData(ScrollOrientation.Horizontal)]
+        public void ScrollComponent_DefaultScrollBar_FollowsViewportAndScrollAxis(ScrollOrientation orientation) {
+            EditorEntity viewport = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+                Position = new float3(20f, 30f, 0f)
+            };
+            ScrollComponent scroll = new ScrollComponent {
+                Orientation = orientation,
+                Size = new int2(160, 100),
+                ItemCount = 24,
+                ItemExtent = 10
+            };
+            viewport.AddComponent(scroll);
+            viewport.InitializeHierarchy();
+
+            Assert.True(scroll.ShowScrollBar);
+            ScrollBarComponent bar = Assert.IsType<ScrollBarComponent>(scroll.ScrollBar);
+            Assert.True(bar.IsVisible);
+            Assert.Equal(orientation == ScrollOrientation.Horizontal ? new int2(160, 8) : new int2(8, 100), bar.Size);
+            Assert.Equal(orientation == ScrollOrientation.Horizontal ? new float3(20f, 122f, 1f) : new float3(172f, 30f, 1f), bar.Parent.Position);
+            InteractableComponent interactable = Assert.Single(bar.Parent.Children[0].Components.OfType<InteractableComponent>());
+            interactable.OnCursor(new int2(159, 99), int2.Zero, PointerInteraction.Press);
+            interactable.OnCursor(new int2(159, 99), int2.Zero, PointerInteraction.Release);
+            Assert.Equal(scroll.MaximumScrollOffset, scroll.ScrollOffset);
+
+            scroll.ResetScrollOffset();
+            RoundedRectComponent thumb = Assert.Single(bar.Parent.Children[0].Children[0].Components.OfType<RoundedRectComponent>());
+            Assert.Equal(new float3(0f, 0f, 0.1f), thumb.Parent.LocalPosition);
+            scroll.ItemCount = 2;
+            Assert.False(bar.IsVisible);
+            scroll.ItemCount = 24;
+            Assert.True(bar.IsVisible);
+            scroll.Size = new int2(240, 200);
+            Assert.Equal(orientation == ScrollOrientation.Horizontal ? new int2(240, 8) : new int2(8, 200), bar.Size);
+        }
+
+        /// <summary>Verifies that toggling and removing the component disposes all owned entities and recreates exactly one scrollbar when requested.</summary>
+        [Fact]
+        public void ScrollComponent_TogglingScrollBar_ReleasesAndRecreatesOwnedObjects() {
+            EditorEntity viewport = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            ScrollComponent scroll = new ScrollComponent {
+                ShowScrollBar = false,
+                Size = new int2(160, 100),
+                ItemCount = 24,
+                ItemExtent = 10
+            };
+            viewport.AddComponent(scroll);
+            viewport.InitializeHierarchy();
+            int entityCount = Core.Instance.ObjectManager.Entities.Count;
+            scroll.ScrollTo(4);
+            scroll.ShowScrollBar = true;
+            Entity firstHost = scroll.ScrollBar.Parent;
+            int enabledEntityCount = Core.Instance.ObjectManager.Entities.Count;
+            Assert.Equal(entityCount + 3, enabledEntityCount);
+            scroll.ShowScrollBar = true;
+            Assert.Equal(enabledEntityCount, Core.Instance.ObjectManager.Entities.Count);
+
+            scroll.ShowScrollBar = false;
+            Assert.True(firstHost.IsDisposed);
+            Assert.Null(scroll.ScrollBar);
+            Assert.Empty(viewport.Children);
+            Assert.Equal(entityCount, Core.Instance.ObjectManager.Entities.Count);
+            Assert.Equal(4, scroll.ScrollOffset);
+
+            scroll.ShowScrollBar = true;
+            Assert.NotSame(firstHost, scroll.ScrollBar.Parent);
+            Assert.Equal(enabledEntityCount, Core.Instance.ObjectManager.Entities.Count);
+            viewport.RemoveComponent(scroll);
+            Assert.Null(scroll.ScrollBar);
+            Assert.Empty(viewport.Children);
+            Assert.Equal(entityCount, Core.Instance.ObjectManager.Entities.Count);
+        }
+
+        /// <summary>Checks scrollbar initialization on disabled viewports and complete cleanup when the owning viewport is disposed.</summary>
+        [Fact]
+        public void ScrollComponent_OnInitiallyDisabledViewport_InitializesAndDisposesScrollBar() {
+            int entityCount = Core.Instance.ObjectManager.Entities.Count;
+            EditorEntity viewport = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+                Enabled = false
+            };
+            ScrollComponent scroll = new ScrollComponent {
+                Size = new int2(160, 100),
+                ItemCount = 24,
+                ItemExtent = 10
+            };
+            viewport.AddComponent(scroll);
+            viewport.InitializeHierarchy();
+            Assert.NotNull(scroll.ScrollBar);
+            Assert.False(scroll.ScrollBar.Parent.IsHierarchyEnabled);
+            viewport.Enabled = true;
+            Assert.True(scroll.ScrollBar.IsVisible);
+            Assert.True(scroll.ScrollBar.Parent.IsHierarchyEnabled);
+            viewport.Dispose();
+            Assert.Null(scroll.ScrollBar);
+            Assert.Equal(entityCount, Core.Instance.ObjectManager.Entities.Count);
+        }
+
         /// <summary>
         /// Ensures wheel scrolling advances the offset when the pointer is inside the viewport.
         /// </summary>
