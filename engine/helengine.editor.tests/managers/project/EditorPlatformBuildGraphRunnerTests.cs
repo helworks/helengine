@@ -235,8 +235,7 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                     queueItem.SelectedCodegenOptionValues,
                     "ps2-install-tree",
                     generatedCoreRootPath,
-                    "disc-layout",
-                    Path.Combine(rootPath, "native-object-cache")
+                    "disc-layout"
                 ]);
 
             Assert.Equal(generatedCoreRootPath, request.GeneratedCoreCppRootPath);
@@ -338,8 +337,7 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                     queueItem.SelectedCodegenOptionValues,
                     "windows-install-tree",
                     generatedCoreRootPath,
-                    "loose",
-                    Path.Combine(rootPath, "native-object-cache")
+                    "loose"
                 ]);
 
             PlatformCookProfile cookProfile = Assert.Single(request.CookProfiles);
@@ -441,8 +439,7 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                     queueItem.SelectedCodegenOptionValues,
                     "wiiu-install-tree",
                     generatedCoreRootPath,
-                    "loose",
-                    Path.Combine(rootPath, "native-object-cache")
+                    "loose"
                 ]);
 
             PlatformCookProfile cookProfile = Assert.Single(request.CookProfiles);
@@ -544,8 +541,7 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                     queueItem.SelectedCodegenOptionValues,
                     "switch-install-tree",
                     generatedCoreRootPath,
-                    "loose",
-                    Path.Combine(rootPath, "native-object-cache")
+                    "loose"
                 ]);
 
             PlatformCookProfile cookProfile = Assert.Single(request.CookProfiles);
@@ -647,8 +643,7 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                     queueItem.SelectedCodegenOptionValues,
                     "ds-cartridge",
                     generatedCoreRootPath,
-                    "nitrofs-package",
-                    Path.Combine(rootPath, "native-object-cache")
+                    "nitrofs-package"
                 ]);
 
             PlatformCookProfile cookProfile = Assert.Single(request.CookProfiles);
