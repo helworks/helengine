@@ -1,0 +1,11 @@
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+ <ItemGroup Label="ProjectConfigurations"><ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration></ItemGroup>
+ <PropertyGroup Label="Globals"><ProjectGuid>{BA3A33E4-241E-4D48-960B-78A3A0C7BF70}</ProjectGuid><Keyword>Win32Proj</Keyword><WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion></PropertyGroup>
+ <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+ <PropertyGroup Label="Configuration"><ConfigurationType>DynamicLibrary</ConfigurationType><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+ <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+ <PropertyGroup><TargetName>helengine.video.ffmpeg</TargetName><OutDir>$(NativeOutputRoot)\</OutDir><IntDir>$(NativeOutputRoot)\obj\</IntDir></PropertyGroup>
+ <ItemDefinitionGroup><ClCompile><LanguageStandard>stdcpp17</LanguageStandard><AdditionalIncludeDirectories>$(ProjectDir)include;$(FFmpegSdkRoot)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary><PreprocessorDefinitions>WIN32;_WINDOWS;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile><Link><AdditionalLibraryDirectories>$(FFmpegSdkRoot)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories><AdditionalDependencies>avformat.lib;avcodec.lib;avutil.lib;swscale.lib;swresample.lib;d3d11.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies></Link></ItemDefinitionGroup>
+ <ItemGroup><ClCompile Include="src\VideoDecoderExports.cpp" /><ClCompile Include="src\VideoFileProbeExports.cpp" /><ClCompile Include="src\AudioDecoderExports.cpp" /></ItemGroup>
+ <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

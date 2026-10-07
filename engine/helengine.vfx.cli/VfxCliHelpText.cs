@@ -14,6 +14,10 @@ namespace helengine.vfx.cli {
         public static string BuildGeneralHelp() {
             var builder = new StringBuilder();
             builder.AppendLine(VfxCliArguments.UsageLine);
+            builder.AppendLine("       helengine.vfx.cli composition capabilities --json");
+            builder.AppendLine("       helengine.vfx.cli composition validate --input <json> --assets-root <root>");
+            builder.AppendLine("       helengine.vfx.cli composition render --input <json> --assets-root <root> --out <file> --profile <id>");
+            builder.AppendLine("       helengine.vfx.cli composition frame --input <json> --assets-root <root> --time <n/d> --out <png>");
             builder.AppendLine("       helengine.vfx.cli --help [--effect <id>]");
             builder.AppendLine("       helengine.vfx.cli captions --help (SRT/Whisper to transparent PNG sequence)");
             builder.AppendLine();

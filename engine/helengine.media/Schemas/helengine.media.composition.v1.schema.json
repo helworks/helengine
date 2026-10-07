@@ -1,0 +1,630 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helengine.media.composition.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "revision",
+    "width",
+    "height",
+    "frame_rate",
+    "duration",
+    "audio",
+    "media",
+    "layers",
+    "audio_clips",
+    "transitions"
+  ],
+  "properties": {
+    "schema": {
+      "const": "helengine.media.composition.v1"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 16,
+      "maximum": 8192
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 16,
+      "maximum": 8192
+    },
+    "frame_rate": {
+      "$ref": "#/$defs/time"
+    },
+    "duration": {
+      "$ref": "#/$defs/time"
+    },
+    "audio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "sample_rate",
+        "channels"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "sample_rate": {
+          "type": "integer",
+          "minimum": 8000,
+          "maximum": 192000
+        },
+        "channels": {
+          "const": 2
+        }
+      }
+    },
+    "media": {
+      "type": "array",
+      "maxItems": 4096,
+      "items": {
+        "$ref": "#/$defs/media"
+      }
+    },
+    "layers": {
+      "type": "array",
+      "maxItems": 16384,
+      "items": {
+        "$ref": "#/$defs/layer"
+      }
+    },
+    "audio_clips": {
+      "type": "array",
+      "maxItems": 16384,
+      "items": {
+        "$ref": "#/$defs/audio_clip"
+      }
+    },
+    "transitions": {
+      "type": "array",
+      "maxItems": 8192,
+      "items": {
+        "$ref": "#/$defs/transition"
+      }
+    },
+    "background_color": {
+      "type": "string",
+      "pattern": "^#[a-fA-F0-9]{6}([a-fA-F0-9]{2})?$"
+    }
+  },
+  "$defs": {
+    "time": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "numerator",
+        "denominator"
+      ],
+      "properties": {
+        "numerator": {
+          "type": "integer"
+        },
+        "denominator": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "effect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "parameters"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "parameters": {
+          "type": "object"
+        },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "media": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "path",
+        "sha256",
+        "width",
+        "height",
+        "duration"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "image",
+            "video",
+            "audio"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "duration": {
+          "$ref": "#/$defs/time"
+        }
+      }
+    },
+    "layer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "media_id",
+        "order",
+        "start",
+        "end",
+        "source_in",
+        "source_out",
+        "effects"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "media_id": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "start": {
+          "$ref": "#/$defs/time"
+        },
+        "end": {
+          "$ref": "#/$defs/time"
+        },
+        "source_in": {
+          "$ref": "#/$defs/time"
+        },
+        "source_out": {
+          "$ref": "#/$defs/time"
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/effect"
+          }
+        },
+        "transform": {
+          "$ref": "#/$defs/transform"
+        },
+        "viewport": {
+          "$ref": "#/$defs/viewport"
+        },
+        "fit": {
+          "enum": [
+            "contain",
+            "cover"
+          ]
+        },
+        "animations": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/animation"
+          }
+        },
+        "kind": {
+          "enum": [
+            "media",
+            "text",
+            "group"
+          ]
+        },
+        "text": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mask": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/mask"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "padding_color": {
+          "type": "string",
+          "pattern": "^#[a-fA-F0-9]{6}([a-fA-F0-9]{2})?$"
+        },
+        "clip_to_viewport": {
+          "type": "boolean"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "audio_clip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "media_id",
+        "start",
+        "end",
+        "source_in",
+        "source_out",
+        "gain",
+        "muted"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "media_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start": {
+          "$ref": "#/$defs/time"
+        },
+        "end": {
+          "$ref": "#/$defs/time"
+        },
+        "source_in": {
+          "$ref": "#/$defs/time"
+        },
+        "source_out": {
+          "$ref": "#/$defs/time"
+        },
+        "gain": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 16
+        },
+        "muted": {
+          "type": "boolean"
+        },
+        "envelopes": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/audio_envelope"
+          }
+        }
+      }
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "from_layer",
+        "to_layer",
+        "start",
+        "duration",
+        "effect_id",
+        "effect_version"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "from_layer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "to_layer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start": {
+          "$ref": "#/$defs/time"
+        },
+        "duration": {
+          "$ref": "#/$defs/time"
+        },
+        "effect_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "effect_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "parameters": {
+          "type": "object",
+          "maxProperties": 0
+        }
+      }
+    },
+    "transform": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "position_x": {
+          "type": "number"
+        },
+        "position_y": {
+          "type": "number"
+        },
+        "scale_x": {
+          "type": "number"
+        },
+        "scale_y": {
+          "type": "number"
+        },
+        "opacity": {
+          "type": "number"
+        },
+        "zoom": {
+          "type": "number"
+        },
+        "focus_x": {
+          "type": "number"
+        },
+        "focus_y": {
+          "type": "number"
+        },
+        "rotation_degrees": {
+          "type": "number"
+        }
+      }
+    },
+    "viewport": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "width": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "height": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "keyframe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "time",
+        "value"
+      ],
+      "properties": {
+        "time": {
+          "$ref": "#/$defs/time"
+        },
+        "value": {
+          "type": "number"
+        },
+        "curve": {
+          "enum": [
+            "linear.v1",
+            "smoothstep.v1",
+            "ease_out_cubic.v1",
+            "ease_in_quad.v1"
+          ]
+        }
+      }
+    },
+    "animation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "property",
+        "keyframes"
+      ],
+      "properties": {
+        "property": {
+          "enum": [
+            "position_x",
+            "position_y",
+            "scale_x",
+            "scale_y",
+            "rotation_deg",
+            "opacity",
+            "zoom",
+            "focus_x",
+            "focus_y"
+          ]
+        },
+        "keyframes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8192,
+          "items": {
+            "$ref": "#/$defs/keyframe"
+          }
+        }
+      }
+    },
+    "mask": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "media_id"
+      ],
+      "properties": {
+        "media_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "channel": {
+          "enum": [
+            "alpha",
+            "luma"
+          ]
+        },
+        "inverted": {
+          "type": "boolean"
+        }
+      }
+    },
+    "text_word": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "start",
+        "end"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        },
+        "start": {
+          "$ref": "#/$defs/time"
+        },
+        "end": {
+          "$ref": "#/$defs/time"
+        }
+      }
+    },
+    "text_cue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "start",
+        "end"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        },
+        "start": {
+          "$ref": "#/$defs/time"
+        },
+        "end": {
+          "$ref": "#/$defs/time"
+        },
+        "words": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text_word"
+          }
+        }
+      }
+    },
+    "text": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cues"
+      ],
+      "properties": {
+        "cues": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8192,
+          "items": {
+            "$ref": "#/$defs/text_cue"
+          }
+        },
+        "style": {
+          "type": "object"
+        }
+      }
+    },
+    "audio_envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "linear",
+            "equal_power_in",
+            "equal_power_out"
+          ]
+        },
+        "start": {
+          "$ref": "#/$defs/time"
+        },
+        "duration": {
+          "$ref": "#/$defs/time"
+        },
+        "from": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 16
+        },
+        "to": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 16
+        }
+      }
+    }
+  }
+}

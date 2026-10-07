@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
     <UseCommonOutputDirectory>false</UseCommonOutputDirectory>
+    <MediaNativeDirectory Condition="'$(MediaNativeDirectory)' == '' and Exists('$(MSBuildThisFileDirectory)../../../../native/helengine.video.ffmpeg.dll')">$(MSBuildThisFileDirectory)../../../../native</MediaNativeDirectory>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,4 +24,6 @@
     </None>
   </ItemGroup>
 
+ <ItemGroup><ProjectReference Include="../helengine.media.windows/helengine.media.windows.csproj"/></ItemGroup>
+ <ItemGroup Condition="Exists('$(MediaNativeDirectory)/helengine.video.ffmpeg.dll')"><Content Include="$(MediaNativeDirectory)/*.dll" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/></ItemGroup>
 </Project>

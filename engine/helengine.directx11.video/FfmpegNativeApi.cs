@@ -60,5 +60,19 @@ namespace helengine.directx11.video {
         /// <param name="decoder">Native decoder handle.</param>
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern void he_video_decoder_flush(IntPtr decoder);
+        /// <summary>Returns a thread-local UTF-8 native diagnostic for the most recent failed operation.</summary>
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern IntPtr he_media_last_error();
+        /// <summary>Reads the native error while it still belongs to the current calling thread.</summary>
+        internal static string LastError() => Marshal.PtrToStringUTF8(he_media_last_error()) ?? "Native media operation failed.";
+        /// <summary>Probes video metadata without allocating a Direct3D device.</summary>
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode, ExactSpelling = true)]
+        internal static extern int he_video_probe([MarshalAs(UnmanagedType.LPWStr)] string sourcePath, out FfmpegNativeVideoStreamInfo info);
+        /// <summary>Copies a held frame into an independent RGBA texture without downloading hardware surfaces.</summary>
+        [DllImport(LibraryName, CallingConvention=CallingConvention.Cdecl, ExactSpelling=true)]
+        internal static extern int he_video_decoder_copy_rgba(IntPtr decoder,ref FfmpegNativeVideoFrame frame,out IntPtr texture);
+        /// <summary>Returns the source display matrix angle, normalized to orthogonal degrees.</summary>
+        [DllImport(LibraryName,CallingConvention=CallingConvention.Cdecl,ExactSpelling=true)]
+        internal static extern int he_video_decoder_rotation(IntPtr decoder);
     }
 }
