@@ -4,4 +4,5 @@
  <ItemGroup><ProjectReference Include="../helengine.directx11/helengine.directx11.csproj"/><ProjectReference Include="../helengine.shader.compilation/helengine.shader.compilation.csproj"/><ProjectReference Include="../helengine.vfx/helengine.vfx.csproj"/></ItemGroup>
  <ItemGroup><Content Include="shaders/**/*.hlsl*" Link="media/shaders/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/></ItemGroup>
  <ItemGroup><Content Include="../helengine.vfx.directx11/shaders/**/*.hlsl*" Link="shaders/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/></ItemGroup>
+ <ItemGroup><PackageReference Include="NAudio" Version="2.2.1"/></ItemGroup>
 </Project>
