@@ -29,6 +29,7 @@ public static class CompositionValidator {
             if (layer==null) { Add(errors,"invalid_item",path,"Layer cannot be null."); continue; }
             CheckIdentity(errors,items,layer.Id,path); CheckMedia(errors,media,layer.MediaId,path);
             CheckInterval(errors,layer.Start,layer.End,document.Duration,path);
+            if (ValidTime(layer.Start) && ValidTime(layer.End)) {errors.AddRange(AnimationValidator.Validate(layer,path));}
             if (layer.Effects==null) { Add(errors,"invalid_collection",path+".effects","Effects cannot be null."); continue; }
             foreach (MediaEffect effect in layer.Effects) { if (effect==null || !capabilities.Supports(effect.Id,effect.Version)) { Add(errors,"unknown_effect",path+".effects","Effect version is absent or unsupported."); } }
         }

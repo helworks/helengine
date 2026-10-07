@@ -25,4 +25,12 @@ public sealed class VisualLayer {
     /// <summary>Ordered typed effects pinned to implementation versions.</summary>
     [JsonRequired]
     public List<MediaEffect> Effects { get; set; } = [];
+    /// <summary>Independent static transform defaults for this layer.</summary>
+    public LayerTransform Transform {get;set;} = new();
+    /// <summary>Normalized presentation rectangle in the composition canvas.</summary>
+    public LayerViewport Viewport {get;set;} = new();
+    /// <summary>Source fitting performed before zoom.</summary>
+    public string Fit {get;set;} = "contain";
+    /// <summary>Independent typed property tracks evaluated in local layer time.</summary>
+    public List<PropertyAnimation> Animations {get;set;} = [];
 }
