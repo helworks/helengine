@@ -467,7 +467,9 @@
         "curve": {
           "enum": [
             "linear.v1",
-            "smoothstep.v1"
+            "smoothstep.v1",
+            "ease_out_cubic.v1",
+            "ease_in_quad.v1"
           ]
         }
       }

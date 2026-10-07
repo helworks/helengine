@@ -64,7 +64,7 @@ public sealed class DirectX11MediaCompositor : IMediaCompositor {
     }
     /// <summary>Produces a text or media frame without leaking ownership into the layer pass.</summary>
     MediaVideoFrame Frame(CompositionDocument document,LayerEvaluation evaluation,MediaTime time,RenderSize size) {
-        if(evaluation.Layer.Kind=="text") {string key=document.Width+":"+JsonSerializer.Serialize(evaluation.Layer.Text);if(Captions.TryGetValue(evaluation.Layer.Id,out var old) && CaptionKeys[evaluation.Layer.Id]!=key) {old.Dispose();Captions.Remove(evaluation.Layer.Id);CaptionKeys.Remove(evaluation.Layer.Id);}if(!Captions.TryGetValue(evaluation.Layer.Id,out var caption)) {caption=new(evaluation.Layer.Text,document.Width,Device);Captions.Add(evaluation.Layer.Id,caption);CaptionKeys.Add(evaluation.Layer.Id,key);}return caption.Render(time,size);}
+        if(evaluation.Layer.Kind=="text") {string key=document.Width+":"+JsonSerializer.Serialize(evaluation.Layer.Text);if(Captions.TryGetValue(evaluation.Layer.Id,out var old) && CaptionKeys[evaluation.Layer.Id]!=key) {old.Dispose();Captions.Remove(evaluation.Layer.Id);CaptionKeys.Remove(evaluation.Layer.Id);}if(!Captions.TryGetValue(evaluation.Layer.Id,out var caption)) {caption=new(evaluation.Layer.Text,document.Width,Device,(Resolver as WindowsMediaSourceResolver)?.AssetsRoot);Captions.Add(evaluation.Layer.Id,caption);CaptionKeys.Add(evaluation.Layer.Id,key);}return caption.Render(time,size);}
         return Source(document,evaluation.Layer.MediaId).ReadVideoFrame(evaluation.SourceTime);
     }
     /// <summary>Opens one independent source cursor only when an active layer needs it.</summary>

@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
     <UseCommonOutputDirectory>false</UseCommonOutputDirectory>
+    <MediaNativeDirectory Condition="'$(MediaNativeDirectory)' == '' and Exists('$(MSBuildThisFileDirectory)../../../../native/helengine.video.ffmpeg.dll')">$(MSBuildThisFileDirectory)../../../../native</MediaNativeDirectory>
   </PropertyGroup>
 
   <ItemGroup>

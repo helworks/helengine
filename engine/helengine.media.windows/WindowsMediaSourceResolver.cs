@@ -3,6 +3,8 @@ namespace helengine.media.windows;
 public sealed class WindowsMediaSourceResolver : IMediaSourceResolver {
     /// <summary>Authorized root, never supplied by model effect parameters.</summary>
     readonly string Root;
+    /// <summary>Authorized assets root used by portable caption font references.</summary>
+    public string AssetsRoot=>Root;
     /// <summary>Graphics device owned by the render session.</summary>
     readonly Device Device;
     /// <summary>Cursors tracked for deterministic cleanup even when a render fails.</summary>

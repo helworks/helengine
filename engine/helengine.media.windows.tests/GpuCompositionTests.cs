@@ -60,6 +60,11 @@ public sealed class GpuCompositionTests {
         using var resolver=new WindowsMediaSourceResolver(Root,device);using var compositor=new DirectX11MediaCompositor(device,resolver);
         var error=Assert.Throws<InvalidDataException>(()=>compositor.Render(document,MediaTime.Zero,new(32,32)));Assert.Contains("unknown_effect",error.Message);
     }
+    /// <summary>Portable caption styles cannot read a font outside the host-owned assets root.</summary>
+    [Fact] public void CaptionFontCannotEscapeAssetsRoot() {
+        var document=Document();document.Layers.Add(new(){Id="caption",Kind="text",Start=MediaTime.Zero,End=new(3,1),Text=new(){Cues=[new(){Text="OI",Start=MediaTime.Zero,End=new(3,1)}],Style=JsonSerializer.SerializeToElement(new{FontFamily="Arial",FontFile="C:/Windows/Fonts/arial.ttf",FontSize=18,Animation="None"})}});
+        using var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport);using var resolver=new WindowsMediaSourceResolver(Root,device);using var compositor=new DirectX11MediaCompositor(device,resolver);Assert.Throws<InvalidDataException>(()=>compositor.Render(document,new(1,1),new(32,32)));
+    }
     /// <summary>Creates a small solid-color RGBA fixture.</summary>
     static MediaReference Solid(string name,Color color) {using var image=new Bitmap(16,16);using(var graphics=Graphics.FromImage(image)) {graphics.Clear(color);}image.Save(Path.Combine(Root,name),ImageFormat.Png);return Reference(name,16,16);}
     /// <summary>Builds the pinned reference to a test raster.</summary>
