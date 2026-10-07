@@ -58,6 +58,7 @@ public static class CompositionValidator {
             else if (ValidTime(transition.Start)) { CheckInterval(errors,transition.Start,transition.Start+transition.Duration,document.Duration,path); }
             else { Add(errors,"invalid_interval",path,"Transition start must be valid."); }
         }
+        errors.AddRange(VisualSourceValidator.Validate(document));
         errors.AddRange(AudioClipValidator.Validate(document));
         errors.AddRange(TransitionValidator.Validate(document,capabilities));
         return errors;

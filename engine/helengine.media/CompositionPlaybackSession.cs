@@ -43,7 +43,7 @@ public sealed class CompositionPlaybackSession : IDisposable {
     /// <summary>Reports the audio-consumption clock or monotonic silent clock clamped to the timeline.</summary>
     public PlaybackSnapshot Snapshot() {Check();var elapsed=HasAudio?new MediaTime(Output.Generation==Interlocked.Read(ref Generation)?Output.ConsumedSampleFrames:0,Document.Audio.SampleRate):MediaTime.FromSeconds(SilentClock.Elapsed.TotalSeconds);var time=Anchor+elapsed;if(time>Document.Duration) {time=Document.Duration;}return new(time,Playing && time<Document.Duration,Interlocked.Read(ref Generation));}
     /// <summary>Renders the same executable timeline at the current exact clock instant.</summary>
-    public MediaVideoFrame ReadPreviewFrame(RenderSize size) {Check();var snapshot=Snapshot();lock(PictureGate) {Check();return Compositor.Render(Document,snapshot.Time,size);}}
+    public MediaVideoFrame ReadPreviewFrame(RenderSize size) {Check();var snapshot=Snapshot();lock(PictureGate) {Check();var time=snapshot.Time;if(time==Document.Duration){var clock=new CompositionClock(Document.FrameRate,Document.Audio.SampleRate,Document.Duration);time=clock.FrameTime(clock.FrameCount-1);}return Compositor.Render(Document,time,size);}}
     /// <summary>Cancels output pulls before releasing stream, source cursors and compositor.</summary>
     public void Dispose() {if(Disposed) {return;}Disposed=true;Cancellation.Cancel();Interlocked.Increment(ref Generation);Output.Dispose();lock(MixerGate) {Mixer.Dispose();}lock(PictureGate) {Compositor.Dispose();}SilentClock.Stop();}
     /// <summary>Publishes a new generation before flushing the output so old callbacks become silence.</summary>

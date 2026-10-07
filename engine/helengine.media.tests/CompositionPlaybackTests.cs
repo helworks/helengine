@@ -22,6 +22,8 @@ public sealed class CompositionPlaybackTests {
         using var resolver=new CountingAudioResolver();var output=new FakeCompositionAudioOutput();var compositor=new RecordingCompositionCompositor();var session=new CompositionPlaybackSession(Document(),compositor,new(resolver),output);session.Play();output.Reader(0,128,output.Generation);
         var handle=output.Token.WaitHandle;var blocked=Task.Run(()=>handle.WaitOne());session.Dispose();Assert.True(await blocked.WaitAsync(TimeSpan.FromSeconds(2)));Assert.True(output.Disposed);Assert.True(compositor.Disposed);
     }
+    /// <summary>The stopped preview holds the last in-range frame rather than clearing the scene at its exclusive end.</summary>
+    [Fact] public void EndOfTimelineHoldsLastPicture() {using var resolver=new CountingAudioResolver();var compositor=new RecordingCompositionCompositor();using var session=new CompositionPlaybackSession(Document(),compositor,new(resolver),new FakeCompositionAudioOutput());session.Seek(new(3,1));using var frame=session.ReadPreviewFrame(new(32,32));Assert.Equal(new MediaTime(71,24),frame.Timestamp);Assert.Equal(new MediaTime(3,1),session.Snapshot().Time);}
     /// <summary>Creates a resolved three-second voice timeline.</summary>
     static CompositionDocument Document()=>new(){Id="playback",Revision=1,Width=32,Height=32,FrameRate=new(24,1),Duration=new(3,1),Media=[new(){Id="tone",Kind="audio",Path="tone.wav",Sha256=new string('a',64),Duration=new(3,1)}],AudioClips=[new(){Id="voice",MediaId="tone",Start=MediaTime.Zero,End=new(3,1),SourceOut=new(3,1)}]};
 }
