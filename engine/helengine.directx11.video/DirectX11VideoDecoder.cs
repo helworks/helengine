@@ -18,6 +18,9 @@ namespace helengine.directx11.video {
         /// </summary>
         bool disposed;
 
+        /// <summary>Tracks managed frames that still borrow native decoder resources.</summary>
+        int OutstandingFrames;
+
         /// <summary>
         /// Initializes a new DirectX 11 video decoder.
         /// </summary>
@@ -47,7 +50,7 @@ namespace helengine.directx11.video {
             }
 
             if (decoderHandle == IntPtr.Zero) {
-                throw new InvalidOperationException("Native decoder failed to initialize for the supplied source.");
+                throw new InvalidOperationException("Native decoder failed to initialize: " + FfmpegNativeApi.LastError());
             }
 
             StreamInfo = CreateStreamInfo(nativeInfo);
@@ -78,7 +81,9 @@ namespace helengine.directx11.video {
                 return false;
             }
 
+            if (result < 0) { throw new InvalidOperationException("Native decode failed: " + FfmpegNativeApi.LastError()); }
             frame = new VideoFrame(this, nativeFrame);
+            OutstandingFrames++;
             return true;
         }
 
@@ -91,7 +96,7 @@ namespace helengine.directx11.video {
 
             int result = FfmpegNativeApi.he_video_decoder_seek(decoderHandle, timestamp.Ticks);
             if (result == 0) {
-                throw new InvalidOperationException("Native decoder failed to seek to the requested timestamp.");
+                throw new InvalidOperationException("Native decoder failed to seek: " + FfmpegNativeApi.LastError());
             }
         }
 
@@ -129,6 +134,7 @@ namespace helengine.directx11.video {
 
             EnsureNotDisposed();
             FfmpegNativeApi.he_video_decoder_release_frame(decoderHandle, ref nativeFrame);
+            OutstandingFrames--;
         }
 
         /// <summary>
@@ -139,6 +145,8 @@ namespace helengine.directx11.video {
             if (disposed) {
                 return;
             }
+
+            if (disposing && OutstandingFrames > 0) { throw new InvalidOperationException("Release video frames before disposing their decoder."); }
 
             if (decoderHandle != IntPtr.Zero) {
                 FfmpegNativeApi.he_video_decoder_destroy(decoderHandle);
