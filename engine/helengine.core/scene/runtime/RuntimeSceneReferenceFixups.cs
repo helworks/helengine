@@ -68,6 +68,10 @@ namespace helengine {
             NativeOwnership.Release(ref Requests);
         }
 
+        /// <summary>
+        /// Resolves references to this entity and visits existing children, including UI leaves without a child collection.
+        /// </summary>
+        /// <param name="entity">Entity to inspect during the current scene load.</param>
         void BindEntity(Entity entity) {
             if (entity == null) {
                 return;
@@ -91,8 +95,10 @@ namespace helengine {
                 }
             }
 
-            for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
-                BindEntity(entity.Children[childIndex]);
+            if (entity.Children != null) {
+                for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
+                    BindEntity(entity.Children[childIndex]);
+                }
             }
         }
 
