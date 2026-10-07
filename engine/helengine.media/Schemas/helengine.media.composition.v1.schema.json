@@ -1,0 +1,315 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helengine.media.composition.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "revision",
+    "width",
+    "height",
+    "frame_rate",
+    "duration",
+    "audio",
+    "media",
+    "layers",
+    "audio_clips",
+    "transitions"
+  ],
+  "properties": {
+    "schema": {
+      "const": "helengine.media.composition.v1"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 16,
+      "maximum": 8192
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 16,
+      "maximum": 8192
+    },
+    "frame_rate": {
+      "$ref": "#/$defs/time"
+    },
+    "duration": {
+      "$ref": "#/$defs/time"
+    },
+    "audio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "sample_rate",
+        "channels"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "sample_rate": {
+          "type": "integer",
+          "minimum": 8000,
+          "maximum": 192000
+        },
+        "channels": {
+          "const": 2
+        }
+      }
+    },
+    "media": {
+      "type": "array",
+      "maxItems": 4096,
+      "items": {
+        "$ref": "#/$defs/media"
+      }
+    },
+    "layers": {
+      "type": "array",
+      "maxItems": 16384,
+      "items": {
+        "$ref": "#/$defs/layer"
+      }
+    },
+    "audio_clips": {
+      "type": "array",
+      "maxItems": 16384,
+      "items": {
+        "$ref": "#/$defs/audio_clip"
+      }
+    },
+    "transitions": {
+      "type": "array",
+      "maxItems": 8192,
+      "items": {
+        "$ref": "#/$defs/transition"
+      }
+    }
+  },
+  "$defs": {
+    "time": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "numerator",
+        "denominator"
+      ],
+      "properties": {
+        "numerator": {
+          "type": "integer"
+        },
+        "denominator": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "effect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "parameters"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "parameters": {
+          "type": "object"
+        }
+      }
+    },
+    "media": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "path",
+        "sha256",
+        "width",
+        "height",
+        "duration"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "image",
+            "video",
+            "audio"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "duration": {
+          "$ref": "#/$defs/time"
+        }
+      }
+    },
+    "layer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "media_id",
+        "order",
+        "start",
+        "end",
+        "source_in",
+        "source_out",
+        "effects"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "media_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "order": {
+          "type": "integer"
+        },
+        "start": {
+          "$ref": "#/$defs/time"
+        },
+        "end": {
+          "$ref": "#/$defs/time"
+        },
+        "source_in": {
+          "$ref": "#/$defs/time"
+        },
+        "source_out": {
+          "$ref": "#/$defs/time"
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/effect"
+          }
+        }
+      }
+    },
+    "audio_clip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "media_id",
+        "start",
+        "end",
+        "source_in",
+        "source_out",
+        "gain",
+        "muted"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "media_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start": {
+          "$ref": "#/$defs/time"
+        },
+        "end": {
+          "$ref": "#/$defs/time"
+        },
+        "source_in": {
+          "$ref": "#/$defs/time"
+        },
+        "source_out": {
+          "$ref": "#/$defs/time"
+        },
+        "gain": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 16
+        },
+        "muted": {
+          "type": "boolean"
+        }
+      }
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "from_layer",
+        "to_layer",
+        "start",
+        "duration",
+        "effect_id",
+        "effect_version"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "from_layer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "to_layer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start": {
+          "$ref": "#/$defs/time"
+        },
+        "duration": {
+          "$ref": "#/$defs/time"
+        },
+        "effect_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "effect_version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}
