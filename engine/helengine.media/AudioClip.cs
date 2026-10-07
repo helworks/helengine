@@ -25,4 +25,6 @@ public sealed class AudioClip {
     /// <summary>Whether this item intentionally produces silence.</summary>
     [JsonRequired]
     public bool Muted { get; set; }
+    /// <summary>Gain envelopes evaluated per sample in local clip time.</summary>
+    public List<AudioEnvelope> Envelopes {get;set;} = [];
 }

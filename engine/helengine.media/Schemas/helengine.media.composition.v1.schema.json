@@ -329,6 +329,13 @@
         },
         "muted": {
           "type": "boolean"
+        },
+        "envelopes": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/audio_envelope"
+          }
         }
       }
     },
@@ -574,6 +581,35 @@
         },
         "style": {
           "type": "object"
+        }
+      }
+    },
+    "audio_envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "linear",
+            "equal_power_in",
+            "equal_power_out"
+          ]
+        },
+        "start": {
+          "$ref": "#/$defs/time"
+        },
+        "duration": {
+          "$ref": "#/$defs/time"
+        },
+        "from": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 16
+        },
+        "to": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 16
         }
       }
     }
