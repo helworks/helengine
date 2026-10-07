@@ -42,8 +42,14 @@ namespace helengine.core.tests.managers.rendering {
             Assert.Equal(4, sink.Runs[0].ScissorY);
             Assert.Equal(190, sink.Runs[0].ScissorWidth);
             Assert.Equal(180, sink.Runs[0].ScissorHeight);
-            Assert.Equal(-20f, sink.Vertices[0][0].Position.X, 4);
-            Assert.Equal(110f, sink.Vertices[0][0].Position.Y, 4);
+            Assert.Equal(10f, sink.Vertices[0][0].Position.X, 4);
+            Assert.Equal(20f, sink.Vertices[0][0].Position.Y, 4);
+            Assert.Equal(10f, sink.Vertices[0][1].Position.X, 4);
+            Assert.Equal(80f, sink.Vertices[0][1].Position.Y, 4);
+            Assert.Equal(-110f, sink.Vertices[0][2].Position.X, 4);
+            Assert.Equal(80f, sink.Vertices[0][2].Position.Y, 4);
+            Assert.Equal(-110f, sink.Vertices[0][3].Position.X, 4);
+            Assert.Equal(20f, sink.Vertices[0][3].Position.Y, 4);
             Assert.Equal(0f, sink.Vertices[0][0].Position.Z);
             Assert.Equal(0.25f, sink.Vertices[0][0].TexLocal.X);
             Assert.Equal(0.5f, sink.Vertices[0][0].TexLocal.Y);
@@ -51,6 +57,51 @@ namespace helengine.core.tests.managers.rendering {
             Assert.Equal(0.75f, sink.Vertices[0][2].TexLocal.Y);
             Assert.Equal(128f / 255f, sink.Vertices[0][0].Color.Y, 5);
             Assert.Equal(64f / 255f, sink.Vertices[0][0].Color.W, 5);
+        }
+
+        /// <summary>Preserves an animated backdrop's authored parent pivot and corner orientation throughout inherited rotation.</summary>
+        /// <param name="degrees">Parent rotation around the authored viewport center.</param>
+        [Theory]
+        [InlineData(0d)]
+        [InlineData(45d)]
+        [InlineData(90d)]
+        [InlineData(180d)]
+        [InlineData(270d)]
+        [InlineData(360d)]
+        public void EmitSprite_WhenBackdropParentRotates_PreservesAuthoredCenterAndCorners(double degrees) {
+            using Batch2DTestRenderManager renderer = new Batch2DTestRenderManager();
+            using Core core = CreateCore(renderer);
+            double radians = degrees * Math.PI / 180d;
+            Entity pivot = new Entity(core) {
+                Position = new float3(640f, 360f, 0f),
+                Orientation = new float4(0f, 0f, (float)Math.Sin(radians * 0.5d), (float)Math.Cos(radians * 0.5d))
+            };
+            Entity sprite = new Entity(core) { LocalPosition = new float3(-768f, -768f, 0f) };
+            pivot.InitChildren();
+            pivot.AddChild(sprite);
+            RuntimeTexture texture = renderer.CreateTexture(512, 512);
+            SpriteComponent drawable = new SpriteComponent { Texture = texture, Size = new int2(1536, 1536) };
+            sprite.InitComponents();
+            sprite.AddComponent(drawable);
+            RecordingBatch2DSink sink = new RecordingBatch2DSink();
+            using Batch2DWriter writer = new Batch2DWriter(sink, 8);
+            writer.ConfigureCamera(float4x4.Identity, new float4(0f, 0f, 1280f, 720f));
+            new Batch2DDrawableEmitter(writer, renderer).EmitSprite(drawable,
+                new Batch2DRun(Batch2DVariant.Textured, texture, 0, 0, 1280, 720));
+            writer.Flush();
+
+            Batch2DVertex[] vertices = Assert.Single(sink.Vertices);
+            Assert.Equal(4, vertices.Length);
+            Assert.Equal(640d, vertices.Average(vertex => (double)vertex.Position.X), 2);
+            Assert.Equal(360d, vertices.Average(vertex => (double)vertex.Position.Y), 2);
+            double cosine = Math.Cos(radians);
+            double sine = Math.Sin(radians);
+            double[] localX = { -768d, 768d, 768d, -768d };
+            double[] localY = { -768d, -768d, 768d, 768d };
+            for (int index = 0; index < vertices.Length; index++) {
+                Assert.Equal(640d + localX[index] * cosine - localY[index] * sine, vertices[index].Position.X, 2);
+                Assert.Equal(360d + localX[index] * sine + localY[index] * cosine, vertices[index].Position.Y, 2);
+            }
         }
 
         /// <summary>

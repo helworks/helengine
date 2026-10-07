@@ -29,6 +29,8 @@ namespace helengine {
             if (TrackedTextComponent != null) {
                 TextSize = TrackedTextComponent.Size;
                 TextFontScale = TrackedTextComponent.FontScale;
+                TextOutlineScale = TrackedTextComponent.OutlineScale;
+                TextShadowOffset = TrackedTextComponent.ShadowOffset;
             }
 
             TrackedSpriteComponent = FindSpriteComponent(entity);
@@ -114,6 +116,16 @@ namespace helengine {
         public float TextFontScale { get; }
 
         /// <summary>
+        /// Gets the authored outline thickness so viewport resizing preserves its proportion to the glyphs.
+        /// </summary>
+        public float TextOutlineScale { get; }
+
+        /// <summary>
+        /// Gets the authored shadow displacement before viewport scaling is applied.
+        /// </summary>
+        public float2 TextShadowOffset { get; }
+
+        /// <summary>
         /// Gets the attached sprite component when one exists.
         /// </summary>
         public SpriteComponent TrackedSpriteComponent { get; }
@@ -196,6 +208,10 @@ namespace helengine {
             if (TrackedTextComponent != null) {
                 TrackedTextComponent.Size = ScaleInt2(TextSize, widthScale, heightScale);
                 TrackedTextComponent.FontScale = ScaleFloat(TextFontScale, scalarScale);
+                TrackedTextComponent.OutlineScale = ScaleFloat(TextOutlineScale, scalarScale);
+                TrackedTextComponent.ShadowOffset = new float2(
+                    ScaleFloat(TextShadowOffset.X, scalarScale),
+                    ScaleFloat(TextShadowOffset.Y, scalarScale));
             }
 
             if (TrackedSpriteComponent != null) {

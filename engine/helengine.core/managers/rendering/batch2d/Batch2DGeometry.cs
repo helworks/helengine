@@ -3,6 +3,35 @@ namespace helengine {
     /// Builds the four value vertices used by textured drawable and rounded-shape batch quads.
     /// </summary>
     public static class Batch2DGeometry {
+        /// <summary>Creates a sprite quad from its transformed local origin and world-space horizontal and vertical axes.</summary>
+        /// <param name="origin">World position of the sprite's local top-left corner.</param>
+        /// <param name="right">World direction of the sprite's local positive X axis.</param>
+        /// <param name="down">World direction of the sprite's local positive Y axis.</param>
+        /// <param name="width">Local width multiplied by inherited horizontal scale.</param>
+        /// <param name="height">Local height multiplied by inherited vertical scale.</param>
+        /// <param name="depth">Pixel-space depth copied to every vertex.</param>
+        /// <param name="sourceRect">Normalized source rectangle ordered U, V, width, height.</param>
+        /// <param name="color">Straight-alpha normalized tint.</param>
+        /// <param name="topLeft">Receives the transformed local origin.</param>
+        /// <param name="topRight">Receives the transformed upper-right corner.</param>
+        /// <param name="bottomRight">Receives the transformed lower-right corner.</param>
+        /// <param name="bottomLeft">Receives the transformed lower-left corner.</param>
+        public static void CreateTransformedQuad(float3 origin, float3 right, float3 down,
+            double width, double height, double depth, float4 sourceRect, float4 color,
+            out Batch2DVertex topLeft, out Batch2DVertex topRight,
+            out Batch2DVertex bottomRight, out Batch2DVertex bottomLeft) {
+            float rightU = sourceRect.X + sourceRect.Z;
+            float bottomV = sourceRect.Y + sourceRect.W;
+            topLeft = CreateTransformedTexturedVertex(origin, right, down, 0d, 0d, depth,
+                sourceRect.X, sourceRect.Y, color);
+            topRight = CreateTransformedTexturedVertex(origin, right, down, width, 0d, depth,
+                rightU, sourceRect.Y, color);
+            bottomRight = CreateTransformedTexturedVertex(origin, right, down, width, height, depth,
+                rightU, bottomV, color);
+            bottomLeft = CreateTransformedTexturedVertex(origin, right, down, 0d, height, depth,
+                sourceRect.X, bottomV, color);
+        }
+
         /// <summary>
         /// Creates a textured quad in top-left, top-right, bottom-right, bottom-left order without allocating per vertex.
         /// </summary>
@@ -156,6 +185,24 @@ namespace helengine {
                 Corners = new float4(0f, 0f, 0f, 0f),
                 BorderColor = new float4(0f, 0f, 0f, 0f)
             };
+        }
+
+        /// <summary>Transforms one sprite-local offset through inherited axes and initializes all textured vertex attributes.</summary>
+        /// <param name="origin">World position of the local top-left corner.</param>
+        /// <param name="right">World direction of the local positive X axis.</param>
+        /// <param name="down">World direction of the local positive Y axis.</param>
+        /// <param name="localX">Scaled horizontal distance from the local origin.</param>
+        /// <param name="localY">Scaled vertical distance from the local origin.</param>
+        /// <param name="depth">Pixel-space depth copied to the vertex.</param>
+        /// <param name="u">Texture U coordinate.</param>
+        /// <param name="v">Texture V coordinate.</param>
+        /// <param name="color">Straight-alpha normalized tint.</param>
+        /// <returns>Fully initialized vertex at the transformed local corner.</returns>
+        static Batch2DVertex CreateTransformedTexturedVertex(float3 origin, float3 right, float3 down,
+            double localX, double localY, double depth, float u, float v, float4 color) {
+            double x = origin.X + localX * right.X + localY * down.X;
+            double y = origin.Y + localX * right.Y + localY * down.Y;
+            return CreateTexturedVertex(x, y, 0d, 0d, depth, 1d, 0d, u, v, color);
         }
 
         /// <summary>

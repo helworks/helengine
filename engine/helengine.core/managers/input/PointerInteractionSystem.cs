@@ -90,7 +90,7 @@ namespace helengine {
         /// <param name="cursor">Cursor to expose while the component remains attached.</param>
         /// <returns>True when the override was assigned to the owner.</returns>
         public bool TrySetCursorOverride(Component owner, PointerCursorKind cursor) {
-            return TrySetCursorOverride(owner, cursor, Input.GetMousePosition());
+            return TrySetCursorOverride(owner, cursor, new int2(Input.GetPointerX(), Input.GetPointerY()));
         }
 
         /// <summary>

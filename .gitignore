@@ -29,3 +29,4 @@ scratch/
 /.validation/
 /tmp-*/
 /tmp_*/
+.artifacts/

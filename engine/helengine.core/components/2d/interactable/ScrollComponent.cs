@@ -224,8 +224,8 @@ namespace helengine {
                 }
 
                 int distance = OrientationValue == ScrollOrientation.Horizontal
-                    ? OwnerCore.Input.GetMouseX() - AutoScrollOriginPosition.X
-                    : OwnerCore.Input.GetMouseY() - AutoScrollOriginPosition.Y;
+                    ? OwnerCore.Input.GetPointerX() - AutoScrollOriginPosition.X
+                    : OwnerCore.Input.GetPointerY() - AutoScrollOriginPosition.Y;
                 if (distance < 0 && ScrollOffset > 0) {
                     return -1;
                 }

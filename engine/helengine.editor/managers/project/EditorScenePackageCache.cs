@@ -205,7 +205,7 @@ namespace helengine.editor {
                 File.WriteAllText(Path.Combine(stagingRootPath, "files.json"), JsonSerializer.Serialize(fileHashes));
                 if (!Directory.Exists(entryRootPath)) {
                     try {
-                        Directory.Move(stagingRootPath, entryRootPath);
+                        EditorDirectoryPublicationMove.Move(stagingRootPath, entryRootPath);
                     } catch (IOException) when (Directory.Exists(entryRootPath)) {
                         // Another build published the same immutable entry first.
                     }

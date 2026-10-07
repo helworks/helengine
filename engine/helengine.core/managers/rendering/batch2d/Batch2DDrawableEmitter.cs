@@ -50,11 +50,11 @@ namespace helengine {
             float3 position = parent.Position;
             float3 scale = parent.Scale;
             float3 rotatedRight = float4.RotateVector(float3.UnitX, parent.Orientation);
-            double rotation = Math.Atan2(rotatedRight.Y, rotatedRight.X);
+            float3 rotatedDown = float4.RotateVector(float3.UnitY, parent.Orientation);
             double width = (double)size.X * scale.X;
             double height = (double)size.Y * scale.Y;
             float4 color = Batch2DGeometry.NormalizeColor(drawable.Color);
-            Batch2DGeometry.CreateQuad(position.X, position.Y, width, height, 0d, rotation,
+            Batch2DGeometry.CreateTransformedQuad(position, rotatedRight, rotatedDown, width, height, 0d,
                 drawable.SourceRect, color, out Batch2DVertex topLeft, out Batch2DVertex topRight,
                 out Batch2DVertex bottomRight, out Batch2DVertex bottomLeft);
 

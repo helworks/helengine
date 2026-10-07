@@ -274,13 +274,13 @@ namespace helengine.editor {
                 if (Directory.Exists(destinationRootPath)) {
                     WritePublicationOperationMarker(operationRootPath, destinationRootPath, stagingToken, PublicationBackupMovingPhase);
                     InvokePublicationMoveHook(destinationRootPath, backupRootPath);
-                    Directory.Move(destinationRootPath, backupRootPath);
+                    EditorDirectoryPublicationMove.Move(destinationRootPath, backupRootPath);
                     destinationMoved = true;
                     WritePublicationOperationMarker(operationRootPath, destinationRootPath, stagingToken, PublicationBackupMovedPhase);
                 }
 
                 InvokePublicationMoveHook(stagingRootPath, destinationRootPath);
-                Directory.Move(stagingRootPath, destinationRootPath);
+                EditorDirectoryPublicationMove.Move(stagingRootPath, destinationRootPath);
                 WritePublicationOperationMarker(operationRootPath, destinationRootPath, stagingToken, PublicationDestinationMovedPhase);
                 if (destinationMoved && Directory.Exists(backupRootPath)) {
                     Directory.Delete(backupRootPath, true);
@@ -290,7 +290,7 @@ namespace helengine.editor {
                 if (!Directory.Exists(destinationRootPath) && destinationMoved && Directory.Exists(backupRootPath)) {
                     try {
                         InvokePublicationMoveHook(backupRootPath, destinationRootPath);
-                        Directory.Move(backupRootPath, destinationRootPath);
+                        EditorDirectoryPublicationMove.Move(backupRootPath, destinationRootPath);
                     } catch {
                         // Keep the operation manifest and exact owned siblings for the next recovery pass.
                         retainOwnedArtifactsForRecovery = true;
@@ -349,9 +349,9 @@ namespace helengine.editor {
             string backupRootPath = Path.Combine(destinationParentPath, destinationName + ".backup-" + token);
             if (!Directory.Exists(destinationRootPath)) {
                 if (Directory.Exists(stagingRootPath) && phase != PublicationPreparedPhase) {
-                    Directory.Move(stagingRootPath, destinationRootPath);
+                    EditorDirectoryPublicationMove.Move(stagingRootPath, destinationRootPath);
                 } else if (Directory.Exists(backupRootPath)) {
-                    Directory.Move(backupRootPath, destinationRootPath);
+                    EditorDirectoryPublicationMove.Move(backupRootPath, destinationRootPath);
                 }
             }
 
