@@ -20,6 +20,8 @@ namespace helengine.vfx.cli {
                 throw new ArgumentNullException(nameof(args));
             }
 
+            if (args.Length > 0 && args[0]=="composition") {return CompositionCliRunner.Run(args.Skip(1).ToArray());}
+
             if (args.Length > 0 && string.Equals(args[0], "captions", StringComparison.Ordinal)) {
                 return CaptionCliRunner.Run(args.Skip(1).ToArray());
             }

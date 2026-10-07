@@ -7,12 +7,16 @@ public sealed class WindowsMediaSourceResolver : IMediaSourceResolver {
     readonly Device Device;
     /// <summary>Cursors tracked for deterministic cleanup even when a render fails.</summary>
     readonly List<IMediaSource> Sources=[];
+    /// <summary>Serializes source construction and tracked ownership across independent export producers.</summary>
+    readonly object Gate=new();
     /// <summary>Prevents new source cursors after cleanup.</summary>
     bool Disposed;
     /// <summary>Stores a real authorized directory and session device.</summary>
     public WindowsMediaSourceResolver(string root,Device device) {Root=Path.GetFullPath(root);if(!Directory.Exists(Root)) {throw new DirectoryNotFoundException(Root);}Device=device ?? throw new ArgumentNullException(nameof(device));}
     /// <summary>Checks root ownership, source hash and dimensions before decoder or texture allocation.</summary>
-    public IMediaSource Open(MediaReference reference) {
+    public IMediaSource Open(MediaReference reference) {lock(Gate) {return OpenOwned(reference);}}
+    /// <summary>Opens one source while tracked ownership is protected by the resolver gate.</summary>
+    IMediaSource OpenOwned(MediaReference reference) {
         if(Disposed) {throw new ObjectDisposedException(nameof(WindowsMediaSourceResolver));}ArgumentNullException.ThrowIfNull(reference);
         if(string.IsNullOrWhiteSpace(reference.Path) || Path.IsPathRooted(reference.Path) || reference.Path.Contains(':')) {throw new InvalidDataException("Media must use an owned relative path.");}
         string path=Path.GetFullPath(Path.Combine(Root,reference.Path));
@@ -31,7 +35,7 @@ public sealed class WindowsMediaSourceResolver : IMediaSourceResolver {
         } catch {stream.Dispose();throw;}
     }
     /// <summary>Releases all tracked cursors; repeated source Dispose calls are idempotent.</summary>
-    public void Dispose() {if(!Disposed) {Disposed=true;foreach(var source in Sources) {source.Dispose();}Sources.Clear();}}
+    public void Dispose() {lock(Gate) {if(!Disposed) {Disposed=true;foreach(var source in Sources) {source.Dispose();}Sources.Clear();}}}
     /// <summary>Rejects symlink/reparse traversal in both the file and every parent through the authorized root.</summary>
     void CheckReparsePoints(string path) {
         string current=path;
