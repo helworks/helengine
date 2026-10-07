@@ -40,3 +40,8 @@ float4 LinearSourcePS(VertexOutput input) : SV_TARGET {
     float4 color=Source.Load(int3((int2)input.Position.xy,0));
     return float4(Reserved.x>0?color.rgb:SrgbToLinear(color.rgb),color.a);
 }
+
+float4 FinalLinearPS(VertexOutput input) : SV_TARGET {
+    float4 color=Composite.Load(int3((int2)input.Position.xy,0));
+    return color.a>0 ? float4(color.rgb/color.a,color.a) : 0;
+}

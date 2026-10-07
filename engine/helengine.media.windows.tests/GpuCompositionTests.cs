@@ -71,7 +71,7 @@ public sealed class GpuCompositionTests {
     /// <summary>Display-matrix rotation is applied on GPU before aspect fitting.</summary>
     [Fact] public void RotatedVideoPixelsUseDisplayOrientation() {
         var reference=new MediaReference{Id="rotated",Kind="video",Path="rotated.mp4",Sha256=Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(Root,"rotated.mp4")))).ToLowerInvariant(),Width=64,Height=48,Duration=new(2,1)};
-        var document=Document(reference);document.Width=48;document.Height=64;
+        var document=Document(reference);document.Width=48;document.Height=64;document.Duration=new(2,1);document.Layers[0].End=new(2,1);document.Layers[0].SourceOut=new(2,1);
         using var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport);
         using var resolver=new WindowsMediaSourceResolver(Root,device);using var source=resolver.Open(reference);
         using var raw=source.ReadVideoFrame(MediaTime.Zero);byte[] expected=Pixel(raw,53,8);

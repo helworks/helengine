@@ -256,7 +256,8 @@
         "kind": {
           "enum": [
             "media",
-            "text"
+            "text",
+            "group"
           ]
         },
         "text": {
@@ -285,6 +286,12 @@
         },
         "clip_to_viewport": {
           "type": "boolean"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -377,6 +384,10 @@
         "effect_version": {
           "type": "integer",
           "minimum": 1
+        },
+        "parameters": {
+          "type": "object",
+          "maxProperties": 0
         }
       }
     },

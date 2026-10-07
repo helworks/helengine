@@ -35,6 +35,8 @@ public sealed class VisualLayer {
     public List<PropertyAnimation> Animations {get;set;} = [];
     /// <summary>Media or text discriminator; groups are added by the transition layer.</summary>
     public string Kind {get;set;} = "media";
+    /// <summary>Ordered child identities; children render only inside their single owning group.</summary>
+    public List<string> Members {get;set;} = [];
     /// <summary>Optional timed text payload independent of source images.</summary>
     public CompositionText Text {get;set;}
     /// <summary>Optional source coverage mask.</summary>

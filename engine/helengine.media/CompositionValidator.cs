@@ -30,6 +30,7 @@ public static class CompositionValidator {
             if (layer==null) { Add(errors,"invalid_item",path,"Layer cannot be null."); continue; }
             CheckIdentity(errors,items,layer.Id,path);
             if(layer.Kind=="media") {CheckMedia(errors,media,layer.MediaId,path);}
+            else if(layer.Kind=="group") { }
             else if(layer.Kind=="text") {errors.AddRange(TextLayerValidator.Validate(layer,document.Duration,path));}
             else {Add(errors,"invalid_layer",path+".kind","Unsupported layer kind.");}
             if(layer.Mask!=null) {CheckMedia(errors,media,layer.Mask.MediaId,path+".mask");if(layer.Mask.Channel is not ("alpha" or "luma")) {Add(errors,"invalid_mask",path,"Mask channel is unsupported.");}}
@@ -57,6 +58,7 @@ public static class CompositionValidator {
             else if (ValidTime(transition.Start)) { CheckInterval(errors,transition.Start,transition.Start+transition.Duration,document.Duration,path); }
             else { Add(errors,"invalid_interval",path,"Transition start must be valid."); }
         }
+        errors.AddRange(TransitionValidator.Validate(document,capabilities));
         return errors;
     }
     /// <summary>Rejects empty or duplicated identities in a single reference namespace.</summary>

@@ -19,6 +19,8 @@ public sealed class CompositionTransition {
     /// <summary>Registered transition implementation.</summary>
     [JsonRequired]
     public string EffectId { get; set; } = "crossfade";
+    /// <summary>Typed parameters pinned to the transition implementation.</summary>
+    public Dictionary<string,JsonElement> Parameters {get;set;} = new(StringComparer.Ordinal);
     /// <summary>Pinned transition implementation version.</summary>
     [JsonRequired]
     public int EffectVersion { get; set; } = 1;
