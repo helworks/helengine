@@ -7,6 +7,7 @@ public static class CompositionValidator {
         var errors=new List<CompositionDiagnostic>();
         if (document.Schema!="helengine.media.composition.v1") { Add(errors,"invalid_schema","schema","Unsupported composition version."); }
         if (string.IsNullOrWhiteSpace(document.Id) || document.Revision<1) { Add(errors,"invalid_identity","id","Composition requires identity and positive revision."); }
+        try {MediaColor.Parse(document.BackgroundColor);} catch(InvalidDataException) {Add(errors,"invalid_color","background_color","Canvas color is invalid.");}
         if (document.Width<16 || document.Height<16 || document.Width>8192 || document.Height>8192 || (long)document.Width*document.Height>33554432) { Add(errors,"invalid_dimensions","width","Output dimensions are outside supported allocation limits."); }
         if (document.Audio==null || document.Audio.SampleRate<8000 || document.Audio.SampleRate>192000 || document.Audio.Channels!=2) { Add(errors,"invalid_audio","audio","Output requires a valid rate and stereo channels."); }
         if (!ValidTime(document.Duration) || document.Duration<=MediaTime.Zero || !ValidTime(document.FrameRate) || document.FrameRate<=MediaTime.Zero || document.FrameRate>new MediaTime(240,1)) { Add(errors,"invalid_timing","duration","Duration and frame rate must be positive rational values."); }
@@ -27,11 +28,16 @@ public static class CompositionValidator {
         for (int i=0;i<document.Layers.Count;i++) {
             VisualLayer layer=document.Layers[i]; string path=$"layers[{i}]";
             if (layer==null) { Add(errors,"invalid_item",path,"Layer cannot be null."); continue; }
-            CheckIdentity(errors,items,layer.Id,path); CheckMedia(errors,media,layer.MediaId,path);
+            CheckIdentity(errors,items,layer.Id,path);
+            if(layer.Kind=="media") {CheckMedia(errors,media,layer.MediaId,path);}
+            else if(layer.Kind=="text") {errors.AddRange(TextLayerValidator.Validate(layer,document.Duration,path));}
+            else {Add(errors,"invalid_layer",path+".kind","Unsupported layer kind.");}
+            if(layer.Mask!=null) {CheckMedia(errors,media,layer.Mask.MediaId,path+".mask");if(layer.Mask.Channel is not ("alpha" or "luma")) {Add(errors,"invalid_mask",path,"Mask channel is unsupported.");}}
+            try {MediaColor.Parse(layer.PaddingColor);} catch(InvalidDataException) {Add(errors,"invalid_color",path,"Padding color is invalid.");}
             CheckInterval(errors,layer.Start,layer.End,document.Duration,path);
             if (ValidTime(layer.Start) && ValidTime(layer.End)) {errors.AddRange(AnimationValidator.Validate(layer,path));}
             if (layer.Effects==null) { Add(errors,"invalid_collection",path+".effects","Effects cannot be null."); continue; }
-            foreach (MediaEffect effect in layer.Effects) { if (effect==null || !capabilities.Supports(effect.Id,effect.Version)) { Add(errors,"unknown_effect",path+".effects","Effect version is absent or unsupported."); } }
+            errors.AddRange(EffectInputValidator.Validate(layer.Effects,capabilities,media,path+".effects"));
         }
         var layers=new HashSet<string>(items,StringComparer.Ordinal);
         for (int i=0;i<document.AudioClips.Count;i++) {

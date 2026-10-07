@@ -37,4 +37,6 @@ public sealed class CompositionDocument {
     /// <summary>Explicit visual overlaps between layer outputs.</summary>
     [JsonRequired]
     public List<CompositionTransition> Transitions { get; set; } = [];
+    /// <summary>Explicit canvas clear color, supporting transparent MOV profiles.</summary>
+    public string BackgroundColor {get;set;} = "#171A21FF";
 }

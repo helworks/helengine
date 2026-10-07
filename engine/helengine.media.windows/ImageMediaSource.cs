@@ -9,13 +9,15 @@ public sealed class ImageMediaSource : IMediaSource {
     readonly Device Device;
     /// <summary>Immutable image texture reused across timeline frames.</summary>
     readonly Texture2D Texture;
+    /// <summary>Original image storage alpha, distinct from synthesized JPEG opacity.</summary>
+    readonly bool HasStoredAlpha;
     /// <summary>Prevents repeated release of image and file resources.</summary>
     bool Disposed;
     /// <summary>Decodes PNG/JPG, verifies raw dimensions and applies EXIF orientation before upload.</summary>
     public ImageMediaSource(OwnedMediaFile file,MediaReference reference,Device device) {
         File=file;Device=device;
         if(file.Stream.Length>33554432) {throw new InvalidDataException("Image exceeds 32 MiB.");}
-        using var image=System.Drawing.Image.FromStream(file.Stream,false,true);
+        using var image=System.Drawing.Image.FromStream(file.Stream,false,true);HasStoredAlpha=System.Drawing.Image.IsAlphaPixelFormat(image.PixelFormat);
         if(image.Width!=reference.Width || image.Height!=reference.Height || (long)image.Width*image.Height>33554432) {throw new InvalidDataException("Image dimensions do not match the pinned source.");}
         if(image.PropertyIdList.Contains(0x112)) {int orientation=BitConverter.ToUInt16(image.GetPropertyItem(0x112).Value,0);image.RotateFlip(Orientation(orientation));}
         using var bitmap=new Bitmap(image.Width,image.Height,PixelFormat.Format32bppArgb);
@@ -33,7 +35,7 @@ public sealed class ImageMediaSource : IMediaSource {
     public MediaVideoFrame ReadVideoFrame(MediaTime sourceTime) {
         if(Disposed) {throw new ObjectDisposedException(nameof(ImageMediaSource));}
         sourceTime.Validate();Marshal.AddRef(Texture.NativePointer);
-        return new(sourceTime,MediaTime.Zero,new DirectX11VideoSurface(Device,new Texture2D(Texture.NativePointer)));
+        return new(sourceTime,MediaTime.Zero,new DirectX11VideoSurface(Device,new Texture2D(Texture.NativePointer),HasStoredAlpha));
     }
     /// <summary>Still images have no sound and report explicit silence.</summary>
     public AudioBlock ReadAudio(long first,int count,AudioFormat target) {if(Disposed) {throw new ObjectDisposedException(nameof(ImageMediaSource));}if(first<0 || count<0 || count>65536) {throw new ArgumentOutOfRangeException(nameof(count));}return new(first,new float[checked(count*target.Channels)],target,true);}

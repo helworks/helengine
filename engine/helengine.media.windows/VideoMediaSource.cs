@@ -33,7 +33,7 @@ public sealed class VideoMediaSource : IMediaSource {
             if(Next.Timestamp>time) {break;}Current.Dispose();Current=Next;Next=null;
         }
         var texture=new Texture2D(Current.CopyRgbaTexture());
-        return new(new(Current.Timestamp.Ticks,TimeSpan.TicksPerSecond),new(Current.Duration.Ticks,TimeSpan.TicksPerSecond),new DirectX11VideoSurface(Device,texture),Decoder.SourceRotationDegrees);
+        return new(new(Current.Timestamp.Ticks,TimeSpan.TicksPerSecond),new(Current.Duration.Ticks,TimeSpan.TicksPerSecond),new DirectX11VideoSurface(Device,texture,false),Decoder.SourceRotationDegrees);
     }
     /// <summary>Reads embedded sound against the same normalized primary-video source origin.</summary>
     public AudioBlock ReadAudio(long first,int count,AudioFormat target) {if(Disposed) {throw new ObjectDisposedException(nameof(VideoMediaSource));}return Audio.Read(first,count,target);}

@@ -10,4 +10,6 @@ public sealed class MediaEffect {
     /// <summary>Named typed parameters validated against the catalog.</summary>
     [JsonRequired]
     public Dictionary<string,JsonElement> Parameters { get; set; } = new(StringComparer.Ordinal);
+    /// <summary>Additional source references bound to registered roles without exposing shader registers.</summary>
+    public Dictionary<string,string> Inputs {get;set;} = new(StringComparer.Ordinal);
 }

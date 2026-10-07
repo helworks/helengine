@@ -33,4 +33,14 @@ public sealed class VisualLayer {
     public string Fit {get;set;} = "contain";
     /// <summary>Independent typed property tracks evaluated in local layer time.</summary>
     public List<PropertyAnimation> Animations {get;set;} = [];
+    /// <summary>Media or text discriminator; groups are added by the transition layer.</summary>
+    public string Kind {get;set;} = "media";
+    /// <summary>Optional timed text payload independent of source images.</summary>
+    public CompositionText Text {get;set;}
+    /// <summary>Optional source coverage mask.</summary>
+    public MediaMask Mask {get;set;}
+    /// <summary>Color of the fitted viewport's padding before layer opacity is applied.</summary>
+    public string PaddingColor {get;set;} = "#00000000";
+    /// <summary>Clips transformed content to its reserved presentation region.</summary>
+    public bool ClipToViewport {get;set;} = true;
 }
