@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <limits>
+#include <cmath>
 #include "helengine_video_ffmpeg.h"
 extern "C" {
 #include <libavformat/avformat.h>
@@ -13,6 +14,7 @@ extern "C" {
 #include <libavutil/hwcontext.h>
 #include <libavutil/hwcontext_d3d11va.h>
 #include <libavutil/imgutils.h>
+#include <libavutil/display.h>
 #include <libswscale/swscale.h>
 }
 // The error buffer is thread-local so concurrent jobs cannot replace each other's diagnostics.
@@ -143,3 +145,46 @@ extern "C" __declspec(dllexport) int __cdecl he_video_decoder_seek(void* decoder
 extern "C" __declspec(dllexport) void __cdecl he_video_decoder_flush(void* decoder) {if(decoder) {static_cast<NativeVideoDecoder*>(decoder)->Flush();}}
 extern "C" __declspec(dllexport) void __cdecl he_video_decoder_release_frame(void* decoder,he_video_frame* frame) {if(decoder && frame) {static_cast<NativeVideoDecoder*>(decoder)->Release(frame);}}
 extern "C" __declspec(dllexport) void __cdecl he_video_decoder_destroy(void* decoder) {delete static_cast<NativeVideoDecoder*>(decoder);}
+
+extern "C" __declspec(dllexport) int __cdecl he_video_decoder_copy_rgba(void* handle,const he_video_frame* frame,void** output) {
+    ID3D11Texture2D* target=nullptr;ID3D11DeviceContext* context=nullptr;ID3D11VideoDevice* videoDevice=nullptr;ID3D11VideoContext* videoContext=nullptr;
+    ID3D11VideoProcessorEnumerator* enumerator=nullptr;ID3D11VideoProcessor* processor=nullptr;ID3D11VideoProcessorInputView* inputView=nullptr;ID3D11VideoProcessorOutputView* outputView=nullptr;
+    int result=0;
+    try {
+        if(!handle || !frame || !frame->Texture || !output) {throw std::runtime_error("A held video frame and output are required.");}
+        auto* decoder=static_cast<NativeVideoDecoder*>(handle);auto* texture=static_cast<ID3D11Texture2D*>(frame->Texture);
+        auto found=std::find_if(decoder->Held.begin(),decoder->Held.end(),[frame](const NativeVideoDecoder::HeldFrame& held) {return held.Info.Texture==frame->Texture && held.Info.SubresourceIndex==frame->SubresourceIndex && held.Info.TimestampTicks==frame->TimestampTicks;});
+        if(found==decoder->Held.end()) {throw std::runtime_error("The supplied frame is no longer owned by this decoder.");}
+        D3D11_TEXTURE2D_DESC description={};description.Width=frame->Width;description.Height=frame->Height;description.MipLevels=1;description.ArraySize=1;description.Format=DXGI_FORMAT_R8G8B8A8_UNORM;description.SampleDesc.Count=1;description.BindFlags=D3D11_BIND_RENDER_TARGET|D3D11_BIND_SHADER_RESOURCE;
+        if(FAILED(decoder->Device->CreateTexture2D(&description,nullptr,&target))) {throw std::runtime_error("RGBA video texture allocation failed.");}
+        decoder->Device->GetImmediateContext(&context);
+        if(frame->FrameFormat==2) {context->CopyResource(target,texture);} else {
+            if(FAILED(decoder->Device->QueryInterface(__uuidof(ID3D11VideoDevice),reinterpret_cast<void**>(&videoDevice))) || FAILED(context->QueryInterface(__uuidof(ID3D11VideoContext),reinterpret_cast<void**>(&videoContext)))) {throw std::runtime_error("GPU video color conversion is unavailable.");}
+            D3D11_VIDEO_PROCESSOR_CONTENT_DESC content={};content.InputFrameFormat=D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE;content.InputWidth=frame->Width;content.InputHeight=frame->Height;content.OutputWidth=frame->Width;content.OutputHeight=frame->Height;content.InputFrameRate={30,1};content.OutputFrameRate={30,1};content.Usage=D3D11_VIDEO_USAGE_PLAYBACK_NORMAL;
+            if(FAILED(videoDevice->CreateVideoProcessorEnumerator(&content,&enumerator)) || FAILED(videoDevice->CreateVideoProcessor(enumerator,0,&processor))) {throw std::runtime_error("GPU video processor initialization failed.");}
+            D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC input={};input.ViewDimension=D3D11_VPIV_DIMENSION_TEXTURE2D;input.Texture2D.ArraySlice=frame->SubresourceIndex;
+            D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC out={};out.ViewDimension=D3D11_VPOV_DIMENSION_TEXTURE2D;
+            if(FAILED(videoDevice->CreateVideoProcessorInputView(texture,enumerator,&input,&inputView)) || FAILED(videoDevice->CreateVideoProcessorOutputView(target,enumerator,&out,&outputView))) {throw std::runtime_error("GPU video processor views failed.");}
+            D3D11_VIDEO_PROCESSOR_COLOR_SPACE inputColor={};inputColor.YCbCr_Matrix=found->Frame && found->Frame->colorspace==AVCOL_SPC_BT709 ? 1 : 0;inputColor.Nominal_Range=found->Frame && found->Frame->color_range==AVCOL_RANGE_JPEG ? 1 : 2;
+            D3D11_VIDEO_PROCESSOR_COLOR_SPACE outputColor={};outputColor.RGB_Range=0;outputColor.Nominal_Range=1;
+            videoContext->VideoProcessorSetStreamColorSpace(processor,0,&inputColor);videoContext->VideoProcessorSetOutputColorSpace(processor,&outputColor);videoContext->VideoProcessorSetStreamAutoProcessingMode(processor,0,FALSE);
+            D3D11_VIDEO_PROCESSOR_STREAM stream={};stream.Enable=TRUE;stream.pInputSurface=inputView;
+            if(FAILED(videoContext->VideoProcessorBlt(processor,outputView,0,1,&stream))) {throw std::runtime_error("GPU video color conversion failed.");}
+        }
+        *output=target;target=nullptr;result=1;
+    } catch(const std::exception& error) {LastError=error.what();}
+    if(inputView) {inputView->Release();}if(outputView) {outputView->Release();}if(processor) {processor->Release();}if(enumerator) {enumerator->Release();}if(videoContext) {videoContext->Release();}if(videoDevice) {videoDevice->Release();}if(context) {context->Release();}if(target) {target->Release();}return result;
+}
+
+// Rotation is transported as the source display matrix angle; the compositor applies it before fit.
+extern "C" __declspec(dllexport) int __cdecl he_video_decoder_rotation(void* handle) {
+    if(!handle) {LastError="Video cursor is required.";return -1;}
+    auto* decoder=static_cast<NativeVideoDecoder*>(handle);auto* parameters=decoder->Format->streams[decoder->StreamIndex]->codecpar;
+    auto* data=av_packet_side_data_get(parameters->coded_side_data,parameters->nb_coded_side_data,AV_PKT_DATA_DISPLAYMATRIX);
+    if(!data) {return 0;}
+    double angle=av_display_rotation_get(reinterpret_cast<const int32_t*>(data->data));
+    if(!std::isfinite(angle)) {LastError="Video rotation metadata is invalid.";return -1;}
+    int rotation=(static_cast<int>(std::lround(angle))%360+360)%360;
+    if(rotation%90!=0) {LastError="Only orthogonal source rotation is supported.";return -1;}
+    return rotation;
+}

@@ -130,5 +130,10 @@ namespace helengine.directx11.video {
             disposed = true;
             GC.SuppressFinalize(this);
         }
+        /// <summary>Returns a new caller-owned RGBA texture reference; its COM reference must be released.</summary>
+        public IntPtr CopyRgbaTexture() {
+            if(disposed) { throw new ObjectDisposedException(nameof(VideoFrame)); }
+            return owner.CopyRgbaFrame(ref nativeFrame);
+        }
     }
 }

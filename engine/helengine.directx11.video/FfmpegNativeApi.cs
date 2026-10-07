@@ -68,5 +68,11 @@ namespace helengine.directx11.video {
         /// <summary>Probes video metadata without allocating a Direct3D device.</summary>
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode, ExactSpelling = true)]
         internal static extern int he_video_probe([MarshalAs(UnmanagedType.LPWStr)] string sourcePath, out FfmpegNativeVideoStreamInfo info);
+        /// <summary>Copies a held frame into an independent RGBA texture without downloading hardware surfaces.</summary>
+        [DllImport(LibraryName, CallingConvention=CallingConvention.Cdecl, ExactSpelling=true)]
+        internal static extern int he_video_decoder_copy_rgba(IntPtr decoder,ref FfmpegNativeVideoFrame frame,out IntPtr texture);
+        /// <summary>Returns the source display matrix angle, normalized to orthogonal degrees.</summary>
+        [DllImport(LibraryName,CallingConvention=CallingConvention.Cdecl,ExactSpelling=true)]
+        internal static extern int he_video_decoder_rotation(IntPtr decoder);
     }
 }

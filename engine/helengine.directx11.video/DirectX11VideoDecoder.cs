@@ -192,5 +192,15 @@ namespace helengine.directx11.video {
 
             return new VideoStreamInfo(nativeInfo.Width, nativeInfo.Height, nativeInfo.FrameRate, duration, nativeInfo.FrameFormat, isHardware);
         }
+        /// <summary>Produces an independently owned RGBA texture for a current borrowed native frame.</summary>
+        internal IntPtr CopyRgbaFrame(ref FfmpegNativeVideoFrame frame) {
+            EnsureNotDisposed();
+            if(FfmpegNativeApi.he_video_decoder_copy_rgba(decoderHandle,ref frame,out var texture)==0) { throw new InvalidOperationException("Video RGBA conversion failed: "+FfmpegNativeApi.LastError()); }
+            return texture;
+        }
+        /// <summary>Gets the source's counterclockwise display-matrix rotation for normalized visual layout.</summary>
+        public int SourceRotationDegrees {
+            get {EnsureNotDisposed();int value=FfmpegNativeApi.he_video_decoder_rotation(decoderHandle);if(value<0) {throw new InvalidOperationException("Video rotation is unsupported: "+FfmpegNativeApi.LastError());}return value;}
+        }
     }
 }
