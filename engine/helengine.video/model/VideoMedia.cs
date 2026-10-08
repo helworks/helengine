@@ -39,6 +39,11 @@ namespace helengine.video {
         public double DurationSec { get; set; } = 0;
 
         /// <summary>
+        /// Whether a video or audio file carries a usable audio stream; takes only produce voice when true.
+        /// </summary>
+        public bool HasAudio { get; set; } = false;
+
+        /// <summary>
         /// Optional speech analysis in source time.
         /// </summary>
         public VideoMediaAnalysis Analysis { get; set; }

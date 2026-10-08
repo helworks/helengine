@@ -24,6 +24,11 @@ namespace helengine.video {
         public string Purpose { get; set; }
 
         /// <summary>
+        /// Planned spoken text; used to estimate preview captions until the take has timed words.
+        /// </summary>
+        public string Speech { get; set; }
+
+        /// <summary>
         /// Where the scene length comes from.
         /// </summary>
         public VideoSceneDuration Duration { get; set; } = new();
