@@ -1,6 +1,6 @@
 #include "../common/VfxCommon.hlsli"
 
-// Bound by DirectX11VfxEffectRunner in RainbowExpandEffect.InputRoles order: Source then Mask.
+// Bound by DirectX11EffectExecutor in the pass Reads order of BuiltInVfxEffects.RainbowExpand: Source then Mask.
 Texture2D SourceTexture : register(t0);
 Texture2D MaskTexture : register(t1);
 

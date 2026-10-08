@@ -1,7 +1,6 @@
 using helengine;
 using helengine.vfx;
 using helengine.vfx.directx11;
-using helengine.vfx.effects;
 using helengine.vfx.io;
 using Xunit;
 
@@ -204,11 +203,11 @@ namespace helengine.vfx.cli.tests {
             ImageSequence source = ExrSequenceReader.ReadSequence(sourceFolder);
             ImageSequence mask = ExrSequenceReader.ReadSequence(maskFolder);
             VfxClip clip = new VfxClip(new Dictionary<string, ImageSequence> { ["Source"] = source, ["Mask"] = mask });
-            IVfxEffect effect = new RainbowExpandEffect();
+            EffectAsset effect = BuiltInVfxEffects.RainbowExpand();
 
             using (DirectX11VfxDevice device = new DirectX11VfxDevice())
-            using (DirectX11VfxEffectRunner runner = new DirectX11VfxEffectRunner(device, effect)) {
-                runner.Run(clip, effect, parameters, outputFolder);
+            using (DirectX11VfxEffectRunner runner = new DirectX11VfxEffectRunner(device, VfxEffectCatalog.CreateBuiltIn().Resolve(effect.EffectId))) {
+                runner.Run(clip, parameters, outputFolder);
             }
         }
 

@@ -7,7 +7,7 @@ namespace helengine.vfx.cli {
         /// One-line invocation summary printed whenever arguments are missing or malformed.
         /// </summary>
         public const string UsageLine =
-            "Usage: helengine.vfx.cli --input <Role>=<folder> [--input <Role>=<folder> ...] --effect <id> --out <folder> [--param name=value ...]";
+            "Usage: helengine.vfx.cli --input <Role>=<folder> [--input <Role>=<folder> ...] --effect <id> --out <folder> [--param name=value ...] [--project <dir>]";
 
         /// <summary>
         /// Input folder paths keyed by the role name the selected effect expects (e.g. "Source",
@@ -37,6 +37,12 @@ namespace helengine.vfx.cli {
         public bool ShowHelp { get; private set; }
 
         /// <summary>
+        /// Helengine project root whose <c>assets/**/*.heffect</c> effects are added to the built-in ones; null when
+        /// only engine effects are needed.
+        /// </summary>
+        public string ProjectDirectory { get; private set; }
+
+        /// <summary>
         /// Parses a raw argument array, reporting a caller-facing message instead of throwing when
         /// the arguments are malformed or incomplete.
         /// </summary>
@@ -49,6 +55,7 @@ namespace helengine.vfx.cli {
             string effectId = null;
             string outputFolder = null;
             bool showHelp = false;
+            string projectDirectory = null;
             var parameterValues = new Dictionary<string, string>();
 
             for (int i = 0; i < args.Length; i++) {
@@ -68,6 +75,9 @@ namespace helengine.vfx.cli {
                         break;
                     case "--out":
                         if (!TryReadValue(args, ref i, out outputFolder, out error)) { parsed = null; return false; }
+                        break;
+                    case "--project":
+                        if (!TryReadValue(args, ref i, out projectDirectory, out error)) { parsed = null; return false; }
                         break;
                     case "--help":
                     case "-h":
@@ -101,7 +111,8 @@ namespace helengine.vfx.cli {
                 EffectId = effectId,
                 OutputFolder = outputFolder,
                 ParameterValues = parameterValues,
-                ShowHelp = showHelp
+                ShowHelp = showHelp,
+                ProjectDirectory = projectDirectory
             };
             error = null;
             return true;

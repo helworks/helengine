@@ -1,5 +1,4 @@
 using helengine.vfx;
-using helengine.vfx.effects;
 using Xunit;
 
 namespace helengine.vfx.tests.effects {
@@ -14,9 +13,9 @@ namespace helengine.vfx.tests.effects {
         /// </summary>
         [Fact]
         public void ResolveParameterSlots_Defaults_MatchDocumentedDefaults() {
-            var effect = new RainbowAuraEffect();
+            var effect = BuiltInVfxEffects.RainbowAura();
 
-            float[] slots = effect.ResolveParameterSlots(new Dictionary<string, string>());
+            float[] slots = VfxParameterSlotResolver.Resolve(effect, new Dictionary<string, string>());
 
             Assert.Equal(VfxFrameConstants.ParamSlotCount, slots.Length);
             Assert.Equal(10f, slots[0]);
@@ -34,7 +33,7 @@ namespace helengine.vfx.tests.effects {
         /// </summary>
         [Fact]
         public void ResolveParameterSlots_ExplicitValues_AreParsed() {
-            var effect = new RainbowAuraEffect();
+            var effect = BuiltInVfxEffects.RainbowAura();
             var values = new Dictionary<string, string> {
                 ["RepetitionCount"] = "6",
                 ["StartScale"] = "0.9",
@@ -46,7 +45,7 @@ namespace helengine.vfx.tests.effects {
                 ["SaturationBoost"] = "8"
             };
 
-            float[] slots = effect.ResolveParameterSlots(values);
+            float[] slots = VfxParameterSlotResolver.Resolve(effect, values);
 
             Assert.Equal(6f, slots[0]);
             Assert.Equal(0.9f, slots[1], 3);
@@ -63,10 +62,10 @@ namespace helengine.vfx.tests.effects {
         /// </summary>
         [Fact]
         public void ResolveParameterSlots_FractionalRepetitionCount_Throws() {
-            var effect = new RainbowAuraEffect();
+            var effect = BuiltInVfxEffects.RainbowAura();
             var values = new Dictionary<string, string> { ["RepetitionCount"] = "3.5" };
 
-            Assert.Throws<ArgumentException>(() => effect.ResolveParameterSlots(values));
+            Assert.Throws<ArgumentException>(() => VfxParameterSlotResolver.Resolve(effect, values));
         }
 
         /// <summary>
@@ -74,10 +73,10 @@ namespace helengine.vfx.tests.effects {
         /// </summary>
         [Fact]
         public void ResolveParameterSlots_RepetitionCountBelowMinimum_Throws() {
-            var effect = new RainbowAuraEffect();
+            var effect = BuiltInVfxEffects.RainbowAura();
             var values = new Dictionary<string, string> { ["RepetitionCount"] = "0" };
 
-            Assert.Throws<ArgumentException>(() => effect.ResolveParameterSlots(values));
+            Assert.Throws<ArgumentException>(() => VfxParameterSlotResolver.Resolve(effect, values));
         }
 
         /// <summary>
@@ -86,10 +85,10 @@ namespace helengine.vfx.tests.effects {
         /// </summary>
         [Fact]
         public void ResolveParameterSlots_RepetitionCountAboveMaximum_Throws() {
-            var effect = new RainbowAuraEffect();
+            var effect = BuiltInVfxEffects.RainbowAura();
             var values = new Dictionary<string, string> { ["RepetitionCount"] = "65" };
 
-            Assert.Throws<ArgumentException>(() => effect.ResolveParameterSlots(values));
+            Assert.Throws<ArgumentException>(() => VfxParameterSlotResolver.Resolve(effect, values));
         }
 
         /// <summary>
@@ -97,10 +96,10 @@ namespace helengine.vfx.tests.effects {
         /// </summary>
         [Fact]
         public void ResolveParameterSlots_NonPositiveGrowWindow_Throws() {
-            var effect = new RainbowAuraEffect();
+            var effect = BuiltInVfxEffects.RainbowAura();
             var values = new Dictionary<string, string> { ["GrowWindow"] = "0" };
 
-            Assert.Throws<ArgumentException>(() => effect.ResolveParameterSlots(values));
+            Assert.Throws<ArgumentException>(() => VfxParameterSlotResolver.Resolve(effect, values));
         }
 
         /// <summary>
@@ -108,10 +107,10 @@ namespace helengine.vfx.tests.effects {
         /// </summary>
         [Fact]
         public void ResolveParameterSlots_GrowWindowAboveOne_Throws() {
-            var effect = new RainbowAuraEffect();
+            var effect = BuiltInVfxEffects.RainbowAura();
             var values = new Dictionary<string, string> { ["GrowWindow"] = "1.5" };
 
-            Assert.Throws<ArgumentException>(() => effect.ResolveParameterSlots(values));
+            Assert.Throws<ArgumentException>(() => VfxParameterSlotResolver.Resolve(effect, values));
         }
 
         /// <summary>
@@ -119,10 +118,10 @@ namespace helengine.vfx.tests.effects {
         /// </summary>
         [Fact]
         public void ResolveParameterSlots_NegativeSaturationBoost_Throws() {
-            var effect = new RainbowAuraEffect();
+            var effect = BuiltInVfxEffects.RainbowAura();
             var values = new Dictionary<string, string> { ["SaturationBoost"] = "-1" };
 
-            Assert.Throws<ArgumentException>(() => effect.ResolveParameterSlots(values));
+            Assert.Throws<ArgumentException>(() => VfxParameterSlotResolver.Resolve(effect, values));
         }
 
         /// <summary>
@@ -130,10 +129,10 @@ namespace helengine.vfx.tests.effects {
         /// </summary>
         [Fact]
         public void ResolveParameterSlots_InvalidEasing_Throws() {
-            var effect = new RainbowAuraEffect();
+            var effect = BuiltInVfxEffects.RainbowAura();
             var values = new Dictionary<string, string> { ["Easing"] = "NotARealEasing" };
 
-            Assert.Throws<ArgumentException>(() => effect.ResolveParameterSlots(values));
+            Assert.Throws<ArgumentException>(() => VfxParameterSlotResolver.Resolve(effect, values));
         }
     }
 }

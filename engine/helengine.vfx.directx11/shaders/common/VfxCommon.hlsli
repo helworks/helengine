@@ -10,6 +10,10 @@
 //   float2 Resolution      (offset 4)
 //   float  Reserved        (offset 12)
 //   float4 Params0..3      (offsets 16, 32, 48, 64) = VfxFrameConstants.ParamSlotCount floats.
+//   float4 PassConstants   (offset 80)  constants fixed by the current pass, e.g. a blur direction.
+//   float2 TexelSize       (offset 96)  1 / size of the target the current pass renders into.
+//   float2 MainTexelSize   (offset 104) 1 / size of the effect's main input.
+// Resolution is the size of the current pass target, which is smaller than the main input for scaled targets.
 cbuffer VfxFrameConstants : register(b0)
 {
     float NormalizedTime;
@@ -19,10 +23,13 @@ cbuffer VfxFrameConstants : register(b0)
     float4 Params1;
     float4 Params2;
     float4 Params3;
+    float4 PassConstants;
+    float2 TexelSize;
+    float2 MainTexelSize;
 };
 
 // Shared sampler for every input texture. Effects declare their own Texture2D inputs (register t0,
-// t1, ...) directly in their own shader file, in the same order as their IVfxEffect.InputRoles, since
+// t1, ...) directly in their own shader file, in the same order as their pass Reads list, since
 // different effects need different numbers and kinds of input textures; do not reintroduce a
 // hardcoded shared set of texture declarations here.
 SamplerState LinearClampSampler : register(s0);

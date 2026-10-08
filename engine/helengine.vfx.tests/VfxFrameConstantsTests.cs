@@ -33,5 +33,22 @@ namespace helengine.vfx.tests {
             Assert.Equal(200f, result[2]);
             Assert.Equal(7f, result[VfxFrameConstants.HeaderFloatCount]);
         }
+
+        /// <summary>
+        /// Confirms the pass block follows the parameter slots: pass constants, then the pass target and main input
+        /// texel sizes, matching the PassConstants/TexelSize/MainTexelSize order in VfxCommon.hlsli.
+        /// </summary>
+        [Fact]
+        public void Build_PassValues_FollowParameterSlots() {
+            float[] result = VfxFrameConstants.Build(0f, 50, 25, new float[VfxFrameConstants.ParamSlotCount], new float4(1, 2, 3, 4), 100, 50);
+            int pass = VfxFrameConstants.HeaderFloatCount + VfxFrameConstants.ParamSlotCount;
+
+            Assert.Equal(28, VfxFrameConstants.TotalFloatCount);
+            Assert.Equal(new[] { 1f, 2f, 3f, 4f }, result.Skip(pass).Take(4));
+            Assert.Equal(1f / 50, result[pass + 4]);
+            Assert.Equal(1f / 25, result[pass + 5]);
+            Assert.Equal(1f / 100, result[pass + 6]);
+            Assert.Equal(1f / 50, result[pass + 7]);
+        }
     }
 }

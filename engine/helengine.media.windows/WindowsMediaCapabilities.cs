@@ -1,28 +1,31 @@
-using System.Globalization;
 using System.Text.Json;
-using helengine.vfx;
-using helengine.vfx.effects;
 namespace helengine.media.windows;
-/// <summary>Publishes the base media operations and existing registered GPU shader effects.</summary>
+/// <summary>Publishes the base media operations plus every effect of a <see cref="VfxEffectCatalog"/>.</summary>
 public static class WindowsMediaCapabilities {
-    /// <summary>Effect implementations whose package-owned shaders can be used by compositions.</summary>
-    public static IReadOnlyList<IVfxEffect> Effects {get;} = [new RainbowExpandEffect(),new RainbowAuraEffect(),new DepthCompositeEffect()];
-    /// <summary>Builds a typed executable catalog from the effects' own parameter declarations.</summary>
-    public static MediaCapabilities Describe() {
+    /// <summary>Builds the executable catalog for the engine's built-in effects only.</summary>
+    public static MediaCapabilities Describe() => Describe(VfxEffectCatalog.CreateBuiltIn());
+    /// <summary>Builds a typed executable catalog from each effect asset's own input and parameter declarations.</summary>
+    /// <param name="effects">Effects compositions may reference.</param>
+    public static MediaCapabilities Describe(VfxEffectCatalog effects) {
         var catalog=MediaCapabilities.Basic();
-        foreach(var effect in Effects) {
-            var descriptor=new MediaEffectDescriptor {Id=effect.Id,Version=1,Category="layer",MainInputRole=effect.InputRoles[0],InputRoles=effect.InputRoles.ToList(),AlphaRequiredInputRoles=effect.AlphaRequiredInputRoles.ToList()};
+        foreach(var entry in effects.All) {
+            var effect=entry.Effect;
+            var descriptor=new MediaEffectDescriptor {Id=effect.EffectId,Version=effect.EffectVersion,Category="layer",MainInputRole=effect.Inputs[0].Name,InputRoles=effect.Inputs.Select(input=>input.Name).ToList(),AlphaRequiredInputRoles=effect.Inputs.Where(input=>input.RequiresAlpha).Select(input=>input.Name).ToList()};
             foreach(var parameter in effect.Parameters) {descriptor.Parameters.Add(parameter.Name,Parameter(parameter));}
             catalog.Effects.Add(descriptor);
         }
         return catalog;
     }
-    /// <summary>Maps declared parameters to finite data shapes without exposing CLI syntax.</summary>
-    static MediaParameterDescriptor Parameter(VfxEffectParameterDescriptor parameter) {
-        var result=new MediaParameterDescriptor {Description=parameter.Description};
-        if(parameter.Type==VfxParameterType.Color) {result.Type="color";result.DefaultValue=JsonSerializer.SerializeToElement(parameter.DefaultValueText.Split(',').Select(value=>double.Parse(value,CultureInfo.InvariantCulture)).ToArray());}
-        else if(parameter.Type==VfxParameterType.Int && parameter.Name=="Easing") {result.Type="enum";result.AllowedValues=Enum.GetNames<VfxEasingKind>().ToList();result.DefaultValue=JsonSerializer.SerializeToElement(parameter.DefaultValueText);}
-        else {result.Type=parameter.Type==VfxParameterType.Int?"integer":"number";result.DefaultValue=JsonSerializer.SerializeToElement(double.Parse(parameter.DefaultValueText,CultureInfo.InvariantCulture));if(parameter.Name.Contains("Scale",StringComparison.Ordinal)) {result.Minimum=.01;result.Maximum=16;}}
+    /// <summary>Maps one declared parameter to its JSON data shape, range and default.</summary>
+    static MediaParameterDescriptor Parameter(EffectParameterAsset parameter) {
+        var result=new MediaParameterDescriptor {Description=parameter.Description,Minimum=parameter.Minimum,Maximum=parameter.Maximum};
+        float4 value=parameter.DefaultValue;
+        if(parameter.Type==EffectParameterType.Enum) {result.Type="enum";result.AllowedValues=parameter.AllowedValues.ToList();result.DefaultValue=JsonSerializer.SerializeToElement(parameter.AllowedValues[(int)value.X]);}
+        else if(parameter.Type==EffectParameterType.Bool) {result.Type="boolean";result.DefaultValue=JsonSerializer.SerializeToElement(value.X!=0);}
+        else if(parameter.Type==EffectParameterType.Color) {result.Type="color";result.Minimum=0;result.Maximum=1;result.DefaultValue=JsonSerializer.SerializeToElement(value.W==1?new double[]{value.X,value.Y,value.Z}:new double[]{value.X,value.Y,value.Z,value.W});}
+        else if(parameter.Type==EffectParameterType.Float2) {result.Type="float2";result.DefaultValue=JsonSerializer.SerializeToElement(new double[]{value.X,value.Y});}
+        else if(parameter.Type==EffectParameterType.Float4) {result.Type="float4";result.DefaultValue=JsonSerializer.SerializeToElement(new double[]{value.X,value.Y,value.Z,value.W});}
+        else {result.Type=parameter.Type==EffectParameterType.Integer?"integer":"number";result.DefaultValue=JsonSerializer.SerializeToElement((double)value.X);}
         return result;
     }
 }

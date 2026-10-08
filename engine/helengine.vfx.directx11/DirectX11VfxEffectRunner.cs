@@ -1,68 +1,40 @@
 using System.Runtime.InteropServices;
-using helengine.directx11;
 using helengine.vfx.io;
 using SharpDX;
-using SharpDX.Direct3D;
 using SharpDX.Direct3D11;
 using SharpDX.DXGI;
-using D3DBuffer = SharpDX.Direct3D11.Buffer;
 using D3DDevice = SharpDX.Direct3D11.Device;
 using MapFlags = SharpDX.Direct3D11.MapFlags;
 
 namespace helengine.vfx.directx11 {
     /// <summary>
     /// Runs one VFX effect over every frame of a clip using a headless DirectX11 device, writing
-    /// each processed frame out as an EXR file.
+    /// each processed frame out as an EXR file. Pass execution is delegated to
+    /// <see cref="DirectX11EffectExecutor"/>, the same executor the media compositor uses.
     /// </summary>
     public sealed class DirectX11VfxEffectRunner : IDisposable {
         /// <summary>
-        /// Headless device the shaders and textures for this run are created on.
+        /// Headless device the textures for this run are created on.
         /// </summary>
         readonly D3DDevice GraphicsDevice;
 
         /// <summary>
-        /// Immediate context used to issue every draw, map, and copy for this run.
+        /// Immediate context used for uploads and read-back.
         /// </summary>
         readonly DeviceContext ImmediateContext;
 
         /// <summary>
-        /// Id of the effect whose shaders were compiled by the constructor. Run refuses to execute a
-        /// different effect, because the compiled shaders would not match the resolved parameters.
+        /// Executor holding the effect's compiled passes and intermediate targets.
         /// </summary>
-        readonly string CompiledEffectId;
+        readonly DirectX11EffectExecutor Executor;
 
         /// <summary>
-        /// Compiled fullscreen-triangle vertex shader for the effect.
-        /// </summary>
-        readonly VertexShader EffectVertexShader;
-
-        /// <summary>
-        /// Compiled pixel shader carrying the effect's actual image processing.
-        /// </summary>
-        readonly PixelShader EffectPixelShader;
-
-        /// <summary>
-        /// Bilinear, clamped sampler bound to s0, shared by every input texture.
-        /// </summary>
-        readonly SamplerState LinearClampSampler;
-
-        /// <summary>
-        /// Dynamic constant buffer holding the per-frame VfxFrameConstants payload at b0.
-        /// </summary>
-        readonly D3DBuffer FrameConstantBuffer;
-
-        /// <summary>
-        /// Rasterizer state with culling disabled; mandatory for the fullscreen-triangle vertex shader.
-        /// </summary>
-        readonly RasterizerState NoCullRasterizerState;
-
-        /// <summary>
-        /// Float render target the effect draws into, recreated when the clip resolution changes.
+        /// Full-precision float target the final pass renders into, recreated when the clip resolution changes.
         /// </summary>
         Texture2D RenderTarget;
 
         /// <summary>
-        /// Render target view bound to the output merger for <see cref="RenderTarget"/>.
+        /// Render target view of <see cref="RenderTarget"/>.
         /// </summary>
         RenderTargetView RenderTargetColorView;
 
@@ -82,112 +54,33 @@ namespace helengine.vfx.directx11 {
         int TargetHeight;
 
         /// <summary>
-        /// Compiles the effect's shaders and builds the fixed pipeline state the run reuses for every frame.
+        /// Compiles the effect's passes for the supplied device.
         /// </summary>
         /// <param name="vfxDevice">Headless Direct3D11 device to run on.</param>
-        /// <param name="effect">Effect whose vertex and pixel entry points should be compiled.</param>
-        public DirectX11VfxEffectRunner(DirectX11VfxDevice vfxDevice, IVfxEffect effect) {
+        /// <param name="entry">Catalog entry of the effect to run.</param>
+        public DirectX11VfxEffectRunner(DirectX11VfxDevice vfxDevice, VfxEffectCatalogEntry entry) {
             if (vfxDevice == null) {
                 throw new ArgumentNullException(nameof(vfxDevice));
             }
-            if (effect == null) {
-                throw new ArgumentNullException(nameof(effect));
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
             }
 
             GraphicsDevice = vfxDevice.Device;
             ImmediateContext = GraphicsDevice.ImmediateContext;
-            CompiledEffectId = effect.Id;
-
-            ShaderCompileService compileService = CreateCompileService();
-            ShaderCompileResult vsResult = CompileEntryPoint(compileService, effect, effect.VertexEntryPoint, ShaderStage.Vertex);
-            ShaderCompileResult psResult = CompileEntryPoint(compileService, effect, effect.PixelEntryPoint, ShaderStage.Pixel);
-
-            EffectVertexShader = new VertexShader(GraphicsDevice, vsResult.Binary.Bytecode);
-            EffectPixelShader = new PixelShader(GraphicsDevice, psResult.Binary.Bytecode);
-
-            LinearClampSampler = new SamplerState(GraphicsDevice, new SamplerStateDescription {
-                Filter = Filter.MinMagMipLinear,
-                AddressU = TextureAddressMode.Clamp,
-                AddressV = TextureAddressMode.Clamp,
-                AddressW = TextureAddressMode.Clamp,
-                MaximumLod = float.MaxValue
-            });
-
-            FrameConstantBuffer = new D3DBuffer(GraphicsDevice, new BufferDescription {
-                SizeInBytes = VfxFrameConstants.TotalFloatCount * sizeof(float),
-                Usage = ResourceUsage.Dynamic,
-                BindFlags = BindFlags.ConstantBuffer,
-                CpuAccessFlags = CpuAccessFlags.Write
-            });
-
-            // CullMode.None is mandatory, not a default: the shared FullscreenVS in VfxCommon.hlsli
-            // emits its big triangle in clockwise winding, which the default rasterizer state treats
-            // as back-facing and culls, leaving the render target completely black. Do not "tidy" this
-            // back to a default rasterizer state without also reversing the vertex order in FullscreenVS.
-            NoCullRasterizerState = new RasterizerState(GraphicsDevice, new RasterizerStateDescription {
-                CullMode = CullMode.None,
-                FillMode = FillMode.Solid,
-                IsDepthClipEnabled = true
-            });
-        }
-
-        /// <summary>
-        /// Builds a shader compile service whose include resolver is rooted at the application base
-        /// directory, so effect shaders can #include the shared VfxCommon.hlsli declarations.
-        /// </summary>
-        /// <returns>A compile service with the DirectX11 backend registered.</returns>
-        static ShaderCompileService CreateCompileService() {
-            var includeResolver = new ShaderFilesystemIncludeResolver(AppContext.BaseDirectory);
-            var cache = new ShaderMemoryCompileCache();
-            var hasher = new ShaderSourceHasher();
-            var service = new ShaderCompileService(includeResolver, cache, hasher);
-            service.RegisterBackend(new DirectX11ShaderBackend());
-            return service;
-        }
-
-        /// <summary>
-        /// Compiles one entry point out of an effect's shader file.
-        /// </summary>
-        /// <param name="compileService">Compile service to use.</param>
-        /// <param name="effect">Effect that owns the shader file.</param>
-        /// <param name="entryPoint">Entry point function name to compile.</param>
-        /// <param name="stage">Pipeline stage the entry point targets.</param>
-        /// <returns>The successful compile result.</returns>
-        static ShaderCompileResult CompileEntryPoint(ShaderCompileService compileService, IVfxEffect effect, string entryPoint, ShaderStage stage) {
-            string path = Path.Combine(AppContext.BaseDirectory, effect.ShaderResourcePath);
-            var options = new ShaderCompileOptions(ShaderBindingPolicies.Default, generateDebugInfo: false, optimize: true, treatWarningsAsErrors: false);
-            ShaderCompileResult result = compileService.CompileFromFile(
-                path,
-                effect.Id + "." + entryPoint,
-                entryPoint,
-                stage,
-                ShaderCompileTarget.DirectX11,
-                new ShaderModel(4, 0),
-                "default",
-                Array.Empty<ShaderDefine>(),
-                options);
-
-            if (!result.Success) {
-                throw new InvalidOperationException($"Failed to compile '{entryPoint}' in '{path}'.");
-            }
-
-            return result;
+            Executor = new DirectX11EffectExecutor(GraphicsDevice, entry, new DirectX11EffectShaderCompiler());
         }
 
         /// <summary>
         /// Processes every frame of a clip through the effect and writes the results out as EXR files.
         /// </summary>
-        /// <param name="clip">Input clip to process, carrying one sequence per <see cref="IVfxEffect.InputRoles"/> entry.</param>
-        /// <param name="effect">Effect to run; must be the same effect this runner compiled.</param>
+        /// <param name="clip">Input clip to process, carrying one sequence per <see cref="EffectAsset.Inputs"/> entry.</param>
         /// <param name="parameterValues">Raw parameter name/value pairs for the effect.</param>
         /// <param name="outputFolder">Folder the processed frames are written into; created when missing.</param>
         /// <param name="frameFileNamePattern">Composite format string producing each output file name from its frame index.</param>
-        public void Run(VfxClip clip, IVfxEffect effect, IReadOnlyDictionary<string, string> parameterValues, string outputFolder, string frameFileNamePattern = "frame.{0:D4}.exr") {
+        public void Run(VfxClip clip, IReadOnlyDictionary<string, string> parameterValues, string outputFolder, string frameFileNamePattern = "frame.{0:D4}.exr") {
             if (clip == null) {
                 throw new ArgumentNullException(nameof(clip));
-            }
-            if (effect == null) {
-                throw new ArgumentNullException(nameof(effect));
             }
             if (parameterValues == null) {
                 throw new ArgumentNullException(nameof(parameterValues));
@@ -195,31 +88,26 @@ namespace helengine.vfx.directx11 {
             if (string.IsNullOrWhiteSpace(outputFolder)) {
                 throw new ArgumentException("Output folder must be provided.", nameof(outputFolder));
             }
-            if (!string.Equals(effect.Id, CompiledEffectId, StringComparison.Ordinal)) {
-                throw new InvalidOperationException(
-                    $"This runner compiled the shaders for effect '{CompiledEffectId}' but Run was given effect '{effect.Id}'. "
-                    + "Construct a new runner for each effect.");
-            }
 
             Directory.CreateDirectory(outputFolder);
             EnsureRenderTarget(clip.Width, clip.Height);
 
-            float[] paramSlots = effect.ResolveParameterSlots(parameterValues);
-            var alphaRequiredRoles = new HashSet<string>(effect.AlphaRequiredInputRoles, StringComparer.Ordinal);
-            int roleCount = effect.InputRoles.Count;
+            EffectAsset effect = Executor.Effect;
+            float[] paramSlots = VfxParameterSlotResolver.Resolve(effect, parameterValues);
+            int roleCount = effect.Inputs.Length;
 
             for (int frameIndex = 0; frameIndex < clip.FrameCount; frameIndex++) {
-                var inputTextures = new Texture2D[roleCount];
-                var inputViews = new ShaderResourceView[roleCount];
+                Texture2D[] inputTextures = new Texture2D[roleCount];
+                ShaderResourceView[] inputViews = new ShaderResourceView[roleCount];
                 try {
                     for (int roleIndex = 0; roleIndex < roleCount; roleIndex++) {
-                        string role = effect.InputRoles[roleIndex];
-                        string framePath = clip.GetSequence(role).FramePaths[frameIndex];
+                        EffectInputAsset input = effect.Inputs[roleIndex];
+                        string framePath = clip.GetSequence(input.Name).FramePaths[frameIndex];
 
                         FloatImageAsset frame = ExrFrameReader.ReadFrame(framePath, out int channelCount);
                         try {
                             ValidateFrameResolution(frame, framePath, clip.Width, clip.Height);
-                            if (alphaRequiredRoles.Contains(role)) {
+                            if (input.RequiresAlpha) {
                                 ValidateFrameCarriesAlpha(framePath, channelCount);
                             }
                             inputTextures[roleIndex] = CreateInputTexture(frame);
@@ -230,9 +118,7 @@ namespace helengine.vfx.directx11 {
                     }
 
                     float normalizedTime = clip.FrameCount > 1 ? (float)frameIndex / (clip.FrameCount - 1) : 0f;
-                    UpdateConstantBuffer(normalizedTime, clip.Width, clip.Height, paramSlots);
-
-                    DrawFrame(inputViews);
+                    Executor.Execute(inputViews, clip.Width, clip.Height, paramSlots, normalizedTime, RenderTargetColorView);
 
                     FloatImageAsset outputFrame = ReadBackFrame(clip.Width, clip.Height);
                     string outputPath = Path.Combine(outputFolder, string.Format(frameFileNamePattern, frameIndex));
@@ -267,15 +153,13 @@ namespace helengine.vfx.directx11 {
         }
 
         /// <summary>
-        /// Rejects a frame that carries no alpha channel for an input role the effect declared as
+        /// Rejects a frame that carries no alpha channel for an input the effect declared as
         /// alpha-required. Such a frame would be expanded to a fully opaque alpha of 1, which silently
-        /// disables whatever compositing that role's alpha was supposed to drive.
+        /// disables whatever compositing that input's alpha was supposed to drive.
         /// </summary>
         /// <param name="framePath">Path the frame was read from, used in the error message.</param>
         /// <param name="channelCount">Channel count the frame actually stored.</param>
         static void ValidateFrameCarriesAlpha(string framePath, int channelCount) {
-            // 4+ channels are RGBA; exactly 2 channels are gray+alpha. Both carry a real alpha
-            // channel. 1 and 3 channel frames do not, and get an alpha of 1 synthesized on read.
             if (channelCount >= 4 || channelCount == 2) {
                 return;
             }
@@ -286,7 +170,7 @@ namespace helengine.vfx.directx11 {
         }
 
         /// <summary>
-        /// Recreates the render target and its staging copy when the requested output size changes.
+        /// Recreates the output render target and its staging copy when the requested output size changes.
         /// </summary>
         /// <param name="width">Required output width in pixels.</param>
         /// <param name="height">Required output height in pixels.</param>
@@ -299,7 +183,7 @@ namespace helengine.vfx.directx11 {
             RenderTarget?.Dispose();
             StagingTexture?.Dispose();
 
-            var colorDescription = new Texture2DDescription {
+            Texture2DDescription colorDescription = new Texture2DDescription {
                 Width = width,
                 Height = height,
                 MipLevels = 1,
@@ -314,7 +198,7 @@ namespace helengine.vfx.directx11 {
             RenderTarget = new Texture2D(GraphicsDevice, colorDescription);
             RenderTargetColorView = new RenderTargetView(GraphicsDevice, RenderTarget);
 
-            var stagingDescription = colorDescription;
+            Texture2DDescription stagingDescription = colorDescription;
             stagingDescription.BindFlags = BindFlags.None;
             stagingDescription.Usage = ResourceUsage.Staging;
             stagingDescription.CpuAccessFlags = CpuAccessFlags.Read;
@@ -332,7 +216,7 @@ namespace helengine.vfx.directx11 {
         Texture2D CreateInputTexture(FloatImageAsset frame) {
             GCHandle handle = GCHandle.Alloc(frame.Pixels, GCHandleType.Pinned);
             try {
-                var description = new Texture2DDescription {
+                Texture2DDescription description = new Texture2DDescription {
                     Width = frame.Width,
                     Height = frame.Height,
                     MipLevels = 1,
@@ -344,51 +228,10 @@ namespace helengine.vfx.directx11 {
                     CpuAccessFlags = CpuAccessFlags.None,
                     OptionFlags = ResourceOptionFlags.None
                 };
-                var dataRectangle = new DataRectangle(handle.AddrOfPinnedObject(), frame.Width * 4 * sizeof(float));
+                DataRectangle dataRectangle = new DataRectangle(handle.AddrOfPinnedObject(), frame.Width * 4 * sizeof(float));
                 return new Texture2D(GraphicsDevice, description, dataRectangle);
             } finally {
                 handle.Free();
-            }
-        }
-
-        /// <summary>
-        /// Rewrites the per-frame constant buffer with the current clip progress and parameter slots.
-        /// </summary>
-        /// <param name="normalizedTime">Clip progress in [0, 1] for the frame about to be drawn.</param>
-        /// <param name="width">Output width in pixels.</param>
-        /// <param name="height">Output height in pixels.</param>
-        /// <param name="paramSlots">Resolved effect parameter slots.</param>
-        void UpdateConstantBuffer(float normalizedTime, int width, int height, float[] paramSlots) {
-            float[] frameConstants = VfxFrameConstants.Build(normalizedTime, width, height, paramSlots);
-            DataBox box = ImmediateContext.MapSubresource(FrameConstantBuffer, 0, MapMode.WriteDiscard, MapFlags.None);
-            Marshal.Copy(frameConstants, 0, box.DataPointer, frameConstants.Length);
-            ImmediateContext.UnmapSubresource(FrameConstantBuffer, 0);
-        }
-
-        /// <summary>
-        /// Issues the single fullscreen-triangle draw that processes one frame, then unbinds the
-        /// input views so the next frame's textures can be created without a lingering reference.
-        /// </summary>
-        /// <param name="inputViews">Shader resource views for this frame's inputs, bound to t0, t1, ...
-        /// in the same order as <see cref="IVfxEffect.InputRoles"/>.</param>
-        void DrawFrame(ShaderResourceView[] inputViews) {
-            ImmediateContext.OutputMerger.SetRenderTargets(RenderTargetColorView);
-            ImmediateContext.Rasterizer.State = NoCullRasterizerState;
-            ImmediateContext.Rasterizer.SetViewport(0, 0, TargetWidth, TargetHeight, 0f, 1f);
-            ImmediateContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
-            ImmediateContext.InputAssembler.InputLayout = null;
-            ImmediateContext.VertexShader.Set(EffectVertexShader);
-            ImmediateContext.PixelShader.Set(EffectPixelShader);
-            ImmediateContext.PixelShader.SetConstantBuffer(0, FrameConstantBuffer);
-            for (int i = 0; i < inputViews.Length; i++) {
-                ImmediateContext.PixelShader.SetShaderResource(i, inputViews[i]);
-            }
-            ImmediateContext.PixelShader.SetSampler(0, LinearClampSampler);
-
-            ImmediateContext.Draw(3, 0);
-
-            for (int i = 0; i < inputViews.Length; i++) {
-                ImmediateContext.PixelShader.SetShaderResource(i, null);
             }
         }
 
@@ -423,11 +266,7 @@ namespace helengine.vfx.directx11 {
             StagingTexture?.Dispose();
             RenderTargetColorView?.Dispose();
             RenderTarget?.Dispose();
-            NoCullRasterizerState.Dispose();
-            FrameConstantBuffer.Dispose();
-            LinearClampSampler.Dispose();
-            EffectPixelShader.Dispose();
-            EffectVertexShader.Dispose();
+            Executor.Dispose();
         }
     }
 }

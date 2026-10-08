@@ -14,8 +14,12 @@ public sealed class DirectX11MediaCompositor : IMediaCompositor {
     readonly Dictionary<string,string> SourceKeys=new(StringComparer.Ordinal);
     /// <summary>Text/style signatures prevent stale caption snapshots.</summary>
     readonly Dictionary<string,string> CaptionKeys=new(StringComparer.Ordinal);
-    /// <summary>Compiled existing-effect passes reused across frames.</summary>
-    readonly Dictionary<string,LegacyVfxPass> Effects=new(StringComparer.Ordinal);
+    /// <summary>Compiled effect executors reused across frames, keyed by effect id.</summary>
+    readonly Dictionary<string,MediaEffectPass> Effects=new(StringComparer.Ordinal);
+    /// <summary>Effects this compositor may execute: built-ins plus any project effects.</summary>
+    readonly VfxEffectCatalog Catalog;
+    /// <summary>Shader compiler shared by every effect executor.</summary>
+    readonly DirectX11EffectShaderCompiler EffectCompiler=new();
     /// <summary>Lazy GPU pass, created only after contract validation succeeds.</summary>
     DirectX11LayerPass Pass;
     /// <summary>Reusable offscreen passes bounded by validated scene nesting and endpoints.</summary>
@@ -24,12 +28,14 @@ public sealed class DirectX11MediaCompositor : IMediaCompositor {
     int NextScenePass;
     /// <summary>Marks session resources as disposed.</summary>
     bool Disposed;
-    /// <summary>Retains explicit dependencies without creating GPU pipeline state.</summary>
-    public DirectX11MediaCompositor(Device device,IMediaSourceResolver resolver) {Device=device ?? throw new ArgumentNullException(nameof(device));Resolver=resolver ?? throw new ArgumentNullException(nameof(resolver));}
+    /// <summary>Retains explicit dependencies for the built-in effect catalog without creating GPU pipeline state.</summary>
+    public DirectX11MediaCompositor(Device device,IMediaSourceResolver resolver):this(device,resolver,VfxEffectCatalog.CreateBuiltIn()) {}
+    /// <summary>Retains explicit dependencies, including the effect catalog compositions may reference, without creating GPU pipeline state.</summary>
+    public DirectX11MediaCompositor(Device device,IMediaSourceResolver resolver,VfxEffectCatalog catalog) {Device=device ?? throw new ArgumentNullException(nameof(device));Resolver=resolver ?? throw new ArgumentNullException(nameof(resolver));Catalog=catalog ?? throw new ArgumentNullException(nameof(catalog));}
     /// <summary>Validates input, selects active layers and renders a complete frame in stable layer order.</summary>
     public MediaVideoFrame Render(CompositionDocument document,MediaTime time,RenderSize size) {
         if(Disposed) {throw new ObjectDisposedException(nameof(DirectX11MediaCompositor));}
-        var errors=CompositionValidator.Validate(document,WindowsMediaCapabilities.Describe());if(errors.Count>0) {throw new InvalidDataException(string.Join("; ",errors.Select(error=>error.Code+": "+error.Message)));}
+        var errors=CompositionValidator.Validate(document,WindowsMediaCapabilities.Describe(Catalog));if(errors.Count>0) {throw new InvalidDataException(string.Join("; ",errors.Select(error=>error.Code+": "+error.Message)));}
         Pass ??= new(Device,new MediaShaderCompiler());Pass.Begin(size,MediaColor.Parse(document.BackgroundColor));
         NextScenePass=0;
         var evaluations=CompositionEvaluator.Evaluate(document,time).ToDictionary(item=>item.Layer.Id);var owned=document.Layers.SelectMany(layer=>layer.Members).ToHashSet(StringComparer.Ordinal);var hidden=new HashSet<string>(StringComparer.Ordinal);var active=new List<CompositionTransition>();
@@ -78,16 +84,16 @@ public sealed class DirectX11MediaCompositor : IMediaCompositor {
         MediaVideoFrame current=original;bool ownsCurrent=false;
         try {
             foreach(var request in evaluation.Layer.Effects.Where(effect=>effect.Id!="transform.2d")) {
-                var implementation=WindowsMediaCapabilities.Effects.Single(effect=>effect.Id==request.Id);
+                var entry=Catalog.Resolve(request.Id);var implementation=entry.Effect;
                 var inputs=new List<MediaVideoFrame>();var owned=new List<MediaVideoFrame>();
                 try {
-                    for(int index=0;index<implementation.InputRoles.Count;index++) {
-                        string role=implementation.InputRoles[index];var input=index==0?current:Source(document,request.Inputs[role]).ReadVideoFrame(evaluation.SourceTime);if(index!=0) {owned.Add(input);}
+                    for(int index=0;index<implementation.Inputs.Length;index++) {
+                        string role=implementation.Inputs[index].Name;var input=index==0?current:Source(document,request.Inputs[role]).ReadVideoFrame(evaluation.SourceTime);if(index!=0) {owned.Add(input);}
                         if(input.Surface is not DirectX11VideoSurface surface) {throw new InvalidOperationException("Effect input uses another GPU backend.");}
-                        if(implementation.AlphaRequiredInputRoles.Contains(role) && !surface.HasStoredAlpha) {throw new InvalidDataException("Effect role requires actual source alpha: "+role);}
+                        if(implementation.Inputs[index].RequiresAlpha && !surface.HasStoredAlpha) {throw new InvalidDataException("Effect role requires actual source alpha: "+role);}
                         if(role!="Mask" && role!="RenderDepth") {input=Pass.ConvertToLinear(input);owned.Add(input);}inputs.Add(input);
                     }
-                    if(!Effects.TryGetValue(request.Id,out var effectPass)) {effectPass=new(Device,implementation,new MediaShaderCompiler());Effects.Add(request.Id,effectPass);}
+                    if(!Effects.TryGetValue(request.Id,out var effectPass)) {effectPass=new(Device,entry,EffectCompiler);Effects.Add(request.Id,effectPass);}
                     var output=effectPass.Render(request,inputs,evaluation.LocalTime.ToSeconds()/(evaluation.Layer.End-evaluation.Layer.Start).ToSeconds());if(ownsCurrent) {current.Dispose();}current=output;ownsCurrent=true;
                 } finally {foreach(var input in owned) {input.Dispose();}}
             }

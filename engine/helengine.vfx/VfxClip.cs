@@ -2,7 +2,7 @@ namespace helengine.vfx {
     /// <summary>
     /// Groups the named input image sequences one effect run needs (e.g. a subject's color plate and
     /// matte, or a subject plus a 3D render's color and depth), keyed by the same role names the effect
-    /// declares in <see cref="IVfxEffect.InputRoles"/>.
+    /// declares in <see cref="EffectAsset.Inputs"/>.
     /// </summary>
     public class VfxClip {
         /// <summary>
@@ -65,7 +65,7 @@ namespace helengine.vfx {
         /// <summary>
         /// Looks up one input sequence by its role name.
         /// </summary>
-        /// <param name="role">Role name to look up, matching an entry in <see cref="IVfxEffect.InputRoles"/>.</param>
+        /// <param name="role">Role name to look up, matching an entry in <see cref="EffectAsset.Inputs"/>.</param>
         /// <returns>The sequence registered for that role.</returns>
         public ImageSequence GetSequence(string role) {
             if (!Sequences.TryGetValue(role, out ImageSequence sequence)) {

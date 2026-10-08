@@ -2,7 +2,9 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Security.Cryptography;
 using System.Text.Json;
+using helengine;
 using helengine.media;
+using helengine.vfx;
 using SharpDX.Direct3D11;
 using SharpDX.Direct3D;
 namespace helengine.media.windows.tests;
@@ -163,6 +165,30 @@ public sealed class GpuCompositionTests {
         using var resolver=new WindowsMediaSourceResolver(Root,device);using var compositor=new DirectX11MediaCompositor(device,resolver);
         using var frame=compositor.Render(document,new(1,1),new(32,32));var pixel=Pixel(frame,16,16);
         Assert.InRange(pixel[0],85,87);Assert.InRange(pixel[1],112,114);Assert.Equal(255,pixel[2]);
+    }
+    /// <summary>A project-authored two-pass effect (tint into a half-size target, then a 3-tap copy) runs inside composition.</summary>
+    [Fact] public void ProjectMultiPassEffectRunsInsideComposition() {
+        string project=Path.Combine(Root,"project-effects",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(Path.Combine(project,"assets","shaders"));
+        try {
+            File.WriteAllText(Path.Combine(project,"project.heproj"),"{}");
+            File.WriteAllText(Path.Combine(project,"assets","shaders","TestTint.hlsl"),"""
+#include "shaders/common/VfxCommon.hlsli"
+Texture2D InputTexture : register(t0);
+float4 TintPS(PSInput input) : SV_TARGET { float4 color = InputTexture.Sample(LinearClampSampler, input.UV); return float4(Params1.rgb * color.a, color.a); }
+float4 CopyPS(PSInput input) : SV_TARGET { float2 offset = TexelSize * PassConstants.xy; return (InputTexture.Sample(LinearClampSampler, input.UV - offset) + InputTexture.Sample(LinearClampSampler, input.UV) + InputTexture.Sample(LinearClampSampler, input.UV + offset)) / 3.0; }
+""");
+            VfxEffectFile.Save(Path.Combine(project,"assets","tint.heffect"),new EffectAsset{EffectId="test-tint",DisplayName="Test Tint",Inputs=[new("Source",false)],Targets=[new("Half",.5f,EffectTargetFormat.Rgba16Float)],
+                Passes=[new(){ShaderPath="shaders/TestTint.hlsl",PixelEntryPoint="TintPS",Reads=["Source"],Writes="Half"},new(){ShaderPath="shaders/TestTint.hlsl",PixelEntryPoint="CopyPS",Reads=["Half"],Writes=EffectAsset.OutputTargetName,PassConstants=new(1,0,0,0)}],
+                Parameters=[new(){Name="Tint",Type=EffectParameterType.Color,DefaultValue=new(1,1,1,1),Minimum=0,Maximum=1,Slot=4}]});
+            var red=Solid("gpu-project-effect-source.png",Color.Red);var document=Document(red);
+            document.Layers[0].Effects.Add(new(){Id="test-tint",Version=1,Parameters=new(){["Tint"]=JsonSerializer.SerializeToElement(new[]{0.0,1.0,0.0})}});
+            var catalog=VfxEffectCatalog.CreateForProject(project);
+            using var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport);
+            using var resolver=new WindowsMediaSourceResolver(Root,device);using var compositor=new DirectX11MediaCompositor(device,resolver,catalog);
+            using var frame=compositor.Render(document,new(1,1),new(32,32));var pixel=Pixel(frame,16,16);
+            Assert.Equal(0,pixel[0]);Assert.Equal(255,pixel[1]);Assert.Equal(0,pixel[2]);Assert.Equal(255,pixel[3]);
+            Assert.Throws<InvalidDataException>(()=>new DirectX11MediaCompositor(device,resolver).Render(document,new(1,1),new(32,32)));
+        } finally {Directory.Delete(project,true);}
     }
     /// <summary>Explicit diagnostics readback of an internal linear surface returns packed encoded RGBA.</summary>
     [Fact] public void LinearSurfaceReadbackIsRgba8() {

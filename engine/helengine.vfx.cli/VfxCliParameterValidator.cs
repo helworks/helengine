@@ -14,7 +14,7 @@ namespace helengine.vfx.cli {
         /// <param name="parameterValues">Raw parameter name/value pairs collected from the command line.</param>
         /// <param name="error">Receives a caller-facing error message on failure, null on success.</param>
         /// <returns>True when every supplied parameter is both known to the effect and parseable.</returns>
-        public static bool TryValidate(IVfxEffect effect, IReadOnlyDictionary<string, string> parameterValues, out string error) {
+        public static bool TryValidate(EffectAsset effect, IReadOnlyDictionary<string, string> parameterValues, out string error) {
             if (effect == null) {
                 throw new ArgumentNullException(nameof(effect));
             }
@@ -23,7 +23,7 @@ namespace helengine.vfx.cli {
             }
 
             var knownNames = new HashSet<string>(StringComparer.Ordinal);
-            foreach (VfxEffectParameterDescriptor parameter in effect.Parameters) {
+            foreach (EffectParameterAsset parameter in effect.Parameters) {
                 knownNames.Add(parameter.Name);
             }
 
@@ -35,9 +35,9 @@ namespace helengine.vfx.cli {
             }
 
             if (unknownNames.Count > 0) {
-                error = $"Unknown parameter name(s) for effect '{effect.Id}': {string.Join(", ", unknownNames)}."
+                error = $"Unknown parameter name(s) for effect '{effect.EffectId}': {string.Join(", ", unknownNames)}."
                     + Environment.NewLine
-                    + $"Effect '{effect.Id}' ({effect.DisplayName}) accepts:"
+                    + $"Effect '{effect.EffectId}' ({effect.DisplayName}) accepts:"
                     + Environment.NewLine
                     + VfxCliHelpText.BuildParameterList(effect).TrimEnd();
                 return false;
@@ -47,11 +47,11 @@ namespace helengine.vfx.cli {
             // numbers). Doing it before the GPU device exists is the whole point of this early pass;
             // the runner resolving them again later is cheap and keeps its API self-contained.
             try {
-                effect.ResolveParameterSlots(parameterValues);
+                VfxParameterSlotResolver.Resolve(effect, parameterValues);
             } catch (ArgumentException ex) {
                 error = ex.Message
                     + Environment.NewLine
-                    + $"Effect '{effect.Id}' ({effect.DisplayName}) accepts:"
+                    + $"Effect '{effect.EffectId}' ({effect.DisplayName}) accepts:"
                     + Environment.NewLine
                     + VfxCliHelpText.BuildParameterList(effect).TrimEnd();
                 return false;

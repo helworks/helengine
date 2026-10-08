@@ -1,6 +1,5 @@
 using helengine.vfx;
 using helengine.vfx.cli;
-using helengine.vfx.effects;
 using Xunit;
 
 namespace helengine.vfx.cli.tests {
@@ -14,7 +13,7 @@ namespace helengine.vfx.cli.tests {
         /// </summary>
         [Fact]
         public void TryValidate_KnownRoles_Succeeds() {
-            IVfxEffect effect = new RainbowExpandEffect();
+            EffectAsset effect = BuiltInVfxEffects.RainbowExpand();
             var inputFolders = new Dictionary<string, string> { ["Source"] = "src", ["Mask"] = "mask" };
 
             bool result = VfxCliInputValidator.TryValidate(effect, inputFolders, out string error);
@@ -28,7 +27,7 @@ namespace helengine.vfx.cli.tests {
         /// </summary>
         [Fact]
         public void TryValidate_ThreeRoleEffect_KnownRoles_Succeeds() {
-            IVfxEffect effect = new DepthCompositeEffect();
+            EffectAsset effect = BuiltInVfxEffects.DepthComposite();
             var inputFolders = new Dictionary<string, string> {
                 ["Subject"] = "subject",
                 ["RenderColor"] = "render-color",
@@ -47,7 +46,7 @@ namespace helengine.vfx.cli.tests {
         /// </summary>
         [Fact]
         public void TryValidate_UnknownRoleName_FailsAndListsRequiredRoles() {
-            IVfxEffect effect = new RainbowExpandEffect();
+            EffectAsset effect = BuiltInVfxEffects.RainbowExpand();
             var inputFolders = new Dictionary<string, string> { ["Souce"] = "src", ["Mask"] = "mask" };
 
             bool result = VfxCliInputValidator.TryValidate(effect, inputFolders, out string error);
@@ -64,7 +63,7 @@ namespace helengine.vfx.cli.tests {
         /// </summary>
         [Fact]
         public void TryValidate_MissingRequiredRole_Fails() {
-            IVfxEffect effect = new DepthCompositeEffect();
+            EffectAsset effect = BuiltInVfxEffects.DepthComposite();
             var inputFolders = new Dictionary<string, string> { ["Subject"] = "subject", ["RenderColor"] = "render-color" };
 
             bool result = VfxCliInputValidator.TryValidate(effect, inputFolders, out string error);

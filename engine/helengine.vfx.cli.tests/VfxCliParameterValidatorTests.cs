@@ -1,6 +1,5 @@
 using helengine.vfx;
 using helengine.vfx.cli;
-using helengine.vfx.effects;
 using Xunit;
 
 namespace helengine.vfx.cli.tests {
@@ -15,7 +14,7 @@ namespace helengine.vfx.cli.tests {
         /// </summary>
         [Fact]
         public void TryValidate_KnownParameters_Succeeds() {
-            IVfxEffect effect = new RainbowExpandEffect();
+            EffectAsset effect = BuiltInVfxEffects.RainbowExpand();
             var values = new Dictionary<string, string> {
                 ["HueCyclesPerClip"] = "2",
                 ["Easing"] = "EaseInOut"
@@ -33,7 +32,7 @@ namespace helengine.vfx.cli.tests {
         /// </summary>
         [Fact]
         public void TryValidate_UnknownParameterName_FailsAndListsValidParameters() {
-            IVfxEffect effect = new RainbowExpandEffect();
+            EffectAsset effect = BuiltInVfxEffects.RainbowExpand();
             var values = new Dictionary<string, string> { ["HueCyclesPerClips"] = "5" };
 
             bool result = VfxCliParameterValidator.TryValidate(effect, values, out string error);
@@ -49,7 +48,7 @@ namespace helengine.vfx.cli.tests {
         /// </summary>
         [Fact]
         public void TryValidate_WrongCaseParameterName_Fails() {
-            IVfxEffect effect = new RainbowExpandEffect();
+            EffectAsset effect = BuiltInVfxEffects.RainbowExpand();
             var values = new Dictionary<string, string> { ["startscale"] = "2" };
 
             bool result = VfxCliParameterValidator.TryValidate(effect, values, out string error);
@@ -64,7 +63,7 @@ namespace helengine.vfx.cli.tests {
         /// </summary>
         [Fact]
         public void TryValidate_InvalidParameterValue_FailsWithoutThrowing() {
-            IVfxEffect effect = new RainbowExpandEffect();
+            EffectAsset effect = BuiltInVfxEffects.RainbowExpand();
             var values = new Dictionary<string, string> { ["Easing"] = "NotARealEasing" };
 
             bool result = VfxCliParameterValidator.TryValidate(effect, values, out string error);
@@ -78,7 +77,7 @@ namespace helengine.vfx.cli.tests {
         /// </summary>
         [Fact]
         public void TryValidate_InvalidBackgroundColor_FailsWithoutThrowing() {
-            IVfxEffect effect = new RainbowExpandEffect();
+            EffectAsset effect = BuiltInVfxEffects.RainbowExpand();
             var values = new Dictionary<string, string> { ["BackgroundColor"] = "1,2" };
 
             bool result = VfxCliParameterValidator.TryValidate(effect, values, out string error);

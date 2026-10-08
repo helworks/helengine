@@ -10,19 +10,20 @@ namespace helengine.vfx.cli {
         /// <summary>
         /// Builds the general help block: invocation forms plus every registered effect id.
         /// </summary>
+        /// <param name="catalog">Effects available to this invocation.</param>
         /// <returns>Help text describing how to invoke the tool and which effects exist.</returns>
-        public static string BuildGeneralHelp() {
+        public static string BuildGeneralHelp(VfxEffectCatalog catalog) {
             var builder = new StringBuilder();
             builder.AppendLine(VfxCliArguments.UsageLine);
-            builder.AppendLine("       helengine.vfx.cli composition capabilities --json");
-            builder.AppendLine("       helengine.vfx.cli composition validate --input <json> --assets-root <root>");
-            builder.AppendLine("       helengine.vfx.cli composition render --input <json> --assets-root <root> --out <file> --profile <id>");
-            builder.AppendLine("       helengine.vfx.cli composition frame --input <json> --assets-root <root> --time <n/d> --out <png>");
-            builder.AppendLine("       helengine.vfx.cli --help [--effect <id>]");
+            builder.AppendLine("       helengine.vfx.cli composition capabilities [--project <dir>] --json");
+            builder.AppendLine("       helengine.vfx.cli composition validate --input <json> --assets-root <root> [--project <dir>]");
+            builder.AppendLine("       helengine.vfx.cli composition render --input <json> --assets-root <root> --out <file> --profile <id> [--project <dir>]");
+            builder.AppendLine("       helengine.vfx.cli composition frame --input <json> --assets-root <root> --time <n/d> --out <png> [--project <dir>]");
+            builder.AppendLine("       helengine.vfx.cli --help [--effect <id>] [--project <dir>]");
             builder.AppendLine("       helengine.vfx.cli captions --help (SRT/Whisper to transparent PNG sequence)");
             builder.AppendLine();
             builder.Append("Known effect ids: ");
-            builder.Append(string.Join(", ", VfxEffectRegistry.KnownIds));
+            builder.Append(string.Join(", ", catalog.KnownIds));
             return builder.ToString();
         }
 
@@ -32,14 +33,14 @@ namespace helengine.vfx.cli {
         /// </summary>
         /// <param name="effect">Effect to describe.</param>
         /// <returns>Help text describing the effect and its parameters.</returns>
-        public static string BuildEffectHelp(IVfxEffect effect) {
+        public static string BuildEffectHelp(EffectAsset effect) {
             if (effect == null) {
                 throw new ArgumentNullException(nameof(effect));
             }
 
             var builder = new StringBuilder();
-            builder.AppendLine($"Effect '{effect.Id}' ({effect.DisplayName})");
-            builder.AppendLine($"  Required --input role(s): {string.Join(", ", effect.InputRoles)}");
+            builder.AppendLine($"Effect '{effect.EffectId}' ({effect.DisplayName}), {effect.Passes.Length} pass(es)");
+            builder.AppendLine($"  Required --input role(s): {string.Join(", ", effect.Inputs.Select(input => input.Name))}");
             builder.AppendLine("Parameters:");
             builder.Append(BuildParameterList(effect));
             return builder.ToString();
@@ -51,15 +52,18 @@ namespace helengine.vfx.cli {
         /// </summary>
         /// <param name="effect">Effect whose parameters should be listed.</param>
         /// <returns>One indented line per parameter.</returns>
-        public static string BuildParameterList(IVfxEffect effect) {
+        public static string BuildParameterList(EffectAsset effect) {
             if (effect == null) {
                 throw new ArgumentNullException(nameof(effect));
             }
 
             var builder = new StringBuilder();
-            foreach (VfxEffectParameterDescriptor parameter in effect.Parameters) {
+            foreach (EffectParameterAsset parameter in effect.Parameters) {
+                string defaultText = parameter.Type == EffectParameterType.Enum
+                    ? parameter.AllowedValues[(int)parameter.DefaultValue.X]
+                    : string.Join(",", VfxParameterSlotResolver.Defaults(parameter).Select(value => value.ToString(System.Globalization.CultureInfo.InvariantCulture)));
                 builder.AppendLine(
-                    $"  {parameter.Name} ({parameter.Type}, default {parameter.DefaultValueText}) - {parameter.Description}");
+                    $"  {parameter.Name} ({parameter.Type}, default {defaultText}) - {parameter.Description}");
             }
             return builder.ToString();
         }

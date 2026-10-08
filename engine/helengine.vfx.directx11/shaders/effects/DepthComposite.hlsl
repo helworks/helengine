@@ -1,6 +1,6 @@
 #include "../common/VfxCommon.hlsli"
 
-// Bound by DirectX11VfxEffectRunner in DepthCompositeEffect.InputRoles order: Subject, RenderColor,
+// Bound by DirectX11EffectExecutor in the pass Reads order of BuiltInVfxEffects.DepthComposite: Subject, RenderColor,
 // RenderDepth.
 Texture2D SubjectTexture : register(t0);
 Texture2D RenderColorTexture : register(t1);

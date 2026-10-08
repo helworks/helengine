@@ -1,5 +1,4 @@
 using helengine.vfx;
-using helengine.vfx.effects;
 using Xunit;
 
 namespace helengine.vfx.tests.effects {
@@ -14,10 +13,10 @@ namespace helengine.vfx.tests.effects {
         /// </summary>
         [Fact]
         public void InputRoles_DeclaresSubjectRenderColorRenderDepthInOrder() {
-            var effect = new DepthCompositeEffect();
+            var effect = BuiltInVfxEffects.DepthComposite();
 
-            Assert.Equal(new[] { "Subject", "RenderColor", "RenderDepth" }, effect.InputRoles);
-            Assert.Equal(new[] { "Subject" }, effect.AlphaRequiredInputRoles);
+            Assert.Equal(new[] { "Subject", "RenderColor", "RenderDepth" }, effect.Inputs.Select(input => input.Name));
+            Assert.Equal(new[] { "Subject" }, effect.Inputs.Where(input => input.RequiresAlpha).Select(input => input.Name));
         }
 
         /// <summary>
@@ -25,9 +24,9 @@ namespace helengine.vfx.tests.effects {
         /// </summary>
         [Fact]
         public void ResolveParameterSlots_Default_MatchesDocumentedDefault() {
-            var effect = new DepthCompositeEffect();
+            var effect = BuiltInVfxEffects.DepthComposite();
 
-            float[] slots = effect.ResolveParameterSlots(new Dictionary<string, string>());
+            float[] slots = VfxParameterSlotResolver.Resolve(effect, new Dictionary<string, string>());
 
             Assert.Equal(VfxFrameConstants.ParamSlotCount, slots.Length);
             Assert.Equal(0f, slots[0]);
@@ -39,10 +38,10 @@ namespace helengine.vfx.tests.effects {
         /// </summary>
         [Fact]
         public void ResolveParameterSlots_ExplicitDepthThreshold_IsParsed() {
-            var effect = new DepthCompositeEffect();
+            var effect = BuiltInVfxEffects.DepthComposite();
             var values = new Dictionary<string, string> { ["DepthThreshold"] = "-12.5" };
 
-            float[] slots = effect.ResolveParameterSlots(values);
+            float[] slots = VfxParameterSlotResolver.Resolve(effect, values);
 
             Assert.Equal(-12.5f, slots[0], 3);
         }
@@ -52,10 +51,10 @@ namespace helengine.vfx.tests.effects {
         /// </summary>
         [Fact]
         public void ResolveParameterSlots_InvalidDepthThreshold_Throws() {
-            var effect = new DepthCompositeEffect();
+            var effect = BuiltInVfxEffects.DepthComposite();
             var values = new Dictionary<string, string> { ["DepthThreshold"] = "not-a-number" };
 
-            Assert.Throws<ArgumentException>(() => effect.ResolveParameterSlots(values));
+            Assert.Throws<ArgumentException>(() => VfxParameterSlotResolver.Resolve(effect, values));
         }
     }
 }

@@ -1,3 +1,5 @@
+global using helengine.vfx;
+global using helengine.vfx.directx11;
 global using helengine.media;
 global using helengine.directx11.video;
 global using SharpDX.Direct3D11;

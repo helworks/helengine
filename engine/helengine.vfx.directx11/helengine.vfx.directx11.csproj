@@ -28,6 +28,7 @@
     <None Remove="shaders\**\*.hlsl*" />
     <Content Include="shaders\**\*.hlsl*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
   </ItemGroup>
 </Project>

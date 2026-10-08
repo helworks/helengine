@@ -4,4 +4,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
   </PropertyGroup>
+
+  <!-- Effects are EffectAsset definitions (helengine.core) stored as .heffect files (helengine.files). -->
+  <ItemGroup>
+    <ProjectReference Include="..\helengine.core\helengine.core.csproj" />
+    <ProjectReference Include="..\helengine.files\helengine.files.csproj" />
+  </ItemGroup>
 </Project>

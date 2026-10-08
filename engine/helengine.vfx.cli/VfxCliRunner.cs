@@ -31,17 +31,26 @@ namespace helengine.vfx.cli {
                 return 1;
             }
 
-            if (parsedArgs.ShowHelp) {
-                return WriteHelp(parsedArgs.EffectId);
+            VfxEffectCatalog catalog;
+            try {
+                catalog = CreateCatalog(parsedArgs.ProjectDirectory);
+            } catch (Exception ex) when (ex is InvalidDataException || ex is IOException) {
+                Console.Error.WriteLine(ex.Message);
+                return 1;
             }
 
-            IVfxEffect effect;
+            if (parsedArgs.ShowHelp) {
+                return WriteHelp(catalog, parsedArgs.EffectId);
+            }
+
+            VfxEffectCatalogEntry entry;
             try {
-                effect = VfxEffectRegistry.Resolve(parsedArgs.EffectId);
+                entry = catalog.Resolve(parsedArgs.EffectId);
             } catch (InvalidOperationException ex) {
                 Console.Error.WriteLine(ex.Message);
                 return 1;
             }
+            EffectAsset effect = entry.Effect;
 
             // Input roles and parameter values are validated here, before the Direct3D11 device exists,
             // so a typo costs nothing and reports cleanly rather than surfacing as a stack trace after
@@ -58,7 +67,7 @@ namespace helengine.vfx.cli {
             VfxClip clip;
             try {
                 var sequences = new Dictionary<string, ImageSequence>(StringComparer.Ordinal);
-                foreach (string role in effect.InputRoles) {
+                foreach (string role in effect.Inputs.Select(input => input.Name)) {
                     sequences[role] = ExrSequenceReader.ReadSequence(parsedArgs.InputFolders[role]);
                 }
                 clip = new VfxClip(sequences);
@@ -68,8 +77,8 @@ namespace helengine.vfx.cli {
             }
 
             using (var vfxDevice = new DirectX11VfxDevice())
-            using (var runner = new DirectX11VfxEffectRunner(vfxDevice, effect)) {
-                runner.Run(clip, effect, parsedArgs.ParameterValues, parsedArgs.OutputFolder);
+            using (var runner = new DirectX11VfxEffectRunner(vfxDevice, entry)) {
+                runner.Run(clip, parsedArgs.ParameterValues, parsedArgs.OutputFolder);
             }
 
             Console.WriteLine($"Wrote {clip.FrameCount} frame(s) to '{parsedArgs.OutputFolder}'.");
@@ -82,24 +91,34 @@ namespace helengine.vfx.cli {
         /// </summary>
         /// <param name="effectId">Effect to describe, or null to print general help only.</param>
         /// <returns>Process exit code; 0 when help was printed, 1 when the named effect is unknown.</returns>
-        static int WriteHelp(string effectId) {
-            Console.WriteLine(VfxCliHelpText.BuildGeneralHelp());
+        static int WriteHelp(VfxEffectCatalog catalog, string effectId) {
+            Console.WriteLine(VfxCliHelpText.BuildGeneralHelp(catalog));
 
             if (string.IsNullOrWhiteSpace(effectId)) {
                 return 0;
             }
 
-            IVfxEffect effect;
+            VfxEffectCatalogEntry entry;
             try {
-                effect = VfxEffectRegistry.Resolve(effectId);
+                entry = catalog.Resolve(effectId);
             } catch (InvalidOperationException ex) {
                 Console.Error.WriteLine(ex.Message);
                 return 1;
             }
 
             Console.WriteLine();
-            Console.Write(VfxCliHelpText.BuildEffectHelp(effect));
+            Console.Write(VfxCliHelpText.BuildEffectHelp(entry.Effect));
             return 0;
+        }
+
+        /// <summary>
+        /// Builds the effect catalog for one invocation: the built-in effects, plus a project's effects when a
+        /// project directory was supplied.
+        /// </summary>
+        /// <param name="projectDirectory">Optional Helengine project root.</param>
+        /// <returns>Catalog of the effects this invocation may run.</returns>
+        public static VfxEffectCatalog CreateCatalog(string projectDirectory) {
+            return string.IsNullOrWhiteSpace(projectDirectory) ? VfxEffectCatalog.CreateBuiltIn() : VfxEffectCatalog.CreateForProject(projectDirectory);
         }
     }
 }

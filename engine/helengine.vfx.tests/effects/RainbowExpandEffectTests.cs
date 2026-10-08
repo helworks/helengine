@@ -1,5 +1,4 @@
 using helengine.vfx;
-using helengine.vfx.effects;
 using Xunit;
 
 namespace helengine.vfx.tests.effects {
@@ -14,9 +13,9 @@ namespace helengine.vfx.tests.effects {
         /// </summary>
         [Fact]
         public void ResolveParameterSlots_Defaults_MatchDocumentedDefaults() {
-            var effect = new RainbowExpandEffect();
+            var effect = BuiltInVfxEffects.RainbowExpand();
 
-            float[] slots = effect.ResolveParameterSlots(new Dictionary<string, string>());
+            float[] slots = VfxParameterSlotResolver.Resolve(effect, new Dictionary<string, string>());
 
             Assert.Equal(VfxFrameConstants.ParamSlotCount, slots.Length);
             Assert.Equal(1f, slots[0]);
@@ -33,7 +32,7 @@ namespace helengine.vfx.tests.effects {
         /// </summary>
         [Fact]
         public void ResolveParameterSlots_ExplicitValues_AreParsed() {
-            var effect = new RainbowExpandEffect();
+            var effect = BuiltInVfxEffects.RainbowExpand();
             var values = new Dictionary<string, string> {
                 ["HueCyclesPerClip"] = "3",
                 ["StartScale"] = "0.5",
@@ -42,7 +41,7 @@ namespace helengine.vfx.tests.effects {
                 ["BackgroundColor"] = "0.1,0.2,0.3"
             };
 
-            float[] slots = effect.ResolveParameterSlots(values);
+            float[] slots = VfxParameterSlotResolver.Resolve(effect, values);
 
             Assert.Equal(3f, slots[0]);
             Assert.Equal(0.5f, slots[1]);
@@ -58,10 +57,10 @@ namespace helengine.vfx.tests.effects {
         /// </summary>
         [Fact]
         public void ResolveParameterSlots_InvalidEasing_Throws() {
-            var effect = new RainbowExpandEffect();
+            var effect = BuiltInVfxEffects.RainbowExpand();
             var values = new Dictionary<string, string> { ["Easing"] = "NotARealEasing" };
 
-            Assert.Throws<ArgumentException>(() => effect.ResolveParameterSlots(values));
+            Assert.Throws<ArgumentException>(() => VfxParameterSlotResolver.Resolve(effect, values));
         }
 
         /// <summary>
@@ -70,10 +69,10 @@ namespace helengine.vfx.tests.effects {
         /// </summary>
         [Fact]
         public void ResolveParameterSlots_OutOfRangeEasingNumeric_Throws() {
-            var effect = new RainbowExpandEffect();
+            var effect = BuiltInVfxEffects.RainbowExpand();
             var values = new Dictionary<string, string> { ["Easing"] = "42" };
 
-            Assert.Throws<ArgumentException>(() => effect.ResolveParameterSlots(values));
+            Assert.Throws<ArgumentException>(() => VfxParameterSlotResolver.Resolve(effect, values));
         }
 
         /// <summary>
@@ -82,10 +81,10 @@ namespace helengine.vfx.tests.effects {
         /// </summary>
         [Fact]
         public void ResolveParameterSlots_InvalidBackgroundColor_Throws() {
-            var effect = new RainbowExpandEffect();
+            var effect = BuiltInVfxEffects.RainbowExpand();
             var values = new Dictionary<string, string> { ["BackgroundColor"] = "not,a,color" };
 
-            Assert.Throws<ArgumentException>(() => effect.ResolveParameterSlots(values));
+            Assert.Throws<ArgumentException>(() => VfxParameterSlotResolver.Resolve(effect, values));
         }
     }
 }
