@@ -4,14 +4,26 @@ namespace helengine.video {
     /// <summary>
     /// Lays out the blocks of one graphic with measured text: every supported direction is fitted into the safe area
     /// with one uniform scale (re-measured at the scaled size, since glyph advances are not perfectly linear), then the
-    /// direction is chosen — horizontal when it fits at full size, otherwise whichever direction keeps the text largest,
-    /// preferring vertical on ties — and the blocks are centered in the safe area.
+    /// direction is chosen — horizontal when the row fits with at most a mild shrink (15% on tall frames, 30% on wide
+    /// ones), otherwise whichever direction keeps the text largest, preferring vertical on ties — and the blocks are
+    /// centered in the safe area.
     /// </summary>
     public static class VideoGraphicLayout {
         /// <summary>
         /// Most fitting passes per direction.
         /// </summary>
         const int FitPasses = 6;
+
+        /// <summary>
+        /// Smallest fit scale at which a tall frame still prefers one row: a phrase reads better slightly smaller on one
+        /// line than broken into a column of single words.
+        /// </summary>
+        const double PortraitRowScale = 0.85;
+
+        /// <summary>
+        /// Smallest fit scale at which a wide frame still prefers one row, since a column would use most of its height.
+        /// </summary>
+        const double LandscapeRowScale = 0.7;
 
         /// <summary>
         /// Arranges the blocks and writes their measured sizes and centers.
@@ -35,9 +47,10 @@ namespace helengine.video {
             GraphicTemplateLayoutAsset chosen = null;
             double chosenScale = 0;
             GraphicTemplateLayoutAsset horizontal = candidates.FirstOrDefault(layout => layout.Direction == GraphicLayoutDirection.Horizontal);
-            if (horizontal != null && Fit(blocks, horizontal, style, measurer, area, baseSize) >= 1) {
+            double horizontalScale = horizontal == null ? 0 : Fit(blocks, horizontal, style, measurer, area, baseSize);
+            if (horizontal != null && horizontalScale >= (area.FrameWidth >= area.FrameHeight ? LandscapeRowScale : PortraitRowScale)) {
                 chosen = horizontal;
-                chosenScale = 1;
+                chosenScale = horizontalScale;
             } else {
                 foreach (GraphicTemplateLayoutAsset candidate in candidates.OrderBy(layout => layout.Direction == GraphicLayoutDirection.Vertical ? 0 : 1)) {
                     double scale = Fit(blocks, candidate, style, measurer, area, baseSize);
