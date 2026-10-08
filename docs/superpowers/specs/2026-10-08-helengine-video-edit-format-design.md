@@ -1,6 +1,6 @@
 # helengine.video — video edit format
 
-Date: 2026-10-08. Status: stages 1, 2 and 4 implemented (engine library, compiler, Flux Studio storage/locks/UI); stage 3 (AI answering in the edit schema) and stage 5 (removal of the legacy formats) pending.
+Date: 2026-10-08. Status: all five stages implemented. Stage 3: Flux Studio's AI planner answers in the edit vocabulary (`by: "ai"` objects, `VideoEditMerge.Replan` with kept origins, `VideoSceneFacts` as model input). Stage 5: the legacy composition builder, `HelengineCompositionCompiler`, `cortex.edit.resolved.v1` and the decisions UI/writes are removed; decisions v1/v2 types and tables stay read-only for the one-time migration; `plan` and `recording_tasks` stay (Resolve Clips, recording plan).
 
 ## Problem
 
