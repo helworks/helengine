@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <!-- The edit format compiles to helengine.media compositions. -->
+  <ItemGroup>
+    <ProjectReference Include="..\helengine.media\helengine.media.csproj" />
+  </ItemGroup>
+</Project>
