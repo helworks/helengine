@@ -20,6 +20,7 @@ namespace helengine.files.tests.assets {
             AssertResolvesToValueKind(new SceneAsset(), EditorAssetBinaryValueKind.SceneAsset);
             AssertResolvesToValueKind(new BlueprintAsset(), EditorAssetBinaryValueKind.BlueprintAsset);
             AssertResolvesToValueKind(new EffectAsset(), EditorAssetBinaryValueKind.EffectAsset);
+            AssertResolvesToValueKind(new GraphicTemplateAsset(), EditorAssetBinaryValueKind.GraphicTemplateAsset);
         }
 
         [Fact]

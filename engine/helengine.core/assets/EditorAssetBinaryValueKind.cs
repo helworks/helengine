@@ -56,6 +56,11 @@ namespace helengine {
         /// <summary>
         /// The payload stores an <see cref="EffectAsset"/>.
         /// </summary>
-        EffectAsset = 12
+        EffectAsset = 12,
+
+        /// <summary>
+        /// The payload stores a <see cref="GraphicTemplateAsset"/>.
+        /// </summary>
+        GraphicTemplateAsset = 13
     }
 }

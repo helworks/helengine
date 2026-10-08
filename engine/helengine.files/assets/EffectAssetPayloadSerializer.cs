@@ -151,11 +151,11 @@ namespace helengine.files {
         }
 
         /// <summary>
-        /// Writes one typed parameter declaration.
+        /// Writes one typed parameter declaration; graphic templates reuse it for their parameters.
         /// </summary>
         /// <param name="writer">Destination writer.</param>
         /// <param name="parameter">Parameter to write.</param>
-        static void WriteParameter(EngineBinaryWriter writer, EffectParameterAsset parameter) {
+        internal static void WriteParameter(EngineBinaryWriter writer, EffectParameterAsset parameter) {
             writer.WriteString(parameter.Name);
             writer.WriteString(parameter.Description ?? string.Empty);
             writer.WriteInt32((int)parameter.Type);
@@ -167,11 +167,11 @@ namespace helengine.files {
         }
 
         /// <summary>
-        /// Reads one typed parameter declaration.
+        /// Reads one typed parameter declaration; graphic templates reuse it for their parameters.
         /// </summary>
         /// <param name="reader">Source reader.</param>
         /// <returns>Deserialized parameter.</returns>
-        static EffectParameterAsset ReadParameter(EngineBinaryReader reader) {
+        internal static EffectParameterAsset ReadParameter(EngineBinaryReader reader) {
             return new EffectParameterAsset {
                 Name = reader.ReadString(),
                 Description = reader.ReadString(),
@@ -189,7 +189,7 @@ namespace helengine.files {
         /// </summary>
         /// <param name="writer">Destination writer.</param>
         /// <param name="name">Name to write.</param>
-        static void WriteName(EngineBinaryWriter writer, string name) {
+        internal static void WriteName(EngineBinaryWriter writer, string name) {
             writer.WriteString(name);
         }
 
@@ -198,7 +198,7 @@ namespace helengine.files {
         /// </summary>
         /// <param name="reader">Source reader.</param>
         /// <returns>Deserialized name.</returns>
-        static string ReadName(EngineBinaryReader reader) {
+        internal static string ReadName(EngineBinaryReader reader) {
             return reader.ReadString();
         }
     }
