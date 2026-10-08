@@ -23,10 +23,11 @@ float4 LayerPS(VertexOutput input) : SV_TARGET {
     float2 relative=pixel-(Viewport.xy+Viewport.zw*.5+Transform.xy*Viewport.zw);
     float sine=sin(Flags.x);float cosine=cos(Flags.x);
     float2 local=float2(cosine*relative.x+sine*relative.y,-sine*relative.x+cosine*relative.y)/Transform.zw+Viewport.zw*.5;
-    if(any(local<0) || any(local>=Viewport.zw)) {return 0;}
+    // Only an explicitly requested crop limits source sampling to the presentation rectangle.
+    if(Flags.w>0 && (any(local<0) || any(local>=Viewport.zw))) {return 0;}
     float2 fitted=ZoomCrop.xy+local/Viewport.zw*ZoomCrop.zw;
     float2 uv=(fitted-ImageFit.xy)/ImageFit.zw;
-    float4 color=Padding;
+    float4 color=all(local>=0) && all(local<Viewport.zw) ? Padding : 0;
     if(all(uv>=0) && all(uv<=1)) {color=SamplePremultiplied(Source,SourceUv(uv,Flags.z),Reserved.x);}
     float mask=MaskSettings.x>0 ? MaskValue(Mask,uv,MaskSettings.y,MaskSettings.z,MaskSettings.w) : 1;
     return color*(Flags.y*mask);

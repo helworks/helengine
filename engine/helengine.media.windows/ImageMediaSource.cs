@@ -13,7 +13,7 @@ public sealed class ImageMediaSource : IMediaSource {
     readonly bool HasStoredAlpha;
     /// <summary>Prevents repeated release of image and file resources.</summary>
     bool Disposed;
-    /// <summary>Decodes PNG/JPG, verifies raw dimensions and applies EXIF orientation before upload.</summary>
+    /// <summary>Decodes PNG/JPG in exact pixel dimensions regardless of printing DPI and applies EXIF orientation before upload.</summary>
     public ImageMediaSource(OwnedMediaFile file,MediaReference reference,Device device) {
         File=file;Device=device;
         if(file.Stream.Length>33554432) {throw new InvalidDataException("Image exceeds 32 MiB.");}
@@ -21,7 +21,7 @@ public sealed class ImageMediaSource : IMediaSource {
         if(image.Width!=reference.Width || image.Height!=reference.Height || (long)image.Width*image.Height>33554432) {throw new InvalidDataException("Image dimensions do not match the pinned source.");}
         if(image.PropertyIdList.Contains(0x112)) {int orientation=BitConverter.ToUInt16(image.GetPropertyItem(0x112).Value,0);image.RotateFlip(Orientation(orientation));}
         using var bitmap=new Bitmap(image.Width,image.Height,PixelFormat.Format32bppArgb);
-        using(var graphics=Graphics.FromImage(bitmap)) {graphics.CompositingMode=System.Drawing.Drawing2D.CompositingMode.SourceCopy;graphics.DrawImageUnscaled(image,0,0);}
+        using(var graphics=Graphics.FromImage(bitmap)) {graphics.CompositingMode=System.Drawing.Drawing2D.CompositingMode.SourceCopy;graphics.DrawImage(image,new Rectangle(0,0,bitmap.Width,bitmap.Height),0,0,image.Width,image.Height,GraphicsUnit.Pixel);}
         var data=bitmap.LockBits(new Rectangle(0,0,bitmap.Width,bitmap.Height),ImageLockMode.ReadOnly,PixelFormat.Format32bppArgb);
         var pixels=new byte[checked(bitmap.Width*bitmap.Height*4)];
         try {for(int row=0;row<bitmap.Height;row++) {Marshal.Copy(IntPtr.Add(data.Scan0,row*data.Stride),pixels,row*bitmap.Width*4,bitmap.Width*4);}}

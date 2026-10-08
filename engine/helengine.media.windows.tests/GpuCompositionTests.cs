@@ -36,6 +36,67 @@ public sealed class GpuCompositionTests {
         using var empty=compositor.Render(document,new(1,2),new(32,32));Assert.All(empty.Surface.ReadRgba().ToArray().Where((value,index)=>index%4!=3),value=>Assert.Equal(0,value));
         using var text=compositor.Render(document,new(3,2),new(32,32));Assert.Contains(text.Surface.ReadRgba().ToArray().Where((value,index)=>index%4!=3),value=>value>64);
     }
+    /// <summary>Zoomed source pixels may leave the presentation rectangle and remain visible on the render canvas.</summary>
+    [Theory]
+    [InlineData(false,255)]
+    [InlineData(true,0)]
+    public void ZoomUsesCanvasBoundsUnlessViewportClippingWasExplicit(bool clipToViewport,int expectedRed) {
+        var document=Document(Solid("gpu-zoom-overflow.png",Color.Red));
+        document.Layers[0].Viewport=new(){X=.25,Y=.25,Width=.5,Height=.5};
+        document.Layers[0].ClipToViewport=clipToViewport;
+        using var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport);
+        using var resolver=new WindowsMediaSourceResolver(Root,device);
+        using var compositor=new DirectX11MediaCompositor(device,resolver);
+        using var before=compositor.Render(document,MediaTime.Zero,new(64,64));
+        Assert.Equal(0,Pixel(before,12,32)[0]);
+        document.Layers[0].Transform.Zoom=1.5;
+        using var after=compositor.Render(document,MediaTime.Zero,new(64,64));
+        Assert.Equal(expectedRed,Pixel(after,12,32)[0]);
+        Assert.Equal(255,Pixel(after,32,32)[0]);
+    }
+    /// <summary>Disabling an implicit crop does not paint opaque padding across unrelated canvas pixels.</summary>
+    [Fact] public void UnclippedZoomKeepsPaddingInsideItsPresentationArea() {
+        var document=Document(Solid("gpu-zoom-padding.png",Color.Red));
+        document.Layers[0].Viewport=new(){X=.25,Y=.25,Width=.5,Height=.5};
+        document.Layers[0].ClipToViewport=false;
+        document.Layers[0].Transform.Zoom=1.5;
+        document.Layers[0].PaddingColor="#00FF00FF";
+        using var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport);
+        using var resolver=new WindowsMediaSourceResolver(Root,device);
+        using var compositor=new DirectX11MediaCompositor(device,resolver);
+        using var frame=compositor.Render(document,MediaTime.Zero,new(64,64));
+        Assert.Equal(0,Pixel(frame,2,32)[0]);
+        Assert.Equal(0,Pixel(frame,2,32)[1]);
+    }
+    /// <summary>A manually requested crop keeps its existing transformed local bounds for covered media.</summary>
+    [Fact] public void ExplicitViewportCropKeepsItsTransformedBounds() {
+        const string name="gpu-explicit-cover-crop.png";
+        using(var image=new Bitmap(32,16)) {using(var graphics=Graphics.FromImage(image)) {graphics.Clear(Color.Red);}image.Save(Path.Combine(Root,name),ImageFormat.Png);}
+        var document=Document(Reference(name,32,16));
+        document.Layers[0].Viewport=new(){X=.25,Y=.25,Width=.5,Height=.5};
+        document.Layers[0].Fit="cover";document.Layers[0].ClipToViewport=true;
+        document.Layers[0].Transform.ScaleX=.5;document.Layers[0].Transform.ScaleY=.5;
+        using var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport);
+        using var resolver=new WindowsMediaSourceResolver(Root,device);
+        using var compositor=new DirectX11MediaCompositor(device,resolver);
+        using var frame=compositor.Render(document,MediaTime.Zero,new(64,64));
+        Assert.Equal(0,Pixel(frame,18,32)[0]);
+        Assert.Equal(255,Pixel(frame,32,32)[0]);
+    }
+    /// <summary>A covered image is sized by its presentation rectangle without masking its outer source pixels.</summary>
+    [Fact] public void UnclippedCoverKeepsSourceEdgesVisibleWithoutZoom() {
+        const string name="gpu-unclipped-cover.png";
+        using(var image=new Bitmap(32,16)) {using(var graphics=Graphics.FromImage(image)) {graphics.Clear(Color.Red);}image.Save(Path.Combine(Root,name),ImageFormat.Png);}
+        var document=Document(Reference(name,32,16));
+        document.Layers[0].Viewport=new(){X=.25,Y=.25,Width=.5,Height=.5};
+        document.Layers[0].Fit="cover";document.Layers[0].ClipToViewport=false;
+        using var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport);
+        using var resolver=new WindowsMediaSourceResolver(Root,device);
+        using var compositor=new DirectX11MediaCompositor(device,resolver);
+        using var frame=compositor.Render(document,MediaTime.Zero,new(64,64));
+        Assert.Equal(255,Pixel(frame,12,32)[0]);
+        Assert.Equal(0,Pixel(frame,12,2)[0]);
+    }
     /// <summary>Changing preview resolution retains normalized layer position and size.</summary>
     [Fact] public void PreviewUsesProportionalLayout() {
         var document=Document(Solid("gpu-white-layout.png",Color.White));document.Layers[0].Viewport=new(){X=.25,Y=.25,Width=.5,Height=.5};

@@ -23,6 +23,22 @@ public sealed class MediaSourceTests {
         using var orientedFrame=oriented.ReadVideoFrame(MediaTime.Zero);
         Assert.Equal(2,orientedFrame.Surface.Width);Assert.Equal(3,orientedFrame.Surface.Height);
     }
+    /// <summary>Printing resolution must not rescale pixel content inside the uploaded texture.</summary>
+    [Theory]
+    [InlineData("jpg",96)]
+    [InlineData("jpg",300)]
+    [InlineData("png",300)]
+    public void ImagePrintingDpiDoesNotChangePixelContent(string extension,int dpi) {
+        string name="pixel-size-"+dpi+"."+extension;
+        using(var image=new Bitmap(30,40)) {image.SetResolution(dpi,dpi);using(var graphics=Graphics.FromImage(image)) {graphics.Clear(Color.Red);}image.Save(Path.Combine(Root,name),extension=="jpg"?ImageFormat.Jpeg:ImageFormat.Png);}
+        using var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport);
+        using var resolver=new WindowsMediaSourceResolver(Root,device);
+        using var source=resolver.Open(Reference(name,"image",30,40));
+        using var frame=source.ReadVideoFrame(MediaTime.Zero);
+        var pixels=frame.Surface.ReadRgba().ToArray();int corner=(39*30+29)*4;
+        Assert.Equal(30,frame.Surface.Width);Assert.Equal(40,frame.Surface.Height);
+        Assert.InRange(pixels[corner],250,255);Assert.Equal(255,pixels[corner+3]);
+    }
     /// <summary>A seek in one source cursor cannot change another cursor's frame data.</summary>
     [Fact] public void DifferentCursorsDoNotShareSeekState() {
         using var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport);
