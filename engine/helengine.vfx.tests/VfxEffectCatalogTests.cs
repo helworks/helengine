@@ -12,7 +12,8 @@ namespace helengine.vfx.tests {
         [Fact]
         public void CreateBuiltIn_RegistersShippedEffects() {
             VfxEffectCatalog catalog = VfxEffectCatalog.CreateBuiltIn();
-            Assert.Equal(new[] { "rainbow-expand", "rainbow-aura", "depth-composite" }, catalog.KnownIds);
+            Assert.Equal(new[] { "rainbow-expand", "rainbow-aura", "depth-composite" }, catalog.KnownIds.Take(3));
+            Assert.Equal(BuiltInVfxTransitions.All().Select(effect => effect.EffectId), catalog.All.Where(entry => entry.Effect.Category == EffectCategory.Transition).Select(entry => entry.Effect.EffectId));
             VfxEffectCatalogEntry entry = catalog.Resolve("rainbow-expand");
             Assert.False(entry.IsProjectEffect);
             Assert.Equal(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "shaders/effects/RainbowExpand.hlsl")), entry.ResolveShaderPath(entry.Effect.Passes[0]));
@@ -32,7 +33,7 @@ namespace helengine.vfx.tests {
                 VfxEffectCatalogEntry entry = catalog.Resolve("test-blur");
                 Assert.True(entry.IsProjectEffect);
                 Assert.Equal(Path.Combine(project, "assets", "shaders", "Blur.hlsl"), entry.ResolveShaderPath(entry.Effect.Passes[0]));
-                Assert.Equal(4, catalog.All.Count);
+                Assert.Equal(BuiltInVfxEffects.All().Length + 1, catalog.All.Count);
             } finally {
                 Directory.Delete(project, true);
             }

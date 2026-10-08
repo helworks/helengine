@@ -47,11 +47,17 @@ public sealed class DirectX11MediaCompositor : IMediaCompositor {
         foreach(int order in orders) {
             foreach(var evaluation in roots.Where(item=>item.Layer.Order==order)) {DrawLayer(Pass,document,evaluation,evaluations,time,size);}
             foreach(var transition in active.Where(item=>Math.Max(evaluations[item.FromLayer].Layer.Order,evaluations[item.ToLayer].Layer.Order)==order)) {
-                using var from=Scene(document,evaluations[transition.FromLayer],evaluations,time,size);using var to=Scene(document,evaluations[transition.ToLayer],evaluations,time,size);using var mixed=Pass.Crossfade(from,to,TransitionEvaluation.At(transition,time).Progress,time,size);
+                using var from=Scene(document,evaluations[transition.FromLayer],evaluations,time,size);using var to=Scene(document,evaluations[transition.ToLayer],evaluations,time,size);using var mixed=Transition(transition,from,to,TransitionEvaluation.At(transition,time).Progress,time,size);
                 Pass.Draw(new(new(){Id=transition.Id},MediaTime.Zero,MediaTime.Zero,new()),mixed,null,size);
             }
         }
         return Pass.Finish(time,size);
+    }
+    /// <summary>Blends the outgoing and incoming scene frames with the transition's registered effect; crossfade keeps its dedicated pass.</summary>
+    MediaVideoFrame Transition(CompositionTransition transition,MediaVideoFrame from,MediaVideoFrame to,double progress,MediaTime time,RenderSize size) {
+        if(transition.EffectId=="crossfade") {return Pass.Crossfade(from,to,progress,time,size);}
+        if(!Effects.TryGetValue(transition.EffectId,out var effectPass)) {effectPass=new(Device,Catalog.Resolve(transition.EffectId),EffectCompiler);Effects.Add(transition.EffectId,effectPass);}
+        return effectPass.Render(new MediaEffect{Id=transition.EffectId,Version=transition.EffectVersion,Parameters=transition.Parameters},[from,to],progress);
     }
     /// <summary>Reuses one independent target for each scene visit rather than allocating shader state per frame.</summary>
     DirectX11LayerPass TakeScenePass() {if(NextScenePass==ScenePasses.Count) {ScenePasses.Add(new(Device,new MediaShaderCompiler()));}return ScenePasses[NextScenePass++];}

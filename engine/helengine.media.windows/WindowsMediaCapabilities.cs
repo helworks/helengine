@@ -10,7 +10,7 @@ public static class WindowsMediaCapabilities {
         var catalog=MediaCapabilities.Basic();
         foreach(var entry in effects.All) {
             var effect=entry.Effect;
-            var descriptor=new MediaEffectDescriptor {Id=effect.EffectId,Version=effect.EffectVersion,Category="layer",MainInputRole=effect.Inputs[0].Name,InputRoles=effect.Inputs.Select(input=>input.Name).ToList(),AlphaRequiredInputRoles=effect.Inputs.Where(input=>input.RequiresAlpha).Select(input=>input.Name).ToList()};
+            var descriptor=new MediaEffectDescriptor {Id=effect.EffectId,Version=effect.EffectVersion,Category=effect.Category==EffectCategory.Transition?"transition":"layer",MainInputRole=effect.Inputs[0].Name,InputRoles=effect.Inputs.Select(input=>input.Name).ToList(),AlphaRequiredInputRoles=effect.Inputs.Where(input=>input.RequiresAlpha).Select(input=>input.Name).ToList()};
             foreach(var parameter in effect.Parameters) {descriptor.Parameters.Add(parameter.Name,Parameter(parameter));}
             catalog.Effects.Add(descriptor);
         }

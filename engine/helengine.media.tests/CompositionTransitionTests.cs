@@ -1,3 +1,4 @@
+using System.Text.Json;
 namespace helengine.media.tests;
 /// <summary>Checks explicit transition intervals without modifying audio or timeline duration.</summary>
 public sealed class CompositionTransitionTests {
@@ -7,6 +8,20 @@ public sealed class CompositionTransitionTests {
         Assert.Equal(0,TransitionEvaluation.At(transition,new(1,1)).Progress);
         Assert.Equal(.5,TransitionEvaluation.At(transition,new(3,2)).Progress);
         Assert.Equal(1,TransitionEvaluation.At(transition,new(2,1)).Progress);
+    }
+    /// <summary>Any registered transition may be used, its parameters are checked against the catalog, and layer effects are refused.</summary>
+    [Fact] public void RegisteredTransitionParametersAreValidated() {
+        var capabilities=MediaCapabilities.Basic();
+        capabilities.Effects.Add(new(){Id="wipe",Version=1,Category="transition",Parameters=new(StringComparer.Ordinal){["Softness"]=new(){Type="number",Minimum=0,Maximum=.5}}});
+        capabilities.Effects.Add(new(){Id="tint",Version=1,Category="layer"});
+        var document=Document();document.Transitions[0].EffectId="wipe";document.Transitions[0].Parameters["Softness"]=JsonSerializer.SerializeToElement(.2);
+        Assert.DoesNotContain(CompositionValidator.Validate(document,capabilities),error=>error.Code=="invalid_transition");
+        document.Transitions[0].Parameters["Softness"]=JsonSerializer.SerializeToElement(.9);
+        Assert.Contains(CompositionValidator.Validate(document,capabilities),error=>error.Code=="invalid_transition");
+        document.Transitions[0].Parameters.Clear();document.Transitions[0].EffectId="tint";
+        Assert.Contains(CompositionValidator.Validate(document,capabilities),error=>error.Code=="invalid_transition");
+        document.Transitions[0].EffectId="crossfade";document.Transitions[0].Parameters["Softness"]=JsonSerializer.SerializeToElement(.2);
+        Assert.Contains(CompositionValidator.Validate(document,capabilities),error=>error.Code=="invalid_transition");
     }
     /// <summary>A source layer must cover the entire requested overlap.</summary>
     [Fact] public void InsufficientSourceHandlesRejected() {

@@ -51,6 +51,7 @@ namespace helengine.files {
             writer.WriteString(effect.DisplayName ?? string.Empty);
             writer.WriteInt32(effect.EffectVersion);
             writer.WriteInt32((int)effect.DowngradeMode);
+            writer.WriteInt32((int)effect.Category);
             writer.WriteArray(effect.Inputs, WriteInput);
             writer.WriteArray(effect.Targets, WriteTarget);
             writer.WriteArray(effect.Passes, WritePass);
@@ -69,6 +70,7 @@ namespace helengine.files {
             effect.DisplayName = reader.ReadString();
             effect.EffectVersion = reader.ReadInt32();
             effect.DowngradeMode = (RendererFeatureDowngradeMode)reader.ReadInt32();
+            effect.Category = (EffectCategory)reader.ReadInt32();
             effect.Inputs = reader.ReadArray(ReadInput) ?? Array.Empty<EffectInputAsset>();
             effect.Targets = reader.ReadArray(ReadTarget) ?? Array.Empty<EffectTargetAsset>();
             effect.Passes = reader.ReadArray(ReadPass) ?? Array.Empty<EffectPassAsset>();

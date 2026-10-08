@@ -15,6 +15,7 @@ namespace helengine.files.tests.assets {
                 DisplayName = "Soft Shadow",
                 EffectVersion = 3,
                 DowngradeMode = RendererFeatureDowngradeMode.Drop,
+                Category = EffectCategory.Transition,
                 Inputs = new[] { new EffectInputAsset("Source", true) },
                 Targets = new[] { new EffectTargetAsset("BlurX", 0.5f, EffectTargetFormat.Rgba8) },
                 Passes = new[] {
@@ -36,6 +37,7 @@ namespace helengine.files.tests.assets {
             Assert.Equal("Soft Shadow", restored.DisplayName);
             Assert.Equal(3, restored.EffectVersion);
             Assert.Equal(RendererFeatureDowngradeMode.Drop, restored.DowngradeMode);
+            Assert.Equal(EffectCategory.Transition, restored.Category);
             Assert.True(Assert.Single(restored.Inputs).RequiresAlpha);
             EffectTargetAsset target = Assert.Single(restored.Targets);
             Assert.Equal("BlurX", target.Name);

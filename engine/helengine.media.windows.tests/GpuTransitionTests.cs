@@ -1,7 +1,9 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Security.Cryptography;
+using System.Text.Json;
 using helengine.media;
+using helengine.vfx;
 using SharpDX.Direct3D;
 using SharpDX.Direct3D11;
 namespace helengine.media.windows.tests;
@@ -16,6 +18,31 @@ public sealed class GpuTransitionTests {
         using var start=compositor.Render(document,new(1,1),new(32,32));Assert.Equal(new byte[]{255,0,0,255},Pixel(start,16,16));
         using var middle=compositor.Render(document,new(3,2),new(32,32));var pixel=Pixel(middle,16,16);Assert.InRange(pixel[0],187,189);Assert.InRange(pixel[2],187,189);Assert.Equal(255,pixel[3]);
         using var end=compositor.Render(document,new(2,1),new(32,32));Assert.Equal(new byte[]{0,0,255,255},Pixel(end,16,16));
+    }
+    /// <summary>Dip to color shows the chosen color, not either scene, in the middle of its hold.</summary>
+    [Fact] public void DipToColorPassesThroughTheColor() {
+        var document=Document();var transition=document.Transitions[0];transition.EffectId="dip-to-color";
+        transition.Parameters["Easing"]=JsonSerializer.SerializeToElement("Linear");transition.Parameters["Hold"]=JsonSerializer.SerializeToElement(.2);transition.Parameters["Color"]=JsonSerializer.SerializeToElement(new[]{0.0,1.0,0.0});
+        using var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport);using var resolver=new WindowsMediaSourceResolver(Root,device);using var compositor=new DirectX11MediaCompositor(device,resolver);
+        using var middle=compositor.Render(document,new(3,2),new(32,32));Assert.Equal(new byte[]{0,255,0,255},Pixel(middle,16,16));
+        using var end=compositor.Render(document,new(2,1),new(32,32));Assert.Equal(new byte[]{0,0,255,255},Pixel(end,16,16));
+    }
+    /// <summary>Halfway through a leftward push, the outgoing scene fills the left half and the incoming scene the right half.</summary>
+    [Fact] public void PushSplitsTheFrameAtItsMidpoint() {
+        var document=Document();var transition=document.Transitions[0];transition.EffectId="push";
+        transition.Parameters["Easing"]=JsonSerializer.SerializeToElement("Linear");transition.Parameters["Direction"]=JsonSerializer.SerializeToElement("Left");
+        using var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport);using var resolver=new WindowsMediaSourceResolver(Root,device);using var compositor=new DirectX11MediaCompositor(device,resolver);
+        using var middle=compositor.Render(document,new(3,2),new(32,32));
+        Assert.Equal(new byte[]{255,0,0,255},Pixel(middle,6,16));Assert.Equal(new byte[]{0,0,255,255},Pixel(middle,26,16));
+    }
+    /// <summary>Every built-in transition compiles, renders an opaque midpoint and lands exactly on the incoming scene.</summary>
+    [Fact] public void EveryBuiltInTransitionRenders() {
+        var document=Document();using var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport);using var resolver=new WindowsMediaSourceResolver(Root,device);using var compositor=new DirectX11MediaCompositor(device,resolver);
+        foreach(var effect in BuiltInVfxTransitions.All()) {
+            document.Transitions[0].EffectId=effect.EffectId;
+            using var middle=compositor.Render(document,new(3,2),new(32,32));Assert.Equal(255,Pixel(middle,16,16)[3]);
+            using var end=compositor.Render(document,new(2,1),new(32,32));Assert.Equal(new byte[]{0,0,255,255},Pixel(end,16,16));
+        }
     }
     /// <summary>A group's overlay participates in the transition and is never rendered a second time.</summary>
     [Fact] public void GroupTransitionIncludesItsOverlays() {

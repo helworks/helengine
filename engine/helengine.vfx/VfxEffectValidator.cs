@@ -24,6 +24,12 @@ namespace helengine.vfx {
             if (effect.Inputs == null || effect.Inputs.Length == 0) {
                 throw new InvalidDataException($"Effect '{id}' must declare at least one input; the first is its main input.");
             }
+            if (!Enum.IsDefined(effect.Category)) {
+                throw new InvalidDataException($"Effect '{id}' has an unknown category.");
+            }
+            if (effect.Category == EffectCategory.Transition && effect.Inputs.Length != 2) {
+                throw new InvalidDataException($"Transition '{id}' must declare exactly two inputs: the outgoing scene, then the incoming scene.");
+            }
             if (effect.Passes == null || effect.Passes.Length == 0) {
                 throw new InvalidDataException($"Effect '{id}' must declare at least one pass.");
             }

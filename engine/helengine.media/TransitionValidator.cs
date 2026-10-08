@@ -15,7 +15,9 @@ public static class TransitionValidator {
         }
         var valid=new List<CompositionTransition>();
         foreach(var transition in document.Transitions.Where(item=>item!=null)) {
-            if(transition.EffectId!="crossfade" || transition.EffectVersion!=1 || !capabilities.Supports(transition.EffectId,transition.EffectVersion) || transition.Parameters==null || transition.Parameters.Count!=0) {Add(errors,"invalid_transition",transition.Id,"Crossfade v1 accepts no parameters.");}
+            var descriptor=capabilities.Effects.FirstOrDefault(effect=>effect.Id==transition.EffectId && effect.Version==transition.EffectVersion);
+            if(descriptor==null || descriptor.Category!="transition") {Add(errors,"invalid_transition",transition.Id,"Transition effect is not a registered transition.");}
+            else if(transition.Parameters==null || transition.Parameters.Any(parameter=>!descriptor.Parameters.TryGetValue(parameter.Key,out var shape) || !shape.Accepts(parameter.Value))) {Add(errors,"invalid_transition",transition.Id,"Transition parameters must match the registered transition.");}
             if(!Valid(transition.Start) || !Valid(transition.Duration) || transition.Duration<=MediaTime.Zero) {continue;}
             var end=transition.Start+transition.Duration;
             foreach(string id in new[]{transition.FromLayer,transition.ToLayer}) {

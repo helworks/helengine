@@ -17,6 +17,16 @@ namespace helengine.vfx.tests {
         }
 
         /// <summary>
+        /// A transition always blends exactly two scenes, the outgoing one first.
+        /// </summary>
+        [Fact]
+        public void Validate_TransitionWithOneInput_Throws() {
+            EffectAsset effect = TwoPass();
+            effect.Category = EffectCategory.Transition;
+            Assert.Throws<InvalidDataException>(() => VfxEffectValidator.Validate(effect));
+        }
+
+        /// <summary>
         /// A two-pass blur reading the source and then its own intermediate target is the canonical multi-pass shape.
         /// </summary>
         [Fact]

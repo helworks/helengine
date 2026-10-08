@@ -31,6 +31,11 @@ namespace helengine {
         public int EffectVersion { get; set; } = 1;
 
         /// <summary>
+        /// Gets or sets whether the effect processes a layer or blends two scenes as a transition.
+        /// </summary>
+        public EffectCategory Category { get; set; } = EffectCategory.Layer;
+
+        /// <summary>
         /// Gets or sets how a platform without programmable pixel shaders treats this effect.
         /// </summary>
         public RendererFeatureDowngradeMode DowngradeMode { get; set; } = RendererFeatureDowngradeMode.Required;

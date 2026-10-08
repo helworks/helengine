@@ -12,9 +12,9 @@ namespace helengine.vfx {
         /// <summary>
         /// Returns every built-in effect in a stable order.
         /// </summary>
-        /// <returns>Fresh built-in effect definitions.</returns>
+        /// <returns>Fresh built-in effect definitions, layer effects first and then the scene transitions.</returns>
         public static EffectAsset[] All() {
-            return new[] { RainbowExpand(), RainbowAura(), DepthComposite() };
+            return new[] { RainbowExpand(), RainbowAura(), DepthComposite() }.Concat(BuiltInVfxTransitions.All()).ToArray();
         }
 
         /// <summary>
