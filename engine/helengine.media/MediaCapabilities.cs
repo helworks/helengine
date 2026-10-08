@@ -12,7 +12,7 @@ public sealed class MediaCapabilities {
     /// <summary>Executable document schema supported by this catalog.</summary>
     public string CompositionSchema {get;set;} = "helengine.media.composition.v1";
     /// <summary>Exact named curves, preserving the editorial smoothstep behavior.</summary>
-    public List<string> Curves {get;set;} = ["linear.v1","smoothstep.v1","ease_out_cubic.v1","ease_in_quad.v1"];
+    public List<string> Curves {get;set;} = ["linear.v1","smoothstep.v1","ease_out_cubic.v1","ease_in_quad.v1","ease_out_back.v1"];
     /// <summary>Finite animation ranges used by the planner and editor.</summary>
     public Dictionary<string,MediaParameterDescriptor> LayerProperties {get;set;} = new(StringComparer.Ordinal) {
         ["position_x"]=new(){Minimum=-4,Maximum=4},["position_y"]=new(){Minimum=-4,Maximum=4},
