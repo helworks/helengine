@@ -16,6 +16,7 @@ namespace helengine.vfx.cli {
             var builder = new StringBuilder();
             builder.AppendLine(VfxCliArguments.UsageLine);
             builder.AppendLine("       helengine.vfx.cli composition capabilities [--project <dir>] --json");
+            builder.AppendLine("       helengine.vfx.cli composition compile-edit --input <edit.json> --assets-root <root> --out <json> [--project <dir>] [--final true]");
             builder.AppendLine("       helengine.vfx.cli composition validate --input <json> --assets-root <root> [--project <dir>]");
             builder.AppendLine("       helengine.vfx.cli composition render --input <json> --assets-root <root> --out <file> --profile <id> [--project <dir>]");
             builder.AppendLine("       helengine.vfx.cli composition frame --input <json> --assets-root <root> --time <n/d> --out <png> [--project <dir>]");
