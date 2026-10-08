@@ -610,7 +610,7 @@ namespace helengine {
             float4 localOrientation = reader.ReadFloat4();
             EngineBinaryReadContext.CurrentReadStage = "SceneEntity:OverrideLevelOrder";
             bool hasOverrideLevelOrder = reader.ReadByte() != 0;
-            SceneOverrideScopeStepKind[] overrideLevelOrder = reader.ReadArray(ReadSceneOverrideScopeStepKind) ?? Array.Empty<SceneOverrideScopeStepKind>();
+            SceneOverrideScopeStepKind[] overrideLevelOrder = ReadSceneOverrideLevelOrder(reader, hasOverrideLevelOrder) ?? Array.Empty<SceneOverrideScopeStepKind>();
             EngineBinaryReadContext.CurrentReadStage = "SceneEntity:Components";
             SceneComponentAssetRecord[] components = ReadSceneComponentAssetRecordArray(reader) ?? Array.Empty<SceneComponentAssetRecord>();
             EngineBinaryReadContext.CurrentReadStage = "SceneEntity:PlatformExistenceOverrides";
@@ -634,13 +634,30 @@ namespace helengine {
                 LocalScale = localScale,
                 LocalOrientation = localOrientation,
                 HasOverrideLevelOrder = hasOverrideLevelOrder,
-                OverrideLevelOrder = hasOverrideLevelOrder ? overrideLevelOrder : Array.Empty<SceneOverrideScopeStepKind>(),
+                OverrideLevelOrder = overrideLevelOrder,
                 Components = components,
                 PlatformExistenceOverrides = platformExistenceOverrides,
                 PlatformTransformOverrides = platformTransformOverrides,
                 PlatformComponentOverrides = platformComponentOverrides,
                 Children = children
             };
+        }
+
+        /// <summary>
+        /// Reads one override order and releases a payload that the owning entity does not declare.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the serialized order array.</param>
+        /// <param name="hasOverrideLevelOrder">Whether the owning entity retains the supplied order.</param>
+        /// <returns>The retained owned order, or null when no order is authored or serialized.</returns>
+        [NativeOwnedReturn]
+        static SceneOverrideScopeStepKind[] ReadSceneOverrideLevelOrder(EngineBinaryReader reader, bool hasOverrideLevelOrder) {
+            SceneOverrideScopeStepKind[] order = reader.ReadArray(ReadSceneOverrideScopeStepKind);
+            if (hasOverrideLevelOrder) {
+                return order;
+            }
+
+            NativeOwnership.Release(ref order);
+            return null;
         }
 
         /// <summary>

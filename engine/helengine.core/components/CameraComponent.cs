@@ -48,11 +48,13 @@ namespace helengine {
         /// <summary>
         /// 2D render list for this camera.
         /// </summary>
+        [NativeOwnedMember]
         RenderList2D RenderList2D;
 
         /// <summary>
         /// 3D render list for this camera.
         /// </summary>
+        [NativeOwnedMember]
         RenderList3D RenderList3D;
 
         /// <summary>
@@ -208,40 +210,46 @@ namespace helengine {
         /// Allocates render lists using the core initialization options.
         /// </summary>
         void InitializeLists() {
-            if (OwnerCore == null) {
-                // Components may be configured before attachment. The owning entity
-                // supplies the authoritative capacities when lifecycle registration runs.
-                RenderList2D = new RenderList2D(0);
-                RenderList3D = new RenderList3D(0);
-                return;
-            }
-            if (OwnerCore.InitializationOptions == null) {
-                throw new InvalidOperationException("Core initialization options must be set before creating camera lists.");
-            }
-
-            CoreInitializationOptions settings = OwnerCore.InitializationOptions;
-            settings.Normalize();
-            int renderList2DInitialCapacity = settings.RenderList2DInitialCapacity;
-            int renderList3DInitialCapacity = settings.RenderList3DInitialCapacity;
-            if (RenderList2D == null) {
-                RenderList2D = new RenderList2D(renderList2DInitialCapacity);
-            } else if (RenderList2D.Capacity < renderList2DInitialCapacity) {
-                RenderList2D previous = RenderList2D;
-                RenderList2D = new RenderList2D(renderList2DInitialCapacity);
-                for (int index = 0; index < previous.Count; index++) {
-                    RenderList2D.Add(previous[index]);
+            int renderList2DInitialCapacity = 0;
+            int renderList3DInitialCapacity = 0;
+            if (OwnerCore != null) {
+                if (OwnerCore.InitializationOptions == null) {
+                    throw new InvalidOperationException("Core initialization options must be set before creating camera lists.");
                 }
-                previous.Dispose();
+                CoreInitializationOptions settings = OwnerCore.InitializationOptions;
+                settings.Normalize();
+                renderList2DInitialCapacity = settings.RenderList2DInitialCapacity;
+                renderList3DInitialCapacity = settings.RenderList3DInitialCapacity;
             }
-            if (RenderList3D == null) {
-                RenderList3D = new RenderList3D(renderList3DInitialCapacity);
-            } else if (RenderList3D.Capacity < renderList3DInitialCapacity) {
-                RenderList3D previous = RenderList3D;
-                RenderList3D = new RenderList3D(renderList3DInitialCapacity);
-                for (int index = 0; index < previous.Count; index++) {
-                    RenderList3D.Add(previous[index]);
+            if (RenderList2D == null || RenderList2D.Capacity < renderList2DInitialCapacity) {
+                RenderList2D replacement = new RenderList2D(renderList2DInitialCapacity);
+                try {
+                    if (RenderList2D != null) {
+                        for (int index = 0; index < RenderList2D.Count; index++) {
+                            replacement.Add(RenderList2D[index]);
+                        }
+                    }
+                    NativeOwnership.DisposeAndRelease(ref RenderList2D);
+                    RenderList2D = replacement;
+                    replacement = null;
+                } finally {
+                    NativeOwnership.DisposeAndDelete(replacement);
                 }
-                previous.Dispose();
+            }
+            if (RenderList3D == null || RenderList3D.Capacity < renderList3DInitialCapacity) {
+                RenderList3D replacement = new RenderList3D(renderList3DInitialCapacity);
+                try {
+                    if (RenderList3D != null) {
+                        for (int index = 0; index < RenderList3D.Count; index++) {
+                            replacement.Add(RenderList3D[index]);
+                        }
+                    }
+                    NativeOwnership.DisposeAndRelease(ref RenderList3D);
+                    RenderList3D = replacement;
+                    replacement = null;
+                } finally {
+                    NativeOwnership.DisposeAndDelete(replacement);
+                }
             }
         }
 
@@ -324,11 +332,9 @@ namespace helengine {
         /// Releases per-camera render queues and render settings owned by this camera component.
         /// </summary>
         public override void Dispose() {
-            NativeOwnership.DisposeAndDelete(RenderList2D);
-            NativeOwnership.DisposeAndDelete(RenderList3D);
+            NativeOwnership.DisposeAndRelease(ref RenderList2D);
+            NativeOwnership.DisposeAndRelease(ref RenderList3D);
             NativeOwnership.Delete(RenderSettingsValue);
-            RenderList2D = null;
-            RenderList3D = null;
             RenderSettingsValue = null;
             RenderTarget = null;
             base.Dispose();

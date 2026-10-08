@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable><NoWarn>CS0436</NoWarn></PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="fixtures/**/*.cs" />
+    <Reference Include="helengine.core"><HintPath>C:/dev/helworks/builds/builder-coordination/menu-20261007/editor-style-fix/helengine.core.dll</HintPath></Reference>
+    <Reference Include="helengine.physics"><HintPath>C:/dev/helworks/builds/builder-coordination/menu-20261007/editor-style-fix/helengine.physics.dll</HintPath></Reference>
+    <Reference Include="helengine.shader"><HintPath>C:/dev/helworks/builds/builder-coordination/menu-20261007/editor-style-fix/helengine.shader.dll</HintPath></Reference>
+    <Reference Include="helengine.nativeownership"><HintPath>C:/dev/helworks/builds/builder-coordination/menu-20261007/editor-style-fix/helengine.nativeownership.dll</HintPath></Reference>
+    <Reference Include="DemoDisc"><HintPath>C:/dev/helworks/builds/helengine-xbox/menu-20261007/cache/v2/7feace072cb54ef45aeece5ee0c22158/b/xbox/Release/release/generated-dotnet/generated_code/bin/Zombislayer/Debug/net9.0/DemoDisc.dll</HintPath></Reference>
+    <Compile Include="C:/dev/helworks/builds/helengine-n64/menu-20261007/menu-availability-hidden/MenuItemRuntime.cs" Link="MenuItemRuntime.cs" />
+    <Compile Include="C:/dev/helworks/builds/helengine-n64/menu-20261007/menu-availability-hidden/MenuPanelRuntime.cs" Link="MenuPanelRuntime.cs" />
+    <Compile Include="C:/dev/helworks/builds/helengine-xbox/menu-20261007/project/assets/codebase/menu/MenuPanelComponent.cs" Link="MenuPanelComponent.cs" />
+    <Compile Include="C:/dev/helworks/builds/helengine-xbox/menu-20261007/project/assets/codebase/menu/MenuItemComponent.cs" Link="MenuItemComponent.cs" />
+  </ItemGroup>
+</Project>

@@ -120,6 +120,30 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures releasing the completed load operation and its result wrapper preserves the transferred root until unload.
+        /// </summary>
+        [Fact]
+        public void RequestSceneTransition_whenResultTransfers_keepsRootAliveAndClearsCompletedOperation() {
+            WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 1u);
+            Core core = CreateCore(CreateSceneCatalog(
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
+            core.SceneManager.RequestSceneTransition("Scenes/TestPlayableScene.helen");
+            CommitFrame(core);
+            CommitFrame(core);
+
+            Entity root = Assert.Single(Assert.Single(core.SceneManager.LoadedScenes).RootEntities);
+            Assert.False(root.IsDisposed);
+            Assert.Contains(root, core.ObjectManager.Entities);
+            Assert.Null(typeof(SceneManager).GetField("TransitionLoadOperation",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(core.SceneManager));
+            core.SceneManager.UnloadScene("Scenes/TestPlayableScene.helen");
+            CommitFrame(core);
+
+            Assert.True(root.IsDisposed);
+            Assert.Empty(core.SceneManager.LoadedScenes);
+        }
+
+        /// <summary>
         /// Ensures a second transition request cannot interrupt an already active transition or crash the runtime.
         /// </summary>
         [Fact]

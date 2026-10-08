@@ -19,6 +19,73 @@ namespace helengine.editor.tests {
     /// </summary>
     public class EditorPlatformBuildScenePackagerTests : IDisposable {
         /// <summary>
+        /// Exercises the complete material packaging boundary: shader payloads bypass
+        /// normalization only for a raw-runtime mixed-format opt-in, while classic
+        /// materials, opted-out builders and cooked runtimes still call their cooker.
+        /// </summary>
+        /// <param name="rawRuntime">Whether the platform runtime resolves raw shader materials.</param>
+        /// <param name="preserveShaders">Whether the platform explicitly preserves shader payloads.</param>
+        /// <param name="authoredShader">Whether the source material has an authored shader identity.</param>
+        [Theory]
+        [InlineData(true, true, true)]
+        [InlineData(true, false, true)]
+        [InlineData(false, true, true)]
+        [InlineData(true, true, false)]
+        public void Package_MixedMaterialPolicy_PreservesShadersWithoutChangingOtherCookPaths(
+            bool rawRuntime, bool preserveShaders, bool authoredShader) {
+            const string relativePath = "Materials/MixedMaterial.hasset";
+            const string sceneId = "Scenes/MixedMaterial.helen";
+            if (authoredShader) {
+                WriteShaderCachePackage("MixedCustomShader", ShaderCompileTarget.DirectX11);
+                WriteMaterialAsset(relativePath, "MixedCustomShader");
+            } else {
+                WriteMaterialAssetWithoutShader(relativePath);
+            }
+            WriteSceneAsset(sceneId, relativePath);
+            PlatformDefinition source = CreateWindowsMaterialBuilderDefinition();
+            PlatformDefinition definition = new PlatformDefinition(source.PlatformId, source.DisplayName,
+                source.BuildProfiles, source.GraphicsProfiles, source.AssetRequirements, source.MaterialSchemas,
+                source.ComponentSupportRules, source.CodegenProfiles, source.StorageProfiles, source.MediaProfiles,
+                new RuntimeGenerationContract(rawRuntime ? RuntimeMaterialResolutionMode.RawShaderBacked
+                    : RuntimeMaterialResolutionMode.CookedPlatformOwned, true,
+                    PackagedPathPolicy.ContentRelativeOnly));
+            byte[] cookedBytes = [0x43, 0x4C, 0x41, 0x53, 0x53, 0x49, 0x43];
+            RecordingMaterialBuilder builder = new RecordingMaterialBuilder(definition,
+                _ => new PlatformMaterialCookResult(cookedBytes, [])) {
+                PreserveAuthoredShaderMaterialPayloads = preserveShaders
+            };
+            var settings = new MaterialAssetSettingsService(ProjectRootPath);
+            ShaderMaterialAsset original = settings.LoadMaterialAsset(
+                Path.Combine(ProjectRootPath, "assets", relativePath), "windows");
+            byte[] originalPayload = ShaderMaterialAssetBinarySerializer.SerializeToBytes(original);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath, [], "windows", builder, "debug", "directx11", BuiltInShaderAssetLibrary);
+
+            packager.Package([sceneId], BuildRootPath);
+
+            string packagedPath = Directory.GetFiles(Path.Combine(BuildRootPath, "cooked", "materials"),
+                "*.hasset", SearchOption.AllDirectories).Single();
+            // Packaging also prepares the engine's generated standard material and
+            // can encounter this file through both scene transforms. Inspect the
+            // authored material's requests rather than those unrelated invocations.
+            var authoredRequests = builder.MaterialCookRequests.Where(request =>
+                request.MaterialRelativePath == relativePath).ToArray();
+            if (rawRuntime && preserveShaders && authoredShader) {
+                Assert.Empty(authoredRequests);
+                Assert.Equal(originalPayload, File.ReadAllBytes(packagedPath));
+            } else {
+                Assert.NotEmpty(authoredRequests);
+                Assert.Equal(cookedBytes, File.ReadAllBytes(packagedPath));
+            }
+        }
+
+        /// <summary>Checks that builders without the optional policy retain shader material cooking.</summary>
+        [Fact]
+        public void MixedMaterialPolicy_BuilderWithoutOptIn_KeepsExistingCooking() {
+            Assert.True(PlatformMaterialPackagingPolicy.ShouldCook(new TestPlatformMaterialAssetBuilder(),
+                new ShaderMaterialAsset { ShaderAssetId = "AuthoredShader" }));
+        }
+        /// <summary>
         /// Temporary project root used for scene-packager tests.
         /// </summary>
         readonly string ProjectRootPath;
@@ -5644,7 +5711,7 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Records the last material cook request passed into the fake builder.
         /// </summary>
-        sealed class RecordingMaterialBuilder : IPlatformAssetBuilder {
+        sealed class RecordingMaterialBuilder : IPlatformAssetBuilder, IPlatformRawShaderMaterialPackagingPolicy {
             /// <summary>
             /// Gets the factory that creates cooked material results for incoming requests.
             /// </summary>
@@ -5695,6 +5762,9 @@ namespace helengine.editor.tests {
             /// Gets the platform definition exposed to the packager.
             /// </summary>
             public PlatformDefinition Definition { get; }
+
+            /// <summary>Controls the explicit mixed-format opt-in; existing fixtures retain cooker ownership.</summary>
+            public bool PreserveAuthoredShaderMaterialPayloads { get; set; }
 
             /// <summary>
             /// Gets the last request passed to the material cooker.

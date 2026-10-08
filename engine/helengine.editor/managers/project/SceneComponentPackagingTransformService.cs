@@ -1924,7 +1924,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Material '{reference.RelativePath}' at '{fullPath}' could not be loaded for packaging.", ex);
             }
             string cookedRelativePath = BuildCookedMaterialRelativePath(reference.RelativePath);
-            if (MaterialBuilder != null) {
+            if (PlatformMaterialPackagingPolicy.ShouldCook(MaterialBuilder, materialAsset)) {
                 MaterialAssetImportSettings materialSettings = LoadMaterialSettingsForCook(fullPath, reference.RelativePath, materialAsset);
                 PlatformMaterialCookRequest cookRequest = BuildMaterialCookRequest(reference, materialAsset, materialSettings);
                 PlatformMaterialCookResult cookResult = MaterialBuilder.CookMaterial(cookRequest);
@@ -2440,7 +2440,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(materialAsset));
             }
 
-            if (MaterialBuilder != null) {
+            if (PlatformMaterialPackagingPolicy.ShouldCook(MaterialBuilder, materialAsset)) {
                 MaterialAssetImportSettings materialSettings = MaterialAssetSettingsService.LoadOrCreateInMemory(
                     materialAssetPath,
                     materialAsset,

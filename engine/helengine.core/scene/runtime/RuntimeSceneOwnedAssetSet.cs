@@ -33,6 +33,10 @@ namespace helengine {
         [NativeOwnedMember]
         List<RuntimeMaterial> OwnedMaterialsValue;
 
+        /// <summary>Owns the container of borrowed clips released by the scene reference table.</summary>
+        [NativeOwnedMember]
+        List<AnimationClipAsset> OwnedAnimationClipsValue;
+
         /// <summary>
         /// Initializes one scene-owned asset set.
         /// </summary>
@@ -46,12 +50,30 @@ namespace helengine {
             [NativeNoEscape] IReadOnlyList<FontAsset> ownedFonts,
             [NativeNoEscape] IReadOnlyList<AudioAsset> ownedAudio,
             [NativeNoEscape] IReadOnlyList<RuntimeModel> ownedModels,
-            [NativeNoEscape] IReadOnlyList<RuntimeMaterial> ownedMaterials) {
+            [NativeNoEscape] IReadOnlyList<RuntimeMaterial> ownedMaterials)
+            : this(ownedTextures, ownedFonts, ownedAudio, ownedModels, ownedMaterials, Array.Empty<AnimationClipAsset>()) {
+        }
+
+        /// <summary>Copies borrowed asset references, including clips, into scene-owned containers.</summary>
+        /// <param name="ownedTextures">Borrowed texture references.</param>
+        /// <param name="ownedFonts">Borrowed font references.</param>
+        /// <param name="ownedAudio">Borrowed audio references.</param>
+        /// <param name="ownedModels">Borrowed model references.</param>
+        /// <param name="ownedMaterials">Borrowed material references.</param>
+        /// <param name="ownedAnimationClips">Borrowed clip references.</param>
+        public RuntimeSceneOwnedAssetSet(
+            [NativeNoEscape] IReadOnlyList<RuntimeTexture> ownedTextures,
+            [NativeNoEscape] IReadOnlyList<FontAsset> ownedFonts,
+            [NativeNoEscape] IReadOnlyList<AudioAsset> ownedAudio,
+            [NativeNoEscape] IReadOnlyList<RuntimeModel> ownedModels,
+            [NativeNoEscape] IReadOnlyList<RuntimeMaterial> ownedMaterials,
+            [NativeNoEscape] IReadOnlyList<AnimationClipAsset> ownedAnimationClips) {
             OwnedTexturesValue = CopyItems(ownedTextures);
             OwnedFontsValue = CopyItems(ownedFonts);
             OwnedAudioValue = CopyItems(ownedAudio);
             OwnedModelsValue = CopyItems(ownedModels);
             OwnedMaterialsValue = CopyItems(ownedMaterials);
+            OwnedAnimationClipsValue = CopyItems(ownedAnimationClips);
         }
 
         /// <summary>
@@ -62,6 +84,7 @@ namespace helengine {
         /// <param name="ownedAudio">Audio-asset list whose container transfers to this set.</param>
         /// <param name="ownedModels">Runtime-model list whose container transfers to this set.</param>
         /// <param name="ownedMaterials">Runtime-material list whose container transfers to this set.</param>
+        /// <param name="ownedAnimationClips">Clip reference container transferred to this set.</param>
         /// <param name="takesOwnership">Required marker confirming that all supplied containers transfer ownership.</param>
         RuntimeSceneOwnedAssetSet(
             [NativeTakesOwnership] List<RuntimeTexture> ownedTextures,
@@ -69,6 +92,7 @@ namespace helengine {
             [NativeTakesOwnership] List<AudioAsset> ownedAudio,
             [NativeTakesOwnership] List<RuntimeModel> ownedModels,
             [NativeTakesOwnership] List<RuntimeMaterial> ownedMaterials,
+            [NativeTakesOwnership] List<AnimationClipAsset> ownedAnimationClips,
             bool takesOwnership) {
             if (!takesOwnership) {
                 throw new ArgumentException("The ownership constructor requires an explicit transfer marker.", nameof(takesOwnership));
@@ -79,6 +103,7 @@ namespace helengine {
             OwnedAudioValue = ownedAudio ?? throw new ArgumentNullException(nameof(ownedAudio));
             OwnedModelsValue = ownedModels ?? throw new ArgumentNullException(nameof(ownedModels));
             OwnedMaterialsValue = ownedMaterials ?? throw new ArgumentNullException(nameof(ownedMaterials));
+            OwnedAnimationClipsValue = ownedAnimationClips ?? throw new ArgumentNullException(nameof(ownedAnimationClips));
         }
 
         /// <summary>
@@ -106,6 +131,9 @@ namespace helengine {
         /// </summary>
         public IReadOnlyList<RuntimeMaterial> OwnedMaterials => OwnedMaterialsValue;
 
+        /// <summary>Gets the borrowed clips whose lifetime is managed by the scene reference table.</summary>
+        public IReadOnlyList<AnimationClipAsset> OwnedAnimationClips => OwnedAnimationClipsValue;
+
         /// <summary>
         /// Creates an asset set that assumes native ownership of all supplied list containers.
         /// </summary>
@@ -122,12 +150,32 @@ namespace helengine {
             [NativeTakesOwnership] List<AudioAsset> ownedAudio,
             [NativeTakesOwnership] List<RuntimeModel> ownedModels,
             [NativeTakesOwnership] List<RuntimeMaterial> ownedMaterials) {
+            return CreateOwned(ownedTextures, ownedFonts, ownedAudio, ownedModels, ownedMaterials, new List<AnimationClipAsset>());
+        }
+
+        /// <summary>Transfers all reference containers without taking ownership of their elements.</summary>
+        /// <param name="ownedTextures">Transferred texture container.</param>
+        /// <param name="ownedFonts">Transferred font container.</param>
+        /// <param name="ownedAudio">Transferred audio container.</param>
+        /// <param name="ownedModels">Transferred model container.</param>
+        /// <param name="ownedMaterials">Transferred material container.</param>
+        /// <param name="ownedAnimationClips">Transferred clip container.</param>
+        /// <returns>Set owning the supplied containers.</returns>
+        [NativeOwnedReturn]
+        public static RuntimeSceneOwnedAssetSet CreateOwned(
+            [NativeTakesOwnership] List<RuntimeTexture> ownedTextures,
+            [NativeTakesOwnership] List<FontAsset> ownedFonts,
+            [NativeTakesOwnership] List<AudioAsset> ownedAudio,
+            [NativeTakesOwnership] List<RuntimeModel> ownedModels,
+            [NativeTakesOwnership] List<RuntimeMaterial> ownedMaterials,
+            [NativeTakesOwnership] List<AnimationClipAsset> ownedAnimationClips) {
             return new RuntimeSceneOwnedAssetSet(
                 ownedTextures,
                 ownedFonts,
                 ownedAudio,
                 ownedModels,
                 ownedMaterials,
+                ownedAnimationClips,
                 true);
         }
 
@@ -140,6 +188,7 @@ namespace helengine {
             NativeOwnership.Release(ref OwnedAudioValue);
             NativeOwnership.Release(ref OwnedModelsValue);
             NativeOwnership.Release(ref OwnedMaterialsValue);
+            NativeOwnership.Release(ref OwnedAnimationClipsValue);
         }
 
         /// <summary>

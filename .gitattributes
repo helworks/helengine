@@ -1,0 +1,2 @@
+# Menu source guards use byte hashes; preserve reviewed templates on checkout.
+scripts/demodisc-menu/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

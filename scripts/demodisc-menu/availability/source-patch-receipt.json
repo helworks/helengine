@@ -1,0 +1,39 @@
+{
+  "policy": "hide-unavailable",
+  "files": [
+    {
+      "previousHiddenSha256": "faec562bf90d6ee147754a8116b1122f06003a1b890b5755c8e6fdce5242f440",
+      "previousPatchSha256": "660065f310f789c8cd0b990633c757fc3d4774622b928908f8762fbcca6dd625",
+      "patchedSha256": "c7a28b38c136ae9e83d0393a07078ac3204a4f3b1b47f59924a928741050a6ad",
+      "acceptedPreviousSha256": [
+        "faec562bf90d6ee147754a8116b1122f06003a1b890b5755c8e6fdce5242f440"
+      ],
+      "name": "MenuComponent.cs",
+      "originalSha256": "edcef3ea976a74b3abca6da8d4945936aca7981ce7ad01fe4f1b5dbc2db2e536"
+    },
+    {
+      "previousHiddenSha256": "40a9df6d80dbaaceea7fea6438911acf13194644403e34ca360c0c706e3f3cab",
+      "previousPatchSha256": "a3a14cc7e757b3b045a0bdc58f07e7f43b30f6a071fc7882072aaf1c15ac2b5e",
+      "patchedSha256": "40a9df6d80dbaaceea7fea6438911acf13194644403e34ca360c0c706e3f3cab",
+      "acceptedPreviousSha256": [
+        "40a9df6d80dbaaceea7fea6438911acf13194644403e34ca360c0c706e3f3cab"
+      ],
+      "name": "MenuItemRuntime.cs",
+      "originalSha256": "add0a42c2f697038d6f9bfa8b5f44977429fcf06ffe89c05b7805cca6bffecb5"
+    },
+    {
+      "previousHiddenSha256": "5fd57a8ebe933ed5c31fb85cedc40fae3595afd4f7774ba26e9d29386583c4cc",
+      "previousPatchSha256": "5fd57a8ebe933ed5c31fb85cedc40fae3595afd4f7774ba26e9d29386583c4cc",
+      "patchedSha256": "8aee0e283648c86f6a5e9f7110d971526ffc47f0c530cf2577e782f3b33d1acd",
+      "acceptedPreviousSha256": [
+        "8aee0e283648c86f6a5e9f7110d971526ffc47f0c530cf2577e782f3b33d1acd"
+      ],
+      "name": "MenuPanelRuntime.cs",
+      "originalSha256": "4ffd7f58b1a74736e6e89acd8213726eb9953117b23e32632fdb0e73086ff3d4"
+    }
+  ],
+  "behaviorTests": "test-receipt.json",
+  "behaviorTestSha256": "20515f852d73f38959aaccd6f4ea2549f36d1a61cdbcc3550e18d95a05031806",
+  "createdUtc": "2026-10-08T01:15:37.7175892Z",
+  "sourceOnly": true
+}

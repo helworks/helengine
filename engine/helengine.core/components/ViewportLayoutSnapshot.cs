@@ -171,7 +171,7 @@ namespace helengine {
         public int ScrollItemExtent { get; }
 
         /// <summary>
-        /// Applies one absolute viewport-driven scale to the captured entity and any supported attached layout components.
+        /// Applies one absolute viewport-driven scale to the captured layout. Glyphs and their effects follow the canvas height when stretched and the uniform canvas scale otherwise.
         /// </summary>
         /// <param name="anchorSpace">Anchor space resolved for the live viewport.</param>
         /// <param name="canvasOrigin">Origin applied to the scaled subtree root.</param>

@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Stores one platform-specific override payload for an animation clip.
     /// </summary>
-    public class AnimationClipPlatformOverrideAsset {
+    public class AnimationClipPlatformOverrideAsset : IDisposable {
         /// <summary>
         /// Gets or sets the platform identifier that owns this override payload.
         /// </summary>
@@ -37,5 +37,21 @@ namespace helengine {
         /// Gets or sets the platform-authored absolute rotation tracks.
         /// </summary>
         public PlatformRotationKeyframeTrackAsset[] RotationTracks { get; set; } = Array.Empty<PlatformRotationKeyframeTrackAsset>();
+
+        /// <summary>Releases each platform track and its keyframe tree after the clip's users have been disposed.</summary>
+        public void Dispose() {
+            PlatformPositionKeyframeTrackAsset[] positions = PositionTracks;
+            PlatformPositionKeyframeTrackAsset[] offsets = PositionOffsetTracks;
+            PlatformPositionKeyframeTrackAsset[] scales = ScaleTracks;
+            PlatformRotationKeyframeTrackAsset[] rotations = RotationTracks;
+            PositionTracks = null;
+            PositionOffsetTracks = null;
+            ScaleTracks = null;
+            RotationTracks = null;
+            AnimationClipAsset.DisposeOwnedTracks(positions);
+            AnimationClipAsset.DisposeOwnedTracks(offsets);
+            AnimationClipAsset.DisposeOwnedTracks(scales);
+            AnimationClipAsset.DisposeOwnedTracks(rotations);
+        }
     }
 }

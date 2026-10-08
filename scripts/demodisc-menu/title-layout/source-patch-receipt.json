@@ -1,0 +1,30 @@
+{
+  "policy": "fit-and-align-two-painted-right-edges-one-pixel-inside-overlay",
+  "platforms": [
+    "dc",
+    "ps1",
+    "n64",
+    "ps3",
+    "x360",
+    "xbox",
+    "windows"
+  ],
+  "menuBaseline": "C:/dev/helworks/builds/helengine-n64/menu-20261007/menu-availability-hidden/MenuComponent.cs",
+  "menuBaselineSha256": "c7a28b38c136ae9e83d0393a07078ac3204a4f3b1b47f59924a928741050a6ad",
+  "menuPatchedSha256": "212bd45d27a08ce1974d827abe6151fc93ccd8ea7076e7e694a6d4b6590e6409",
+  "acceptedPreviousMenuSha256": [
+    "c0810919c6d3e380a37923f6067b2ec9bfe727c0f132423b23c505654718b7d8"
+  ],
+  "helperSha256": "8c41c5fb8526127ee4b600dbe3c8264505bd7d8312cc189f95838de05c676925",
+  "acceptedPreviousHelperSha256": [
+    "2fda5f183d0bd7070d414837591d41b49970e08ac94e0838e6356b2c559e9b4c",
+    "abd3d7444dc953c107978dc2c9548884cfe0809d91a514d77722bffa7f3f7fc3"
+  ],
+  "acceptedXboxMenuSha256": "bb1dae3d7d7aa5fc9bb154789e1ce5ab80141b6381ff622334e111cc1d106168",
+  "obsoleteXboxHelperSha256": "1062b1112ab475ab420ed4f7ad1427bd66f451d4330ed2d7f6968fdd1b9f7d76",
+  "paintedRightContract": "shared-overlay-right-minus-one-framebuffer-pixel",
+  "nativeOriginRoundingTolerancePixels": 0.5,
+  "commonHeadingReducingRatio": true,
+  "generatedFilesModified": false,
+  "originalProjectModified": false
+}

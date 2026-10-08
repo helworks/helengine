@@ -29,9 +29,16 @@ namespace helengine {
         /// </summary>
         int NextRootEntityIndex;
 
+        /// <summary>Remembers finalization after the result wrapper transfers to its caller.</summary>
+        bool IsCompletedValue;
+
+        /// <summary>Prevents using an operation after its temporary ownership has been released.</summary>
+        bool IsDisposedValue;
+
         /// <summary>
-        /// Result made available after every root has been initialized and owned assets have been finalized.
+        /// Owns the temporary result wrapper until consumption or disposal; its roots and assets transfer separately.
         /// </summary>
+        [NativeOwnedMember]
         RuntimeSceneLoadResult ResultValue;
 
         /// <summary>
@@ -61,15 +68,16 @@ namespace helengine {
         /// <summary>
         /// Gets whether all roots and owned assets have been finalized.
         /// </summary>
-        public bool IsCompleted => ResultValue != null;
+        public bool IsCompleted => IsCompletedValue;
 
         /// <summary>
-        /// Gets the completed runtime scene payload.
+        /// Borrows the completed payload while it remains in this operation. The borrow becomes invalid after TakeResult or Dispose.
         /// </summary>
+        [NativeBorrowedReturn]
         public RuntimeSceneLoadResult Result {
             get {
                 if (ResultValue == null) {
-                    throw new InvalidOperationException("The runtime scene load operation has not completed.");
+                    throw new InvalidOperationException("The runtime scene load operation has no unconsumed completed result.");
                 }
 
                 return ResultValue;
@@ -77,9 +85,28 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Transfers the same roots and asset set into a caller-owned result wrapper and releases this operation's wrapper.
+        /// Does not copy entities or assets. The result can be consumed once, and previous Result borrows become invalid.
+        /// </summary>
+        /// <returns>Owned wrapper that retains the finalized scene's original root container and asset set.</returns>
+        [NativeOwnedReturn]
+        public RuntimeSceneLoadResult TakeResult() {
+            if (ResultValue == null) {
+                throw new InvalidOperationException("The runtime scene load operation has no unconsumed completed result.");
+            }
+
+            RuntimeSceneLoadResult result = new RuntimeSceneLoadResult(ResultValue.RootEntities, ResultValue.OwnedAssets);
+            NativeOwnership.Release(ref ResultValue);
+            return result;
+        }
+
+        /// <summary>
         /// Materializes at most one root entity and finalizes the scene when the final root has been processed.
         /// </summary>
         public void Advance() {
+            if (IsDisposedValue) {
+                throw new InvalidOperationException("Disposed runtime scene load operations cannot advance.");
+            }
             if (IsCompleted) {
                 return;
             }
@@ -99,13 +126,20 @@ namespace helengine {
                     RootEntities[index].InitializeHierarchy();
                 }
 
+                NativeOwnership.Release(ref ResultValue);
                 ResultValue = new RuntimeSceneLoadResult(RootEntities, SceneLoadService.CompleteTrackedLoad());
+                IsCompletedValue = true;
             }
         }
 
-        /// <summary>Releases temporary reference storage when the load completes or is abandoned.</summary>
+        /// <summary>
+        /// Releases temporary fixups and any unconsumed result wrapper without destroying the borrowed roots or asset set.
+        /// Repeated disposal is safe and invalidates all Result borrows.
+        /// </summary>
         public void Dispose() {
+            NativeOwnership.Release(ref ResultValue);
             NativeOwnership.DisposeAndRelease(ref ReferenceFixups);
+            IsDisposedValue = true;
         }
     }
 }

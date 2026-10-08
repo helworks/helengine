@@ -55,6 +55,14 @@ namespace helengine {
         [NativeOwnedMember]
         List<RuntimeMaterial> ActiveOwnedMaterials;
 
+        /// <summary>Tracks clips kept alive until the owning scene releases its animators.</summary>
+        [NativeOwnedMember]
+        List<AnimationClipAsset> ActiveOwnedAnimationClips;
+
+        /// <summary>Shares one deserialized clip per packaged path during materialization.</summary>
+        [NativeOwnedMember]
+        Dictionary<string, AnimationClipAsset> ActiveResolvedAnimationClipsByPath;
+
         /// <summary>
         /// Reuses generated runtime models during the active scene materialization scope so repeated generated references share one runtime model instance.
         /// </summary>
@@ -285,13 +293,23 @@ namespace helengine {
         /// </summary>
         /// <param name="reference">Packaged scene asset reference to resolve.</param>
         /// <returns>Animation clip asset loaded from packaged content.</returns>
+        [NativeBorrowedReturn]
         public AnimationClipAsset ResolveAnimationClip(SceneAssetReference reference) {
             if (reference == null) {
                 throw new ArgumentNullException(nameof(reference));
             }
 
             string fullPath = ResolveFileBackedAssetPath(reference);
-            return AssetContentManager.Load<AnimationClipAsset>(fullPath, RuntimeContentProcessorIds.AnimationClipAsset);
+            if (ActiveOwnedAnimationClips == null) {
+                throw new InvalidOperationException("Animation clip ownership requires active scene asset tracking.");
+            }
+            if (ActiveResolvedAnimationClipsByPath.TryGetValue(fullPath, out AnimationClipAsset cachedClip)) {
+                return cachedClip;
+            }
+
+            AnimationClipAsset clip = TrackOwnedAnimationClip(AssetContentManager.Load<AnimationClipAsset>(fullPath, RuntimeContentProcessorIds.AnimationClipAsset));
+            ActiveResolvedAnimationClipsByPath.Add(fullPath, clip);
+            return clip;
         }
 
         /// <summary>
@@ -319,7 +337,9 @@ namespace helengine {
                 ActiveOwnedAudio != null ||
                 ActiveResolvedFontsByPath != null ||
                 ActiveOwnedModels != null ||
-                ActiveOwnedMaterials != null) {
+                ActiveOwnedMaterials != null ||
+                ActiveOwnedAnimationClips != null ||
+                ActiveResolvedAnimationClipsByPath != null) {
                 throw new InvalidOperationException("Runtime scene asset tracking is already active.");
             }
 
@@ -330,12 +350,16 @@ namespace helengine {
             NativeOwnership.Release(ref ActiveResolvedFontsByPath);
             NativeOwnership.Release(ref ActiveOwnedModels);
             NativeOwnership.Release(ref ActiveOwnedMaterials);
+            NativeOwnership.Release(ref ActiveOwnedAnimationClips);
+            NativeOwnership.Release(ref ActiveResolvedAnimationClipsByPath);
             ActiveOwnedTextures = new List<RuntimeTexture>();
             ActiveOwnedFonts = new List<FontAsset>();
             ActiveOwnedAudio = new List<AudioAsset>();
             ActiveResolvedFontsByPath = new Dictionary<string, FontAsset>(StringComparer.OrdinalIgnoreCase);
             ActiveOwnedModels = new List<RuntimeModel>();
             ActiveOwnedMaterials = new List<RuntimeMaterial>();
+            ActiveOwnedAnimationClips = new List<AnimationClipAsset>();
+            ActiveResolvedAnimationClipsByPath = new Dictionary<string, AnimationClipAsset>(StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -343,7 +367,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Scene-owned runtime assets resolved during the active materialization scope.</returns>
         public RuntimeSceneOwnedAssetSet CompleteOwnedAssetTracking() {
-            if (ActiveOwnedTextures == null || ActiveOwnedFonts == null || ActiveOwnedAudio == null || ActiveOwnedModels == null || ActiveOwnedMaterials == null) {
+            if (ActiveOwnedTextures == null || ActiveOwnedFonts == null || ActiveOwnedAudio == null || ActiveOwnedModels == null || ActiveOwnedMaterials == null || ActiveOwnedAnimationClips == null) {
                 throw new InvalidOperationException("Runtime scene asset tracking is not active.");
             }
 
@@ -352,6 +376,7 @@ namespace helengine {
             List<AudioAsset> ownedAudio = new List<AudioAsset>(ActiveOwnedAudio);
             List<RuntimeModel> ownedModels = new List<RuntimeModel>(ActiveOwnedModels);
             List<RuntimeMaterial> ownedMaterials = new List<RuntimeMaterial>(ActiveOwnedMaterials);
+            List<AnimationClipAsset> ownedAnimationClips = new List<AnimationClipAsset>(ActiveOwnedAnimationClips);
             NativeOwnership.Release(ref ActiveOwnedTextures);
             NativeOwnership.Release(ref ActiveOwnedFonts);
             NativeOwnership.Release(ref ActiveOwnedAudio);
@@ -359,13 +384,18 @@ namespace helengine {
             NativeOwnership.Release(ref ActiveOwnedModels);
             NativeOwnership.Release(ref ActiveOwnedMaterials);
             ResetGeneratedRuntimeAssetCaches();
-            return RuntimeSceneOwnedAssetSet.CreateOwned(ownedTextures, ownedFonts, ownedAudio, ownedModels, ownedMaterials);
+            NativeOwnership.Release(ref ActiveOwnedAnimationClips);
+            NativeOwnership.Release(ref ActiveResolvedAnimationClipsByPath);
+            return RuntimeSceneOwnedAssetSet.CreateOwned(ownedTextures, ownedFonts, ownedAudio, ownedModels, ownedMaterials, ownedAnimationClips);
         }
 
         /// <summary>
         /// Cancels the active scene-owned asset tracking scope after one failed materialization attempt.
         /// </summary>
         public void CancelOwnedAssetTracking() {
+            DisposeActiveAnimationClipItems();
+            NativeOwnership.Release(ref ActiveOwnedAnimationClips);
+            NativeOwnership.Release(ref ActiveResolvedAnimationClipsByPath);
             NativeOwnership.Release(ref ActiveOwnedTextures);
             NativeOwnership.Release(ref ActiveOwnedFonts);
             NativeOwnership.Release(ref ActiveOwnedAudio);
@@ -379,6 +409,9 @@ namespace helengine {
         /// Releases active tracking containers and generated-reference caches owned by this resolver.
         /// </summary>
         public void Dispose() {
+            DisposeActiveAnimationClipItems();
+            NativeOwnership.Release(ref ActiveOwnedAnimationClips);
+            NativeOwnership.Release(ref ActiveResolvedAnimationClipsByPath);
             NativeOwnership.Release(ref ActiveOwnedTextures);
             NativeOwnership.Release(ref ActiveOwnedFonts);
             NativeOwnership.Release(ref ActiveOwnedAudio);
@@ -684,6 +717,32 @@ namespace helengine {
                 ActiveOwnedMaterials.Add(asset);
             }
             return asset;
+        }
+
+        /// <summary>Transfers a resolved clip to the active scene while returning a borrowed animator alias.</summary>
+        /// <param name="asset">Newly loaded clip whose tree is owned by the scene.</param>
+        /// <returns>Borrowed clip retained until scene unload.</returns>
+        [NativeBorrowedReturn]
+        AnimationClipAsset TrackOwnedAnimationClip([NativeTakesOwnership] AnimationClipAsset asset) {
+            if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            }
+            if (ActiveOwnedAnimationClips == null) {
+                throw new InvalidOperationException("Animation clip ownership requires active scene asset tracking.");
+            }
+            if (!ActiveOwnedAnimationClips.Contains(asset)) {
+                ActiveOwnedAnimationClips.Add(asset);
+            }
+            return asset;
+        }
+
+        /// <summary>Disposes clips left in an unfinished materialization; the caller separately releases its reference containers.</summary>
+        void DisposeActiveAnimationClipItems() {
+            if (ActiveOwnedAnimationClips != null) {
+                for (int index = 0; index < ActiveOwnedAnimationClips.Count; index++) {
+                    NativeOwnership.DisposeAndDelete(ActiveOwnedAnimationClips[index]);
+                }
+            }
         }
     }
 }

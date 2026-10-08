@@ -80,6 +80,11 @@ namespace helengine {
         readonly SceneOwnedAssetReferenceTable<RuntimeMaterial> OwnedMaterialTable;
 
         /// <summary>
+        /// Tracks animation clips until the last referencing scene has disposed its entities.
+        /// </summary>
+        readonly SceneOwnedAssetReferenceTable<AnimationClipAsset> OwnedAnimationClipTable;
+
+        /// <summary>
         /// Tracks whether deferred scene operations are currently being committed at the frame boundary.
         /// </summary>
         bool IsCommittingPendingOperations;
@@ -159,6 +164,7 @@ namespace helengine {
             OwnedAudioTable = new SceneOwnedAssetReferenceTable<AudioAsset>("audio asset", ReleaseOwnedAudioAsset);
             OwnedModelTable = new SceneOwnedAssetReferenceTable<RuntimeModel>("runtime model", ReleaseOwnedModel);
             OwnedMaterialTable = new SceneOwnedAssetReferenceTable<RuntimeMaterial>("runtime material", ReleaseOwnedMaterial);
+            OwnedAnimationClipTable = new SceneOwnedAssetReferenceTable<AnimationClipAsset>("animation clip", ReleaseOwnedAnimationClip);
         }
 
         /// <summary>
@@ -235,6 +241,11 @@ namespace helengine {
         /// Gets the number of scene-owned runtime materials currently tracked across all loaded scenes.
         /// </summary>
         public int ActiveOwnedMaterialReferenceCount => OwnedMaterialTable.Count;
+
+        /// <summary>
+        /// Gets the number of distinct animation clips retained by loaded scenes.
+        /// </summary>
+        public int ActiveOwnedAnimationClipReferenceCount => OwnedAnimationClipTable.Count;
 
         /// <summary>
         /// Returns the currently loaded scene ids in load order for diagnostics.
@@ -564,25 +575,31 @@ namespace helengine {
                 return;
             }
 
-            RuntimeSceneLoadResult loadResult = TransitionLoadOperation.Result;
-            bool dontUnload = TransitionSceneAsset.SceneSettings != null && TransitionSceneAsset.SceneSettings.DontUnload;
-            LoadedSceneRecord loadedSceneRecord = new LoadedSceneRecord(TransitionTargetSceneIdValue, TransitionSceneContentPath, loadResult.RootEntities, loadResult.OwnedAssets, dontUnload);
-            LoadedSceneRecord trackedSceneRecord = TrackLoadedSceneRecord(loadedSceneRecord);
-            RegisterOwnedAssets(trackedSceneRecord.OwnedAssets, TransitionTargetSceneIdValue);
-            SceneLoadedEventArgs sceneLoadedEventArgs = new SceneLoadedEventArgs(trackedSceneRecord.SceneId, trackedSceneRecord.CookedRelativePath, trackedSceneRecord.RootEntities);
+            RuntimeSceneLoadResult loadResult = TransitionLoadOperation.TakeResult();
             try {
-                DispatchSceneLoaded(sceneLoadedEventArgs);
-                OwnerCore.ReportSceneTransitionStage("AfterSceneLoadedEventDispatch");
+                bool dontUnload = TransitionSceneAsset.SceneSettings != null && TransitionSceneAsset.SceneSettings.DontUnload;
+                LoadedSceneRecord loadedSceneRecord = new LoadedSceneRecord(TransitionTargetSceneIdValue, TransitionSceneContentPath, loadResult.RootEntities, loadResult.OwnedAssets, dontUnload);
+                LoadedSceneRecord trackedSceneRecord = TrackLoadedSceneRecord(loadedSceneRecord);
+                RegisterOwnedAssets(trackedSceneRecord.OwnedAssets, TransitionTargetSceneIdValue);
+                SceneLoadedEventArgs sceneLoadedEventArgs = new SceneLoadedEventArgs(trackedSceneRecord.SceneId, trackedSceneRecord.CookedRelativePath, trackedSceneRecord.RootEntities);
+                try {
+                    DispatchSceneLoaded(sceneLoadedEventArgs);
+                    OwnerCore.ReportSceneTransitionStage("AfterSceneLoadedEventDispatch");
+                } finally {
+                    OwnerCore.ReportSceneTransitionStage("BeforeSceneLoadedEventArgsRelease");
+                    NativeOwnership.Delete(sceneLoadedEventArgs);
+                    OwnerCore.ReportSceneTransitionStage("AfterSceneLoadedEventArgsRelease");
+                }
             } finally {
-                OwnerCore.ReportSceneTransitionStage("BeforeSceneLoadedEventArgsRelease");
-                NativeOwnership.Delete(sceneLoadedEventArgs);
-                OwnerCore.ReportSceneTransitionStage("AfterSceneLoadedEventArgsRelease");
+                // The record now retains the roots and asset set. Dispose the consumed
+                // operation before deleting only the caller-owned result wrapper.
+                NativeOwnership.DisposeAndRelease(ref TransitionLoadOperation);
+                NativeOwnership.Delete(loadResult);
             }
 
             ReleaseTransientSceneAsset(TransitionSceneAsset);
             OwnerCore.ReportSceneTransitionStage("AfterTransitionSceneAssetRelease");
             TransitionSceneAsset = null;
-            NativeOwnership.DisposeAndRelease(ref TransitionLoadOperation);
             TransitionSceneContentPath = string.Empty;
             SceneTransitionProgressValue = 1f;
             IsSceneTransitionActiveValue = false;
@@ -851,11 +868,13 @@ namespace helengine {
             SceneEntityPlatformTransformOverrideAsset[] platformTransformOverrides = asset.PlatformTransformOverrides;
             SceneEntityPlatformComponentOverrideAsset[] platformComponentOverrides = asset.PlatformComponentOverrides;
             SceneEntityAsset[] children = asset.Children;
+            SceneOverrideScopeStepKind[] overrideLevelOrder = asset.OverrideLevelOrder;
             asset.Components = null;
             asset.PlatformExistenceOverrides = null;
             asset.PlatformTransformOverrides = null;
             asset.PlatformComponentOverrides = null;
             asset.Children = null;
+            asset.OverrideLevelOrder = null;
             if (components != null) {
                 for (int index = 0; index < components.Length; index++) {
                     ReleaseTransientSceneComponentAssetRecord(components[index]);
@@ -887,6 +906,7 @@ namespace helengine {
             DeleteTransientArray(platformTransformOverrides);
             DeleteTransientArray(platformComponentOverrides);
             DeleteTransientArray(children);
+            DeleteTransientArray(overrideLevelOrder);
             asset.MarkReleasedForDiagnostics();
             NativeOwnership.Delete(asset);
         }
@@ -968,6 +988,8 @@ namespace helengine {
             OwnedModelTable.Register(ownedAssets.OwnedModels);
             RecordTraceState("LoadSceneImmediateBeforeRegisterOwnedMaterials", sceneId);
             OwnedMaterialTable.Register(ownedAssets.OwnedMaterials);
+            RecordTraceState("LoadSceneImmediateBeforeRegisterOwnedAnimationClips", sceneId);
+            OwnedAnimationClipTable.Register(ownedAssets.OwnedAnimationClips);
             RecordTraceState("LoadSceneImmediateAfterRegisterOwnedAssets", sceneId);
         }
 
@@ -985,6 +1007,19 @@ namespace helengine {
             OwnedTextureTable.Release(ownedAssets.OwnedTextures);
             OwnedModelTable.Release(ownedAssets.OwnedModels);
             OwnedMaterialTable.Release(ownedAssets.OwnedMaterials);
+            OwnedAnimationClipTable.Release(ownedAssets.OwnedAnimationClips);
+        }
+
+        /// <summary>
+        /// Disposes and deletes an animation clip after all referencing scenes have torn down their entities.
+        /// </summary>
+        /// <param name="ownedAsset">Clip whose final scene reference has been removed.</param>
+        void ReleaseOwnedAnimationClip(AnimationClipAsset ownedAsset) {
+            if (ownedAsset == null) {
+                throw new ArgumentNullException(nameof(ownedAsset));
+            }
+
+            NativeOwnership.DisposeAndDelete(ownedAsset);
         }
 
         /// <summary>

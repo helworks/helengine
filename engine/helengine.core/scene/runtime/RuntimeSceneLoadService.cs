@@ -106,16 +106,15 @@ namespace helengine {
         [NativeOwnedReturn]
         public RuntimeSceneLoadResult LoadTracked(SceneAsset sceneAsset) {
             RuntimeSceneLoadOperation operation = CreateTrackedLoadOperation(sceneAsset);
-            while (!operation.IsCompleted) {
-                operation.Advance();
-            }
+            try {
+                while (!operation.IsCompleted) {
+                    operation.Advance();
+                }
 
-            RuntimeSceneLoadResult result = new RuntimeSceneLoadResult(
-                operation.Result.RootEntities,
-                operation.Result.OwnedAssets);
-            NativeOwnership.Delete(operation.Result);
-            NativeOwnership.DisposeAndDelete(operation);
-            return result;
+                return operation.TakeResult();
+            } finally {
+                NativeOwnership.DisposeAndDelete(operation);
+            }
         }
 
         /// <summary>
