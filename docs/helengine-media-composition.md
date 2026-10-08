@@ -56,6 +56,22 @@ or a catalog transition. Global tracks carry music and caption settings; caption
 planned speech in previews). Any lockable object may carry `"by": "human"`; `VideoEditMerge.Replan` keeps locked objects when
 the AI proposes again. Spec: `helengine/docs/superpowers/specs/2026-10-08-helengine-video-edit-format-design.md`.
 
+## Graphic templates (`.hgraphic`)
+
+Kinetic typography is authored as `GraphicTemplateAsset`s (HELE `.hgraphic`, saved with `GraphicTemplateFile.Save`): slots
+(`items`, optional `separator`, optional `accent_item`), typed parameters (effect parameter shapes), `vertical`/`horizontal`
+layouts and elements whose tracks (opacity, scale, offset, bar reveal) are timed relative to their item's moment or the next
+item's moment, with catalog curves (`ease_out_back.v1` gives pops a soft overshoot). `GraphicTemplateCatalog` holds the
+built-ins `contrast_chain`, `list_build`, `highlight_word` and `strike_replace` plus, with `--project <dir>`, every
+`assets/**/*.hgraphic`; `composition capabilities` publishes them as `graphic_templates`. An overlay sets
+`graphic: {template, version, items, at[], separator?, accent_item?, layout?, parameters}` (one moment per item, usually the
+spoken word; `text` stays the fallback). The compiler measures items with `VideoCompileContext.TextMeasurer`
+(`WindowsVideoTextMeasurer` uses the renderer's fonts; without one a deterministic estimate is used and an Info
+`text_measure_estimated` diagnostic is raised), lays them out in an 84 % safe area above the caption band, scales them
+uniformly to fit, and emits one group (exit fade, caption lift) owning one text layer per element instance; it needs
+`VideoCompileContext.GraphicTemplates`. `composition compile-edit --input <edit.json> --assets-root <root> --out <json>
+[--project <dir>]` compiles an edit with both. Spec: `docs/superpowers/specs/2026-10-08-helengine-graphic-templates-design.md`.
+
 ## Flux Studio editing flow
 
 Flux Studio stores one video edit per video (`video_edits` plus `video_edit_versions`). Every read and render composes a fresh
