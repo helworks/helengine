@@ -1,6 +1,6 @@
 namespace helengine.video {
     /// <summary>
-    /// Timed text drawn over a scene.
+    /// Timed text drawn over a scene, either as plain styled text or expanded from a graphic template.
     /// </summary>
     public sealed class VideoOverlay {
         /// <summary>
@@ -19,7 +19,7 @@ namespace helengine.video {
         public string Style { get; set; } = "graphic";
 
         /// <summary>
-        /// When the overlay appears.
+        /// When the overlay appears; with a graphic it may be left empty, and the graphic then starts with its first item.
         /// </summary>
         public VideoMoment At { get; set; } = new();
 
@@ -32,6 +32,11 @@ namespace helengine.video {
         /// human when locked against AI replanning.
         /// </summary>
         public string By { get; set; }
+
+        /// <summary>
+        /// Optional kinetic typography replacing the plain text rendering; <see cref="Text"/> stays as the fallback text.
+        /// </summary>
+        public VideoGraphic Graphic { get; set; }
 
     }
 }

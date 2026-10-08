@@ -23,6 +23,7 @@ namespace helengine.video {
             [Key(typeof(VideoEnvelope), nameof(VideoEnvelope.Type))] = ["linear", "equal_power_in", "equal_power_out"],
             [Key(typeof(VideoMask), nameof(VideoMask.Channel))] = ["alpha", "luma"],
             [Key(typeof(VideoCaptionTrack), nameof(VideoCaptionTrack.Source))] = ["voice"],
+            [Key(typeof(VideoGraphic), nameof(VideoGraphic.Layout))] = ["auto", "vertical", "horizontal"],
             [Key(typeof(VideoEdit), nameof(VideoEdit.Schema))] = [VideoEditJson.SchemaId]
         };
 

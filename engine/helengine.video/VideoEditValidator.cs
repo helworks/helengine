@@ -3,7 +3,8 @@ using helengine.media;
 namespace helengine.video {
     /// <summary>
     /// Structural validation of an edit document against itself and the engine capability catalog: identities and
-    /// references, take and duration sources, moments, entries, layouts, effects, animations and caption settings.
+    /// references, take and duration sources, moments, entries, layouts, effects, animations, overlay graphics and caption
+    /// settings.
     /// Timing problems that depend on analysis (unresolved words, missing handles) are left to the compiler.
     /// </summary>
     public static class VideoEditValidator {
@@ -131,8 +132,63 @@ namespace helengine.video {
                     Error(errors, "invalid_overlay", scene.Id, overlayPath, "Overlays need text.");
                 }
                 Style(edit, scene, overlay.Style, overlayPath + ".style", errors);
-                Moment(scene, overlay.At, overlayPath + ".at", true, errors);
+                if (overlay.Graphic == null || (overlay.At != null && Forms(overlay.At) > 0)) {
+                    Moment(scene, overlay.At, overlayPath + ".at", true, errors);
+                }
                 Moment(scene, overlay.Until, overlayPath + ".until", false, errors);
+                if (overlay.Graphic != null) {
+                    ValidateGraphic(scene, overlay.Graphic, overlayPath + ".graphic", capabilities, errors);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Validates an overlay graphic against its catalog template: the template and version exist, the item count and
+        /// lengths respect the items slot, there is one moment per item, the separator and accent item fit their slots, the
+        /// layout is supported and every parameter is known and typed.
+        /// </summary>
+        /// <param name="scene">Owning scene.</param>
+        /// <param name="graphic">Graphic.</param>
+        /// <param name="path">Graphic JSON path.</param>
+        /// <param name="capabilities">Engine catalog.</param>
+        /// <param name="errors">Diagnostics sink.</param>
+        static void ValidateGraphic(VideoScene scene, VideoGraphic graphic, string path, MediaCapabilities capabilities, List<VideoDiagnostic> errors) {
+            MediaGraphicTemplateDescriptor template = capabilities.GraphicTemplates.FirstOrDefault(item => item.Id == graphic.Template && item.Version == graphic.Version);
+            if (template == null) {
+                Error(errors, "unknown_graphic_template", scene.Id, path + ".template", $"'{graphic.Template}' v{graphic.Version} is not a catalog graphic template.");
+                return;
+            }
+            MediaGraphicSlotDescriptor items = template.Slots.First(slot => slot.Name == GraphicTemplateValidator.ItemsSlot);
+            if (graphic.Items.Count < items.MinCount || graphic.Items.Count > items.MaxCount) {
+                Error(errors, "invalid_graphic", scene.Id, path + ".items", $"'{template.Id}' needs between {items.MinCount} and {items.MaxCount} items.");
+            }
+            for (int index = 0; index < graphic.Items.Count; index++) {
+                string item = graphic.Items[index];
+                if (string.IsNullOrWhiteSpace(item) || item.Length > items.MaxChars) {
+                    Error(errors, "invalid_graphic", scene.Id, $"{path}.items[{index}]", $"Items need text of at most {items.MaxChars} characters.");
+                }
+            }
+            if (graphic.At.Count != graphic.Items.Count) {
+                Error(errors, "invalid_graphic", scene.Id, path + ".at", "A graphic needs exactly one moment per item.");
+            }
+            for (int index = 0; index < graphic.At.Count; index++) {
+                Moment(scene, graphic.At[index], $"{path}.at[{index}]", true, errors);
+            }
+            MediaGraphicSlotDescriptor separator = template.Slots.FirstOrDefault(slot => slot.Name == GraphicTemplateValidator.SeparatorSlot);
+            if (graphic.Separator != null && (separator == null || string.IsNullOrWhiteSpace(graphic.Separator) || graphic.Separator.Length > separator.MaxChars)) {
+                Error(errors, "invalid_graphic", scene.Id, path + ".separator", separator == null ? $"'{template.Id}' draws no separator." : $"The separator needs text of at most {separator.MaxChars} characters.");
+            }
+            MediaGraphicSlotDescriptor accent = template.Slots.FirstOrDefault(slot => slot.Name == GraphicTemplateValidator.AccentItemSlot);
+            if (graphic.AccentItem.HasValue ? accent == null || graphic.AccentItem.Value < 0 || graphic.AccentItem.Value >= graphic.Items.Count : accent != null && accent.Required) {
+                Error(errors, "invalid_graphic", scene.Id, path + ".accent_item", accent == null ? $"'{template.Id}' has no accent item." : "The accent item must be the index of one of the items.");
+            }
+            if (graphic.Layout != "auto" && !template.Layouts.Contains(graphic.Layout ?? "")) {
+                Error(errors, "invalid_graphic", scene.Id, path + ".layout", $"Layout must be auto or one of {string.Join(", ", template.Layouts)}.");
+            }
+            foreach (KeyValuePair<string, System.Text.Json.JsonElement> parameter in graphic.Parameters) {
+                if (!template.Parameters.TryGetValue(parameter.Key, out MediaParameterDescriptor shape) || !shape.Accepts(parameter.Value)) {
+                    Error(errors, "invalid_graphic", scene.Id, $"{path}.parameters.{parameter.Key}", $"Parameter '{parameter.Key}' is unknown or outside its range.");
+                }
             }
         }
 
@@ -390,12 +446,21 @@ namespace helengine.video {
                 }
                 return;
             }
-            int forms = (moment.Sec.HasValue ? 1 : 0) + (moment.FromEnd.HasValue ? 1 : 0) + (moment.Fraction.HasValue ? 1 : 0) + (string.IsNullOrWhiteSpace(moment.Word) ? 0 : 1);
+            int forms = Forms(moment);
             bool finite = (!moment.Sec.HasValue || double.IsFinite(moment.Sec.Value)) && (!moment.FromEnd.HasValue || double.IsFinite(moment.FromEnd.Value))
                 && (!moment.Fraction.HasValue || (moment.Fraction.Value >= 0 && moment.Fraction.Value <= 1)) && double.IsFinite(moment.OffsetSec) && moment.Occurrence >= 1;
             if (forms != 1 || !finite) {
                 Error(errors, "invalid_moment", scene?.Id, path, "A moment needs exactly one of sec, from_end, fraction (0-1) or word, with finite values.");
             }
+        }
+
+        /// <summary>
+        /// Counts how many of the exclusive moment forms (sec, from_end, fraction, word) a moment sets.
+        /// </summary>
+        /// <param name="moment">Moment.</param>
+        /// <returns>Number of forms set; one for a well-formed moment, zero for an empty one.</returns>
+        static int Forms(VideoMoment moment) {
+            return (moment.Sec.HasValue ? 1 : 0) + (moment.FromEnd.HasValue ? 1 : 0) + (moment.Fraction.HasValue ? 1 : 0) + (string.IsNullOrWhiteSpace(moment.Word) ? 0 : 1);
         }
 
         /// <summary>
