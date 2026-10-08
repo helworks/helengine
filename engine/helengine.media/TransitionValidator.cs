@@ -10,7 +10,7 @@ public static class TransitionValidator {
             foreach(string member in layer.Members) {if(member==null || !layers.ContainsKey(member)) {Add(errors,"missing_layer",layer.Id,"Group child is missing.");}else if(!owned.Add(member)) {Add(errors,"group_ownership",layer.Id,"A child requires one owning group.");}}
             if(layer.Kind=="group") {if(layer.Members.Count==0) {Add(errors,"invalid_group",layer.Id,"Groups require children.");}CheckTree(layer,layers,new HashSet<string>(),0,errors);}
             if(layer.Kind=="media" && document.Media.FirstOrDefault(media=>media?.Id==layer.MediaId) is MediaReference source && source.Kind=="video" && Valid(layer.Start) && Valid(layer.End) && Valid(layer.SourceIn) && Valid(layer.SourceOut) && Valid(source.Duration)) {
-                if(layer.SourceIn<MediaTime.Zero || layer.SourceOut<=layer.SourceIn || layer.SourceOut>source.Duration || layer.SourceIn+layer.End-layer.Start>layer.SourceOut) {Add(errors,"source_interval",layer.Id,"Video source does not cover its timeline interval.");}
+                if(layer.SourceIn<MediaTime.Zero || layer.SourceOut<=layer.SourceIn || layer.SourceOut>source.Duration || !layer.HoldLastFrame && layer.SourceIn+layer.End-layer.Start>layer.SourceOut) {Add(errors,"source_interval",layer.Id,"Video source does not cover its timeline interval.");}
             }
         }
         var valid=new List<CompositionTransition>();

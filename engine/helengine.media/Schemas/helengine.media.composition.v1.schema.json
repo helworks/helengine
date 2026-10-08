@@ -287,6 +287,9 @@
         "clip_to_viewport": {
           "type": "boolean"
         },
+        "hold_last_frame": {
+          "type": "boolean"
+        },
         "members": {
           "type": "array",
           "items": {

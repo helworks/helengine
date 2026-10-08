@@ -10,7 +10,9 @@ public static class CompositionEvaluator {
             if(!MediaTime.InInterval(time,layer.Start,layer.End)) {continue;}
             var local=time-layer.Start;var transform=layer.Transform.Copy();
             foreach(var animation in layer.Animations) {transform.Set(animation.Property,animation.Evaluate(local));}
-            result.Add(new(layer,local,layer.SourceIn+local,transform));
+            var source=layer.SourceIn+local;
+            if(layer.HoldLastFrame && document.FrameRate.Numerator>0) {var last=layer.SourceOut-new MediaTime(document.FrameRate.Denominator,document.FrameRate.Numerator);if(last<layer.SourceIn) {last=layer.SourceIn;}if(source>last) {source=last;}}
+            result.Add(new(layer,local,source,transform));
         }
         return result;
     }
