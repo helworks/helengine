@@ -29,7 +29,7 @@ namespace helengine.video {
         /// </summary>
         public bool BlocksFinal {
             get {
-                return Diagnostics.Any(diagnostic => diagnostic.Severity != VideoDiagnosticSeverity.Warning);
+                return Diagnostics.Any(diagnostic => diagnostic.Severity is VideoDiagnosticSeverity.Error or VideoDiagnosticSeverity.Pending);
             }
         }
     }

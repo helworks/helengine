@@ -71,5 +71,14 @@ namespace helengine.video.tests {
             GraphicTemplateCatalog.CreateBuiltIn().Publish(catalog);
             return catalog;
         }
+
+        /// <summary>
+        /// Builds a compile context with the built-in templates and a fixed-advance measurer.
+        /// </summary>
+        /// <param name="measurer">Measurer to use; null keeps the estimate.</param>
+        /// <returns>Compile context.</returns>
+        public static VideoCompileContext Context(IVideoTextMeasurer measurer) {
+            return new VideoCompileContext { Capabilities = Catalog(), GraphicTemplates = GraphicTemplateCatalog.CreateBuiltIn(), TextMeasurer = measurer };
+        }
     }
 }

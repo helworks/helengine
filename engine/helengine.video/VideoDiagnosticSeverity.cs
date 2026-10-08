@@ -16,6 +16,11 @@ namespace helengine.video {
         /// <summary>
         /// The compiler adjusted a value; rendering may proceed.
         /// </summary>
-        Warning = 2
+        Warning = 2,
+
+        /// <summary>
+        /// Information about how the result was produced, such as estimated text measurement; never blocks rendering.
+        /// </summary>
+        Info = 3
     }
 }

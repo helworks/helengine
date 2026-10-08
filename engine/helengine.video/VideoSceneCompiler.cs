@@ -132,14 +132,21 @@ namespace helengine.video {
         }
 
         /// <summary>
-        /// Compiles one overlay into a timed text layer.
+        /// Compiles one overlay into a timed text layer, or a graphic overlay into a group of animated text layers.
         /// </summary>
         /// <param name="state">Compilation state.</param>
         /// <param name="span">Scene span.</param>
         /// <param name="overlay">Overlay.</param>
         /// <param name="path">JSON path used in diagnostics.</param>
-        /// <returns>Text layer, or null when the overlay has no time to show.</returns>
+        /// <returns>Text or group layer, or null when the overlay has no time to show.</returns>
         static VisualLayer Overlay(VideoCompileState state, VideoSceneSpan span, VideoOverlay overlay, string path) {
+            if (overlay.Graphic != null) {
+                VisualLayer graphic = VideoGraphicCompiler.Compile(state, span, overlay, path);
+                if (graphic != null) {
+                    VideoAnimationBuilder.AddLift(graphic, state.Edit.Tracks.Captions);
+                }
+                return graphic;
+            }
             MediaTime start = state.Global(span, overlay.At, path + ".at");
             MediaTime end = overlay.Until == null ? span.End : state.Global(span, overlay.Until, path + ".until");
             if (end <= start) {

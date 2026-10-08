@@ -14,5 +14,17 @@ namespace helengine.video {
         /// Gets or sets whether this is a final render: estimates and missing caption timings become pending issues.
         /// </summary>
         public bool Final { get; set; }
+
+        /// <summary>
+        /// Gets or sets the graphic templates overlay graphics expand from; required only when an overlay has a graphic,
+        /// and expected to match the templates published in <see cref="Capabilities"/>.
+        /// </summary>
+        public GraphicTemplateCatalog GraphicTemplates { get; set; }
+
+        /// <summary>
+        /// Gets or sets the renderer-backed text measurer graphic layout uses; when absent a deterministic estimate is
+        /// used and a <c>text_measure_estimated</c> info diagnostic is reported.
+        /// </summary>
+        public IVideoTextMeasurer TextMeasurer { get; set; }
     }
 }
