@@ -46,26 +46,27 @@ namespace helengine.video {
         }
 
         /// <summary>
-        /// Finds the local start of a spoken word inside the scene take.
+        /// Finds the local start of a spoken word or phrase inside the scene take.
         /// </summary>
         /// <param name="edit">Edit owning the take media.</param>
         /// <param name="span">Scene span.</param>
-        /// <param name="moment">Word moment.</param>
+        /// <param name="moment">Word moment; a phrase matches consecutive words.</param>
         /// <param name="path">JSON path used in diagnostics.</param>
         /// <param name="diagnostics">Receives <c>anchor_unresolved</c> when the word is not found.</param>
-        /// <returns>Local seconds of the word start plus its offset, or zero when unresolved.</returns>
+        /// <returns>Local seconds of the first matching word start plus its offset, or zero when unresolved.</returns>
         static double WordStart(VideoEdit edit, VideoSceneSpan span, VideoMoment moment, string path, List<VideoDiagnostic> diagnostics) {
             VideoTake take = span.Scene.Take;
             VideoMedia media = take == null ? null : edit.Media.FirstOrDefault(item => item.Id == take.Media);
-            string target = Normalize(moment.Word);
+            string[] target = moment.Word.Split((char[])null, StringSplitOptions.RemoveEmptyEntries).Select(Normalize).Where(token => token.Length > 0).ToArray();
+            List<VideoWord> words = (media?.Analysis?.Words ?? []).Where(word => word.StartSec >= take.InSec && word.StartSec < take.OutSec).ToList();
             int seen = 0;
-            foreach (VideoWord word in media?.Analysis?.Words ?? []) {
-                if (word.StartSec < take.InSec || word.StartSec >= take.OutSec || Normalize(word.Text) != target) {
-                    continue;
+            for (int index = 0; target.Length > 0 && index + target.Length <= words.Count; index++) {
+                bool matches = true;
+                for (int offset = 0; offset < target.Length && matches; offset++) {
+                    matches = Normalize(words[index + offset].Text) == target[offset];
                 }
-                seen++;
-                if (seen == Math.Max(1, moment.Occurrence)) {
-                    return word.StartSec - take.InSec + moment.OffsetSec;
+                if (matches && ++seen == Math.Max(1, moment.Occurrence)) {
+                    return words[index].StartSec - take.InSec + moment.OffsetSec;
                 }
             }
             diagnostics.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Pending, "anchor_unresolved", span.Scene.Id, path, $"The word '{moment.Word}' was not found in the scene take."));

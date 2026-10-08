@@ -41,6 +41,7 @@ namespace helengine.video.tests {
         [InlineData("track_unknown_scene", "invalid_track")]
         [InlineData("captions_too_many_words", "invalid_captions")]
         [InlineData("bad_lock", "invalid_lock")]
+        [InlineData("unknown_text_style", "missing_text_style")]
         public void Validate_Mutation_ReportsCode(string mutation, string code) {
             VideoEdit edit = VideoEditSamples.TwoScenes();
             Mutate(edit, mutation);
@@ -76,6 +77,7 @@ namespace helengine.video.tests {
                 case "track_unknown_scene": edit.Tracks.Audio[0].Start.Scene = "outro"; break;
                 case "captions_too_many_words": edit.Tracks.Captions.WordsPerCue = 40; break;
                 case "bad_lock": question.Entry.By = "robot"; break;
+                case "unknown_text_style": question.Overlays[0].Style = "neon"; break;
                 default: throw new ArgumentException(mutation);
             }
         }

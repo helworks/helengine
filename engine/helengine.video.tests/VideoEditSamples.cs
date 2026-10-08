@@ -16,6 +16,7 @@ namespace helengine.video.tests {
                 Revision = 3,
                 Format = new VideoFormat { Width = 540, Height = 960, BackgroundColor = "#F7F5FAFF" },
                 ProjectProfile = "depois-do-slogan",
+                TextStyles = new(StringComparer.Ordinal) { ["caption"] = JsonSerializer.SerializeToElement(new { FontFamily = "Anton" }), ["graphic"] = JsonSerializer.SerializeToElement(new { FontFamily = "Anton", CenterY = 0.36 }) },
                 Media = [
                     new VideoMedia { Id = "post", Kind = "image", Path = "media/post.png", Sha256 = new string('a', 64), Width = 800, Height = 600 },
                     new VideoMedia {
@@ -55,7 +56,7 @@ namespace helengine.video.tests {
                 ],
                 Tracks = new VideoTracks {
                     Audio = [new VideoAudioTrack { Id = "bed", Media = "music", Start = new VideoTrackMoment { Scene = "question", At = new VideoMoment { Sec = 0.5 } }, Gain = 0.3 }],
-                    Captions = new VideoCaptionTrack { WordsPerCue = 4, Style = JsonSerializer.SerializeToElement(new { FontFamily = "Anton" }), GraphicStyle = JsonSerializer.SerializeToElement(new { FontFamily = "Anton" }) }
+                    Captions = new VideoCaptionTrack { WordsPerCue = 4 }
                 }
             };
         }

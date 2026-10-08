@@ -17,13 +17,11 @@ namespace helengine.video {
             [Key(typeof(VideoMedia), nameof(VideoMedia.Kind))] = ["video", "audio", "image", "font"],
             [Key(typeof(VideoLayer), nameof(VideoLayer.Kind))] = ["take", "media", "text"],
             [Key(typeof(VideoLayer), nameof(VideoLayer.Fit))] = ["contain", "cover"],
-            [Key(typeof(VideoLayer), nameof(VideoLayer.TextStyle))] = ["caption", "graphic"],
             [Key(typeof(VideoLayout), nameof(VideoLayout.Preset))] = ["full_frame", "inset", "side_by_side"],
             [Key(typeof(VideoMotion), nameof(VideoMotion.Preset))] = ["none", "zoom_to_focus"],
             [Key(typeof(VideoFocus), nameof(VideoFocus.Type))] = ["center", "point", "text_region"],
             [Key(typeof(VideoEnvelope), nameof(VideoEnvelope.Type))] = ["linear", "equal_power_in", "equal_power_out"],
             [Key(typeof(VideoMask), nameof(VideoMask.Channel))] = ["alpha", "luma"],
-            [Key(typeof(VideoOverlay), nameof(VideoOverlay.Style))] = ["graphic", "caption"],
             [Key(typeof(VideoCaptionTrack), nameof(VideoCaptionTrack.Source))] = ["voice"],
             [Key(typeof(VideoEdit), nameof(VideoEdit.Schema))] = [VideoEditJson.SchemaId]
         };

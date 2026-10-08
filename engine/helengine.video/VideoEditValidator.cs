@@ -116,7 +116,7 @@ namespace helengine.video {
                     Error(errors, "duplicate_id", scene.Id, layerPath + ".id", "Layer ids must be present and unique within the scene.");
                     continue;
                 }
-                ValidateLayer(scene, layer, layerPath, media, capabilities, errors);
+                ValidateLayer(edit, scene, layer, layerPath, media, capabilities, errors);
             }
             HashSet<string> overlayIds = new HashSet<string>(StringComparer.Ordinal);
             for (int overlayIndex = 0; overlayIndex < scene.Overlays.Count; overlayIndex++) {
@@ -127,9 +127,10 @@ namespace helengine.video {
                     continue;
                 }
                 Lock(errors, scene, overlayPath, overlay.By);
-                if (string.IsNullOrWhiteSpace(overlay.Text) || overlay.Style is not ("graphic" or "caption")) {
-                    Error(errors, "invalid_overlay", scene.Id, overlayPath, "Overlays need text and a graphic or caption style.");
+                if (string.IsNullOrWhiteSpace(overlay.Text)) {
+                    Error(errors, "invalid_overlay", scene.Id, overlayPath, "Overlays need text.");
                 }
+                Style(edit, scene, overlay.Style, overlayPath + ".style", errors);
                 Moment(scene, overlay.At, overlayPath + ".at", true, errors);
                 Moment(scene, overlay.Until, overlayPath + ".until", false, errors);
             }
@@ -183,13 +184,14 @@ namespace helengine.video {
         /// <summary>
         /// Validates one layer.
         /// </summary>
+        /// <param name="edit">Edit owning the text styles.</param>
         /// <param name="scene">Owning scene.</param>
         /// <param name="layer">Layer.</param>
         /// <param name="path">Layer JSON path.</param>
         /// <param name="media">Media by id.</param>
         /// <param name="capabilities">Engine catalog.</param>
         /// <param name="errors">Diagnostics sink.</param>
-        static void ValidateLayer(VideoScene scene, VideoLayer layer, string path, Dictionary<string, VideoMedia> media, MediaCapabilities capabilities, List<VideoDiagnostic> errors) {
+        static void ValidateLayer(VideoEdit edit, VideoScene scene, VideoLayer layer, string path, Dictionary<string, VideoMedia> media, MediaCapabilities capabilities, List<VideoDiagnostic> errors) {
             Lock(errors, scene, path, layer.By);
             if (layer.Kind == "take") {
                 if (scene.Take == null) {
@@ -200,9 +202,10 @@ namespace helengine.video {
                     Error(errors, "missing_media", scene.Id, path + ".media", "A media layer must reference an image or video.");
                 }
             } else if (layer.Kind == "text") {
-                if (string.IsNullOrWhiteSpace(layer.Text) || layer.TextStyle is not ("caption" or "graphic")) {
-                    Error(errors, "invalid_layer", scene.Id, path, "A text layer needs text and a caption or graphic style.");
+                if (string.IsNullOrWhiteSpace(layer.Text)) {
+                    Error(errors, "invalid_layer", scene.Id, path, "A text layer needs text.");
                 }
+                Style(edit, scene, layer.TextStyle, path + ".text_style", errors);
             } else {
                 Error(errors, "invalid_layer", scene.Id, path + ".kind", "Layer kind must be take, media or text.");
             }
@@ -330,6 +333,7 @@ namespace helengine.video {
                 if (captions.Source != "voice" || captions.WordsPerCue is < 1 or > 16 || captions.WordsPerLine is < 1 or > 8) {
                     Error(errors, "invalid_captions", null, "tracks.captions", "Captions need source voice, 1-16 words per cue and 1-8 words per line.");
                 }
+                Style(edit, null, captions.Style, "tracks.captions.style", errors);
                 for (int effect = 0; effect < captions.Effects.Count; effect++) {
                     ValidateLayerEffect(null, captions.Effects[effect], $"tracks.captions.effects[{effect}]", media, capabilities, errors);
                 }
@@ -391,6 +395,20 @@ namespace helengine.video {
                 && (!moment.Fraction.HasValue || (moment.Fraction.Value >= 0 && moment.Fraction.Value <= 1)) && double.IsFinite(moment.OffsetSec) && moment.Occurrence >= 1;
             if (forms != 1 || !finite) {
                 Error(errors, "invalid_moment", scene?.Id, path, "A moment needs exactly one of sec, from_end, fraction (0-1) or word, with finite values.");
+            }
+        }
+
+        /// <summary>
+        /// Validates that a text style name refers to an object in the edit text styles.
+        /// </summary>
+        /// <param name="edit">Edit.</param>
+        /// <param name="scene">Owning scene, or null.</param>
+        /// <param name="name">Style name.</param>
+        /// <param name="path">JSON path.</param>
+        /// <param name="errors">Diagnostics sink.</param>
+        static void Style(VideoEdit edit, VideoScene scene, string name, string path, List<VideoDiagnostic> errors) {
+            if (name == null || !edit.TextStyles.TryGetValue(name, out System.Text.Json.JsonElement style) || style.ValueKind != System.Text.Json.JsonValueKind.Object) {
+                Error(errors, "missing_text_style", scene?.Id, path, $"Text style '{name}' is not defined in text_styles.");
             }
         }
 

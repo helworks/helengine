@@ -42,6 +42,8 @@ namespace helengine.video.tests {
             Assert.Equal(1.2, Resolve(new VideoMoment { Word = "politica" }).ToSeconds(), 6);
             Assert.Equal(2.1, Resolve(new VideoMoment { Word = "política", Occurrence = 2 }).ToSeconds(), 6);
             Assert.Equal(1.3, Resolve(new VideoMoment { Word = "lei", OffsetSec = 0.8 }).ToSeconds(), 6);
+            Assert.Equal(0.3, Resolve(new VideoMoment { Word = "é a lei" }).ToSeconds(), 6);
+            Assert.Equal(1.2, Resolve(new VideoMoment { Word = "Política, política" }).ToSeconds(), 6);
         }
 
         /// <summary>

@@ -22,7 +22,7 @@ namespace helengine.video {
             state.Document.Layers.Add(group);
             state.Groups[scene.Id] = group;
             List<VideoLayer> layers = new List<VideoLayer>(scene.Layers);
-            if (scene.Take != null && !layers.Any(layer => layer.Kind == "take")) {
+            if (scene.Take != null && layers.Count == 0) {
                 layers.Insert(0, new VideoLayer { Id = "take", Kind = "take", Fit = "cover" });
             }
             string path = $"scenes[{span.Index}]";
@@ -58,7 +58,8 @@ namespace helengine.video {
                 Order = source.Order,
                 Fit = source.Fit,
                 Viewport = VideoLayoutPresets.Viewport(source.Layout),
-                Transform = Transform(source.Transform)
+                Transform = Transform(source.Transform),
+                PaddingColor = source.PaddingColor ?? "#00000000"
             };
             if (source.Kind == "take") {
                 layer.MediaId = scene.Take.Media;
@@ -156,14 +157,13 @@ namespace helengine.video {
         /// Finds the text style snapshot for a style id.
         /// </summary>
         /// <param name="state">Compilation state.</param>
-        /// <param name="style">caption or graphic.</param>
+        /// <param name="style">Name of the style in the edit text styles.</param>
         /// <param name="path">JSON path used in diagnostics.</param>
         /// <returns>Style snapshot.</returns>
-        static System.Text.Json.JsonElement TextStyle(VideoCompileState state, string style, string path) {
-            VideoCaptionTrack captions = state.Edit.Tracks.Captions;
-            System.Text.Json.JsonElement snapshot = style == "caption" ? captions?.Style ?? default : captions?.GraphicStyle ?? default;
-            if (snapshot.ValueKind != System.Text.Json.JsonValueKind.Object) {
-                state.Diagnostics.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Error, "missing_text_style", null, path, $"Text needs the {style} style snapshot in tracks.captions."));
+        public static System.Text.Json.JsonElement TextStyle(VideoCompileState state, string style, string path) {
+            if (style == null || !state.Edit.TextStyles.TryGetValue(style, out System.Text.Json.JsonElement snapshot) || snapshot.ValueKind != System.Text.Json.JsonValueKind.Object) {
+                state.Diagnostics.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Error, "missing_text_style", null, path, $"Text style '{style}' is not defined in text_styles."));
+                return default;
             }
             return snapshot;
         }

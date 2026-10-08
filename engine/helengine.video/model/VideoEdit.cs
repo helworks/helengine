@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace helengine.video {
     /// <summary>
     /// The scene-based video edit document (<c>helengine.video.edit.v1</c>): media, an ordered sequence of scenes and global tracks. It is self-contained and compiles to a helengine.media composition.
@@ -37,6 +39,11 @@ namespace helengine.video {
         /// Optional provenance: id of the project profile the styles were copied from.
         /// </summary>
         public string ProjectProfile { get; set; }
+
+        /// <summary>
+        /// Named text style snapshots (font, size, colors, placement) used by captions, overlays and text layers.
+        /// </summary>
+        public Dictionary<string, JsonElement> TextStyles { get; set; } = new(StringComparer.Ordinal);
 
         /// <summary>
         /// Every file the edit uses.

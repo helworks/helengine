@@ -41,7 +41,7 @@ namespace helengine.video {
                     string text = replacement?.Text ?? string.Join(" ", cues[index].Select(word => word.Text));
                     VisualLayer layer = new VisualLayer {
                         Id = "caption-" + span.Scene.Id + "-" + index, Kind = "text", MediaId = "", Order = CaptionOrder, Start = start, End = end,
-                        Text = new CompositionText { Cues = [new CompositionTextCue { Text = text, Start = start, End = end, Words = timed && replacement == null ? cues[index] : [] }], Style = captions.Style },
+                        Text = new CompositionText { Cues = [new CompositionTextCue { Text = text, Start = start, End = end, Words = timed && replacement == null ? cues[index] : [] }], Style = VideoSceneCompiler.TextStyle(state, captions.Style, "tracks.captions.style") },
                         Effects = captions.Effects.Select(VideoSceneCompiler.Effect).ToList()
                     };
                     VideoAnimationBuilder.AddLift(layer, captions);

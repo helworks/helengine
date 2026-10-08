@@ -24,7 +24,7 @@ namespace helengine.video {
         public string Text { get; set; }
 
         /// <summary>
-        /// Style id for text layers: caption or graphic.
+        /// Name of the text style in the edit text styles, for text layers.
         /// </summary>
         public string TextStyle { get; set; }
 
@@ -62,6 +62,11 @@ namespace helengine.video {
         /// Catalog layer effects in order.
         /// </summary>
         public List<VideoEffect> Effects { get; set; } = [];
+
+        /// <summary>
+        /// Color drawn around a fitted image inside its viewport, as #RRGGBBAA; transparent when absent.
+        /// </summary>
+        public string PaddingColor { get; set; }
 
         /// <summary>
         /// Optional mask.

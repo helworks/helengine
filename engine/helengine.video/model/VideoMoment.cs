@@ -19,7 +19,7 @@ namespace helengine.video {
         public double? Fraction { get; set; }
 
         /// <summary>
-        /// Spoken word of the take to anchor on.
+        /// Spoken word or phrase of the take to anchor on; a phrase anchors on its first word.
         /// </summary>
         public string Word { get; set; }
 

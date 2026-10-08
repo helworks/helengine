@@ -14,7 +14,7 @@ namespace helengine.video {
         public string Text { get; set; } = "";
 
         /// <summary>
-        /// Text style id: graphic or caption.
+        /// Name of the text style in the edit text styles.
         /// </summary>
         public string Style { get; set; } = "graphic";
 

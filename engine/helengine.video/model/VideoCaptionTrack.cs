@@ -36,14 +36,9 @@ namespace helengine.video {
         public double ExitSec { get; set; } = 0.1;
 
         /// <summary>
-        /// Resolved caption text style snapshot, passed to text layers.
+        /// Name of the text style in <see cref="VideoEdit.TextStyles"/> used by caption cues.
         /// </summary>
-        public JsonElement Style { get; set; } = default;
-
-        /// <summary>
-        /// Resolved graphic text style snapshot used by overlays.
-        /// </summary>
-        public JsonElement GraphicStyle { get; set; } = default;
+        public string Style { get; set; } = "caption";
 
         /// <summary>
         /// Layer effects applied to every caption cue, e.g. a bubble box or a soft shadow.
