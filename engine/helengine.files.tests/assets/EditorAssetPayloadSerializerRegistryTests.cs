@@ -19,6 +19,7 @@ namespace helengine.files.tests.assets {
             AssertResolvesToValueKind(new AudioAsset(), EditorAssetBinaryValueKind.AudioAsset);
             AssertResolvesToValueKind(new SceneAsset(), EditorAssetBinaryValueKind.SceneAsset);
             AssertResolvesToValueKind(new BlueprintAsset(), EditorAssetBinaryValueKind.BlueprintAsset);
+            AssertResolvesToValueKind(new EffectAsset(), EditorAssetBinaryValueKind.EffectAsset);
         }
 
         [Fact]

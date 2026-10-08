@@ -51,6 +51,11 @@ namespace helengine {
         /// <summary>
         /// The payload stores an <see cref="AudioAsset"/>.
         /// </summary>
-        AudioAsset = 11
+        AudioAsset = 11,
+
+        /// <summary>
+        /// The payload stores an <see cref="EffectAsset"/>.
+        /// </summary>
+        EffectAsset = 12
     }
 }
