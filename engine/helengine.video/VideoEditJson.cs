@@ -20,7 +20,8 @@ namespace helengine.video {
             PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
             UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow,
             DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault,
-            WriteIndented = true
+            WriteIndented = true,
+            TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver()
         };
 
         /// <summary>
