@@ -20,6 +20,8 @@ public sealed class MediaCapabilities {
         ["rotation_deg"]=new(){Minimum=-36000,Maximum=36000},["opacity"]=new(){Minimum=0,Maximum=1,DefaultValue=JsonSerializer.SerializeToElement(1)},
         ["zoom"]=new(){Minimum=1,Maximum=2.5,DefaultValue=JsonSerializer.SerializeToElement(1)},["focus_x"]=new(){Minimum=0,Maximum=1,DefaultValue=JsonSerializer.SerializeToElement(.5)},["focus_y"]=new(){Minimum=0,Maximum=1,DefaultValue=JsonSerializer.SerializeToElement(.5)}
     };
+    /// <summary>Kinetic typography templates edits may expand into text layers, with their slots, typed parameters and layouts.</summary>
+    public List<MediaGraphicTemplateDescriptor> GraphicTemplates {get;set;} = [];
     /// <summary>Publishes the current exact catalog without paths, commands or shader code.</summary>
     public JsonElement Describe() => JsonSerializer.SerializeToElement(this,new JsonSerializerOptions{PropertyNamingPolicy=JsonNamingPolicy.SnakeCaseLower});
 }

@@ -9,4 +9,10 @@
   <ItemGroup>
     <ProjectReference Include="..\helengine.media\helengine.media.csproj" />
   </ItemGroup>
+
+  <!-- Graphic templates are GraphicTemplateAsset definitions (helengine.core) stored as .hgraphic files (helengine.files). -->
+  <ItemGroup>
+    <ProjectReference Include="..\helengine.core\helengine.core.csproj" />
+    <ProjectReference Include="..\helengine.files\helengine.files.csproj" />
+  </ItemGroup>
 </Project>
