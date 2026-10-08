@@ -1,6 +1,5 @@
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
-using System.Drawing.Text;
 using System.Text.RegularExpressions;
 
 namespace helengine.vfx.captions;
@@ -11,43 +10,15 @@ public sealed class CaptionRenderer : IDisposable {
     readonly CaptionDocument Document;
     /// <summary>Snapshot of style settings retained throughout this render session.</summary>
     readonly CaptionStyle Style;
-    /// <summary>Optional privately loaded vector font collection.</summary>
-    readonly PrivateFontCollection PrivateFonts;
-    /// <summary>Selected vector font family, unused for texture lettering.</summary>
-    readonly FontFamily Family;
-    /// <summary>Optional animated bitmap font.</summary>
-    readonly CaptionAtlas Atlas;
-    /// <summary>Actual supported vector font style.</summary>
-    readonly FontStyle VectorStyle;
+    /// <summary>Lettering source shared with text measurement.</summary>
+    readonly CaptionFont Font;
 
     /// <summary>Validates and loads font assets once, keeping preview and exports identical.</summary>
     public CaptionRenderer(CaptionDocument document, CaptionStyle style) {
         Document = document ?? throw new ArgumentNullException(nameof(document));
         Style = (style ?? throw new ArgumentNullException(nameof(style))).Copy();
         Style.Validate();
-        try {
-            if (!string.IsNullOrWhiteSpace(Style.AtlasFile)) {
-                Atlas = new CaptionAtlas(Style.AtlasFile);
-            } else {
-                if (!string.IsNullOrWhiteSpace(Style.FontFile)) {
-                    PrivateFonts = new PrivateFontCollection();
-                    PrivateFonts.AddFontFile(Style.FontFile);
-                    if (PrivateFonts.Families.Length == 0) {
-                        throw new FormatException("The selected font file contains no usable font family.");
-                    }
-                    Family = PrivateFonts.Families[0];
-                } else {
-                    Family = new FontFamily(Style.FontFamily);
-                }
-                VectorStyle = Style.Bold && Family.IsStyleAvailable(FontStyle.Bold) ? FontStyle.Bold : FontStyle.Regular;
-                if (!Family.IsStyleAvailable(VectorStyle)) {
-                    throw new FormatException("The selected font has no supported regular or bold face.");
-                }
-            }
-        } catch {
-            Dispose();
-            throw;
-        }
+        Font = new CaptionFont(Style);
     }
 
     /// <summary>Creates an RGBA frame at an absolute transcription time; silence stays transparent.</summary>
@@ -81,9 +52,7 @@ public sealed class CaptionRenderer : IDisposable {
 
     /// <summary>Releases vector and bitmap font resources retained by this renderer.</summary>
     public void Dispose() {
-        Atlas?.Dispose();
-        Family?.Dispose();
-        PrivateFonts?.Dispose();
+        Font.Dispose();
     }
 
     /// <summary>Selects aligned word groups while keeping unaligned phrase text and line breaks intact.</summary>
@@ -104,13 +73,7 @@ public sealed class CaptionRenderer : IDisposable {
 
     /// <summary>Measures word advance using the same font source that will draw it.</summary>
     double Measure(Graphics graphics, string text, double size) {
-        if (Atlas != null) {
-            return Atlas.Measure(text, size);
-        }
-        using var font = new Font(Family, (float)size, VectorStyle, GraphicsUnit.Pixel);
-        using StringFormat format = (StringFormat)StringFormat.GenericTypographic.Clone();
-        format.FormatFlags |= StringFormatFlags.MeasureTrailingSpaces;
-        return graphics.MeasureString(text, font, int.MaxValue, format).Width;
+        return Font.Measure(graphics, text, size);
     }
 
     /// <summary>Wraps text at word boundaries and preserves explicit SubRip line breaks.</summary>
@@ -205,21 +168,21 @@ public sealed class CaptionRenderer : IDisposable {
     void DrawWord(Graphics graphics, string text, double x, double y, double size, int textureFrame, Color color) {
         Color shadow = CaptionColor.Parse(Style.ShadowColor);
         Color outline = CaptionColor.Parse(Style.OutlineColor);
-        if (Atlas != null) {
+        if (Font.Atlas != null) {
             if (shadow.A > 0 && Style.ShadowOffset > 0) {
-                Atlas.Draw(graphics, text, x + Style.ShadowOffset, y + Style.ShadowOffset, size, textureFrame, shadow);
+                Font.Atlas.Draw(graphics, text, x + Style.ShadowOffset, y + Style.ShadowOffset, size, textureFrame, shadow);
             }
             if (Style.OutlineWidth > 0) {
                 for (int index = 0; index < 8; index++) {
                     double angle = index * Math.PI / 4;
-                    Atlas.Draw(graphics, text, x + Math.Cos(angle) * Style.OutlineWidth / 2, y + Math.Sin(angle) * Style.OutlineWidth / 2, size, textureFrame, outline);
+                    Font.Atlas.Draw(graphics, text, x + Math.Cos(angle) * Style.OutlineWidth / 2, y + Math.Sin(angle) * Style.OutlineWidth / 2, size, textureFrame, outline);
                 }
             }
-            Atlas.Draw(graphics, text, x, y, size, textureFrame, color);
+            Font.Atlas.Draw(graphics, text, x, y, size, textureFrame, color);
             return;
         }
         using var path = new GraphicsPath();
-        path.AddString(text, Family, (int)VectorStyle, (float)size, new PointF((float)x, (float)y), StringFormat.GenericTypographic);
+        path.AddString(text, Font.Family, (int)Font.VectorStyle, (float)size, new PointF((float)x, (float)y), StringFormat.GenericTypographic);
         if (shadow.A > 0 && Style.ShadowOffset > 0) {
             using var shadowPath = (GraphicsPath)path.Clone();
             using var translation = new Matrix();
