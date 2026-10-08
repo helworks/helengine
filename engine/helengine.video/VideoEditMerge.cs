@@ -2,9 +2,10 @@ using System.Text.Json;
 
 namespace helengine.video {
     /// <summary>
-    /// Combines an AI proposal with the current edit so that everything a person locked (<c>"by": "human"</c>) survives
-    /// re-planning: locked scene objects, layers, motions, overlays, audio tracks and caption overrides are copied from the
-    /// current edit into the proposal, re-inserted when the proposal dropped them. Unlocked content follows the proposal.
+    /// Combines an AI proposal with the current edit so that everything carrying a kept origin survives re-planning. By
+    /// default only what a person locked (<c>"by": "human"</c>) is kept; incremental passes can also keep earlier AI work
+    /// (<c>"by": "ai"</c>). Kept scene objects, layers, motions, overlays, audio tracks and caption overrides are copied from
+    /// the current edit into the proposal, re-inserted when the proposal dropped them. Other content follows the proposal.
     /// </summary>
     public static class VideoEditMerge {
         /// <summary>
@@ -13,12 +14,36 @@ namespace helengine.video {
         public const string Human = "human";
 
         /// <summary>
-        /// Returns the proposal with every locked object of the current edit restored.
+        /// Lock marker value for objects written by an earlier AI pass, kept when an incremental re-plan must not disturb them.
+        /// </summary>
+        public const string Ai = "ai";
+
+        /// <summary>
+        /// Origins kept by the two-argument re-plan: only what a person locked.
+        /// </summary>
+        static readonly string[] HumanOnly = [Human];
+
+        /// <summary>
+        /// Returns the proposal with every human-locked object of the current edit restored.
         /// </summary>
         /// <param name="current">Edit as it is now, including human locks.</param>
         /// <param name="proposal">New AI proposal.</param>
         /// <returns>New edit; neither input is modified.</returns>
         public static VideoEdit Replan(VideoEdit current, VideoEdit proposal) {
+            return Replan(current, proposal, HumanOnly);
+        }
+
+        /// <summary>
+        /// Returns the proposal with every object of the current edit restored whose origin is one of the kept origins.
+        /// </summary>
+        /// <param name="current">Edit as it is now, including origin markers.</param>
+        /// <param name="proposal">New AI proposal.</param>
+        /// <param name="keptOrigins">Origin markers (for example <see cref="Human"/> and <see cref="Ai"/>) whose objects survive.</param>
+        /// <returns>New edit; neither input is modified.</returns>
+        public static VideoEdit Replan(VideoEdit current, VideoEdit proposal, IReadOnlyCollection<string> keptOrigins) {
+            if (keptOrigins == null) {
+                throw new ArgumentNullException(nameof(keptOrigins));
+            }
             if (current == null) {
                 throw new ArgumentNullException(nameof(current));
             }
@@ -30,20 +55,20 @@ namespace helengine.video {
                 VideoScene locked = current.Scenes[index];
                 VideoScene target = result.Scenes.FirstOrDefault(scene => scene.Id == locked.Id);
                 if (target == null) {
-                    if (HasLocks(locked)) {
+                    if (HasKept(locked, keptOrigins)) {
                         result.Scenes.Insert(Math.Min(index, result.Scenes.Count), Clone(locked));
                     }
                     continue;
                 }
-                MergeScene(locked, target);
+                MergeScene(locked, target, keptOrigins);
             }
             for (int index = 0; index < current.Tracks.Audio.Count; index++) {
                 VideoAudioTrack track = current.Tracks.Audio[index];
-                if (track.By == Human) {
+                if (IsKept(track.By, keptOrigins)) {
                     ReplaceOrInsert(result.Tracks.Audio, Clone(track), item => item.Id == track.Id, index);
                 }
             }
-            List<VideoCaptionOverride> overrides = current.Tracks.Captions?.Overrides.Where(item => item.By == Human).ToList() ?? [];
+            List<VideoCaptionOverride> overrides = current.Tracks.Captions?.Overrides.Where(item => IsKept(item.By, keptOrigins)).ToList() ?? [];
             if (overrides.Count > 0) {
                 if (result.Tracks.Captions == null) {
                     result.Tracks.Captions = Clone(current.Tracks.Captions);
@@ -62,30 +87,31 @@ namespace helengine.video {
         /// </summary>
         /// <param name="locked">Current scene.</param>
         /// <param name="target">Proposed scene, modified in place.</param>
-        static void MergeScene(VideoScene locked, VideoScene target) {
-            if (locked.Duration?.By == Human) {
+        /// <param name="keptOrigins">Origins to keep.</param>
+        static void MergeScene(VideoScene locked, VideoScene target, IReadOnlyCollection<string> keptOrigins) {
+            if (IsKept(locked.Duration?.By, keptOrigins)) {
                 target.Duration = Clone(locked.Duration);
             }
-            if (locked.Take?.By == Human) {
+            if (IsKept(locked.Take?.By, keptOrigins)) {
                 target.Take = Clone(locked.Take);
             }
-            if (locked.Entry?.By == Human) {
+            if (IsKept(locked.Entry?.By, keptOrigins)) {
                 target.Entry = Clone(locked.Entry);
             }
-            if (locked.Voice?.By == Human) {
+            if (IsKept(locked.Voice?.By, keptOrigins)) {
                 target.Voice = Clone(locked.Voice);
             }
             for (int index = 0; index < locked.Layers.Count; index++) {
                 VideoLayer layer = locked.Layers[index];
-                if (layer.By == Human) {
+                if (IsKept(layer.By, keptOrigins)) {
                     ReplaceOrInsert(target.Layers, Clone(layer), item => item.Id == layer.Id, index);
-                } else if (layer.Motion?.By == Human && target.Layers.FirstOrDefault(item => item.Id == layer.Id) is VideoLayer proposed) {
+                } else if (IsKept(layer.Motion?.By, keptOrigins) && target.Layers.FirstOrDefault(item => item.Id == layer.Id) is VideoLayer proposed) {
                     proposed.Motion = Clone(layer.Motion);
                 }
             }
             for (int index = 0; index < locked.Overlays.Count; index++) {
                 VideoOverlay overlay = locked.Overlays[index];
-                if (overlay.By == Human) {
+                if (IsKept(overlay.By, keptOrigins)) {
                     ReplaceOrInsert(target.Overlays, Clone(overlay), item => item.Id == overlay.Id, index);
                 }
             }
@@ -95,10 +121,21 @@ namespace helengine.video {
         /// Reports whether a scene holds any locked object.
         /// </summary>
         /// <param name="scene">Scene.</param>
-        /// <returns>True when something in the scene is locked.</returns>
-        static bool HasLocks(VideoScene scene) {
-            return scene.Duration?.By == Human || scene.Take?.By == Human || scene.Entry?.By == Human || scene.Voice?.By == Human
-                || scene.Layers.Any(layer => layer.By == Human || layer.Motion?.By == Human) || scene.Overlays.Any(overlay => overlay.By == Human);
+        /// <param name="keptOrigins">Origins to keep.</param>
+        /// <returns>True when something in the scene carries a kept origin.</returns>
+        static bool HasKept(VideoScene scene, IReadOnlyCollection<string> keptOrigins) {
+            return IsKept(scene.Duration?.By, keptOrigins) || IsKept(scene.Take?.By, keptOrigins) || IsKept(scene.Entry?.By, keptOrigins) || IsKept(scene.Voice?.By, keptOrigins)
+                || scene.Layers.Any(layer => IsKept(layer.By, keptOrigins) || IsKept(layer.Motion?.By, keptOrigins)) || scene.Overlays.Any(overlay => IsKept(overlay.By, keptOrigins));
+        }
+
+        /// <summary>
+        /// Reports whether an origin marker is one of the kept origins.
+        /// </summary>
+        /// <param name="by">Origin marker of an object; null when unmarked.</param>
+        /// <param name="keptOrigins">Origins to keep.</param>
+        /// <returns>True when the object must survive re-planning.</returns>
+        static bool IsKept(string by, IReadOnlyCollection<string> keptOrigins) {
+            return by != null && keptOrigins.Contains(by);
         }
 
         /// <summary>

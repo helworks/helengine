@@ -66,5 +66,42 @@ namespace helengine.video.tests {
 
             Assert.Equal("QUAL É A LEI?", Assert.Single(merged.Tracks.Captions.Overrides).Text);
         }
+
+        /// <summary>
+        /// Replanning with human and ai origins keeps both kinds of objects while the proposal wins elsewhere.
+        /// </summary>
+        [Fact]
+        public void Replan_KeepsHumanAndAiOrigins_ProposalWinsElsewhere() {
+            VideoEdit current = VideoEditSamples.TwoScenes();
+            current.Scenes[0].Layers[0].By = VideoEditMerge.Ai;
+            current.Scenes[1].Take.By = VideoEditMerge.Ai;
+            VideoEdit proposal = VideoEditSamples.TwoScenes();
+            proposal.Scenes[0].Layers.Clear();
+            proposal.Scenes[1].Take.InSec = 10;
+            proposal.Scenes[1].Entry = new VideoEntry { Effect = "cut" };
+            proposal.Scenes[1].Overlays[0].Text = "NOVO";
+
+            VideoEdit merged = VideoEditMerge.Replan(current, proposal, [VideoEditMerge.Human, VideoEditMerge.Ai]);
+
+            Assert.Equal("picture", Assert.Single(merged.Scenes[0].Layers).Id);
+            Assert.Equal(12.3, merged.Scenes[1].Take.InSec);
+            Assert.Equal("push", merged.Scenes[1].Entry.Effect);
+            Assert.Equal("NOVO", merged.Scenes[1].Overlays[0].Text);
+        }
+
+        /// <summary>
+        /// The two-argument replan ignores ai-marked objects.
+        /// </summary>
+        [Fact]
+        public void Replan_TwoArguments_DropsAiObjects() {
+            VideoEdit current = VideoEditSamples.TwoScenes();
+            current.Scenes[0].Layers[0].By = VideoEditMerge.Ai;
+            VideoEdit proposal = VideoEditSamples.TwoScenes();
+            proposal.Scenes[0].Layers.Clear();
+
+            VideoEdit merged = VideoEditMerge.Replan(current, proposal);
+
+            Assert.Empty(merged.Scenes[0].Layers);
+        }
     }
 }
