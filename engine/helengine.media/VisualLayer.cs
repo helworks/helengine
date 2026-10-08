@@ -45,6 +45,6 @@ public sealed class VisualLayer {
     public string PaddingColor {get;set;} = "#00000000";
     /// <summary>Clips transformed content to its reserved presentation region.</summary>
     public bool ClipToViewport {get;set;} = true;
-    /// <summary>Lets a video layer outlast its source interval by holding the last source frame, e.g. under a transition overlap without handles.</summary>
-    public bool HoldLastFrame {get;set;}
+    /// <summary>Lets a video layer outlast its source interval by holding the last source frame, e.g. under a transition overlap without handles; omitted from JSON when false so ordinary compositions stay readable by older engines.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] public bool HoldLastFrame {get;set;}
 }
