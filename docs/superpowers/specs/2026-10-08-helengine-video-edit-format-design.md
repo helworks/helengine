@@ -1,6 +1,6 @@
 # helengine.video — video edit format
 
-Date: 2026-10-08. Status: approved direction (Helena), spec for implementation.
+Date: 2026-10-08. Status: stages 1, 2 and 4 implemented (engine library, compiler, Flux Studio storage/locks/UI); stage 3 (AI answering in the edit schema) and stage 5 (removal of the legacy formats) pending.
 
 ## Problem
 
