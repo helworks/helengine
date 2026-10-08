@@ -69,6 +69,11 @@ namespace helengine.video {
         public string PaddingColor { get; set; }
 
         /// <summary>
+        /// Whether content transformed beyond the viewport (e.g. by zoom) is clipped to it; by default it may spill over.
+        /// </summary>
+        public bool ClipToViewport { get; set; } = false;
+
+        /// <summary>
         /// Optional mask.
         /// </summary>
         public VideoMask Mask { get; set; }

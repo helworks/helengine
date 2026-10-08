@@ -59,7 +59,8 @@ namespace helengine.video {
                 Fit = source.Fit,
                 Viewport = VideoLayoutPresets.Viewport(source.Layout),
                 Transform = Transform(source.Transform),
-                PaddingColor = source.PaddingColor ?? "#00000000"
+                PaddingColor = source.PaddingColor ?? "#00000000",
+                ClipToViewport = source.ClipToViewport
             };
             if (source.Kind == "take") {
                 layer.MediaId = scene.Take.Media;
