@@ -5,12 +5,12 @@ namespace helengine.video.tests {
     /// <summary>
     /// Verifies how overlay graphics expand into composition layers: one group per graphic owning one text layer per
     /// element instance, item timings taken from the spoken words, the vertical/horizontal choice, fit scaling, the
-    /// estimate fallback and the strike bar.
+    /// estimate fallback, the muted copies under dimmed items and the strike bar.
     /// </summary>
     public class VideoGraphicCompilerTests {
         /// <summary>
-        /// Three terms and two separators become five element layers inside one group, and the result passes the engine's
-        /// composition validator.
+        /// Three terms, two separators and the muted copies under the two terms that dim become seven element layers inside
+        /// one group, and the result passes the engine's composition validator.
         /// </summary>
         [Fact]
         public void Compile_ContrastChain_ExpandsIntoGroupOfElementLayers() {
@@ -19,9 +19,10 @@ namespace helengine.video.tests {
             Assert.False(result.HasErrors, Describe(result));
             VisualLayer group = result.Composition.Layers.Single(layer => layer.Id == "contrast-overlay-chain");
             Assert.Equal("group", group.Kind);
-            Assert.Equal(5, group.Members.Count);
+            Assert.Equal(7, group.Members.Count);
             Assert.Equal(3, group.Members.Count(id => id.Contains("-item-")));
             Assert.Equal(2, group.Members.Count(id => id.Contains("-separator-")));
+            Assert.Equal(2, group.Members.Count(id => id.Contains("-item_dimmed-")));
             Assert.Contains(group.Id, result.Composition.Layers.Single(layer => layer.Id == "scene-contrast").Members);
             Assert.Empty(CompositionValidator.Validate(result.Composition, GraphicEditSamples.Catalog()));
             Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "text_measure_estimated");
@@ -144,6 +145,34 @@ namespace helengine.video.tests {
             Assert.Equal("#FFD400", Style(Layer(plain, "separator-0")).GetProperty("TextColor").GetString());
             Assert.Equal("#FFFF0000", Style(Layer(tuned, "separator-0")).GetProperty("TextColor").GetString());
             Assert.Equal(2, Layer(tuned, "item-0").Animations.Single(animation => animation.Property == "opacity").Keyframes.Count);
+        }
+
+        /// <summary>
+        /// A dimmed item gets an opaque copy in the dim color under it from the moment the next item appears, at the same
+        /// place and size and with the style's outline, while the item itself fades to the dim level; the last item gets
+        /// no copy and switching dimming off removes the copies.
+        /// </summary>
+        [Fact]
+        public void Compile_Dim_DrawsOpaqueMutedCopyUnderTheItem() {
+            VideoCompileResult result = VideoEditCompiler.Compile(GraphicEditSamples.ContrastChain(), GraphicEditSamples.Context(new FixedAdvanceTextMeasurer()));
+
+            VisualLayer copy = Layer(result, "item_dimmed-0");
+            VisualLayer item = Layer(result, "item-0");
+            Assert.Equal(1.5, copy.Start.ToSeconds(), 6);
+            Assert.True(copy.Order < item.Order);
+            Assert.Equal(item.Transform.PositionX, copy.Transform.PositionX, 9);
+            Assert.Equal(item.Transform.PositionY, copy.Transform.PositionY, 9);
+            Assert.Equal(Style(item).GetProperty("FontSize").GetDouble(), Style(copy).GetProperty("FontSize").GetDouble(), 6);
+            Assert.All(copy.Animations.Single(animation => animation.Property == "opacity").Keyframes, keyframe => Assert.Equal(1, keyframe.Value, 9));
+            Assert.NotEqual(Style(item).GetProperty("TextColor").GetString(), Style(copy).GetProperty("TextColor").GetString());
+            Assert.StartsWith("#FF", Style(copy).GetProperty("TextColor").GetString());
+            Assert.DoesNotContain(result.Composition.Layers, layer => layer.Id.EndsWith("-item_dimmed-2"));
+            Assert.Equal(0.45, item.Animations.Single(animation => animation.Property == "opacity").Keyframes[^1].Value, 6);
+
+            VideoEdit edit = GraphicEditSamples.ContrastChain();
+            edit.Scenes[0].Overlays[0].Graphic.Parameters["dim_previous"] = JsonSerializer.SerializeToElement(false);
+            VideoCompileResult plain = VideoEditCompiler.Compile(edit, GraphicEditSamples.Context(new FixedAdvanceTextMeasurer()));
+            Assert.DoesNotContain(plain.Composition.Layers, layer => layer.Id.Contains("-item_dimmed-"));
         }
 
         /// <summary>

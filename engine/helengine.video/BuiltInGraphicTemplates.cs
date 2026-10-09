@@ -4,7 +4,9 @@ namespace helengine.video {
     /// <see cref="GraphicTemplateAsset"/>, exactly like a project <c>.hgraphic</c>. The motion follows one house style:
     /// short staggered pops (opacity in about 0.18 s, scale from 0.85 with a slight back-out overshoot), separators that
     /// pop just after the item before them, optional dimming of earlier items and an accent color that follows the text
-    /// style's highlight color unless the edit overrides it.
+    /// style's highlight color unless the edit overrides it. Dimming never makes an item see-through: a copy in a neutral
+    /// dim color with the style's full outline and shadow appears under the item, which then fades partly away, so a dimmed
+    /// item reads as a muted version of itself on light and dark pictures alike.
     /// </summary>
     public static class BuiltInGraphicTemplates {
         /// <summary>
@@ -21,6 +23,11 @@ namespace helengine.video {
         /// Name of the dim opacity parameter shared by the built-ins.
         /// </summary>
         const string DimOpacity = "dim_opacity";
+
+        /// <summary>
+        /// Name of the dim color parameter shared by the built-ins.
+        /// </summary>
+        const string DimColor = "dim_color";
 
         /// <summary>
         /// Seconds an item takes to fade in.
@@ -59,14 +66,15 @@ namespace helengine.video {
                     Items(2, 4, 28, "The terms in spoken order, each one to three words."),
                     new GraphicTemplateSlotAsset { Name = GraphicTemplateValidator.SeparatorSlot, Kind = GraphicTemplateSlotKind.Text, MaxChars = 3, DefaultText = "≠", Description = "Symbol drawn between terms, such as ≠, vs or →." }
                 },
-                Parameters = new[] { Accent("Separator color; when omitted the text style highlight color is used."), DimSwitch(true), DimLevel(0.45f) },
+                Parameters = new[] { Accent("Separator color; when omitted the text style highlight color is used."), DimSwitch(true), DimLevel(0.45f), DimTint() },
                 Layouts = Layouts(-0.2f, 0.32f),
                 Elements = new[] {
                     new GraphicTemplateElementAsset { Name = "item", Order = 1, Tracks = Entrance(0f, 0.85f).Append(Dim()).ToArray() },
                     new GraphicTemplateElementAsset {
                         Name = "separator", Repeat = GraphicElementRepeat.BetweenItems, Content = GraphicElementContent.SeparatorText, Color = GraphicElementColor.Accent, ColorParameter = AccentColor,
                         FontScale = 0.8f, Order = 2, Tracks = Entrance(0.12f, 0.6f)
-                    }
+                    },
+                    Dimmed("item_dimmed", GraphicElementRepeat.EachItemExceptLast, DimPrevious)
                 }
             };
         }
@@ -86,7 +94,8 @@ namespace helengine.video {
                     Accent("Color of the newest item; when omitted the text style highlight color is used."),
                     new EffectParameterAsset { Name = "highlight_latest", Type = EffectParameterType.Bool, DefaultValue = new float4(1, 0, 0, 0), Minimum = 0, Maximum = 1, Description = "Draw the newest item in the accent color until the next one appears." },
                     DimSwitch(false),
-                    DimLevel(0.5f)
+                    DimLevel(0.5f),
+                    DimTint()
                 },
                 Layouts = Layouts(-0.14f, 0.5f),
                 Elements = new[] {
@@ -94,7 +103,8 @@ namespace helengine.video {
                     new GraphicTemplateElementAsset {
                         Name = "latest", Color = GraphicElementColor.Accent, ColorParameter = AccentColor, Order = 2, EnabledParameter = "highlight_latest",
                         Tracks = Rise().Append(Track(GraphicAnimatedProperty.Opacity, GraphicTimeAnchor.NextItem, "", Key(0f, 1f, "smoothstep.v1"), Key(0.3f, 0f, "linear.v1"))).ToArray()
-                    }
+                    },
+                    Dimmed("item_dimmed", GraphicElementRepeat.EachItemExceptLast, DimPrevious)
                 }
             };
         }
@@ -142,7 +152,8 @@ namespace helengine.video {
                 Parameters = new[] {
                     Accent("Color of the correction; when omitted the text style highlight color is used."),
                     new EffectParameterAsset { Name = "strike_color", Type = EffectParameterType.Color, DefaultValue = new float4(1f, 0.231f, 0.188f, 1f), Minimum = 0, Maximum = 1, Description = "Color of the strike-through line." },
-                    new EffectParameterAsset { Name = "dim_struck", Type = EffectParameterType.Float, DefaultValue = new float4(0.55f, 0, 0, 0), Minimum = 0.1f, Maximum = 1, Description = "Opacity of the struck claim once the correction appears." }
+                    new EffectParameterAsset { Name = "dim_struck", Type = EffectParameterType.Float, DefaultValue = new float4(0.55f, 0, 0, 0), Minimum = 0.1f, Maximum = 1, Description = "Share of its own color the struck claim keeps once the correction appears; the rest shows the dim color, with outline and shadow at full strength." },
+                    DimTint()
                 },
                 Layouts = Layouts(-0.12f, 0.5f),
                 Elements = new[] {
@@ -164,7 +175,8 @@ namespace helengine.video {
                     new GraphicTemplateElementAsset {
                         Name = "correction", Repeat = GraphicElementRepeat.LastItem, Color = GraphicElementColor.Accent, ColorParameter = AccentColor, Order = 2,
                         Tracks = Entrance(0.06f, 0.8f)
-                    }
+                    },
+                    Dimmed("claim_dimmed", GraphicElementRepeat.FirstItem, "")
                 }
             };
         }
@@ -205,7 +217,32 @@ namespace helengine.video {
         /// <param name="level">Default opacity.</param>
         /// <returns>Dim opacity parameter.</returns>
         static EffectParameterAsset DimLevel(float level) {
-            return new EffectParameterAsset { Name = DimOpacity, Type = EffectParameterType.Float, DefaultValue = new float4(level, 0, 0, 0), Minimum = 0.1f, Maximum = 1, Description = "Opacity of dimmed items." };
+            return new EffectParameterAsset { Name = DimOpacity, Type = EffectParameterType.Float, DefaultValue = new float4(level, 0, 0, 0), Minimum = 0.1f, Maximum = 1, Description = "Share of its own color a dimmed item keeps; the rest shows the dim color, with outline and shadow at full strength." };
+        }
+
+        /// <summary>
+        /// Builds the neutral color dimmed items fade toward. A mid gray keeps enough contrast against white pictures and
+        /// against dark ones, whatever the text color.
+        /// </summary>
+        /// <returns>Dim color parameter.</returns>
+        static EffectParameterAsset DimTint() {
+            return new EffectParameterAsset { Name = DimColor, Type = EffectParameterType.Color, DefaultValue = new float4(0.5f, 0.5f, 0.5f, 1f), Minimum = 0, Maximum = 1, Description = "Color dimmed items fade toward." };
+        }
+
+        /// <summary>
+        /// Builds the copy drawn under an item once the next item appears: the same text in the dim color with the style's
+        /// outline and shadow, fully opaque, so the item fading over it settles on a muted, still legible mix instead of
+        /// turning see-through.
+        /// </summary>
+        /// <param name="name">Element name.</param>
+        /// <param name="repeat">Items that get a copy, matching the items that dim.</param>
+        /// <param name="enabledParameter">Switch that enables dimming, or empty when the dim always happens.</param>
+        /// <returns>Underlay element, ordered below every other element.</returns>
+        static GraphicTemplateElementAsset Dimmed(string name, GraphicElementRepeat repeat, string enabledParameter) {
+            return new GraphicTemplateElementAsset {
+                Name = name, Repeat = repeat, Color = GraphicElementColor.Parameter, ColorParameter = DimColor, Order = 0, EnabledParameter = enabledParameter,
+                Tracks = new[] { Track(GraphicAnimatedProperty.Opacity, GraphicTimeAnchor.NextItem, "", Key(0f, 1f, "linear.v1")) }
+            };
         }
 
         /// <summary>
