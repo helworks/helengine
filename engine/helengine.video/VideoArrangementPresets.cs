@@ -116,7 +116,7 @@ namespace helengine.video {
         /// <summary>
         /// Picture column of a landscape split: the left half of the safe frame.
         /// </summary>
-        static readonly VideoViewport LandscapeLeft = Box(0.03, 0, 0.5, 1);
+        static readonly VideoViewport LandscapeLeft = Box(0.03, 0.02, 0.5, 0.96);
 
         /// <summary>
         /// Graphic column of a landscape split: the right part of the safe frame.

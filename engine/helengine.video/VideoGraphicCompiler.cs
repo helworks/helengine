@@ -227,7 +227,7 @@ namespace helengine.video {
             string requested = Overlay.Graphic.Layout ?? "auto";
             if (Overlay.Region != null) {
                 VideoGraphicRectangle region = VideoArrangementPresets.Region(State.Edit, Span.Scene, Overlay.Region).Rectangle(State.Edit.Format.Width, State.Edit.Format.Height);
-                Arrangement = VideoGraphicLayout.Arrange(Blocks, Template, requested, Style, measurer, VideoGraphicSafeArea.ForRegion(State.Edit, Style, region), RegionMaximumScale);
+                Arrangement = VideoGraphicLayout.Arrange(Blocks, Template, requested, Style, measurer, VideoGraphicSafeArea.ForRegion(State.Edit, region), RegionMaximumScale);
             } else {
                 Arrangement = VideoGraphicFreeArea.Arrange(Blocks, Template, requested, Style, measurer, VideoGraphicSafeArea.ForStyle(State.Edit, Style), Pictures());
             }

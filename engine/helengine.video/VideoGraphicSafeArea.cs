@@ -139,21 +139,29 @@ namespace helengine.video {
         }
 
         /// <summary>
-        /// Computes the box of an overlay placed in an arrangement region: the region rectangle, cut to the caption-safe
-        /// band of <see cref="ForStyle"/> when that still leaves most of the region, preferring the middle of the box.
+        /// Computes the box of an overlay placed in an arrangement region: the region rectangle (whose margins the
+        /// arrangement already chose), cut away from the estimated caption band when the two overlap and that still leaves
+        /// most of the region, preferring the middle of the box.
         /// </summary>
         /// <param name="edit">Edit supplying the format, the caption track and the text styles.</param>
-        /// <param name="style">Overlay text style snapshot.</param>
         /// <param name="region">Region rectangle in output pixels.</param>
         /// <returns>Region box in output pixels.</returns>
-        public static VideoGraphicSafeArea ForRegion(VideoEdit edit, JsonElement style, VideoGraphicRectangle region) {
-            VideoGraphicSafeArea safe = ForStyle(edit, style);
-            double top = Math.Max(region.Top, safe.Top), bottom = Math.Min(region.Bottom, safe.Bottom);
-            if (bottom - top < region.Height * RegionMinimumShare) {
-                top = region.Top;
-                bottom = region.Bottom;
+        public static VideoGraphicSafeArea ForRegion(VideoEdit edit, VideoGraphicRectangle region) {
+            double width = edit.Format.Width, height = edit.Format.Height;
+            double top = region.Top, bottom = region.Bottom;
+            VideoCaptionBand captions = VideoCaptionBand.Estimate(edit);
+            if (captions != null && captions.Top * height < bottom && captions.Bottom * height > top) {
+                if (captions.Center * height >= (region.Top + region.Bottom) / 2) {
+                    bottom = Math.Min(bottom, (captions.Top - VideoCaptionBand.Gap) * height);
+                } else {
+                    top = Math.Max(top, (captions.Bottom + VideoCaptionBand.Gap) * height);
+                }
+                if (bottom - top < region.Height * RegionMinimumShare) {
+                    top = region.Top;
+                    bottom = region.Bottom;
+                }
             }
-            return new VideoGraphicSafeArea(safe.FrameWidth, safe.FrameHeight, region.Left, region.Width, top, bottom, (top + bottom) / 2);
+            return new VideoGraphicSafeArea(width, height, region.Left, region.Width, top, bottom, (top + bottom) / 2);
         }
     }
 }

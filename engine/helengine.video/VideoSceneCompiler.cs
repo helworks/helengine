@@ -182,7 +182,7 @@ namespace helengine.video {
                 state.Diagnostics.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Info, "text_measure_estimated", span.Scene.Id, path, "No text measurer was supplied; the overlay is fitted to its region with estimated text widths."));
             }
             VideoGraphicRectangle region = VideoArrangementPresets.Region(state.Edit, span.Scene, overlay.Region).Rectangle(state.Edit.Format.Width, state.Edit.Format.Height);
-            return VideoOverlayRegionLayout.Fit(style, overlay.Text, VideoGraphicSafeArea.ForRegion(state.Edit, style, region), measurer);
+            return VideoOverlayRegionLayout.Fit(style, overlay.Text, VideoGraphicSafeArea.ForRegion(state.Edit, region), measurer);
         }
 
         /// <summary>
