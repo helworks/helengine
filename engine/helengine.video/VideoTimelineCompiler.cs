@@ -34,6 +34,12 @@ namespace helengine.video {
         public const double MaximumTextScale = 2;
 
         /// <summary>
+        /// Smallest font size a rectangle's panel is drawn at; thinner rectangles are scaled down from it, because glyph
+        /// advances measured at tiny sizes are too coarse to size the panel precisely.
+        /// </summary>
+        const double PanelFontSize = 40;
+
+        /// <summary>
         /// Opacity under which a pose does not count for the fit (elements may enter from outside the box while transparent).
         /// </summary>
         const double VisibleOpacity = 0.05;
@@ -494,7 +500,7 @@ namespace helengine.video {
                     }
                 }
             } else {
-                double fontSize = Math.Clamp((height - VideoGraphicCompiler.PanelVerticalPadding) / VideoTextStyles.LineHeight, 4, 400);
+                double fontSize = Math.Clamp((height - VideoGraphicCompiler.PanelVerticalPadding) / VideoTextStyles.LineHeight, PanelFontSize, 10 * PanelFontSize);
                 JsonElement style = WithFontSize(element.Style, Math.Round(fontSize, 3));
                 double advance = Measurer.Measure(style, "M", fontSize).Width;
                 int count = (int)Math.Clamp(Math.Round((width - VideoGraphicCompiler.PanelHorizontalPadding) / Math.Max(1, advance)), 1, 48);
