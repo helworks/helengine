@@ -4,7 +4,7 @@ namespace helengine.video {
     /// <summary>
     /// Structural validation of an edit document against itself and the engine capability catalog: identities and
     /// references, take and duration sources, moments, entries, arrangements and regions, layouts, effects, animations,
-    /// overlay graphics and caption settings.
+    /// overlay graphics and timelines (see <see cref="VideoTimelineValidator"/>) and caption settings.
     /// Timing problems that depend on analysis (unresolved words, missing handles) are left to the compiler.
     /// </summary>
     public static class VideoEditValidator {
@@ -132,16 +132,22 @@ namespace helengine.video {
                 }
                 Lock(errors, scene, overlayPath, overlay.By);
                 Region(scene, arrangement, overlay.Region, overlayPath + ".region", errors);
-                if (string.IsNullOrWhiteSpace(overlay.Text)) {
+                if (string.IsNullOrWhiteSpace(overlay.Text) && overlay.Timeline == null) {
                     Error(errors, "invalid_overlay", scene.Id, overlayPath, "Overlays need text.");
                 }
+                if (overlay.Graphic != null && overlay.Timeline != null) {
+                    Error(errors, "invalid_overlay", scene.Id, overlayPath, "An overlay has at most one of graphic and timeline.");
+                }
                 Style(edit, scene, overlay.Style, overlayPath + ".style", errors);
-                if (overlay.Graphic == null || (overlay.At != null && Forms(overlay.At) > 0)) {
+                if ((overlay.Graphic == null && overlay.Timeline == null) || (overlay.At != null && Forms(overlay.At) > 0)) {
                     Moment(scene, overlay.At, overlayPath + ".at", true, errors);
                 }
                 Moment(scene, overlay.Until, overlayPath + ".until", false, errors);
                 if (overlay.Graphic != null) {
                     ValidateGraphic(scene, overlay.Graphic, overlayPath + ".graphic", capabilities, errors);
+                }
+                if (overlay.Timeline != null) {
+                    VideoTimelineValidator.Validate(scene, overlay.Timeline, overlayPath + ".timeline", media, errors);
                 }
             }
         }
@@ -502,7 +508,7 @@ namespace helengine.video {
         /// <param name="path">JSON path.</param>
         /// <param name="required">Whether the moment must be present.</param>
         /// <param name="errors">Diagnostics sink.</param>
-        static void Moment(VideoScene scene, VideoMoment moment, string path, bool required, List<VideoDiagnostic> errors) {
+        internal static void Moment(VideoScene scene, VideoMoment moment, string path, bool required, List<VideoDiagnostic> errors) {
             if (moment == null) {
                 if (required) {
                     Error(errors, "invalid_moment", scene?.Id, path, "A moment is required here.");

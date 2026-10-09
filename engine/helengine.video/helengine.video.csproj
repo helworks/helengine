@@ -15,4 +15,8 @@
     <ProjectReference Include="..\helengine.core\helengine.core.csproj" />
     <ProjectReference Include="..\helengine.files\helengine.files.csproj" />
   </ItemGroup>
+  <!-- Overlay timelines are Helengine Timelines (tools-only authoring module) flattened and compiled into layers. -->
+  <ItemGroup>
+    <ProjectReference Include="..\helengine.timeline\helengine.timeline.csproj" />
+  </ItemGroup>
 </Project>

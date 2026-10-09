@@ -9,10 +9,12 @@ namespace helengine.architecture.tests;
 /// </summary>
 public sealed class TimelineModuleBoundaryTests {
     /// <summary>
-    /// Projects allowed to reference a timeline module.
+    /// Projects allowed to reference a timeline module: the modules and their tests, and the video edit compiler (a
+    /// tools-only module that compiles overlay timelines into media compositions).
     /// </summary>
     static readonly string[] TimelineConsumers = {
         "helengine.timeline",
+        "helengine.video",
         "helengine.timeline.tests",
         "helengine.timeline.runtime.tests"
     };
@@ -53,8 +55,8 @@ public sealed class TimelineModuleBoundaryTests {
     }
 
     /// <summary>
-    /// Only the timeline modules' own projects and tests reference them, so the editor, platforms and every other module
-    /// (and therefore a game that does not opt in) build without timeline code.
+    /// Only the timeline modules' own projects and tests, and the tools-only video compiler, reference them, so the
+    /// editor, platforms and every other module (and therefore a game that does not opt in) build without timeline code.
     /// </summary>
     [Fact]
     public void OnlyTimelineProjects_referenceTimelineModules() {
