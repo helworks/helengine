@@ -31,8 +31,9 @@ namespace helengine.video {
             for (int index = 0; index < layers.Count; index++) {
                 state.AddMember(span, Layer(state, span, layers[index], $"{path}.layers[{index}]"));
             }
-            for (int index = 0; index < scene.Overlays.Count; index++) {
-                VisualLayer overlay = Overlay(state, span, scene.Overlays[index], $"{path}.overlays[{index}]");
+            // Simultaneous plain overlays in one place become a stacked list instead of overprinting each other.
+            foreach (VideoOverlayEntry entry in VideoOverlayStacking.Arrange(state, span, path)) {
+                VisualLayer overlay = Overlay(state, span, entry.Overlay, entry.Path);
                 if (overlay != null) {
                     state.AddMember(span, overlay);
                 }
