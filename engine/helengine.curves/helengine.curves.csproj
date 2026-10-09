@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Dependency-free curve catalog shared by helengine.media and the timeline modules. It stays inside the subset the
+       C++ transpiler accepts (no LINQ, no switch expressions) so a shipping timeline runtime can evaluate the same curves
+       without pulling helengine.media into game builds. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+</Project>
