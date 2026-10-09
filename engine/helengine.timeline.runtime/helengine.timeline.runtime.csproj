@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Shipping timeline runtime: cooked timeline asset, its packaged reader and TimelinePlayerComponent. It is transpiled
+       to C++ with core, so it stays inside the C# subset core uses, and it depends only on core and the curve catalog,
+       never on the tools-only helengine.timeline authoring module. Core never references it: a game that does not
+       reference it ships no timeline code. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\helengine.nativeownership\helengine.nativeownership.csproj" />
+    <ProjectReference Include="..\helengine.core\helengine.core.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\helengine.curves\helengine.curves.csproj" />
+  </ItemGroup>
+</Project>
