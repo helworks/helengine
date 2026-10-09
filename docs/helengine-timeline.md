@@ -5,7 +5,8 @@ the slots to scene entities (cutscenes, scripted sequences); the video pipeline 
 (texts, images, rectangles). People and planner models author timelines as JSON (`helengine.timeline.v1`); tools store
 them in the HELE editor asset format and a cooker flattens them for target platforms.
 
-Code: `engine/helengine.timeline` (tools only). Design: `docs/superpowers/specs/2026-10-09-helengine-timeline-design.md`.
+Code: `engine/helengine.timeline` (tools only: model, JSON, validator, flattener, cooker) and
+`engine/helengine.timeline.runtime` (ships to games: cooked asset, player). Design: `docs/superpowers/specs/2026-10-09-helengine-timeline-design.md`.
 
 ## Model in one paragraph
 
@@ -189,3 +190,140 @@ strikes it. The host binds `term_a`, `term_b`, `term_c` to the texts `LEGALIZAR`
 - `TimelineSerialization.Register()` adds the HELE serializer (value kind 14) to `EditorAssetPayloadSerializerRegistry`;
   `TimelineFile.Load/Save` read and write validated `.htimeline` files. Core only reserves value kinds 14 (authoring
   timeline) and 15 (cooked timeline) and never references the timeline modules.
+
+## Cooking and runtime
+
+A game never plays the authoring form. The tools cook it into a flat `CookedTimelineAsset` (value kind 15, file
+extension `.hctimeline`) that the shipping module `helengine.timeline.runtime` plays with `TimelinePlayerComponent`.
+The runtime depends only on core and the curve catalog and is written in the C# subset core uses, so it transpiles to
+C++ like core; it never references the authoring module.
+
+### Cooking
+
+```csharp
+TimelineSerialization.Register();                       // HELE serializers for kinds 14 and 15
+TimelineReceiverCatalog receivers = new TimelineReceiverCatalog();
+receivers.AddAssembly(typeof(LampComponent).Assembly);  // reads [TimelineChannels] declarations
+TimelineCookOptions ps1 = new TimelineCookOptions { TickRate = 50, CurveMode = TimelineCurveMode.Linearized, Tolerance = 0.001 };
+CookedTimelineAsset cooked = TimelineCooker.Cook(timeline, ps1, resolver, receivers);
+using FileStream file = File.Create("cutscenes/intro.hctimeline");
+EditorAssetBinarySerializer.Serialize(file, cooked);
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `TickRate` | `60` | Ticks per second of the target, 1..1000 (50 for PAL consoles). |
+| `CurveMode` | `Native` | `Native` keeps the five catalog curves as byte codes; `Linearized` writes only straight segments (code 0). |
+| `Tolerance` | `0.001` | Largest error, in value units, when curves or cross-fades become straight segments. |
+
+What the cooker does (`TimelineFlattener` does the first steps in seconds; `TimelineCooker` the rest):
+
+- **Cues** become times. **Nested timelines** (inline or through the resolver) are expanded: the child time
+  `clip_in + (t - start) * speed` plays while the parent is inside the clip, slots go through the mapping, and
+  everything is cut to the clip window (and to every enclosing window). Nesting is bounded by the validator (8 levels).
+- **Keyframes** become segments `{start, end, from, to, curve}`. A clip holds its first value before its first keyframe
+  and its last value after the last one, up to the clip edges. After a segment ends the channel holds its end value
+  until its next segment; before its first segment it has no value.
+- **Blends**: where two neighbouring clips of one track overlap (inside the previous clip's `ease_out` and the next
+  clip's `ease_in`) and both drive a channel, the overlap becomes a linear cross-fade, `(1 - w) * previous + w * next`
+  with `w` rising from 0 to 1 across the overlap, written as straight segments within the tolerance. A ramp with no
+  overlapping neighbour is ignored for transform and value channels (there is no other value to fade from). Animation
+  clips that overlap are cut at the next start (one animation player shows one clip). Audio ramps are kept in the
+  flattened form for consumers that can fade, but the game runtime does not fade sounds.
+- **Several tracks on one target** (for example an outer track and a nested timeline on the same slot and channel) are
+  merged into one: at every moment the segment that started last wins (later tracks win ties). Cut segments keep their
+  exact curve in the flattened form; activation tracks of a slot are unioned.
+- **Nested speed** compresses keyframes, activation and animation (animation speed is multiplied); sounds keep their
+  natural rate, so a nested sound is only moved and, if needed, cut.
+- **Ticks**: times round to the nearest tick (exact halves round up), so boundaries move at most half a tick and shared
+  boundaries stay shared. A segment whose rounded span is empty becomes a step to its end value. Values are stored as
+  32-bit floats.
+- **Curves**: in `Native` mode whole segments keep their curve code; a segment cut mid-curve (by a window or a
+  higher-priority track) is split into straight pieces. In `Linearized` mode every curve is split; the pieces are cut at
+  ticks so that every tick, which is all the runtime samples, is within `Tolerance` of the native curve.
+- **Names**: slots become indices (the slot names stay in a table for binding tools), value channels become a receiver
+  id and a channel index through the `ITimelineChannelResolver`, and event names and values go to a string table
+  (index 0 is the empty string).
+- Track order in the cooked asset: transform components and value channels (first appearance), activation per slot,
+  animation per slot, one audio track, one event track.
+
+Other compilers (the video bridge) can start from `TimelineFlattener.Flatten(timeline, resolver)` and read
+`FlattenedTimeline` directly: curve tracks per slot and channel in seconds with catalog curve ids
+(`FlattenedCurveTrack.TryEvaluate` samples one), activation intervals, animation and audio clips, and events.
+
+### Making a component a receiver
+
+```csharp
+[TimelineChannels("intensity", "range", ReceiverId = 12)]
+public sealed class LampComponent : Component, ITimelineReceiver {
+    public int TimelineReceiverId { get { return 12; } }
+
+    public void SetTimelineValue(int channel, double value) {
+        if (channel == 0) { Intensity = (float)value; } else { Range = (float)value; }
+    }
+}
+```
+
+The attribute is read only by the tools; the channel index is the position in its list. The receiver id must be
+positive, unique among receiver types, equal to `TimelineReceiverId`, and never change once timelines are cooked against
+it (the runtime finds the receiver on the slot entity by this id, without reflection). When two receiver types declare
+the same channel name, tell the catalog which one a slot carries with `receivers.BindSlot("lamp", typeof(LampComponent))`.
+
+### Playing
+
+```csharp
+TimelineRuntimeRegistration.Register(core);  // content processor for .hctimeline (generated cores call it for you)
+TimelinePlayerComponent player = new TimelinePlayerComponent {
+    TimelinePath = "cutscenes/intro.hctimeline",  // or Timeline = cookedAsset
+    Slots = slotReferences,                         // one SceneEntityReference per slot, in slot order
+    PlayOnStart = true,
+    EndMode = TimelineEndMode.Hold,
+    Speed = 1f
+};
+director.AddComponent(player);
+```
+
+- The player binds once, on the first `Play`, `Seek` or `Evaluate`: it loads the timeline, resolves every slot used by
+  a track (an unresolved one throws, naming the slot), finds the receivers (by id) and animation players, resolves
+  audio and animation assets through `AssetSource` (default: the core's scene asset resolver), and collects the
+  `ITimelineEventListener` components on its own entity. Nothing is looked up, allocated or formatted per frame.
+- **Transform** tracks write local position, rotation (Euler degrees, X pitch, Y yaw, Z roll) and scale. Absolute tracks
+  replace a component; offset tracks add to the transform captured at bind (scale multiplies). A group (position,
+  rotation, scale) a timeline drives is rewritten every frame from the bound transform, so the result depends only on
+  the tick. **Value** tracks call `SetTimelineValue(channel, value)` while the channel has a value. **Activation**
+  enables the slot entity inside its intervals and disables it outside; at the final tick activation reads the last
+  frame, so slots active until the end stay visible. Do not put the player's own entity (or an ancestor) in an
+  activation slot: disabling it would stop the player. **Animation** tracks switch the slot's
+  `AnimationPlayerComponent` to the clip (paused) and seek it to `clip_in + elapsed * speed`, holding the last pose
+  after the clip. **Audio** starts each sound through `AudioManager.Play` (bus `master`, the clip's gain) when playback
+  crosses its start and stops it at its end; the audio slot (emitter) is not used yet. **Events** call
+  `OnTimelineEvent(name, value)` on the listeners when playback crosses their tick.
+- `Play` starts from the beginning (firing tick-0 events) or resumes after `Pause`/`Seek`; `Pause` silences sounds and
+  resuming restarts them at the paused position; `Stop` rewinds without touching applied values. End modes: `Stop`
+  applies the final frame and stops, `Hold` keeps playing and re-applies the final frame every update, `Loop` wraps and
+  fires the start events again.
+- `Seek(seconds)` applies the target immediately (a stopped player becomes paused there). Events in the skipped span
+  never fire, and a marker exactly at the target does not fire either; seeking backwards and playing over a marker
+  again fires it again. Sounds that span the target restart with `AudioPlaybackRequest.StartOffsetSeconds` when the
+  backend implements `ISeekableAudioBackend` (`AudioManager.SupportsStartOffset`); otherwise they are skipped until
+  their next start.
+- `Evaluate(tick)` applies the state of a tick (transforms, values, activation, animation) without firing events,
+  starting sounds or moving `Time`: tests and tools scrub with it, and it is deterministic.
+
+### PlayStation 1 notes
+
+- Cook with `TimelineCurveMode.Linearized` and the console's tick rate (50 or 60): the runtime then only interpolates
+  linearly. Ticks are 32-bit integers; values are 32-bit floats (soft-float on PS1, so keep timelines lean).
+- Rotation tracks convert Euler angles to a quaternion each frame for the slots they drive (trigonometry); prefer
+  position, scale, value and activation tracks for console cutscenes.
+- Backends that cannot seek play sounds from their start: bake the authored `clip_in` into the sound, and expect sounds
+  that a seek lands inside to be skipped.
+
+### Leaving timelines out of a build
+
+Core only reserves value kinds 14 and 15 and knows the optional audio start offset; it never references the timeline
+modules (an architecture test enforces it, and that only the timeline projects reference them). A game that does not
+reference `helengine.timeline.runtime` ships no timeline code. A game that does gets it through the module's
+`GeneratedRuntimeModuleManifest` (`timeline-runtime-module`), whose bootstrap `TimelineRuntimeRegistration.Register` is
+emitted only when cooked content uses `TimelinePlayerComponent`. The authoring module `helengine.timeline` is tools-only
+and is never part of a game build.
