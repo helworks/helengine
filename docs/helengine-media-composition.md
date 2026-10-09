@@ -145,7 +145,7 @@ timeline: {
   tall as it is wide. Rotation is degrees clockwise (Z only); scale X/Y multiply the element size (zero or negative
   scales fade the element out instead of flipping it). Position Z, rotation X/Y and scale Z are ignored.
 - **Sizes**: a text's font size is `size` x box height (default `0.18`); a media's height is `size` x box height
-  (default `0.5`, width from its aspect); a rect is `width` x box width (default `0.5`) by `height` x box height
+  (default `0.5`, width from its aspect; the media must declare `width` and `height`); a rect is `width` x box width (default `0.5`) by `height` x box height
   (default `0.05`), or as wide as the measured text of the text slot named in `match` (strikes, underlines; the measured
   advance is slightly wider than the ink on the right).
 - **Fit**: every bound text is measured (`VideoCompileContext.TextMeasurer`, else the estimate with

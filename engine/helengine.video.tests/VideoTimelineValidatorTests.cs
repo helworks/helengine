@@ -83,6 +83,7 @@ namespace helengine.video.tests {
         [InlineData("rect_width", "invalid_timeline", ".bindings.strike.rect.width")]
         [InlineData("unknown_media", "invalid_timeline", ".bindings.term_a.media")]
         [InlineData("audio_media", "invalid_timeline", ".bindings.term_a.media")]
+        [InlineData("unsized_media", "invalid_timeline", ".bindings.term_a.media")]
         [InlineData("unknown_channel", "invalid_timeline", ".definition.tracks[4].channel")]
         [InlineData("reveal_on_text", "invalid_timeline", ".definition.tracks[4].channel")]
         [InlineData("audio_track", "invalid_timeline", ".definition.tracks[17].kind")]
@@ -114,6 +115,7 @@ namespace helengine.video.tests {
                 case "rect_width": timeline.Bindings["strike"].Rect.Match = null; timeline.Bindings["strike"].Rect.Width = 3; break;
                 case "unknown_media": SlotKind(edit, 0, "media"); timeline.Bindings["term_a"] = new VideoTimelineBinding { Media = "nope" }; break;
                 case "audio_media": SlotKind(edit, 0, "media"); edit.Media[0].Kind = "audio"; timeline.Bindings["term_a"] = new VideoTimelineBinding { Media = "take" }; break;
+                case "unsized_media": SlotKind(edit, 0, "media"); edit.Media.Add(new VideoMedia { Id = "logo", Kind = "image", Path = "logo.png", Sha256 = new string('b', 64) }); timeline.Bindings["term_a"] = new VideoTimelineBinding { Media = "logo" }; break;
                 case "unknown_channel": TimelineEditSamples.ChangeDefinition(edit, node => node["tracks"][4]["channel"] = "intensity"); break;
                 case "reveal_on_text": TimelineEditSamples.ChangeDefinition(edit, node => node["tracks"][4]["channel"] = "reveal"); break;
                 case "audio_track": TimelineEditSamples.ChangeDefinition(edit, node => node["tracks"].AsArray().Add(JsonNode.Parse("{\"kind\":\"audio\",\"clips\":[{\"start\":0,\"duration\":0.5,\"audio\":{\"path\":\"assets/sfx/pop.wav\"}}]}"))); break;

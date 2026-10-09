@@ -179,8 +179,13 @@ namespace helengine.video {
                 }
                 if (kind == "text" && (string.IsNullOrWhiteSpace(binding.Text) || binding.Text.Length > MaxTextLength)) {
                     Error(errors, scene, bindingPath + ".text", $"A text binding needs text of at most {MaxTextLength} characters.");
-                } else if (kind == "media" && (!media.TryGetValue(binding.Media, out VideoMedia source) || source.Kind is not ("image" or "video"))) {
-                    Error(errors, scene, bindingPath + ".media", $"'{binding.Media}' is not an image or video in the edit media.");
+                } else if (kind == "media") {
+                    VideoMedia source = media.GetValueOrDefault(binding.Media);
+                    if (source == null || source.Kind is not ("image" or "video")) {
+                        Error(errors, scene, bindingPath + ".media", $"'{binding.Media}' is not an image or video in the edit media.");
+                    } else if (source.Width <= 0 || source.Height <= 0) {
+                        Error(errors, scene, bindingPath + ".media", $"Media '{binding.Media}' needs its width and height in the edit media to be sized in a timeline.");
+                    }
                 } else if (kind == "rect") {
                     ValidateRect(scene, asset, binding, bindingPath, errors);
                 }

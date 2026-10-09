@@ -6,8 +6,8 @@ using helengine.timeline;
 namespace helengine.video {
     /// <summary>
     /// Compiles one overlay timeline into composition layers: a group spanning the overlay owning one layer per bound slot
-    /// (text layer, image or video layer, or a rectangle drawn as a text panel) whose position, scale, rotation and opacity
-    /// follow the flattened timeline as property animations.
+    /// (text layer, full-frame image or video layer scaled to size, or a rectangle drawn as a text panel) whose position,
+    /// scale, rotation and opacity follow the flattened timeline as property animations.
     /// <para>
     /// Timing: the timeline's time 0 is the overlay <c>at</c> when given, otherwise the instant that puts its earliest
     /// mapped cue (by moment) on its moment (the scene start when no cue is mapped). Every mapped cue moves to its moment
@@ -478,20 +478,19 @@ namespace helengine.video {
             };
             double frameWidth = State.Edit.Format.Width, frameHeight = State.Edit.Format.Height;
             double width = element.RestWidth(Box) * FitScale, height = element.RestHeight(Box) * FitScale;
-            double unitX = frameWidth, unitY = frameHeight, baseScaleX = 1, baseScaleY = 1;
+            double baseScaleX = 1, baseScaleY = 1;
             bool rect = element.Kind == "rect";
             if (element.Kind == "text") {
                 layer.Kind = "text";
                 layer.MediaId = "";
                 layer.Text = new CompositionText { Cues = [new CompositionTextCue { Text = element.Binding.Text, Start = start, End = end }], Style = WithFontSize(element.Style, Math.Round(element.FontSize(Box) * FitScale, 3)) };
             } else if (element.Kind == "media") {
-                double viewportWidth = Math.Min(1, width / frameWidth), viewportHeight = Math.Min(1, height / frameHeight);
+                PresentationMapping fitted = PresentationTransform.Resolve(element.Media.Width, element.Media.Height, frameWidth, frameHeight, "contain", 1, 0.5, 0.5);
                 layer.Kind = "media";
                 layer.MediaId = element.Media.Id;
                 layer.Fit = "contain";
-                layer.Viewport = new LayerViewport { X = (1 - viewportWidth) / 2, Y = (1 - viewportHeight) / 2, Width = viewportWidth, Height = viewportHeight };
-                unitX = viewportWidth * frameWidth;
-                unitY = viewportHeight * frameHeight;
+                baseScaleX = width / fitted.FittedWidth;
+                baseScaleY = height / fitted.FittedHeight;
                 if (element.Media.Kind == "video") {
                     layer.SourceOut = end - start;
                     if (element.Media.DurationSec > 0 && (end - start).ToSeconds() > element.Media.DurationSec) {
@@ -516,12 +515,12 @@ namespace helengine.video {
             double centerX = Box.CenterX, centerY = (Box.Top + Box.Bottom) / 2;
             VideoTimelineSlotMotion motion = element.Motion;
             Func<double, VideoTimelinePose> pose = motion.Pose;
-            AddProperty(layer, element, "position_x", from, to, 0.0005 * frameWidth / unitX, time => {
+            AddProperty(layer, element, "position_x", from, to, 0.0005, time => {
                 VideoTimelinePose state = pose(time);
                 double shift = rect ? (1 - state.Reveal) * width * state.ScaleX / 2 : 0;
-                return (centerX + state.X * Box.Width * FitScale - shift - frameWidth / 2) / unitX;
+                return (centerX + state.X * Box.Width * FitScale - shift - frameWidth / 2) / frameWidth;
             });
-            AddProperty(layer, element, "position_y", from, to, 0.0005 * frameHeight / unitY, time => (centerY + pose(time).Y * Box.Height * FitScale - frameHeight / 2) / unitY);
+            AddProperty(layer, element, "position_y", from, to, 0.0005, time => (centerY + pose(time).Y * Box.Height * FitScale - frameHeight / 2) / frameHeight);
             AddProperty(layer, element, "rotation_deg", from, to, 0.1, time => pose(time).Rotation);
             AddProperty(layer, element, "scale_x", from, to, 0.002, time => Math.Clamp(baseScaleX * pose(time).ScaleX * (rect ? pose(time).Reveal : 1), MinimumScale, MaximumScale));
             AddProperty(layer, element, "scale_y", from, to, 0.002, time => Math.Clamp(baseScaleY * pose(time).ScaleY, MinimumScale, MaximumScale));

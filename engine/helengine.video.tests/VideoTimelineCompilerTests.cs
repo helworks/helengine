@@ -165,6 +165,27 @@ namespace helengine.video.tests {
         }
 
         /// <summary>
+        /// A media slot becomes a full-frame image layer scaled to the bound size (0.3 of the box height, shrunk a little by the fit) and moved into place.
+        /// </summary>
+        [Fact]
+        public void Compile_BindsImagesToMediaLayers() {
+            VideoEdit edit = TimelineEditSamples.Contrast();
+            edit.Media.Add(new VideoMedia { Id = "logo", Kind = "image", Path = "logo.png", Sha256 = new string('b', 64), Width = 200, Height = 100 });
+            TimelineEditSamples.ChangeDefinition(edit, node => node["slots"][0]["kind"] = "media");
+            edit.Scenes[0].Overlays[0].Timeline.Bindings["term_a"] = new VideoTimelineBinding { Media = "logo", Size = 0.3 };
+
+            CompositionDocument composition = Compile(edit).Composition;
+
+            VisualLayer logo = TimelineEditSamples.Slot(composition, "term_a");
+            Assert.Equal("media", logo.Kind);
+            Assert.Equal("logo", logo.MediaId);
+            Assert.Equal(1, logo.Viewport.Width);
+            Assert.Equal(Final(logo, "scale_x"), Final(logo, "scale_y"), 6);
+            Assert.InRange(Final(logo, "scale_y") * 540, 0.25 * Box(edit).Height, 0.3 * Box(edit).Height);
+            Assert.True(Final(logo, "position_y") < 0);
+        }
+
+        /// <summary>
         /// Compiles an edit with the fixed-advance measurer and requires a clean result.
         /// </summary>
         /// <param name="edit">Edit.</param>
