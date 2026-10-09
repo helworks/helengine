@@ -4,7 +4,7 @@ namespace helengine {
     /// <summary>
     /// Implements the shared runtime audio backend contract over Windows wave-out playback.
     /// </summary>
-    public sealed class WindowsAudioBackend : IAudioBackend, IDisposable {
+    public sealed class WindowsAudioBackend : ISeekableAudioBackend, IDisposable {
         readonly Dictionary<int, WindowsAudioVoice> VoicesById;
         readonly Dictionary<string, float> BusGainsById;
         readonly HashSet<string> PausedBusIds;
@@ -142,11 +142,32 @@ namespace helengine {
         /// <returns>Wave stream used by the output device.</returns>
         static WaveStream CreatePlaybackStream(AudioAsset asset, AudioPlaybackRequest request) {
             RawSourceWaveStream rawStream = CreateRawWaveStream(asset);
+            if (request != null) {
+                PositionAtStartOffset(rawStream, request.StartOffsetSeconds);
+            }
             if (request != null && request.Loop) {
                 return new LoopingWaveStream(rawStream);
             }
 
             return rawStream;
+        }
+
+        /// <summary>
+        /// Moves a PCM stream to the requested start offset, rounded down to a whole sample frame and clamped to the end
+        /// of the data, so a request past the end simply finishes at once.
+        /// </summary>
+        /// <param name="stream">Raw PCM stream positioned at its start.</param>
+        /// <param name="offsetSeconds">Seconds to skip; zero or negative leaves the stream at its start.</param>
+        static void PositionAtStartOffset(RawSourceWaveStream stream, float offsetSeconds) {
+            if (!(offsetSeconds > 0f)) {
+                return;
+            }
+
+            int blockAlign = stream.WaveFormat.BlockAlign;
+            long frame = (long)Math.Floor(offsetSeconds * (double)stream.WaveFormat.SampleRate);
+            long position = frame * blockAlign;
+            long lastFrameStart = stream.Length - (stream.Length % blockAlign);
+            stream.Position = position > lastFrameStart ? lastFrameStart : position;
         }
 
         /// <summary>

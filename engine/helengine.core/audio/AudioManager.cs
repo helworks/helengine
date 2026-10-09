@@ -19,7 +19,14 @@ namespace helengine {
                 ["sfx"] = new AudioBus("sfx")
             };
             ActiveVoiceIds = new HashSet<int>();
+            SupportsStartOffset = backend is ISeekableAudioBackend;
         }
+
+        /// <summary>
+        /// Gets whether the backend starts playback at <see cref="AudioPlaybackRequest.StartOffsetSeconds"/>. Decided once
+        /// from the backend type, so per-frame callers read a plain flag.
+        /// </summary>
+        public bool SupportsStartOffset { get; }
 
         /// <summary>
         /// Starts playback of one resolved audio asset using the supplied request.
