@@ -21,15 +21,10 @@ namespace helengine.timeline {
         public string Slot { get; set; } = string.Empty;
 
         /// <summary>
-        /// Gets the number of clips the track holds; event tracks hold markers instead and report zero.
+        /// Gets the track's clips through their shared base, so timing rules can be checked for every track kind alike. It
+        /// is the subclass's own list seen through a covariant read-only view (null when that list is missing); event tracks
+        /// hold markers instead and return an empty view.
         /// </summary>
-        public abstract int ClipCount { get; }
-
-        /// <summary>
-        /// Returns one clip through its shared base so timing rules can be checked for every track kind alike.
-        /// </summary>
-        /// <param name="index">Zero-based clip index below <see cref="ClipCount"/>.</param>
-        /// <returns>The clip at that index.</returns>
-        public abstract TimelineClipAsset GetClip(int index);
+        public abstract IReadOnlyList<TimelineClipAsset> ClipView { get; }
     }
 }

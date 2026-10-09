@@ -18,21 +18,12 @@ namespace helengine.timeline {
         public List<TimelineAnimationClipAsset> Clips { get; set; } = new List<TimelineAnimationClipAsset>();
 
         /// <summary>
-        /// Gets the number of animation placements.
+        /// Gets the animation placements through the shared clip base (the same list instance), or null when the list is missing.
         /// </summary>
-        public override int ClipCount {
+        public override IReadOnlyList<TimelineClipAsset> ClipView {
             get {
-                return Clips.Count;
+                return Clips;
             }
-        }
-
-        /// <summary>
-        /// Returns one animation placement through the shared clip base.
-        /// </summary>
-        /// <param name="index">Zero-based clip index.</param>
-        /// <returns>The clip at that index.</returns>
-        public override TimelineClipAsset GetClip(int index) {
-            return Clips[index];
         }
     }
 }

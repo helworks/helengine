@@ -23,21 +23,12 @@ namespace helengine.timeline {
         public List<TimelineTransformClipAsset> Clips { get; set; } = new List<TimelineTransformClipAsset>();
 
         /// <summary>
-        /// Gets the number of transform clips.
+        /// Gets the transform clips through the shared clip base (the same list instance), or null when the list is missing.
         /// </summary>
-        public override int ClipCount {
+        public override IReadOnlyList<TimelineClipAsset> ClipView {
             get {
-                return Clips.Count;
+                return Clips;
             }
-        }
-
-        /// <summary>
-        /// Returns one transform clip through the shared clip base.
-        /// </summary>
-        /// <param name="index">Zero-based clip index.</param>
-        /// <returns>The clip at that index.</returns>
-        public override TimelineClipAsset GetClip(int index) {
-            return Clips[index];
         }
     }
 }

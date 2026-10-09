@@ -19,21 +19,12 @@ namespace helengine.timeline {
         public List<TimelineClipAsset> Clips { get; set; } = new List<TimelineClipAsset>();
 
         /// <summary>
-        /// Gets the number of active intervals.
+        /// Gets the active intervals through the shared clip base (the same list instance), or null when the list is missing.
         /// </summary>
-        public override int ClipCount {
+        public override IReadOnlyList<TimelineClipAsset> ClipView {
             get {
-                return Clips.Count;
+                return Clips;
             }
-        }
-
-        /// <summary>
-        /// Returns one active interval.
-        /// </summary>
-        /// <param name="index">Zero-based clip index.</param>
-        /// <returns>The clip at that index.</returns>
-        public override TimelineClipAsset GetClip(int index) {
-            return Clips[index];
         }
     }
 }

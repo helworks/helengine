@@ -19,21 +19,12 @@ namespace helengine.timeline {
         public List<TimelineAudioClipAsset> Clips { get; set; } = new List<TimelineAudioClipAsset>();
 
         /// <summary>
-        /// Gets the number of audio clips.
+        /// Gets the audio clips through the shared clip base (the same list instance), or null when the list is missing.
         /// </summary>
-        public override int ClipCount {
+        public override IReadOnlyList<TimelineClipAsset> ClipView {
             get {
-                return Clips.Count;
+                return Clips;
             }
-        }
-
-        /// <summary>
-        /// Returns one audio clip through the shared clip base.
-        /// </summary>
-        /// <param name="index">Zero-based clip index.</param>
-        /// <returns>The clip at that index.</returns>
-        public override TimelineClipAsset GetClip(int index) {
-            return Clips[index];
         }
     }
 }

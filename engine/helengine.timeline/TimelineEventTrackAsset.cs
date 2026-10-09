@@ -18,21 +18,12 @@ namespace helengine.timeline {
         public List<TimelineEventMarkerAsset> Markers { get; set; } = new List<TimelineEventMarkerAsset>();
 
         /// <summary>
-        /// Gets zero; event tracks hold markers, not clips.
+        /// Gets an empty view; event tracks hold markers, not clips.
         /// </summary>
-        public override int ClipCount {
+        public override IReadOnlyList<TimelineClipAsset> ClipView {
             get {
-                return 0;
+                return Array.Empty<TimelineClipAsset>();
             }
-        }
-
-        /// <summary>
-        /// Always throws; event tracks hold markers, not clips.
-        /// </summary>
-        /// <param name="index">Ignored clip index.</param>
-        /// <returns>Never returns.</returns>
-        public override TimelineClipAsset GetClip(int index) {
-            throw new ArgumentOutOfRangeException(nameof(index), "Event tracks hold markers, not clips.");
         }
     }
 }
