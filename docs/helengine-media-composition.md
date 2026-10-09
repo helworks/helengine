@@ -74,6 +74,52 @@ area is used as before), scales them uniformly to fit, and emits one group (exit
 `VideoCompileContext.GraphicTemplates`. `composition compile-edit --input <edit.json> --assets-root <root> --out <json>
 [--project <dir>]` compiles an edit with both. Spec: `docs/superpowers/specs/2026-10-08-helengine-graphic-templates-design.md`.
 
+The caption band is estimated by `VideoCaptionBand` from the caption style (center, font size, `MaxWidth`) and the track's
+words per cue/line: a line holds no more words than fit the wrapping width at an average word width (6.5 characters of
+0.6 em plus a 0.3 em space), up to 4 lines, so large caption fonts on narrow frames reserve the lines they will wrap into.
+Graphics and arrangement regions keep 1.5 % of the frame height away from it.
+
+## Scene arrangements
+
+A scene may declare `"arrangement": {"preset": "<id>", "by"?: "human"|"ai"}` (lockable; `VideoEditMerge` keeps it like
+the other scene objects). Layers and overlays (plain or graphic) claim a region with `"region": "<name>"`:
+
+```json
+{"id": "difference", "arrangement": {"preset": "stack"},
+ "layers": [{"id": "picture", "kind": "media", "media": "m1", "fit": "cover", "region": "main"}],
+ "overlays": [{"id": "chain", "text": "A ≠ B", "region": "top", "graphic": {"template": "contrast_chain", "items": ["A", "B"], "at": [...]}}]}
+```
+
+Presets are built-in data (`VideoArrangementPresets`), published by `composition capabilities` as `arrangements[]`
+(`{id, description, regions: [{name, role, description}]}`, roles `picture`, `graphic`, `background`):
+
+| preset | regions | portrait / square | landscape |
+| --- | --- | --- | --- |
+| `full` (default) | `main` | whole frame | whole frame |
+| `stack` | `top` (graphic), `main` (picture) | `top` x .05 w .90, safe y 0–.33; `main` x .04 w .92 (square .05/.90), safe y .36–1 | `main` left column, `top` right column (as `split`) |
+| `split` | `left` (picture), `right` (graphic) | as `stack` (`right` on top, `left` below) | `left` x .03 w .50, safe y .02–.98; `right` x .56 w .40, safe y .06–.94 |
+| `take_with_graphic` | `background` (take), `band` (graphic) | `background` whole frame; `band` x .05 w .90 (square .06/.88), safe y 0–.22 (square .24) | `band` x .10 w .80, safe y 0–.26 |
+| `graphic_only` | `main` (graphic) | x .06 w .88, safe y .06–.94 (square x .08 w .84, y .05–.95) | x .10 w .80, safe y .05–.95 |
+
+x and width are frame fractions; y is a fraction of the caption-free safe frame, which runs from 4 % of the frame height
+to the top of the estimated caption band (or 96 % without captions; captions centered in the top half flip it). Frames
+are portrait when height/width > 1.15, landscape when width/height > 1.15, square otherwise. `stack` and `split` keep
+their region names on every frame and swap geometry by orientation. `VideoArrangementPresets.Resolve(preset, edit)` (or
+`Resolve(preset, format)`, which assumes the safe frame ends at 70 %) returns every region's normalized rectangle and pixel
+size so products generate media at the region's aspect.
+
+Compilation: a layer in a region takes the region as its viewport, its layout preset applying inside the region and an
+explicit `layout.viewport` still winning; region layers are always clipped to their viewport. A graphic in a region is
+measured, fitted (allowed to grow up to 2x the style size) and centered in the region, cut away from the caption band only
+when they overlap; the free-area search is skipped. A plain overlay in a region is wrapped like captions at the region
+width, shrunk to fit and centered (`CenterX`, `CenterY`, `MaxWidth`, `FontSize` are set on its style). Without a region
+everything behaves as before; captions always keep their band.
+
+Validation: an unknown preset is `unknown_arrangement`; a region the scene's preset does not have is `unknown_region` (a
+scene without an arrangement is `full`, so only `main` is accepted there); two picture layers (take, image or video) in
+one region raise the warning `region_shared`. The schema lists the presets and every region name as enums. Spec:
+`docs/superpowers/specs/2026-10-08-helengine-scene-arrangements-design.md`.
+
 ## Flux Studio editing flow
 
 Flux Studio stores one video edit per video (`video_edits` plus `video_edit_versions`). Every read and render composes a fresh
