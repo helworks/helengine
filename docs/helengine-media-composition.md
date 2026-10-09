@@ -67,8 +67,10 @@ built-ins `contrast_chain`, `list_build`, `highlight_word` and `strike_replace` 
 `graphic: {template, version, items, at[], separator?, accent_item?, layout?, parameters}` (one moment per item, usually the
 spoken word; `text` stays the fallback). The compiler measures items with `VideoCompileContext.TextMeasurer`
 (`WindowsVideoTextMeasurer` uses the renderer's fonts; without one a deterministic estimate is used and an Info
-`text_measure_estimated` diagnostic is raised), lays them out in an 84 % safe area above the caption band, scales them
-uniformly to fit, and emits one group (exit fade, caption lift) owning one text layer per element instance; it needs
+`text_measure_estimated` diagnostic is raised), lays them out in an 84 % safe area above the caption band minus the
+parts the scene's take/media layers cover (as presented: fit, clip, padding, static transform; the free box keeping the
+text largest wins, centered in it, and when none allows 40 % of the style size, e.g. a full-frame picture, the whole safe
+area is used as before), scales them uniformly to fit, and emits one group (exit fade, caption lift) owning one text layer per element instance; it needs
 `VideoCompileContext.GraphicTemplates`. `composition compile-edit --input <edit.json> --assets-root <root> --out <json>
 [--project <dir>]` compiles an edit with both. Spec: `docs/superpowers/specs/2026-10-08-helengine-graphic-templates-design.md`.
 

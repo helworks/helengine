@@ -30,6 +30,16 @@ Taste belongs in authored templates; the AI chooses a template, fills its slots 
   caption reserve) using measured text. `IVideoTextMeasurer` in `VideoCompileContext` (implemented in the CLI with the same
   font loading/layout the renderer uses); without a measurer a deterministic estimate is used and a `text_measure_estimated`
   info diagnostic is raised. Uniform scale-to-fit when the measured block exceeds the box.
+- **Free region** (`VideoGraphicFreeArea`): the box is the safe area minus the rectangles the scene's take and media layers
+  draw (`VideoPictureBounds`: source fitted into the layout viewport, clipped when the layer clips, the whole viewport when
+  it paints an opaque padding color, moved/scaled by the static transform), each grown by 1.2 % of the frame height. Every
+  maximal free rectangle at least 25 % wide and 4 % tall is tried (direction and scale chosen as above, centered in the
+  rectangle); the largest text wins, ties within 3 % go to the rectangle nearest the style's preferred center. When no
+  picture touches the safe area nothing changes; when no free rectangle allows 40 % of the style font size (full-frame
+  take or image) the whole safe area is used and the text sits over the picture as before.
+- **Dimming**: an item never dims by turning see-through alone. A copy of it in `dim_color` (default mid gray) with the
+  style's full outline and shadow appears under it when the next item does, and the item fades to `dim_opacity` over the
+  copy, so a dimmed item settles on a muted mix of its color and the gray that stays legible on white and dark pictures.
 - **Edit format**: `overlays[].graphic = { "template": "contrast_chain", "version": 1, "items": [...], "at": [<moment>...],
   "parameters": {...} }`. When `graphic` is present `text` is the plain fallback/accessibility text. Lockable as part of the
   overlay (`by`). Validator: template exists in catalog, item count/lengths, `at` count = items count, parameters typed.
