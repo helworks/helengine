@@ -8,11 +8,13 @@ namespace helengine.timeline {
     /// </summary>
     public static class TimelineSerialization {
         /// <summary>
-        /// Registers the timeline payload serializer under <see cref="EditorAssetBinaryValueKind.TimelineAsset"/>. Safe to
-        /// call more than once.
+        /// Registers the authoring timeline serializer under <see cref="EditorAssetBinaryValueKind.TimelineAsset"/> and the
+        /// cooked timeline serializer under <see cref="EditorAssetBinaryValueKind.CookedTimelineAsset"/>. Safe to call more
+        /// than once.
         /// </summary>
         public static void Register() {
             EditorAssetPayloadSerializerRegistry.Register(new TimelineAssetPayloadSerializer());
+            EditorAssetPayloadSerializerRegistry.Register(new CookedTimelineAssetPayloadSerializer());
         }
     }
 }

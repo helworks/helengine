@@ -12,5 +12,7 @@
     <ProjectReference Include="..\helengine.core\helengine.core.csproj" />
     <ProjectReference Include="..\helengine.files\helengine.files.csproj" />
     <ProjectReference Include="..\helengine.curves\helengine.curves.csproj" />
+    <!-- The cooker produces the shipping module's CookedTimelineAsset; the dependency only points tools -> runtime. -->
+    <ProjectReference Include="..\helengine.timeline.runtime\helengine.timeline.runtime.csproj" />
   </ItemGroup>
 </Project>
