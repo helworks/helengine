@@ -36,6 +36,26 @@ namespace helengine.video {
         /// <param name="area">Safe area in output pixels.</param>
         /// <returns>Chosen direction, fit scale and fitted item font size.</returns>
         public static VideoGraphicArrangement Arrange(IReadOnlyList<VideoGraphicBlock> blocks, GraphicTemplateAsset template, string requested, JsonElement style, IVideoTextMeasurer measurer, VideoGraphicSafeArea area) {
+            return Arrange(blocks, template, requested, style, measurer, area, 1);
+        }
+
+        /// <summary>
+        /// Arranges the blocks and writes their measured sizes and centers, letting the text grow up to a maximum scale
+        /// when the area has room for it (used for graphics placed in an arrangement region). When growth is allowed a row
+        /// must keep the text within the usual mild shrink of what the best column reaches, not of the style size.
+        /// </summary>
+        /// <param name="blocks">Blocks in reading order.</param>
+        /// <param name="template">Template supplying the supported layouts and their gaps.</param>
+        /// <param name="requested">auto, vertical or horizontal.</param>
+        /// <param name="style">Overlay text style snapshot used for measuring.</param>
+        /// <param name="measurer">Text measurer.</param>
+        /// <param name="area">Safe area in output pixels.</param>
+        /// <param name="maximumScale">Largest fit scale, one or more; one keeps the style font size as the ceiling.</param>
+        /// <returns>Chosen direction, fit scale and fitted item font size.</returns>
+        public static VideoGraphicArrangement Arrange(IReadOnlyList<VideoGraphicBlock> blocks, GraphicTemplateAsset template, string requested, JsonElement style, IVideoTextMeasurer measurer, VideoGraphicSafeArea area, double maximumScale) {
+            if (!double.IsFinite(maximumScale) || maximumScale < 1) {
+                throw new ArgumentOutOfRangeException(nameof(maximumScale), "The maximum scale must be one or more.");
+            }
             if (blocks.Count == 0) {
                 throw new ArgumentException("A graphic needs at least one block.", nameof(blocks));
             }
@@ -47,13 +67,18 @@ namespace helengine.video {
             GraphicTemplateLayoutAsset chosen = null;
             double chosenScale = 0;
             GraphicTemplateLayoutAsset horizontal = candidates.FirstOrDefault(layout => layout.Direction == GraphicLayoutDirection.Horizontal);
-            double horizontalScale = horizontal == null ? 0 : Fit(blocks, horizontal, style, measurer, area, baseSize);
-            if (horizontal != null && horizontalScale >= (area.FrameWidth >= area.FrameHeight ? LandscapeRowScale : PortraitRowScale)) {
+            double horizontalScale = horizontal == null ? 0 : Fit(blocks, horizontal, style, measurer, area, baseSize, maximumScale);
+            double reference = 1;
+            if (maximumScale > 1) {
+                GraphicTemplateLayoutAsset vertical = candidates.FirstOrDefault(layout => layout.Direction == GraphicLayoutDirection.Vertical);
+                reference = vertical == null ? 1 : Math.Max(1, Fit(blocks, vertical, style, measurer, area, baseSize, maximumScale));
+            }
+            if (horizontal != null && horizontalScale >= reference * (area.FrameWidth >= area.FrameHeight ? LandscapeRowScale : PortraitRowScale)) {
                 chosen = horizontal;
                 chosenScale = horizontalScale;
             } else {
                 foreach (GraphicTemplateLayoutAsset candidate in candidates.OrderBy(layout => layout.Direction == GraphicLayoutDirection.Vertical ? 0 : 1)) {
-                    double scale = Fit(blocks, candidate, style, measurer, area, baseSize);
+                    double scale = Fit(blocks, candidate, style, measurer, area, baseSize, maximumScale);
                     if (chosen == null || scale > chosenScale + 1e-6) {
                         chosen = candidate;
                         chosenScale = scale;
@@ -75,7 +100,7 @@ namespace helengine.video {
         }
 
         /// <summary>
-        /// Finds the largest uniform scale, at most one, at which the blocks fit the safe area in one direction.
+        /// Finds the largest uniform scale, at most the maximum scale, at which the blocks fit the safe area in one direction.
         /// </summary>
         /// <param name="blocks">Blocks.</param>
         /// <param name="layout">Direction and gap.</param>
@@ -83,9 +108,10 @@ namespace helengine.video {
         /// <param name="measurer">Text measurer.</param>
         /// <param name="area">Safe area.</param>
         /// <param name="baseSize">Item font size before fitting.</param>
+        /// <param name="maximumScale">Largest scale tried first.</param>
         /// <returns>Fit scale.</returns>
-        static double Fit(IReadOnlyList<VideoGraphicBlock> blocks, GraphicTemplateLayoutAsset layout, JsonElement style, IVideoTextMeasurer measurer, VideoGraphicSafeArea area, double baseSize) {
-            double scale = 1;
+        static double Fit(IReadOnlyList<VideoGraphicBlock> blocks, GraphicTemplateLayoutAsset layout, JsonElement style, IVideoTextMeasurer measurer, VideoGraphicSafeArea area, double baseSize, double maximumScale) {
+            double scale = maximumScale;
             for (int pass = 0; pass < FitPasses; pass++) {
                 Measure(blocks, style, measurer, baseSize * scale);
                 double ratio = Math.Min(area.Width / Width(blocks, layout, style, baseSize * scale), area.Height / Height(blocks, layout, style, baseSize * scale));

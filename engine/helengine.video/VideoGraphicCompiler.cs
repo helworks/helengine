@@ -6,11 +6,17 @@ namespace helengine.video {
     /// <summary>
     /// Expands one overlay graphic into composition layers: a group spanning the graphic (which fades out at the end and
     /// carries the caption lift) owning one text layer per template element instance. Items are measured and laid out in
+    /// the overlay's arrangement region when it claims one (fitted, allowed to grow, centered), otherwise in
     /// the part of the safe area the scene's pictures leave free, every element is drawn centered on its own layer and moved into place with the layer position, so
     /// its pop scales around its own center, and the template tracks are resolved against the item moments (usually the
     /// spoken words of the scene take) and merged into composition animation tracks.
     /// </summary>
     public sealed class VideoGraphicCompiler {
+        /// <summary>
+        /// Largest growth over the style font size a graphic placed in an arrangement region may take to fill it.
+        /// </summary>
+        public const double RegionMaximumScale = 2;
+
         /// <summary>
         /// Height the text renderer's panel adds around the line box, in pixels.
         /// </summary>
@@ -218,7 +224,13 @@ namespace helengine.video {
                 measurer = new VideoTextEstimator();
                 State.Diagnostics.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Info, "text_measure_estimated", Span.Scene.Id, Path, "No text measurer was supplied; the graphic layout uses estimated text widths."));
             }
-            Arrangement = VideoGraphicFreeArea.Arrange(Blocks, Template, Overlay.Graphic.Layout ?? "auto", Style, measurer, SafeArea(), Pictures());
+            string requested = Overlay.Graphic.Layout ?? "auto";
+            if (Overlay.Region != null) {
+                VideoGraphicRectangle region = VideoArrangementPresets.Region(State.Edit, Span.Scene, Overlay.Region).Rectangle(State.Edit.Format.Width, State.Edit.Format.Height);
+                Arrangement = VideoGraphicLayout.Arrange(Blocks, Template, requested, Style, measurer, VideoGraphicSafeArea.ForRegion(State.Edit, Style, region), RegionMaximumScale);
+            } else {
+                Arrangement = VideoGraphicFreeArea.Arrange(Blocks, Template, requested, Style, measurer, VideoGraphicSafeArea.ForStyle(State.Edit, Style), Pictures());
+            }
         }
 
         /// <summary>
@@ -242,38 +254,10 @@ namespace helengine.video {
                     media = State.Media[layer.Media];
                 }
                 if (media != null && media.Kind != "audio") {
-                    pictures.Add(VideoPictureBounds.Resolve(layer, media, width, height));
+                    pictures.Add(VideoPictureBounds.Resolve(layer, VideoLayoutPresets.Viewport(State.Edit, scene, layer), media, width, height));
                 }
             }
             return pictures;
-        }
-
-        /// <summary>
-        /// Computes the safe area: the style's wrapping width centered, frame margins top and bottom, and the caption band
-        /// kept free when captions are drawn below (or above) the graphic's preferred center.
-        /// </summary>
-        /// <returns>Safe area in output pixels.</returns>
-        VideoGraphicSafeArea SafeArea() {
-            double width = State.Edit.Format.Width, height = State.Edit.Format.Height;
-            double top = height * 0.07, bottom = height * 0.93;
-            double centerY = VideoTextStyles.Number(Style, "CenterY", VideoTextStyles.DefaultCenterY) * height;
-            VideoCaptionTrack captions = State.Edit.Tracks.Captions;
-            if (captions != null && State.Edit.TextStyles.TryGetValue(captions.Style ?? "", out JsonElement captionStyle)) {
-                double captionCenter = VideoTextStyles.Number(captionStyle, "CenterY", VideoTextStyles.DefaultCenterY) * height;
-                double lines = Math.Clamp(Math.Ceiling((double)captions.WordsPerCue / Math.Max(1, captions.WordsPerLine)), 1, 3);
-                double reserve = lines * VideoTextStyles.Number(captionStyle, "FontSize", VideoTextStyles.DefaultFontSize) * VideoTextStyles.LineHeight / 2 + height * 0.015;
-                if (captionCenter >= centerY) {
-                    bottom = Math.Min(bottom, captionCenter - reserve);
-                } else {
-                    top = Math.Max(top, captionCenter + reserve);
-                }
-            }
-            if (bottom - top < height * 0.2) {
-                top = height * 0.07;
-                bottom = height * 0.93;
-            }
-            double safeWidth = width * Math.Clamp(VideoTextStyles.Number(Style, "MaxWidth", VideoTextStyles.DefaultMaxWidth), 0.1, 1);
-            return new VideoGraphicSafeArea(width, height, (width - safeWidth) / 2, safeWidth, top, bottom, centerY);
         }
 
         /// <summary>

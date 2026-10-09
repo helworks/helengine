@@ -3,7 +3,8 @@ using helengine.media;
 namespace helengine.video {
     /// <summary>
     /// Works out where a take or media layer actually draws in the frame, the way the compositor presents it: the source
-    /// fitted into the layer viewport (contained or covered, centered), cut to the viewport when the layer clips, plus
+    /// fitted into the layer viewport (contained or covered, centered), cut to the viewport when the layer clips (as every
+    /// layer in an arrangement region does), plus
     /// the whole viewport when the layer paints a visible padding color, then moved and scaled by the static transform
     /// (position in viewport fractions, scale around the viewport center). Animated zoom and motion are not included.
     /// </summary>
@@ -17,7 +18,20 @@ namespace helengine.video {
         /// <param name="frameHeight">Output frame height in pixels.</param>
         /// <returns>Covered rectangle in output pixels.</returns>
         public static VideoGraphicRectangle Resolve(VideoLayer layer, VideoMedia media, double frameWidth, double frameHeight) {
-            LayerViewport viewport = VideoLayoutPresets.Viewport(layer.Layout);
+            return Resolve(layer, VideoLayoutPresets.Viewport(layer.Layout), media, frameWidth, frameHeight);
+        }
+
+        /// <summary>
+        /// Computes the frame rectangle one picture layer covers inside an already resolved viewport, such as the viewport
+        /// an arrangement region gives the layer.
+        /// </summary>
+        /// <param name="layer">Edit layer of kind take or media.</param>
+        /// <param name="viewport">Resolved layer viewport in normalized frame coordinates.</param>
+        /// <param name="media">Media the layer shows; when its size is unknown the whole viewport counts as covered.</param>
+        /// <param name="frameWidth">Output frame width in pixels.</param>
+        /// <param name="frameHeight">Output frame height in pixels.</param>
+        /// <returns>Covered rectangle in output pixels.</returns>
+        public static VideoGraphicRectangle Resolve(VideoLayer layer, LayerViewport viewport, VideoMedia media, double frameWidth, double frameHeight) {
             double width = viewport.Width * frameWidth, height = viewport.Height * frameHeight;
             double left = 0, top = 0, right = width, bottom = height;
             if (media.Width > 0 && media.Height > 0) {
@@ -26,7 +40,7 @@ namespace helengine.video {
                 top = mapping.ImageY;
                 right = mapping.ImageX + mapping.FittedWidth;
                 bottom = mapping.ImageY + mapping.FittedHeight;
-                if (layer.ClipToViewport) {
+                if (VideoLayoutPresets.ClipsToViewport(layer)) {
                     left = Math.Max(left, 0);
                     top = Math.Max(top, 0);
                     right = Math.Min(right, width);

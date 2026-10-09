@@ -3,7 +3,8 @@ using helengine.media;
 namespace helengine.video {
     /// <summary>
     /// Compiles one scene into a composition group: the take, media and text layers with their layout, transform, motion,
-    /// animations, effects and masks, plus the scene's text overlays.
+    /// animations, effects and masks, plus the scene's text overlays. Layers and overlays that claim a region of the
+    /// scene arrangement are placed inside it; everything else keeps its frame-relative placement.
     /// </summary>
     public static class VideoSceneCompiler {
         /// <summary>
@@ -57,10 +58,10 @@ namespace helengine.video {
                 End = span.End,
                 Order = source.Order,
                 Fit = source.Fit,
-                Viewport = VideoLayoutPresets.Viewport(source.Layout),
+                Viewport = VideoLayoutPresets.Viewport(state.Edit, scene, source),
                 Transform = Transform(source.Transform),
                 PaddingColor = source.PaddingColor ?? "#00000000",
-                ClipToViewport = source.ClipToViewport
+                ClipToViewport = VideoLayoutPresets.ClipsToViewport(source)
             };
             if (source.Kind == "take") {
                 layer.MediaId = scene.Take.Media;
@@ -153,12 +154,35 @@ namespace helengine.video {
                 state.Diagnostics.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Warning, "overlay_skipped", span.Scene.Id, path, "The overlay ends before it starts and was skipped."));
                 return null;
             }
+            System.Text.Json.JsonElement style = TextStyle(state, overlay.Style, path);
+            if (overlay.Region != null) {
+                style = RegionStyle(state, span, overlay, style, path);
+            }
             VisualLayer layer = new VisualLayer {
                 Id = span.Scene.Id + "-overlay-" + overlay.Id, Kind = "text", MediaId = "", Order = OverlayOrder, Start = start, End = end,
-                Text = new CompositionText { Cues = [new CompositionTextCue { Text = overlay.Text, Start = start, End = end }], Style = TextStyle(state, overlay.Style, path) }
+                Text = new CompositionText { Cues = [new CompositionTextCue { Text = overlay.Text, Start = start, End = end }], Style = style }
             };
             VideoAnimationBuilder.AddLift(layer, state.Edit.Tracks.Captions);
             return layer;
+        }
+
+        /// <summary>
+        /// Fits a plain overlay into its arrangement region (see <see cref="VideoOverlayRegionLayout"/>).
+        /// </summary>
+        /// <param name="state">Compilation state.</param>
+        /// <param name="span">Scene span.</param>
+        /// <param name="overlay">Overlay claiming a region.</param>
+        /// <param name="style">Overlay text style snapshot.</param>
+        /// <param name="path">JSON path used in diagnostics.</param>
+        /// <returns>Style snapshot placing the text in the region.</returns>
+        static System.Text.Json.JsonElement RegionStyle(VideoCompileState state, VideoSceneSpan span, VideoOverlay overlay, System.Text.Json.JsonElement style, string path) {
+            IVideoTextMeasurer measurer = state.Context.TextMeasurer;
+            if (measurer == null) {
+                measurer = new VideoTextEstimator();
+                state.Diagnostics.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Info, "text_measure_estimated", span.Scene.Id, path, "No text measurer was supplied; the overlay is fitted to its region with estimated text widths."));
+            }
+            VideoGraphicRectangle region = VideoArrangementPresets.Region(state.Edit, span.Scene, overlay.Region).Rectangle(state.Edit.Format.Width, state.Edit.Format.Height);
+            return VideoOverlayRegionLayout.Fit(style, overlay.Text, VideoGraphicSafeArea.ForRegion(state.Edit, style, region), measurer);
         }
 
         /// <summary>
