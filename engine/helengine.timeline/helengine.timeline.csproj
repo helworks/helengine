@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Tools-only timeline authoring module (editor, cooker, video). Core never references it, so a game that does not
+       reference it ships no timeline code. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <!-- TimelineAsset derives from the core Asset and is stored through the HELE editor asset format of helengine.files. -->
+  <ItemGroup>
+    <ProjectReference Include="..\helengine.core\helengine.core.csproj" />
+    <ProjectReference Include="..\helengine.files\helengine.files.csproj" />
+    <ProjectReference Include="..\helengine.curves\helengine.curves.csproj" />
+  </ItemGroup>
+</Project>

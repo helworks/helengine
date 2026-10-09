@@ -61,6 +61,18 @@ namespace helengine {
         /// <summary>
         /// The payload stores a <see cref="GraphicTemplateAsset"/>.
         /// </summary>
-        GraphicTemplateAsset = 13
+        GraphicTemplateAsset = 13,
+
+        /// <summary>
+        /// The payload stores an authoring timeline (<c>helengine.timeline.TimelineAsset</c>, <c>.htimeline</c>). Core only
+        /// reserves the number; the optional timeline module registers the serializer, so core never references it.
+        /// </summary>
+        TimelineAsset = 14,
+
+        /// <summary>
+        /// Reserved for the cooked, flat timeline form read on target platforms; its serializer is registered by the
+        /// optional timeline runtime module.
+        /// </summary>
+        CookedTimelineAsset = 15
     }
 }
