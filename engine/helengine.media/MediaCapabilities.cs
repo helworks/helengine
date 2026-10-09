@@ -22,6 +22,8 @@ public sealed class MediaCapabilities {
     };
     /// <summary>Kinetic typography templates edits may expand into text layers, with their slots, typed parameters and layouts.</summary>
     public List<MediaGraphicTemplateDescriptor> GraphicTemplates {get;set;} = [];
+    /// <summary>Scene arrangements edits may declare, with the region names and roles their layers and overlays can claim.</summary>
+    public List<MediaArrangementDescriptor> Arrangements {get;set;} = [];
     /// <summary>Publishes the current exact catalog without paths, commands or shader code.</summary>
     public JsonElement Describe() => JsonSerializer.SerializeToElement(this,new JsonSerializerOptions{PropertyNamingPolicy=JsonNamingPolicy.SnakeCaseLower});
 }

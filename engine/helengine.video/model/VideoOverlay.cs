@@ -29,6 +29,12 @@ namespace helengine.video {
         public VideoMoment Until { get; set; }
 
         /// <summary>
+        /// Name of the scene arrangement region the overlay is laid out in (measured, scaled to fit and centered); absent
+        /// keeps the text style placement, and for graphics the search for the part of the frame the pictures leave free.
+        /// </summary>
+        public string Region { get; set; }
+
+        /// <summary>
         /// human when locked against AI replanning.
         /// </summary>
         public string By { get; set; }

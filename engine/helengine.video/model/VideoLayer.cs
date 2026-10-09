@@ -34,6 +34,12 @@ namespace helengine.video {
         public int Order { get; set; } = 0;
 
         /// <summary>
+        /// Name of the scene arrangement region the layer fills; its layout preset then applies inside the region, while an
+        /// explicit layout viewport still wins. Absent keeps the layout relative to the whole frame.
+        /// </summary>
+        public string Region { get; set; }
+
+        /// <summary>
         /// Layout preset or explicit viewport.
         /// </summary>
         public VideoLayout Layout { get; set; }
@@ -69,7 +75,8 @@ namespace helengine.video {
         public string PaddingColor { get; set; }
 
         /// <summary>
-        /// Whether content transformed beyond the viewport (e.g. by zoom) is clipped to it; by default it may spill over.
+        /// Whether content transformed beyond the viewport (e.g. by zoom) is clipped to it; by default it may spill over,
+        /// except that a layer filling an arrangement region is always clipped to the region.
         /// </summary>
         public bool ClipToViewport { get; set; } = false;
 

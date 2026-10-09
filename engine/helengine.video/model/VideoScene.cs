@@ -49,6 +49,11 @@ namespace helengine.video {
         public VideoVoice Voice { get; set; }
 
         /// <summary>
+        /// Optional division of the frame into named regions; absent means the <c>full</c> arrangement.
+        /// </summary>
+        public VideoArrangement Arrangement { get; set; }
+
+        /// <summary>
         /// Visual layers, composited by order.
         /// </summary>
         public List<VideoLayer> Layers { get; set; } = [];

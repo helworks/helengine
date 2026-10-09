@@ -1,5 +1,5 @@
 namespace helengine.media.windows;
-/// <summary>Publishes the base media operations plus every effect of a <see cref="VfxEffectCatalog"/>.</summary>
+/// <summary>Publishes the base media operations plus every effect of a <see cref="VfxEffectCatalog"/> and the built-in scene arrangements.</summary>
 public static class WindowsMediaCapabilities {
     /// <summary>Builds the executable catalog for the engine's built-in effects only.</summary>
     public static MediaCapabilities Describe() => Describe(VfxEffectCatalog.CreateBuiltIn());
@@ -11,7 +11,7 @@ public static class WindowsMediaCapabilities {
         (graphics ?? throw new ArgumentNullException(nameof(graphics))).Publish(catalog);
         return catalog;
     }
-    /// <summary>Builds a typed executable catalog from each effect asset's own input and parameter declarations.</summary>
+    /// <summary>Builds a typed executable catalog from each effect asset's own input and parameter declarations, plus the built-in scene arrangements.</summary>
     /// <param name="effects">Effects compositions may reference.</param>
     public static MediaCapabilities Describe(VfxEffectCatalog effects) {
         var catalog=MediaCapabilities.Basic();
@@ -21,6 +21,7 @@ public static class WindowsMediaCapabilities {
             foreach(var parameter in effect.Parameters) {descriptor.Parameters.Add(parameter.Name,helengine.video.VideoParameterDescriptors.Describe(parameter));}
             catalog.Effects.Add(descriptor);
         }
+        helengine.video.VideoArrangementPresets.Publish(catalog);
         return catalog;
     }
 }
