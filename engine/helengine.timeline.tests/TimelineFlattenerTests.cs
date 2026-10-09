@@ -57,5 +57,49 @@ namespace helengine.timeline.tests {
             Assert.Equal(1.6, animation.Clips[0].EndSeconds, 9);
             Assert.Equal(1.25, animation.Clips[1].Speed, 9);
         }
+
+        /// <summary>
+        /// Moving a cue shifts the clips anchored on it without stretching them, grows the timeline by the shift and keeps
+        /// an activation that lasted until the authored end alive until the new end.
+        /// </summary>
+        [Fact]
+        public void Flatten_withCueTimes_shiftsAnchoredClipsAndExtendsTheEnd() {
+            TimelineAsset timeline = TimelineSamples.ContrastThree();
+            Dictionary<string, double> cues = new Dictionary<string, double>(StringComparer.Ordinal) { ["c"] = 3.6 };
+
+            FlattenedTimeline flat = TimelineFlattener.Flatten(timeline, null, cues, TimelineFlattener.DefaultBlendTolerance);
+
+            Assert.Equal(5, flat.DurationSeconds, 9);
+            FlattenedCurveTrack scale = Assert.Single(flat.CurveTracks, track => track.Slot == "term_c" && track.TransformChannel == CookedTimelineTransformChannel.ScaleY);
+            Assert.Equal(3.5, scale.Segments[0].StartSeconds, 9);
+            Assert.Equal(3.5 + 0.4 / 1.5, scale.Segments[0].EndSeconds, 9);
+            Assert.Equal(3.65, Assert.Single(flat.Events, marker => marker.Name == "shake").TimeSeconds, 9);
+            FlattenedActivationTrack termA = Assert.Single(flat.ActivationTracks, track => track.Slot == "term_a");
+            Assert.Equal(0.2, termA.Intervals[0].StartSeconds, 9);
+            Assert.Equal(5, termA.Intervals[0].EndSeconds, 9);
+            Assert.Equal(2.6, timeline.Cues[2].TimeSeconds, 9);
+            Assert.Equal(4, timeline.DurationSeconds, 9);
+        }
+
+        /// <summary>
+        /// Cue overrides must name existing cues and use non-negative finite times.
+        /// </summary>
+        [Fact]
+        public void Flatten_withCueTimes_rejectsUnknownCuesAndNegativeTimes() {
+            Assert.Throws<ArgumentException>(() => TimelineFlattener.Flatten(TimelineSamples.ContrastThree(), null, new Dictionary<string, double> { ["z"] = 1 }, TimelineFlattener.DefaultBlendTolerance));
+            Assert.Throws<ArgumentException>(() => TimelineFlattener.Flatten(TimelineSamples.ContrastThree(), null, new Dictionary<string, double> { ["a"] = -1 }, TimelineFlattener.DefaultBlendTolerance));
+        }
+
+        /// <summary>
+        /// When moved cues make two clips of one track overlap, the retimed timeline fails validation with located paths.
+        /// </summary>
+        [Fact]
+        public void Flatten_withCueTimes_reportsOverlapsTheMoveCreates() {
+            Dictionary<string, double> cues = new Dictionary<string, double>(StringComparer.Ordinal) { ["b"] = 2.0 };
+
+            TimelineFormatException error = Assert.Throws<TimelineFormatException>(() => TimelineFlattener.Flatten(TimelineSamples.ContrastThree(), null, cues, TimelineFlattener.DefaultBlendTolerance));
+
+            Assert.Contains(error.Diagnostics, diagnostic => diagnostic.Path.StartsWith("tracks[2].clips[", StringComparison.Ordinal));
+        }
     }
 }

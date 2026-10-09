@@ -50,6 +50,28 @@ namespace helengine.timeline {
         }
 
         /// <summary>
+        /// Validates and flattens a timeline after moving some of its root cues, as a host does when it anchors cues on
+        /// outside events (for example the spoken words of a video). Clips anchored on a moved cue shift with it and keep
+        /// their length (they are never stretched); the timeline grows by the largest later shift, and root activation
+        /// clips that lasted until the authored end last until the new end. Cues of nested timelines are not affected.
+        /// </summary>
+        /// <param name="timeline">Root timeline.</param>
+        /// <param name="resolver">Resolver for referenced nested timelines; may be null when the timeline references none.</param>
+        /// <param name="cueTimes">New time, in seconds of the root timeline, of every root cue to move; other cues keep their time.</param>
+        /// <param name="blendTolerance">Largest error, in value units, accepted when approximating cross-fades.</param>
+        /// <returns>The flattened timeline; its duration is the extended one.</returns>
+        /// <exception cref="ArgumentException">A cue name is unknown or a cue time is negative or not finite.</exception>
+        /// <exception cref="TimelineFormatException">The timeline is invalid, or the moved cues make it invalid (for example two clips of one track now overlap).</exception>
+        public static FlattenedTimeline Flatten(TimelineAsset timeline, ITimelineAssetResolver resolver, IReadOnlyDictionary<string, double> cueTimes, double blendTolerance) {
+            if (timeline == null) {
+                throw new ArgumentNullException(nameof(timeline));
+            }
+
+            TimelineValidator.EnsureValid(timeline, resolver);
+            return Flatten(TimelineCueRetiming.Apply(timeline, cueTimes), resolver, blendTolerance);
+        }
+
+        /// <summary>
         /// Collects every track of one timeline instance.
         /// </summary>
         /// <param name="timeline">Timeline of the instance.</param>
