@@ -99,6 +99,7 @@ Presets are built-in data (`VideoArrangementPresets`), published by `composition
 | `stack` | `top` (graphic), `main` (picture) | `top` x .05 w .90, safe y 0–.33; `main` x .04 w .92 (square .05/.90), safe y .36–1 | `main` left column, `top` right column (as `split`) |
 | `split` | `left` (picture), `right` (graphic) | as `stack` (`right` on top, `left` below) | `left` x .03 w .50, safe y .02–.98; `right` x .56 w .40, safe y .06–.94 |
 | `take_with_graphic` | `background` (take), `band` (graphic) | `background` whole frame; `band` x .05 w .90 (square .06/.88), safe y 0–.22 (square .24) | `band` x .10 w .80, safe y 0–.26 |
+| `take_behind_graphic` | `background` (take), `front` (graphic) | `background` whole frame; `front` x .06 w .88, safe y .04–.76 (square x .08 w .84, y .04–.84) | `front` x .10 w .80, safe y .05–.90 |
 | `graphic_only` | `main` (graphic) | x .06 w .88, safe y .06–.94 (square x .08 w .84, y .05–.95) | x .10 w .80, safe y .05–.95 |
 
 x and width are frame fractions; y is a fraction of the caption-free safe frame, which runs from 4 % of the frame height

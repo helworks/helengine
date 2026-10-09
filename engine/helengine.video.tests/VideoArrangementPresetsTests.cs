@@ -141,7 +141,7 @@ namespace helengine.video.tests {
             MediaCapabilities capabilities = MediaCapabilities.Basic();
             VideoArrangementPresets.Publish(capabilities);
 
-            Assert.Equal(["full", "stack", "split", "take_with_graphic", "graphic_only"], capabilities.Arrangements.Select(item => item.Id));
+            Assert.Equal(["full", "stack", "split", "take_with_graphic", "take_behind_graphic", "graphic_only"], capabilities.Arrangements.Select(item => item.Id));
             MediaArrangementDescriptor stack = capabilities.Arrangements.Single(item => item.Id == "stack");
             Assert.Equal(["top", "main"], stack.Regions.Select(region => region.Name));
             Assert.Equal(["graphic", "picture"], stack.Regions.Select(region => region.Role));

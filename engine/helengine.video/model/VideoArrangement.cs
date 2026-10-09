@@ -6,7 +6,7 @@ namespace helengine.video {
     /// </summary>
     public sealed class VideoArrangement {
         /// <summary>
-        /// Arrangement preset id: full, stack, split, take_with_graphic or graphic_only.
+        /// Arrangement preset id: full, stack, split, take_with_graphic, take_behind_graphic or graphic_only.
         /// </summary>
         public string Preset { get; set; } = "";
 

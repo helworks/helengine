@@ -53,6 +53,11 @@ namespace helengine.video {
         public const string GraphicOnly = "graphic_only";
 
         /// <summary>
+        /// Full-frame take with a large graphic in front of the speaker.
+        /// </summary>
+        public const string TakeBehindGraphic = "take_behind_graphic";
+
+        /// <summary>
         /// Role of a region meant for an image or video layer.
         /// </summary>
         public const string PictureRole = "picture";
@@ -147,6 +152,12 @@ namespace helengine.video {
                 [
                     new VideoArrangementPresetRegion("background", BackgroundRole, "The whole frame, behind everything; meant for the take.", Frame, Frame, Frame, true),
                     new VideoArrangementPresetRegion("band", GraphicRole, "Graphic band across the top of the frame, above the speaker's face and the captions, on every orientation.", Box(0.05, 0, 0.9, 0.22), Box(0.06, 0, 0.88, 0.24), Box(0.1, 0, 0.8, 0.26), false)
+                ]),
+            new VideoArrangementPreset(TakeBehindGraphic,
+                "The speaker's take fills the frame and a large graphic animates in front of the speaker, above the captions. Use it when the graphic is the moment's focus but the person keeps talking behind it.",
+                [
+                    new VideoArrangementPresetRegion("background", BackgroundRole, "The whole frame, behind everything; meant for the take.", Frame, Frame, Frame, true),
+                    new VideoArrangementPresetRegion("front", GraphicRole, "Most of the frame above the captions, in front of the speaker, on every orientation.", Box(0.06, 0.04, 0.88, 0.72), Box(0.08, 0.04, 0.84, 0.8), Box(0.1, 0.05, 0.8, 0.85), false)
                 ]),
             new VideoArrangementPreset(GraphicOnly,
                 "One large graphic centered in the frame above the captions, and no picture. Use it when the scene is carried by a graphic template overlay alone.",
