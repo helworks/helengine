@@ -3,8 +3,9 @@ using helengine.media;
 namespace helengine.video {
     /// <summary>
     /// Compiles one scene into a composition group: the take, media and text layers with their layout, transform, motion,
-    /// animations, effects and masks, plus the scene's text overlays. Layers and overlays that claim a region of the
-    /// scene arrangement are placed inside it; everything else keeps its frame-relative placement.
+    /// animations, effects and masks, plus the scene's overlays (plain text, graphic templates and timelines). Layers and
+    /// overlays that claim a region of the scene arrangement are placed inside it; everything else keeps its frame-relative
+    /// placement.
     /// </summary>
     public static class VideoSceneCompiler {
         /// <summary>
@@ -133,7 +134,7 @@ namespace helengine.video {
         }
 
         /// <summary>
-        /// Compiles one overlay into a timed text layer, or a graphic overlay into a group of animated text layers.
+        /// Compiles one overlay into a timed text layer, or a graphic or timeline overlay into a group of animated layers.
         /// </summary>
         /// <param name="state">Compilation state.</param>
         /// <param name="span">Scene span.</param>
@@ -141,12 +142,12 @@ namespace helengine.video {
         /// <param name="path">JSON path used in diagnostics.</param>
         /// <returns>Text or group layer, or null when the overlay has no time to show.</returns>
         static VisualLayer Overlay(VideoCompileState state, VideoSceneSpan span, VideoOverlay overlay, string path) {
-            if (overlay.Graphic != null) {
-                VisualLayer graphic = VideoGraphicCompiler.Compile(state, span, overlay, path);
-                if (graphic != null) {
-                    VideoAnimationBuilder.AddLift(graphic, state.Edit.Tracks.Captions);
+            if (overlay.Graphic != null || overlay.Timeline != null) {
+                VisualLayer group = overlay.Graphic != null ? VideoGraphicCompiler.Compile(state, span, overlay, path) : VideoTimelineCompiler.Compile(state, span, overlay, path);
+                if (group != null) {
+                    VideoAnimationBuilder.AddLift(group, state.Edit.Tracks.Captions);
                 }
-                return graphic;
+                return group;
             }
             MediaTime start = state.Global(span, overlay.At, path + ".at");
             MediaTime end = overlay.Until == null ? span.End : state.Global(span, overlay.Until, path + ".until");

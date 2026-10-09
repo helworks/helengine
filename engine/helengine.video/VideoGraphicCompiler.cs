@@ -20,12 +20,12 @@ namespace helengine.video {
         /// <summary>
         /// Height the text renderer's panel adds around the line box, in pixels.
         /// </summary>
-        const double PanelVerticalPadding = 8;
+        internal const double PanelVerticalPadding = 8;
 
         /// <summary>
         /// Width the text renderer's panel adds around the text advance, in pixels.
         /// </summary>
-        const double PanelHorizontalPadding = 16;
+        internal const double PanelHorizontalPadding = 16;
 
         /// <summary>
         /// Shared compilation state.
@@ -229,35 +229,8 @@ namespace helengine.video {
                 VideoGraphicRectangle region = VideoArrangementPresets.Region(State.Edit, Span.Scene, Overlay.Region).Rectangle(State.Edit.Format.Width, State.Edit.Format.Height);
                 Arrangement = VideoGraphicLayout.Arrange(Blocks, Template, requested, Style, measurer, VideoGraphicSafeArea.ForRegion(State.Edit, region), RegionMaximumScale);
             } else {
-                Arrangement = VideoGraphicFreeArea.Arrange(Blocks, Template, requested, Style, measurer, VideoGraphicSafeArea.ForStyle(State.Edit, Style), Pictures());
+                Arrangement = VideoGraphicFreeArea.Arrange(Blocks, Template, requested, Style, measurer, VideoGraphicSafeArea.ForStyle(State.Edit, Style), VideoScenePictures.Collect(State, Span));
             }
-        }
-
-        /// <summary>
-        /// Collects the frame rectangles the scene's pictures cover: every take and visual media layer as the compositor
-        /// presents it (see <see cref="VideoPictureBounds"/>), or the take filling the frame when a take scene declares no
-        /// layers. Text layers and audio media do not count.
-        /// </summary>
-        /// <returns>Picture rectangles in output pixels.</returns>
-        List<VideoGraphicRectangle> Pictures() {
-            double width = State.Edit.Format.Width, height = State.Edit.Format.Height;
-            List<VideoGraphicRectangle> pictures = new List<VideoGraphicRectangle>();
-            VideoScene scene = Span.Scene;
-            if (scene.Take != null && scene.Layers.Count == 0) {
-                pictures.Add(VideoPictureBounds.Resolve(new VideoLayer { Id = "take", Kind = "take", Fit = "cover" }, State.Media[scene.Take.Media], width, height));
-            }
-            foreach (VideoLayer layer in scene.Layers) {
-                VideoMedia media = null;
-                if (layer.Kind == "take" && scene.Take != null) {
-                    media = State.Media[scene.Take.Media];
-                } else if (layer.Kind == "media") {
-                    media = State.Media[layer.Media];
-                }
-                if (media != null && media.Kind != "audio") {
-                    pictures.Add(VideoPictureBounds.Resolve(layer, VideoLayoutPresets.Viewport(State.Edit, scene, layer), media, width, height));
-                }
-            }
-            return pictures;
         }
 
         /// <summary>
