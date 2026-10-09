@@ -30,10 +30,40 @@ namespace helengine.editor {
             ".tiff", ".viff", ".wbmp", ".webp", ".wmf", ".wpg", ".x3f", ".xbm", ".xpm", ".xwd"
         };
 
+        /// <summary>Native PS1 containers handled by the portable TIM importer.</summary>
+        static readonly string[] PlayStationTextureExtensionValues = [".tim"];
+
+        /// <summary>Sega PVRT containers handled by the portable Dreamcast importer.</summary>
+        static readonly string[] DreamcastTextureExtensionValues = [".pvr"];
+
+        /// <summary>Native RSX containers handled by the portable PS3 importer.</summary>
+        static readonly string[] PlayStation3TextureExtensionValues = [".gtf"];
+
         /// <summary>
         /// Union of every known texture extension supported by the editor host.
         /// </summary>
         static readonly string[] allTextureExtensions = BuildAllTextureExtensions();
+
+        /// <summary>Gets PSP GIM containers handled by the portable native importer.</summary>
+        public static IReadOnlyList<string> PspTextureExtensions => new[] { ".gim" };
+
+        /// <summary>Gets Nintendo 3DS tex3ds containers handled by the portable importer.</summary>
+        public static IReadOnlyList<string> Nintendo3DsTextureExtensions => new[] { ".t3x" };
+
+        /// <summary>Gets Nintendo DS Nitro texture archives handled by the portable importer.</summary>
+        public static IReadOnlyList<string> NintendoDsTextureExtensions => new[] { ".nsbtx" };
+
+        /// <summary>Gets native Switch texture container extensions.</summary>
+        public static IReadOnlyList<string> SwitchTextureExtensions => new[] { ".bntx" };
+
+        /// <summary>Gets the native PlayStation image extensions recognized by the editor.</summary>
+        public static IReadOnlyList<string> PlayStationTextureExtensions => PlayStationTextureExtensionValues;
+
+        /// <summary>Gets the native Dreamcast texture extensions recognized by the editor.</summary>
+        public static IReadOnlyList<string> DreamcastTextureExtensions => DreamcastTextureExtensionValues;
+
+        /// <summary>Gets native PS3 texture extensions recognized by the editor.</summary>
+        public static IReadOnlyList<string> PlayStation3TextureExtensions => PlayStation3TextureExtensionValues;
 
         /// <summary>
         /// Gets the extensions handled by the GDI-backed importer.
@@ -64,6 +94,13 @@ namespace helengine.editor {
             AddExtensions(uniqueExtensions, gdiTextureExtensions);
             AddExtensions(uniqueExtensions, pfimTextureExtensions);
             AddExtensions(uniqueExtensions, magickTextureExtensions);
+            AddExtensions(uniqueExtensions, PlayStationTextureExtensionValues);
+            AddExtensions(uniqueExtensions, DreamcastTextureExtensionValues);
+            AddExtensions(uniqueExtensions, PlayStation3TextureExtensionValues);
+            AddExtensions(uniqueExtensions, PspTextureExtensions);
+            AddExtensions(uniqueExtensions, Nintendo3DsTextureExtensions);
+            AddExtensions(uniqueExtensions, NintendoDsTextureExtensions);
+            AddExtensions(uniqueExtensions, SwitchTextureExtensions);
 
             List<string> extensions = new List<string>(uniqueExtensions);
             extensions.Sort(StringComparer.OrdinalIgnoreCase);

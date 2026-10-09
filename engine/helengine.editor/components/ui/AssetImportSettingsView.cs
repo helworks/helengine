@@ -1164,7 +1164,10 @@ namespace helengine.editor {
             }
 
             PlatformTextureFormatCapabilityDefinition textureCapability = ResolveActiveTextureFormatCapability();
-            if (textureCapability == null || textureCapability.SupportedCombinations.Length == 0) {
+            if (textureCapability == null) {
+                TextureAssetFormatSelectionService.PreserveSelectedAlphaPrecision(textureSettings);
+                return;
+            } else if (textureCapability.SupportedCombinations.Length == 0) {
                 return;
             }
             if (IsSupportedTextureFormatCombination(textureCapability, textureSettings.ColorFormatId, textureSettings.AlphaPrecision)) {
@@ -1508,7 +1511,7 @@ namespace helengine.editor {
             // Resolve the displayed format pair without writing the repair back: mutating the pending
             // settings during a display sync made freshly opened assets report pending changes.
             ResolveDisplayTextureFormat(textureSettings, out string displayColorFormatId, out TextureAssetAlphaPrecision displayAlphaPrecision);
-            SyncTextureFormatValues();
+            SyncTextureFormatValues(displayColorFormatId);
 
             IsUpdatingTextureControls = true;
             TextureMaxResolutionTextBox.Text = textureSettings.MaxResolution.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -1538,7 +1541,10 @@ namespace helengine.editor {
             alphaPrecision = textureSettings.AlphaPrecision;
 
             PlatformTextureFormatCapabilityDefinition textureCapability = ResolveActiveTextureFormatCapability();
-            if (textureCapability == null || textureCapability.SupportedCombinations.Length == 0) {
+            if (textureCapability == null) {
+                alphaPrecision = TextureAssetFormatSelectionService.ResolveAlphaPrecision(colorFormatId, alphaPrecision);
+                return;
+            } else if (textureCapability.SupportedCombinations.Length == 0) {
                 return;
             }
             if (IsSupportedTextureFormatCombination(textureCapability, colorFormatId, alphaPrecision)) {
@@ -1596,14 +1602,17 @@ namespace helengine.editor {
         /// <summary>
         /// Synchronizes texture color-format and alpha-precision option lists with the active platform capability metadata.
         /// </summary>
-        void SyncTextureFormatValues() {
+        /// <param name="displayColorFormatId">Format whose intrinsic alpha choices are displayed without platform metadata.</param>
+        void SyncTextureFormatValues(string displayColorFormatId) {
             TextureColorFormatValues.Clear();
             TextureAlphaPrecisionValues.Clear();
 
             PlatformTextureFormatCapabilityDefinition textureCapability = ResolveActiveTextureFormatCapability();
             if (textureCapability == null) {
                 TextureColorFormatValues.AddRange(Enum.GetNames<TextureAssetColorFormat>());
-                TextureAlphaPrecisionValues.AddRange(Enum.GetNames<TextureAssetAlphaPrecision>());
+                foreach (TextureAssetAlphaPrecision precision in TextureAssetFormatSelectionService.GetSupportedAlphaPrecisions(displayColorFormatId)) {
+                    TextureAlphaPrecisionValues.Add(precision.ToString());
+                }
                 return;
             }
 
@@ -1658,7 +1667,10 @@ namespace helengine.editor {
             }
 
             PlatformTextureFormatCapabilityDefinition textureCapability = ResolveActiveTextureFormatCapability();
-            if (textureCapability == null || textureCapability.SupportedCombinations.Length == 0) {
+            if (textureCapability == null) {
+                textureSettings.AlphaPrecision = TextureAssetFormatSelectionService.ResolveAlphaPrecision(textureSettings.ColorFormatId, textureSettings.AlphaPrecision);
+                return;
+            } else if (textureCapability.SupportedCombinations.Length == 0) {
                 return;
             }
 

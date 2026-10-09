@@ -217,7 +217,7 @@ namespace helengine.files {
             sourceTexture.Width = reader.ReadUInt16();
             sourceTexture.Height = reader.ReadUInt16();
             sourceTexture.ColorFormat = ReadTextureAssetColorFormat(reader);
-            sourceTexture.AlphaPrecision = ReadTextureAssetAlphaPrecision(reader);
+            sourceTexture.AlphaPrecision = ReadTextureAssetAlphaPrecision(reader, sourceTexture.ColorFormat);
             sourceTexture.PaletteColors = reader.ReadByteArray();
             sourceTexture.Colors = reader.ReadByteArray();
         }
@@ -243,6 +243,26 @@ namespace helengine.files {
                 return TextureAssetColorFormat.Indexed8;
             } else if (serializedValue == (byte)TextureAssetColorFormat.GxRgb5A3) {
                 return TextureAssetColorFormat.GxRgb5A3;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Ps1Bgr555) {
+                return TextureAssetColorFormat.Ps1Bgr555;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.XboxNative) {
+                return TextureAssetColorFormat.XboxNative;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Xbox360Native) {
+                return TextureAssetColorFormat.Xbox360Native;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.PspNative) {
+                return TextureAssetColorFormat.PspNative;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Nintendo3DsNative) {
+                return TextureAssetColorFormat.Nintendo3DsNative;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.GxNative) {
+                return TextureAssetColorFormat.GxNative;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.NintendoDsNative) {
+                return TextureAssetColorFormat.NintendoDsNative;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.VitaNative) {
+                return TextureAssetColorFormat.VitaNative;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.SwitchNative) {
+                return TextureAssetColorFormat.SwitchNative;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.WiiUNative) {
+                return TextureAssetColorFormat.WiiUNative;
             }
 
             throw new InvalidOperationException($"Unsupported texture color format '{serializedValue}'.");
@@ -253,7 +273,8 @@ namespace helengine.files {
         /// </summary>
         /// <param name="reader">Reader positioned at the serialized alpha-precision byte.</param>
         /// <returns>Decoded texture alpha precision.</returns>
-        static TextureAssetAlphaPrecision ReadTextureAssetAlphaPrecision(EngineBinaryReader reader) {
+        /// <param name="colorFormat">Previously decoded storage format; two-bit alpha is restricted to native Xbox 360 payloads.</param>
+        static TextureAssetAlphaPrecision ReadTextureAssetAlphaPrecision(EngineBinaryReader reader, TextureAssetColorFormat colorFormat) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
@@ -267,6 +288,12 @@ namespace helengine.files {
                 return TextureAssetAlphaPrecision.A4;
             } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A8) {
                 return TextureAssetAlphaPrecision.A8;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A2 && (colorFormat == TextureAssetColorFormat.Xbox360Native || colorFormat == TextureAssetColorFormat.VitaNative || colorFormat == TextureAssetColorFormat.SwitchNative || colorFormat == TextureAssetColorFormat.WiiUNative)) {
+                return TextureAssetAlphaPrecision.A2;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A3 && (colorFormat == TextureAssetColorFormat.GxNative || colorFormat == TextureAssetColorFormat.NintendoDsNative)) {
+                return TextureAssetAlphaPrecision.A3;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A5 && colorFormat == TextureAssetColorFormat.NintendoDsNative) {
+                return TextureAssetAlphaPrecision.A5;
             }
 
             throw new InvalidOperationException($"Unsupported texture alpha precision '{serializedValue}'.");

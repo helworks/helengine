@@ -261,7 +261,7 @@ namespace helengine.vulkan {
         }
 
         /// <summary>
-        /// Builds a runtime texture from raw texture data.
+        /// Builds an RGBA32 GPU texture from any supported cooked pixel format without changing the source asset.
         /// </summary>
         /// <param name="data">Raw texture data.</param>
         /// <returns>Runtime texture instance.</returns>
@@ -276,11 +276,6 @@ namespace helengine.vulkan {
 
             if (data.Colors == null || data.Colors.Length == 0) {
                 throw new ArgumentException("Texture data must provide color data.", nameof(data));
-            }
-
-            int expectedLength = data.Width * data.Height * 4;
-            if (data.Colors.Length < expectedLength) {
-                throw new ArgumentException("Texture data size does not match expected RGBA length.", nameof(data));
             }
 
             VulkanTextureResource resource = CreateTextureResource(data);
@@ -962,12 +957,13 @@ namespace helengine.vulkan {
         }
 
         /// <summary>
-        /// Creates a Vulkan texture resource from a texture asset.
+        /// Creates an RGBA32 Vulkan texture from the decoded cooked pixels while retaining the original asset's identity and ownership.
         /// </summary>
         /// <param name="data">Texture asset to upload.</param>
         /// <returns>Texture resource.</returns>
         VulkanTextureResource CreateTextureResource(TextureAsset data) {
-            ulong imageSize = (ulong)data.Colors.Length;
+            byte[] rgba32 = TextureAssetPixelCodec.DecodeToRgba32(data);
+            ulong imageSize = (ulong)rgba32.Length;
             VulkanGpuBuffer stagingBuffer = new VulkanGpuBuffer(
                 Context,
                 imageSize,
@@ -977,7 +973,7 @@ namespace helengine.vulkan {
             bool stagingBufferPending = false;
 
             try {
-                stagingBuffer.Update(data.Colors);
+                stagingBuffer.Update(rgba32);
 
                 Image image;
                 DeviceMemory memory;

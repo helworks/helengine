@@ -36,17 +36,24 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Texture color format id '{settings.ColorFormatId}' is platform-owned and cannot be processed by the shared generic texture processor.");
             }
 
+            if (settings.UsesIndexedColorFormat()) {
+                settings.ResolveIndexingMethod();
+            }
+
+            // Validate packed payloads even when no conversion is requested. Their
+            // pixel storage cannot be indexed as if it already contained RGBA bytes.
+            byte[] rgbaColors = TextureAssetPixelCodec.DecodeToRgba32(asset);
             TextureAsset processedAsset = asset;
             if (settings.MaxResolution > 0 && (processedAsset.Width > settings.MaxResolution || processedAsset.Height > settings.MaxResolution)) {
-                processedAsset = ResizeToMaxResolution(processedAsset, settings.MaxResolution);
+                processedAsset = ResizeToMaxResolution(processedAsset, rgbaColors, settings.MaxResolution);
             }
 
             if (processedAsset.ColorFormat == settings.ColorFormat && processedAsset.AlphaPrecision == settings.AlphaPrecision) {
                 return processedAsset;
             }
 
-            if (settings.UsesIndexedColorFormat()) {
-                settings.ResolveIndexingMethod();
+            if (processedAsset.ColorFormat != TextureAssetColorFormat.Rgba32) {
+                processedAsset = CreateRgbaTexture(processedAsset, rgbaColors);
             }
 
             return ConvertColorFormat(processedAsset, settings);
@@ -56,9 +63,10 @@ namespace helengine.editor {
         /// Builds one resized texture asset whose larger axis matches the supplied cap.
         /// </summary>
         /// <param name="asset">Texture asset to resize.</param>
+        /// <param name="rgbaColors">Validated RGBA32 pixels decoded from the asset's storage format.</param>
         /// <param name="maxResolution">Maximum allowed width or height.</param>
         /// <returns>Resized texture asset.</returns>
-        TextureAsset ResizeToMaxResolution(TextureAsset asset, int maxResolution) {
+        TextureAsset ResizeToMaxResolution(TextureAsset asset, byte[] rgbaColors, int maxResolution) {
             double largestDimension = Math.Max(asset.Width, asset.Height);
             double scale = maxResolution / largestDimension;
             int resizedWidth = Math.Max(1, (int)Math.Round(asset.Width * scale));
@@ -71,13 +79,16 @@ namespace helengine.editor {
                     int sourceX = GetSourceCoordinate(x, resizedWidth, asset.Width);
                     int sourceIndex = ((sourceY * asset.Width) + sourceX) * 4;
                     int targetIndex = ((y * resizedWidth) + x) * 4;
-                    Buffer.BlockCopy(asset.Colors, sourceIndex, resizedColors, targetIndex, 4);
+                    Buffer.BlockCopy(rgbaColors, sourceIndex, resizedColors, targetIndex, 4);
                 }
             }
 
             return new TextureAsset {
                 Id = asset.Id,
                 RuntimeAssetId = asset.RuntimeAssetId,
+                AuthoringAssetId = asset.AuthoringAssetId,
+                FormerAuthoringAssetIds = asset.FormerAuthoringAssetIds == null ? null : (string[])asset.FormerAuthoringAssetIds.Clone(),
+                IsEngineOwned = asset.IsEngineOwned,
                 Width = (ushort)resizedWidth,
                 Height = (ushort)resizedHeight,
                 ColorFormat = TextureAssetColorFormat.Rgba32,
@@ -111,9 +122,40 @@ namespace helengine.editor {
                 return IndexedQuantizer.Quantize(asset, 16, TextureAssetColorFormat.Indexed4, alphaPrecision);
             } else if (targetFormat == TextureAssetColorFormat.Indexed8) {
                 return IndexedQuantizer.Quantize(asset, 256, TextureAssetColorFormat.Indexed8, alphaPrecision);
+            } else if (targetFormat == TextureAssetColorFormat.Rgba5551
+                || targetFormat == TextureAssetColorFormat.Ia4
+                || targetFormat == TextureAssetColorFormat.Ia8
+                || targetFormat == TextureAssetColorFormat.Ia16
+                || targetFormat == TextureAssetColorFormat.I4
+                || targetFormat == TextureAssetColorFormat.I8
+                || targetFormat == TextureAssetColorFormat.Yuv16) {
+                return TextureAssetPixelCodec.EncodeFromRgba32(asset, targetFormat, alphaPrecision);
             }
 
             throw new InvalidOperationException($"Unsupported texture color format '{targetFormat}'.");
+        }
+
+        /// <summary>
+        /// Retains asset identity and dimensions while exposing decoded pixels to
+        /// the existing RGBA, indexed and packed-format conversion paths.
+        /// </summary>
+        /// <param name="asset">Source asset whose metadata remains authoritative.</param>
+        /// <param name="rgbaColors">Validated straight RGBA32 pixel bytes.</param>
+        /// <returns>A temporary RGBA32 texture containing the decoded source pixels.</returns>
+        TextureAsset CreateRgbaTexture(TextureAsset asset, byte[] rgbaColors) {
+            return new TextureAsset {
+                Id = asset.Id,
+                RuntimeAssetId = asset.RuntimeAssetId,
+                AuthoringAssetId = asset.AuthoringAssetId,
+                FormerAuthoringAssetIds = asset.FormerAuthoringAssetIds == null ? null : (string[])asset.FormerAuthoringAssetIds.Clone(),
+                IsEngineOwned = asset.IsEngineOwned,
+                Width = asset.Width,
+                Height = asset.Height,
+                ColorFormat = TextureAssetColorFormat.Rgba32,
+                AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                Colors = rgbaColors,
+                PaletteColors = Array.Empty<byte>()
+            };
         }
 
         /// <summary>
@@ -148,7 +190,10 @@ namespace helengine.editor {
                 Height = asset.Height,
                 ColorFormat = TextureAssetColorFormat.Rgba4444,
                 AlphaPrecision = alphaPrecision,
-                Colors = packedColors
+                Colors = packedColors,
+                AuthoringAssetId = asset.AuthoringAssetId,
+                FormerAuthoringAssetIds = asset.FormerAuthoringAssetIds == null ? null : (string[])asset.FormerAuthoringAssetIds.Clone(),
+                IsEngineOwned = asset.IsEngineOwned
             };
         }
 
@@ -176,7 +221,10 @@ namespace helengine.editor {
                 Height = asset.Height,
                 ColorFormat = TextureAssetColorFormat.Rgba32,
                 AlphaPrecision = alphaPrecision,
-                Colors = processedColors
+                Colors = processedColors,
+                AuthoringAssetId = asset.AuthoringAssetId,
+                FormerAuthoringAssetIds = asset.FormerAuthoringAssetIds == null ? null : (string[])asset.FormerAuthoringAssetIds.Clone(),
+                IsEngineOwned = asset.IsEngineOwned
             };
         }
 

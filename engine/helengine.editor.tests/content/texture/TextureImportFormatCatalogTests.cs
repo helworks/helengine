@@ -13,6 +13,7 @@ namespace helengine.editor.tests.content.texture {
             Assert.Contains(".png", extensions, StringComparer.OrdinalIgnoreCase);
             Assert.Contains(".dds", extensions, StringComparer.OrdinalIgnoreCase);
             Assert.Contains(".webp", extensions, StringComparer.OrdinalIgnoreCase);
+            Assert.Contains(".tim", extensions, StringComparer.OrdinalIgnoreCase);
             Assert.Equal(1, extensions.Count(extension => string.Equals(extension, ".tga", StringComparison.OrdinalIgnoreCase)));
         }
     }

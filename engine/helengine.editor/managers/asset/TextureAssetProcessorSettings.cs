@@ -48,10 +48,23 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Returns whether the selected color format is one generic indexed format.
+        /// Returns whether the selected generic, native Xbox or PS2 GS format stores palette indices.
         /// </summary>
-        /// <returns><c>true</c> when the selected color format is <c>Indexed4</c> or <c>Indexed8</c>.</returns>
+        /// <returns><c>true</c> for generic Indexed4/Indexed8, Xbox P8 or a native PS2 indexed mode.</returns>
         public bool UsesIndexedColorFormat() {
+            if (VitaNativeTextureFormatCatalog.TryGetFormat(ColorFormatId, out VitaNativeTextureFormatDefinition vitaFormat)) return vitaFormat.IsIndexed;
+            if (GxNativeTextureFormatCatalog.TryGetFormat(ColorFormatId, out GxNativeTextureFormatDefinition gxFormat)) {
+                return gxFormat.IsIndexed;
+            }
+            if (PspTextureFormatCatalog.TryGetFormat(ColorFormatId, out PspTextureFormat pspFormat)) {
+                return pspFormat.IsIndexed;
+            }
+            if (Ps2GsTextureFormatCatalog.TryGetFormat(ColorFormatId, out Ps2GsTextureFormatDefinition ps2Format)) {
+                return ps2Format.IsIndexed;
+            }
+            if (XboxNativeTextureFormatCatalog.TryGetFormat(ColorFormatId, out XboxNativeTextureFormatDefinition nativeFormat)) {
+                return nativeFormat.IsPaletted;
+            }
             if (!TryResolveGenericColorFormat(ColorFormatId, out TextureAssetColorFormat colorFormat)) {
                 return false;
             }
@@ -96,6 +109,34 @@ namespace helengine.editor {
             }
             if (string.Equals(colorFormatId, TextureAssetColorFormat.Indexed8.ToString(), StringComparison.Ordinal)) {
                 colorFormat = TextureAssetColorFormat.Indexed8;
+                return true;
+            }
+            if (string.Equals(colorFormatId, TextureAssetColorFormat.Rgba5551.ToString(), StringComparison.Ordinal)) {
+                colorFormat = TextureAssetColorFormat.Rgba5551;
+                return true;
+            }
+            if (string.Equals(colorFormatId, TextureAssetColorFormat.Ia4.ToString(), StringComparison.Ordinal)) {
+                colorFormat = TextureAssetColorFormat.Ia4;
+                return true;
+            }
+            if (string.Equals(colorFormatId, TextureAssetColorFormat.Ia8.ToString(), StringComparison.Ordinal)) {
+                colorFormat = TextureAssetColorFormat.Ia8;
+                return true;
+            }
+            if (string.Equals(colorFormatId, TextureAssetColorFormat.Ia16.ToString(), StringComparison.Ordinal)) {
+                colorFormat = TextureAssetColorFormat.Ia16;
+                return true;
+            }
+            if (string.Equals(colorFormatId, TextureAssetColorFormat.I4.ToString(), StringComparison.Ordinal)) {
+                colorFormat = TextureAssetColorFormat.I4;
+                return true;
+            }
+            if (string.Equals(colorFormatId, TextureAssetColorFormat.I8.ToString(), StringComparison.Ordinal)) {
+                colorFormat = TextureAssetColorFormat.I8;
+                return true;
+            }
+            if (string.Equals(colorFormatId, TextureAssetColorFormat.Yuv16.ToString(), StringComparison.Ordinal)) {
+                colorFormat = TextureAssetColorFormat.Yuv16;
                 return true;
             }
 

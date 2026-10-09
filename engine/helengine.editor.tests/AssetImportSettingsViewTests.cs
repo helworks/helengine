@@ -653,6 +653,73 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Selecting a generic packed format replaces an incompatible previous alpha
+        /// precision with a representable one, and the alpha picker excludes invalid pairs.
+        /// </summary>
+        /// <param name="format">New generic texture format selected by the user.</param>
+        /// <param name="expectedAlpha">Representable alpha retained or selected for this layout.</param>
+        [Theory]
+        [InlineData(TextureAssetColorFormat.Rgba5551, TextureAssetAlphaPrecision.Binary)]
+        [InlineData(TextureAssetColorFormat.Ia4, TextureAssetAlphaPrecision.Binary)]
+        [InlineData(TextureAssetColorFormat.Ia8, TextureAssetAlphaPrecision.A4)]
+        [InlineData(TextureAssetColorFormat.Ia16, TextureAssetAlphaPrecision.A8)]
+        [InlineData(TextureAssetColorFormat.I4, TextureAssetAlphaPrecision.A4)]
+        [InlineData(TextureAssetColorFormat.I8, TextureAssetAlphaPrecision.A8)]
+        [InlineData(TextureAssetColorFormat.Yuv16, TextureAssetAlphaPrecision.Opaque)]
+        public void SelectGenericPackedFormat_OffersOnlyRepresentableAlpha(TextureAssetColorFormat format, TextureAssetAlphaPrecision expectedAlpha) {
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new EditorSessionInteractionServices(), CreateFont(), 1);
+            AssetProcessorSettings settings = new AssetProcessorSettings();
+            settings.Platforms["generic"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    ColorFormat = TextureAssetColorFormat.Rgba32,
+                    AlphaPrecision = TextureAssetAlphaPrecision.A8
+                }
+            };
+            AssetImportSettingsApplyRequest request = null;
+            view.ApplyRequested += applied => request = applied;
+            view.Show(["pfim"], "pfim", settings, ["generic"], "generic", AssetEntryKind.Image);
+
+            InvokePrivate(view, "HandleTextureColorFormatChanged", 0, format.ToString());
+
+            Assert.Equal(format, view.CurrentTextureColorFormatValue);
+            Assert.Equal(expectedAlpha, view.CurrentTextureAlphaPrecisionValue);
+            ComboBoxComponent alphaCombo = GetPrivateField<ComboBoxComponent>(view, "TextureAlphaPrecisionComboBox");
+            List<string> options = GetPrivateField<List<string>>(alphaCombo, "ItemsValue");
+            Assert.Contains(expectedAlpha.ToString(), options);
+            Assert.All(options, value => Assert.True(TextureAssetPixelCodec.IsAlphaPrecisionSupported(format, Enum.Parse<TextureAssetAlphaPrecision>(value))));
+            InvokePrivate(view, "HandleApplyClicked");
+            Assert.NotNull(request);
+            Assert.Equal(format, request.ProcessorSettings.Platforms["generic"].Texture.ColorFormat);
+            Assert.Equal(expectedAlpha, request.ProcessorSettings.Platforms["generic"].Texture.AlphaPrecision);
+        }
+
+        /// <summary>
+        /// Displaying an older incompatible alpha selection for a newly recognized
+        /// format does not silently change the pending settings or emit an apply request.
+        /// </summary>
+        [Fact]
+        public void ShowGenericPackedFormat_DoesNotRewriteAuthoredAlpha() {
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new EditorSessionInteractionServices(), CreateFont(), 1);
+            AssetProcessorSettings settings = new AssetProcessorSettings();
+            settings.Platforms["generic"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    ColorFormat = TextureAssetColorFormat.Ia4,
+                    AlphaPrecision = TextureAssetAlphaPrecision.A8
+                }
+            };
+            AssetImportSettingsApplyRequest request = null;
+            view.ApplyRequested += applied => request = applied;
+
+            view.Show(["pfim"], "pfim", settings, ["generic"], "generic", AssetEntryKind.Image);
+            Assert.Equal(TextureAssetAlphaPrecision.Binary, view.CurrentTextureAlphaPrecisionValue);
+            AssetProcessorSettings pending = GetPrivateField<AssetProcessorSettings>(view, "PendingProcessorSettings");
+            Assert.Equal(TextureAssetAlphaPrecision.A8, pending.Platforms["generic"].Texture.AlphaPrecision);
+            InvokePrivate(view, "HandleApplyClicked");
+            Assert.Null(request);
+            Assert.Equal(TextureAssetAlphaPrecision.A8, settings.Platforms["generic"].Texture.AlphaPrecision);
+        }
+
+        /// <summary>
         /// Creates one asset import settings document with per-platform flip-winding values.
         /// </summary>
         /// <param name="windowsFlipWinding">Windows processor flip-winding value.</param>

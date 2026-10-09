@@ -422,21 +422,18 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
-        /// Builds a runtime texture from raw RGBA texture data.
+        /// Builds an RGBA32 GPU texture from any supported cooked pixel format without changing the source asset.
         /// </summary>
         /// <param name="data">Raw texture asset data.</param>
         /// <returns>GPU texture resource.</returns>
         public override RuntimeTexture BuildTextureFromRaw(TextureAsset data) {
+            byte[] rgba32 = TextureAssetPixelCodec.DecodeToRgba32(data);
             var asset = new DirectX11TextureResource {
                 Width = data.Width,
                 Height = data.Height
             };
 
             const int bytesPerPixel = 4;
-            int expectedDataLength = data.Width * data.Height * bytesPerPixel;
-            if (data.Colors.Length != expectedDataLength) {
-                throw new ArgumentException("Data length does not match width and height.");
-            }
 
             var textureDesc = new Texture2DDescription {
                 Width = data.Width,
@@ -451,7 +448,7 @@ namespace helengine.directx11 {
                 OptionFlags = ResourceOptionFlags.None
             };
 
-            GCHandle dataHandle = GCHandle.Alloc(data.Colors, GCHandleType.Pinned);
+            GCHandle dataHandle = GCHandle.Alloc(rgba32, GCHandleType.Pinned);
             try {
                 IntPtr dataPtr = dataHandle.AddrOfPinnedObject();
                 int rowPitch = data.Width * bytesPerPixel;

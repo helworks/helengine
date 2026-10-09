@@ -112,6 +112,183 @@ namespace helengine.editor.tests.managers.asset {
         }
 
         /// <summary>
+        /// Checks known black/white texels against each storage layout, including
+        /// the per-row padding of odd-width nibble and YUV textures.
+        /// </summary>
+        /// <param name="format">Requested generic storage format.</param>
+        /// <param name="alpha">Alpha policy supported by that format.</param>
+        /// <param name="expectedHex">Independent expected bytes for three identical scanlines.</param>
+        [Theory]
+        [InlineData(TextureAssetColorFormat.Rgba5551, TextureAssetAlphaPrecision.Binary, "0000FFFF00000000FFFF00000000FFFF0000")]
+        [InlineData(TextureAssetColorFormat.Ia4, TextureAssetAlphaPrecision.Binary, "0F000F000F00")]
+        [InlineData(TextureAssetColorFormat.Ia8, TextureAssetAlphaPrecision.A4, "00FF0000FF0000FF00")]
+        [InlineData(TextureAssetColorFormat.Ia16, TextureAssetAlphaPrecision.A8, "0000FFFF00000000FFFF00000000FFFF0000")]
+        [InlineData(TextureAssetColorFormat.I4, TextureAssetAlphaPrecision.A4, "0F000F000F00")]
+        [InlineData(TextureAssetColorFormat.I8, TextureAssetAlphaPrecision.A8, "00FF0000FF0000FF00")]
+        [InlineData(TextureAssetColorFormat.Yuv16, TextureAssetAlphaPrecision.Opaque, "1080EB80108010801080EB80108010801080EB8010801080")]
+        public void Apply_NewFormatsEncodeKnownOddWidthRows(TextureAssetColorFormat format, TextureAssetAlphaPrecision alpha, string expectedHex) {
+            TextureAsset source = CreateBlackWhiteRows();
+            TextureAsset processed = new TextureAssetProcessor().Apply(source, new TextureAssetProcessorSettings {
+                ColorFormat = format,
+                AlphaPrecision = alpha
+            });
+
+            Assert.Equal(format, processed.ColorFormat);
+            Assert.Equal(alpha, processed.AlphaPrecision);
+            Assert.Equal(Convert.FromHexString(expectedHex), processed.Colors);
+            Assert.Equal(source.Id, processed.Id);
+            Assert.Equal(source.RuntimeAssetId, processed.RuntimeAssetId);
+            Assert.Equal(source.AuthoringAssetId, processed.AuthoringAssetId);
+            Assert.Equal(source.FormerAuthoringAssetIds, processed.FormerAuthoringAssetIds);
+            Assert.Equal(source.IsEngineOwned, processed.IsEngineOwned);
+            Assert.Equal(3, processed.Width);
+            Assert.Equal(3, processed.Height);
+        }
+
+        /// <summary>
+        /// Resizing a packed source samples decoded texels rather than indexing
+        /// compact storage as RGBA bytes, and retains both asset identities.
+        /// </summary>
+        /// <param name="format">Source packed format to resize.</param>
+        /// <param name="alpha">Supported alpha policy used to create that source.</param>
+        [Theory]
+        [InlineData(TextureAssetColorFormat.Rgba5551, TextureAssetAlphaPrecision.Binary)]
+        [InlineData(TextureAssetColorFormat.Ia4, TextureAssetAlphaPrecision.Binary)]
+        [InlineData(TextureAssetColorFormat.Ia8, TextureAssetAlphaPrecision.A4)]
+        [InlineData(TextureAssetColorFormat.Ia16, TextureAssetAlphaPrecision.A8)]
+        [InlineData(TextureAssetColorFormat.I4, TextureAssetAlphaPrecision.A4)]
+        [InlineData(TextureAssetColorFormat.I8, TextureAssetAlphaPrecision.A8)]
+        [InlineData(TextureAssetColorFormat.Yuv16, TextureAssetAlphaPrecision.Opaque)]
+        public void Apply_ResizesPackedSourceUsingDecodedTexels(TextureAssetColorFormat format, TextureAssetAlphaPrecision alpha) {
+            TextureAsset source = TextureAssetPixelCodec.EncodeFromRgba32(CreateBlackWhiteRows(), format, alpha);
+            TextureAsset resized = new TextureAssetProcessor().Apply(source, new TextureAssetProcessorSettings {
+                MaxResolution = 2,
+                ColorFormat = TextureAssetColorFormat.Rgba32,
+                AlphaPrecision = TextureAssetAlphaPrecision.A8
+            });
+
+            Assert.Equal(2, resized.Width);
+            Assert.Equal(2, resized.Height);
+            Assert.Equal(source.Id, resized.Id);
+            Assert.Equal(source.RuntimeAssetId, resized.RuntimeAssetId);
+            Assert.Equal(source.AuthoringAssetId, resized.AuthoringAssetId);
+            Assert.Equal(source.FormerAuthoringAssetIds, resized.FormerAuthoringAssetIds);
+            Assert.Equal(source.IsEngineOwned, resized.IsEngineOwned);
+            Assert.Equal(TextureAssetColorFormat.Rgba32, resized.ColorFormat);
+            Assert.Equal(new byte[] {0, 0, 0}, resized.Colors.Take(3));
+            Assert.Equal(new byte[] {255, 255, 255}, resized.Colors.Skip(4).Take(3));
+            Assert.Equal(resized.Colors.Take(8), resized.Colors.Skip(8));
+        }
+
+        /// <summary>
+        /// A matching format keeps validated compact bytes unchanged; malformed
+        /// payloads and unsupported policies cannot escape through that fast path.
+        /// </summary>
+        [Fact]
+        public void Apply_ValidatesMatchingPackedPayloadBeforeReturningIt() {
+            TextureAsset source = TextureAssetPixelCodec.EncodeFromRgba32(CreateBlackWhiteRows(), TextureAssetColorFormat.Ia4, TextureAssetAlphaPrecision.Binary);
+            TextureAssetProcessorSettings settings = new TextureAssetProcessorSettings {
+                ColorFormat = TextureAssetColorFormat.Ia4,
+                AlphaPrecision = TextureAssetAlphaPrecision.Binary
+            };
+            TextureAssetProcessor processor = new TextureAssetProcessor();
+            Assert.Same(source, processor.Apply(source, settings));
+            source.Colors = source.Colors[..^1];
+            Assert.Throws<ArgumentException>(() => processor.Apply(source, settings));
+        }
+
+        /// <summary>
+        /// Existing RGBA4444 and indexed payloads also resize through their
+        /// established packing conventions, retaining the black/white texels.
+        /// </summary>
+        /// <param name="format">Previously supported packed or indexed format.</param>
+        [Theory]
+        [InlineData(TextureAssetColorFormat.Rgba4444)]
+        [InlineData(TextureAssetColorFormat.Indexed4)]
+        [InlineData(TextureAssetColorFormat.Indexed8)]
+        public void Apply_ResizesLegacyPackedAndIndexedSources(TextureAssetColorFormat format) {
+            TextureAssetProcessor processor = new TextureAssetProcessor();
+            TextureAsset packed = processor.Apply(CreateBlackWhiteRows(), new TextureAssetProcessorSettings {
+                ColorFormat = format,
+                AlphaPrecision = TextureAssetAlphaPrecision.A8
+            });
+            TextureAsset resized = processor.Apply(packed, new TextureAssetProcessorSettings {
+                ColorFormat = TextureAssetColorFormat.Rgba32,
+                AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                MaxResolution = 2
+            });
+
+            Assert.Equal(2, resized.Width);
+            Assert.Equal(2, resized.Height);
+            Assert.Equal(new byte[] {0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255}, resized.Colors);
+        }
+
+        /// <summary>
+        /// Packed-to-RGBA conversion without resize passes through the decoded
+        /// intermediate and legacy alpha path without losing authoring ownership.
+        /// </summary>
+        [Fact]
+        public void Apply_ConvertsPackedSourceWithoutResizePreservingIdentity() {
+            TextureAsset source = TextureAssetPixelCodec.EncodeFromRgba32(CreateBlackWhiteRows(), TextureAssetColorFormat.Ia16, TextureAssetAlphaPrecision.A8);
+            byte[] originalPixels = (byte[])source.Colors.Clone();
+            TextureAsset converted = new TextureAssetProcessor().Apply(source, new TextureAssetProcessorSettings {
+                ColorFormat = TextureAssetColorFormat.Rgba32,
+                AlphaPrecision = TextureAssetAlphaPrecision.A8
+            });
+
+            Assert.Equal(source.Id, converted.Id);
+            Assert.Equal(source.RuntimeAssetId, converted.RuntimeAssetId);
+            Assert.Equal(source.AuthoringAssetId, converted.AuthoringAssetId);
+            Assert.Equal(source.FormerAuthoringAssetIds, converted.FormerAuthoringAssetIds);
+            Assert.NotSame(source.FormerAuthoringAssetIds, converted.FormerAuthoringAssetIds);
+            Assert.Equal(source.IsEngineOwned, converted.IsEngineOwned);
+            Assert.Equal(CreateBlackWhiteRows().Colors, converted.Colors);
+            Assert.Equal(originalPixels, source.Colors);
+        }
+
+        /// <summary>
+        /// Generic conversions reject a platform-owned target and an undefined
+        /// source format instead of interpreting arbitrary bytes as RGBA pixels.
+        /// </summary>
+        [Fact]
+        public void Apply_RejectsUnknownAndPlatformOwnedFormats() {
+            TextureAsset source = CreateBlackWhiteRows();
+            Assert.Throws<InvalidOperationException>(() => new TextureAssetProcessor().Apply(source, new TextureAssetProcessorSettings {
+                ColorFormatId = "GxRgb5A3",
+                AlphaPrecision = TextureAssetAlphaPrecision.A8
+            }));
+            source.ColorFormat = (TextureAssetColorFormat)255;
+            Assert.Throws<NotSupportedException>(() => new TextureAssetProcessor().Apply(source, new TextureAssetProcessorSettings {
+                ColorFormat = TextureAssetColorFormat.Rgba32,
+                AlphaPrecision = TextureAssetAlphaPrecision.A8
+            }));
+        }
+
+        /// <summary>
+        /// Creates three odd-width black/white/black rows with corresponding zero
+        /// and full alpha, making channel order and padding visible in fixtures.
+        /// </summary>
+        /// <returns>A source texture with nine independently known RGBA texels.</returns>
+        TextureAsset CreateBlackWhiteRows() {
+            return new TextureAsset {
+                Id = "ui/known-rows",
+                RuntimeAssetId = 37,
+                AuthoringAssetId = "known-rows-authoring",
+                FormerAuthoringAssetIds = ["known-rows-former"],
+                IsEngineOwned = true,
+                Width = 3,
+                Height = 3,
+                ColorFormat = TextureAssetColorFormat.Rgba32,
+                AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                Colors = [
+                    0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0,
+                    0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0,
+                    0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0
+                ]
+            };
+        }
+
+        /// <summary>
         /// Builds one RGBA32 texture payload with the requested number of unique colors.
         /// </summary>
         /// <param name="colorCount">Number of unique RGBA entries to emit.</param>

@@ -11,7 +11,14 @@ namespace helengine.editor {
             return [
                 CreateTextureRegistration("gdi", "helengine.editor.windows.gdiimporter", "helengine.editor.GDITextureImporter", TextureImportFormatCatalog.GdiTextureExtensions),
                 CreateTextureRegistration("pfim", "helengine.editor.windows.pfimimporter", "helengine.editor.PfimTextureImporter", TextureImportFormatCatalog.PfimTextureExtensions),
-                CreateTextureRegistration("magick", "helengine.editor.windows.magickimporter", "helengine.editor.MagickTextureImporter", TextureImportFormatCatalog.MagickTextureExtensions)
+                CreateTextureRegistration("magick", "helengine.editor.windows.magickimporter", "helengine.editor.MagickTextureImporter", TextureImportFormatCatalog.MagickTextureExtensions),
+                new TextureImporterRegistration("ps1-tim", new PlayStationTimTextureImporter(), TextureImportFormatCatalog.PlayStationTextureExtensions.ToArray()),
+                new TextureImporterRegistration("dc-pvr", new DreamcastPvrTextureImporter(), TextureImportFormatCatalog.DreamcastTextureExtensions.ToArray()),
+                new TextureImporterRegistration("ps3-gtf", new PlayStation3GtfTextureImporter(), TextureImportFormatCatalog.PlayStation3TextureExtensions.ToArray()),
+                new TextureImporterRegistration("psp-gim", new PspGimTextureImporter(), TextureImportFormatCatalog.PspTextureExtensions.ToArray()),
+                new TextureImporterRegistration("3ds-t3x", new Nintendo3DsT3xTextureImporter(), TextureImportFormatCatalog.Nintendo3DsTextureExtensions.ToArray()),
+                new TextureImporterRegistration("ds-nsbtx", new NintendoDsNsbtxTextureImporter(), TextureImportFormatCatalog.NintendoDsTextureExtensions.ToArray()),
+                new TextureImporterRegistration("switch-bntx", new SwitchBntxTextureImporter(), TextureImportFormatCatalog.SwitchTextureExtensions.ToArray())
             ];
         }
 

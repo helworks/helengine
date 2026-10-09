@@ -58,7 +58,7 @@ namespace helengine.files {
             asset.Width = reader.ReadUInt16();
             asset.Height = reader.ReadUInt16();
             asset.ColorFormat = ReadTextureAssetColorFormat(reader);
-            asset.AlphaPrecision = ReadTextureAssetAlphaPrecision(reader);
+            asset.AlphaPrecision = ReadTextureAssetAlphaPrecision(reader, asset.ColorFormat);
             asset.PaletteColors = reader.ReadByteArray();
             asset.Colors = reader.ReadByteArray();
             return asset;
@@ -85,6 +85,40 @@ namespace helengine.files {
                 return TextureAssetColorFormat.Indexed8;
             } else if (serializedValue == (byte)TextureAssetColorFormat.GxRgb5A3) {
                 return TextureAssetColorFormat.GxRgb5A3;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Ps1Bgr555) {
+                return TextureAssetColorFormat.Ps1Bgr555;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.XboxNative) {
+                return TextureAssetColorFormat.XboxNative;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Xbox360Native) {
+                return TextureAssetColorFormat.Xbox360Native;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.PspNative) {
+                return TextureAssetColorFormat.PspNative;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Nintendo3DsNative) {
+                return TextureAssetColorFormat.Nintendo3DsNative;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.GxNative) {
+                return TextureAssetColorFormat.GxNative;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.NintendoDsNative) {
+                return TextureAssetColorFormat.NintendoDsNative;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.VitaNative) {
+                return TextureAssetColorFormat.VitaNative;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.SwitchNative) {
+                return TextureAssetColorFormat.SwitchNative;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.WiiUNative) {
+                return TextureAssetColorFormat.WiiUNative;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Rgba5551) {
+                return TextureAssetColorFormat.Rgba5551;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Ia4) {
+                return TextureAssetColorFormat.Ia4;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Ia8) {
+                return TextureAssetColorFormat.Ia8;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Ia16) {
+                return TextureAssetColorFormat.Ia16;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.I4) {
+                return TextureAssetColorFormat.I4;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.I8) {
+                return TextureAssetColorFormat.I8;
+            } else if (serializedValue == (byte)TextureAssetColorFormat.Yuv16) {
+                return TextureAssetColorFormat.Yuv16;
             }
 
             throw new InvalidOperationException($"Unsupported texture color format '{serializedValue}'.");
@@ -95,7 +129,8 @@ namespace helengine.files {
         /// </summary>
         /// <param name="reader">Source reader positioned at the alpha-precision byte.</param>
         /// <returns>Decoded texture alpha precision.</returns>
-        static TextureAssetAlphaPrecision ReadTextureAssetAlphaPrecision(EngineBinaryReader reader) {
+        /// <param name="colorFormat">Previously decoded storage format; two-bit alpha is restricted to native Xbox 360 payloads.</param>
+        static TextureAssetAlphaPrecision ReadTextureAssetAlphaPrecision(EngineBinaryReader reader, TextureAssetColorFormat colorFormat) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
@@ -109,6 +144,12 @@ namespace helengine.files {
                 return TextureAssetAlphaPrecision.A4;
             } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A8) {
                 return TextureAssetAlphaPrecision.A8;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A2 && (colorFormat == TextureAssetColorFormat.Xbox360Native || colorFormat == TextureAssetColorFormat.VitaNative || colorFormat == TextureAssetColorFormat.SwitchNative || colorFormat == TextureAssetColorFormat.WiiUNative)) {
+                return TextureAssetAlphaPrecision.A2;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A3 && (colorFormat == TextureAssetColorFormat.GxNative || colorFormat == TextureAssetColorFormat.NintendoDsNative)) {
+                return TextureAssetAlphaPrecision.A3;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A5 && colorFormat == TextureAssetColorFormat.NintendoDsNative) {
+                return TextureAssetAlphaPrecision.A5;
             }
 
             throw new InvalidOperationException($"Unsupported texture alpha precision '{serializedValue}'.");
