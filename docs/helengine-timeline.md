@@ -249,7 +249,8 @@ What the cooker does (`TimelineFlattener` does the first steps in seconds; `Time
 
 Other compilers (the video bridge) can start from `TimelineFlattener.Flatten(timeline, resolver)` and read
 `FlattenedTimeline` directly: curve tracks per slot and channel in seconds with catalog curve ids
-(`FlattenedCurveTrack.TryEvaluate` samples one), activation intervals, animation and audio clips, and events.
+(`FlattenedCurveTrack.TryEvaluate` samples one), activation intervals, animation and audio clips, and events; the
+overload with `cueTimes` moves root cues first (see Video overlays).
 
 ### Making a component a receiver
 
@@ -322,8 +323,29 @@ director.AddComponent(player);
 ### Leaving timelines out of a build
 
 Core only reserves value kinds 14 and 15 and knows the optional audio start offset; it never references the timeline
-modules (an architecture test enforces it, and that only the timeline projects reference them). A game that does not
+modules (an architecture test enforces it, and that only the timeline projects and the tools-only video compiler
+reference them). A game that does not
 reference `helengine.timeline.runtime` ships no timeline code. A game that does gets it through the module's
 `GeneratedRuntimeModuleManifest` (`timeline-runtime-module`), whose bootstrap `TimelineRuntimeRegistration.Register` is
 emitted only when cooked content uses `TimelinePlayerComponent`. The authoring module `helengine.timeline` is tools-only
 and is never part of a game build.
+
+## Video overlays
+
+The video edit format (`helengine.video.edit.v1`) plays timelines as overlay motion graphics:
+`overlays[].timeline = {definition | library, bindings, cues}`. The full contract (box coordinates, sizes, fit, timing,
+diagnostics and a complete example) is in `docs/helengine-media-composition.md#overlay-timelines`; in short:
+
+- Slots are bound to edit elements: `text` slots to `{"text": "...", "size"?, "color"?}`, `media` slots to
+  `{"media": "<image or video id>", "size"?}`, `rect` slots to `{"rect": {"color", "width"?, "height"?, "match"?}}`.
+  `entity` slots, audio and animation tracks, value channels other than `opacity` and `reveal` (rect only) and nested
+  timelines given by reference are rejected; event tracks are ignored.
+- Positions are box units (x right, y down, -0.5..0.5 spans the overlay box), rotation is degrees clockwise around Z,
+  sizes are fractions of the box height, and the whole timeline shrinks uniformly to fit the box.
+- Cues are mapped to scene moments (usually spoken words). The compiler flattens with
+  `TimelineFlattener.Flatten(timeline, resolver, cueTimes, blendTolerance)`: root cues move to the given times, clips
+  anchored on a moved cue shift and keep their length, the timeline grows by the largest later shift, root activation
+  clips that lasted until the authored end last until the new end, and clips and markers are re-sorted; overlaps the
+  move creates fail validation like any other overlap. Cues of nested timelines never move.
+- `composition capabilities` advertises the support as `timeline: {format, slot_kinds, track_kinds, value_channels,
+  curves, default_text_size, default_media_size, doc}`.

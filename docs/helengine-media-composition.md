@@ -82,7 +82,7 @@ Graphics and arrangement regions keep 1.5 % of the frame height away from it.
 ## Scene arrangements
 
 A scene may declare `"arrangement": {"preset": "<id>", "by"?: "human"|"ai"}` (lockable; `VideoEditMerge` keeps it like
-the other scene objects). Layers and overlays (plain or graphic) claim a region with `"region": "<name>"`:
+the other scene objects). Layers and overlays (plain, graphic or timeline) claim a region with `"region": "<name>"`:
 
 ```json
 {"id": "difference", "arrangement": {"preset": "stack"},
@@ -119,6 +119,111 @@ Validation: an unknown preset is `unknown_arrangement`; a region the scene's pre
 scene without an arrangement is `full`, so only `main` is accepted there); two picture layers (take, image or video) in
 one region raise the warning `region_shared`. The schema lists the presets and every region name as enums. Spec:
 `docs/superpowers/specs/2026-10-08-helengine-scene-arrangements-design.md`.
+
+## Overlay timelines
+
+An overlay may carry motion graphics authored as a Helengine Timeline (`helengine.timeline.v1`, format in
+`docs/helengine-timeline.md`) instead of a catalog graphic: `overlays[].timeline` (an overlay has at most one of `graphic`
+and `timeline`; `text` is then an optional label). `region`, `by`, `at`, `until` and `style` keep their meaning.
+
+```text
+timeline: {
+  definition: <helengine.timeline.v1 object>        exactly one of definition / library
+  library:    {id, version = 1}                       host placeholder; must be inlined before validation
+  bindings:   {<slot>: {text, size?, color?} | {media, size?} | {rect: {color, width?, height?, match?}}}
+  cues:       {<cue>: <moment>}                       optional; usually {"word": ...}
+}
+```
+
+- **Bindings**: every `text`, `media` and `rect` slot of the definition is bound exactly once to an element of its kind
+  (`entity` slots are games-only). `text` is drawn on one line in the overlay style (`color` overrides its text color);
+  `media` is an image or video id of the edit; `rect` is a solid rectangle (drawn like the strike bar, as a text panel).
+  Colors are `"#RRGGBB"`, `"#RRGGBBAA"` or `[r, g, b(, a)]` in 0..1.
+- **Box and coordinates**: positions are box units, x right and y down, the box spanning -0.5..0.5 on both axes (0, 0 is
+  its center; a slot without a position track sits there). The box is the overlay's region (kept off the caption band)
+  or, without a region, the largest part of the safe area the scene's pictures leave free (as graphics do), at most as
+  tall as it is wide. Rotation is degrees clockwise (Z only); scale X/Y multiply the element size (zero or negative
+  scales fade the element out instead of flipping it). Position Z, rotation X/Y and scale Z are ignored.
+- **Sizes**: a text's font size is `size` x box height (default `0.18`); a media's height is `size` x box height
+  (default `0.5`, width from its aspect); a rect is `width` x box width (default `0.5`) by `height` x box height
+  (default `0.05`), or as wide as the measured text of the text slot named in `match` (strikes, underlines; the measured
+  advance is slightly wider than the ink on the right).
+- **Fit**: every bound text is measured (`VideoCompileContext.TextMeasurer`, else the estimate with
+  `text_measure_estimated`), each element's rotated bounds are taken at every instant its motion changes (and halfway
+  between) while it is visible (opacity >= 0.05; elements may enter from outside the box only while transparent), and the
+  whole timeline is scaled uniformly about the box center so all of it stays inside the box. The timeline is never
+  enlarged, and texts never exceed twice the style font size. Overlaps between elements are the author's choice.
+- **Tracks and channels**: transform tracks (absolute and offset), `opacity` (any slot) and `reveal` (rect only; grows the
+  rect from its left edge), activation (a slot is visible inside its intervals; without an activation track it is
+  visible for the whole timeline), inline nested timelines and event tracks (events are ignored). Audio tracks (engine
+  audio assets), animation tracks, other channels and referenced nested timelines are rejected; add sounds as edit audio
+  tracks.
+- **Timing**: timeline time 0 is the overlay `at` when given, otherwise the instant that puts the earliest mapped cue
+  (by moment) on its moment (the scene start when no cue is mapped). Every mapped cue moves to its moment; clips anchored
+  on it shift with it and keep their length (never stretched); the timeline grows by the largest later shift, and
+  activation clips that lasted until the authored end last until the new end. The overlay ends when the timeline ends,
+  at `until` or at the scene end, whichever is first; when `until` or the scene end cuts the timeline short the group
+  fades out over 0.25 s.
+- **Output**: one group layer per overlay (`<scene>-overlay-<id>`, overlay order, caption lift) owning one layer per bound
+  slot (`<scene>-overlay-<id>-<slot>`, drawn in slot order, first slot at the back) that exists while the slot is active,
+  with `position_x`, `position_y`, `scale_x`, `scale_y`, `rotation_deg` and `opacity` animations. Segments driving one
+  property alone keep their catalog curve; partial curves and combined channels are split into linear keyframes within a
+  small tolerance; activation gaps become opacity steps.
+- **Diagnostics**: `unresolved_timeline` (a `library` reference was not inlined), `invalid_timeline` (the definition's
+  own diagnostics with paths such as `scenes[0].overlays[1].timeline.definition.tracks[2].clips[0].start`, video
+  restrictions, bindings, unknown cues; also at compile time when the moved cues make two clips of one track overlap,
+  prefixed "With the cues moved to their moments"), `invalid_moment` for cue moments and `invalid_overlay` for an overlay
+  with both a graphic and a timeline. Messages name the fix (for example the binding an unbound slot needs).
+- **Capabilities**: `composition capabilities` publishes `timeline: {format, slot_kinds, track_kinds, value_channels,
+  curves, default_text_size, default_media_size, doc}`.
+
+<!-- overlay-timeline-example -->
+```json
+{
+  "id": "contrast", "region": "top", "text": "LEGALIZAR ≠ TRATAR",
+  "timeline": {
+    "definition": {
+      "id": "two_terms", "duration": 2.6,
+      "slots": [
+        { "name": "term_a", "kind": "text" }, { "name": "sep", "kind": "text" },
+        { "name": "term_b", "kind": "text" }, { "name": "strike", "kind": "rect" }
+      ],
+      "cues": [ { "name": "a", "time": 0.1 }, { "name": "b", "time": 1.2 } ],
+      "tracks": [
+        { "kind": "activation", "slot": "term_a", "clips": [ { "start": { "cue": "a" }, "duration": 2.5 } ] },
+        { "kind": "transform", "slot": "term_a", "clips": [ { "start": { "cue": "a" }, "duration": 2.5,
+          "position": [ { "time": 0, "value": [0, -0.3, 0] } ],
+          "scale": [ { "time": 0, "value": [0.6, 0.6, 1], "curve": "ease_out_back.v1" }, { "time": 0.3, "value": [1, 1, 1] } ] } ] },
+        { "kind": "activation", "slot": "sep", "clips": [ { "start": { "cue": "b", "offset": -0.2 }, "duration": 1.6 } ] },
+        { "kind": "value", "slot": "sep", "channel": "opacity", "clips": [ { "start": { "cue": "b", "offset": -0.2 }, "duration": 0.2,
+          "keyframes": [ { "time": 0, "value": 0, "curve": "smoothstep.v1" }, { "time": 0.2, "value": 1 } ] } ] },
+        { "kind": "activation", "slot": "term_b", "clips": [ { "start": { "cue": "b" }, "duration": 1.4 } ] },
+        { "kind": "transform", "slot": "term_b", "clips": [ { "start": { "cue": "b" }, "duration": 1.4,
+          "position": [ { "time": 0, "value": [0, 0.3, 0] } ],
+          "rotation": [ { "time": 0, "value": [0, 0, -6], "curve": "ease_out_cubic.v1" }, { "time": 0.35, "value": [0, 0, 0] } ] } ] },
+        { "kind": "activation", "slot": "strike", "clips": [ { "start": { "cue": "b", "offset": 0.6 }, "duration": 0.8 } ] },
+        { "kind": "transform", "slot": "strike", "clips": [ { "start": { "cue": "b", "offset": 0.6 }, "duration": 0.8,
+          "position": [ { "time": 0, "value": [0, 0.3, 0] } ] } ] },
+        { "kind": "value", "slot": "strike", "channel": "reveal", "clips": [ { "start": { "cue": "b", "offset": 0.6 }, "duration": 0.3,
+          "keyframes": [ { "time": 0, "value": 0, "curve": "ease_out_cubic.v1" }, { "time": 0.3, "value": 1 } ] } ] }
+      ]
+    },
+    "bindings": {
+      "term_a": { "text": "LEGALIZAR" },
+      "sep": { "text": "≠", "size": 0.12, "color": "#FFD400" },
+      "term_b": { "text": "TRATAR" },
+      "strike": { "rect": { "color": "#FF3030", "height": 0.035, "match": "term_b" } }
+    },
+    "cues": { "a": { "word": "legalizar" }, "b": { "word": "tratar" } }
+  }
+}
+```
+
+`LEGALIZAR` pops in on its word at the top of the box, the `≠` fades in at the center just before `TRATAR`, which tilts
+into place below it, and a red bar strikes `TRATAR` 0.6 s after it is spoken. Code: `VideoTimelineValidator`,
+`VideoTimelineCompiler` (`helengine.video`, which references the tools-only `helengine.timeline`); the cue move is
+`TimelineFlattener.Flatten(timeline, resolver, cueTimes, tolerance)`. Spec:
+`docs/superpowers/specs/2026-10-09-helengine-timeline-design.md`.
 
 ## Flux Studio editing flow
 
