@@ -6,7 +6,7 @@ namespace helengine.video {
     /// with one uniform scale (re-measured at the scaled size, since glyph advances are not perfectly linear), then the
     /// direction is chosen — horizontal when the row fits with at most a mild shrink (15% on tall frames, 30% on wide
     /// ones), otherwise whichever direction keeps the text largest, preferring vertical on ties — and the blocks are
-    /// centered in the safe area.
+    /// centered in the safe area. Choosing which free part of the frame to use is <see cref="VideoGraphicFreeArea"/>'s job.
     /// </summary>
     public static class VideoGraphicLayout {
         /// <summary>
@@ -150,7 +150,7 @@ namespace helengine.video {
         }
 
         /// <summary>
-        /// Centers the measured blocks in the safe area: horizontally on the frame center, vertically on the preferred
+        /// Centers the measured blocks in the safe area: horizontally on the area center, vertically on the preferred
         /// center moved as little as needed to stay inside the free band.
         /// </summary>
         /// <param name="blocks">Measured blocks to position.</param>
@@ -160,7 +160,7 @@ namespace helengine.video {
         /// <param name="size">Fitted item font size.</param>
         static void Place(IReadOnlyList<VideoGraphicBlock> blocks, GraphicTemplateLayoutAsset layout, JsonElement style, VideoGraphicSafeArea area, double size) {
             double width = Width(blocks, layout, style, size), height = Height(blocks, layout, style, size), ink = Ink(style, size), gap = layout.Gap * size;
-            double centerX = area.FrameWidth / 2;
+            double centerX = area.CenterX;
             double centerY = height >= area.Height ? (area.Top + area.Bottom) / 2 : Math.Clamp(area.CenterY, area.Top + height / 2, area.Bottom - height / 2);
             if (layout.Direction == GraphicLayoutDirection.Vertical) {
                 double cursor = centerY - height / 2 + ink;

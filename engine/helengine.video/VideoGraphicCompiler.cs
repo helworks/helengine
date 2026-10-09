@@ -6,7 +6,7 @@ namespace helengine.video {
     /// <summary>
     /// Expands one overlay graphic into composition layers: a group spanning the graphic (which fades out at the end and
     /// carries the caption lift) owning one text layer per template element instance. Items are measured and laid out in
-    /// the safe area, every element is drawn centered on its own layer and moved into place with the layer position, so
+    /// the part of the safe area the scene's pictures leave free, every element is drawn centered on its own layer and moved into place with the layer position, so
     /// its pop scales around its own center, and the template tracks are resolved against the item moments (usually the
     /// spoken words of the scene take) and merged into composition animation tracks.
     /// </summary>
@@ -200,7 +200,8 @@ namespace helengine.video {
         }
 
         /// <summary>
-        /// Builds the blocks (items and separators in reading order), measures them and arranges them in the safe area.
+        /// Builds the blocks (items and separators in reading order), measures them and arranges them in the part of the
+        /// safe area the scene's pictures leave free.
         /// </summary>
         void Layout() {
             List<string> items = Overlay.Graphic.Items;
@@ -217,7 +218,34 @@ namespace helengine.video {
                 measurer = new VideoTextEstimator();
                 State.Diagnostics.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Info, "text_measure_estimated", Span.Scene.Id, Path, "No text measurer was supplied; the graphic layout uses estimated text widths."));
             }
-            Arrangement = VideoGraphicLayout.Arrange(Blocks, Template, Overlay.Graphic.Layout ?? "auto", Style, measurer, SafeArea());
+            Arrangement = VideoGraphicFreeArea.Arrange(Blocks, Template, Overlay.Graphic.Layout ?? "auto", Style, measurer, SafeArea(), Pictures());
+        }
+
+        /// <summary>
+        /// Collects the frame rectangles the scene's pictures cover: every take and visual media layer as the compositor
+        /// presents it (see <see cref="VideoPictureBounds"/>), or the take filling the frame when a take scene declares no
+        /// layers. Text layers and audio media do not count.
+        /// </summary>
+        /// <returns>Picture rectangles in output pixels.</returns>
+        List<VideoGraphicRectangle> Pictures() {
+            double width = State.Edit.Format.Width, height = State.Edit.Format.Height;
+            List<VideoGraphicRectangle> pictures = new List<VideoGraphicRectangle>();
+            VideoScene scene = Span.Scene;
+            if (scene.Take != null && scene.Layers.Count == 0) {
+                pictures.Add(VideoPictureBounds.Resolve(new VideoLayer { Id = "take", Kind = "take", Fit = "cover" }, State.Media[scene.Take.Media], width, height));
+            }
+            foreach (VideoLayer layer in scene.Layers) {
+                VideoMedia media = null;
+                if (layer.Kind == "take" && scene.Take != null) {
+                    media = State.Media[scene.Take.Media];
+                } else if (layer.Kind == "media") {
+                    media = State.Media[layer.Media];
+                }
+                if (media != null && media.Kind != "audio") {
+                    pictures.Add(VideoPictureBounds.Resolve(layer, media, width, height));
+                }
+            }
+            return pictures;
         }
 
         /// <summary>
@@ -244,7 +272,8 @@ namespace helengine.video {
                 top = height * 0.07;
                 bottom = height * 0.93;
             }
-            return new VideoGraphicSafeArea(width, height, width * Math.Clamp(VideoTextStyles.Number(Style, "MaxWidth", VideoTextStyles.DefaultMaxWidth), 0.1, 1), top, bottom, centerY);
+            double safeWidth = width * Math.Clamp(VideoTextStyles.Number(Style, "MaxWidth", VideoTextStyles.DefaultMaxWidth), 0.1, 1);
+            return new VideoGraphicSafeArea(width, height, (width - safeWidth) / 2, safeWidth, top, bottom, centerY);
         }
 
         /// <summary>
