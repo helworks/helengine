@@ -19,12 +19,12 @@ namespace helengine.video.tests {
               "id": "contrast_three_terms_video",
               "duration": 3.6,
               "slots": [
-                { "name": "strike", "kind": "rect" },
                 { "name": "term_a", "kind": "text" },
                 { "name": "sep_ab", "kind": "text" },
                 { "name": "term_b", "kind": "text" },
                 { "name": "sep_bc", "kind": "text" },
-                { "name": "term_c", "kind": "text" }
+                { "name": "term_c", "kind": "text" },
+                { "name": "strike", "kind": "rect" }
               ],
               "cues": [ { "name": "a", "time": 0.15 }, { "name": "b", "time": 1.2 }, { "name": "c", "time": 2.4 } ],
               "tracks": [

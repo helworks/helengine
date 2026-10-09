@@ -22,7 +22,7 @@ namespace helengine.video.tests {
 
             VisualLayer group = result.Composition.Layers.Single(layer => layer.Id == "contrast-overlay-contrast");
             Assert.Equal("group", group.Kind);
-            Assert.Equal(["contrast-overlay-contrast-strike", "contrast-overlay-contrast-term_a", "contrast-overlay-contrast-sep_ab", "contrast-overlay-contrast-term_b", "contrast-overlay-contrast-sep_bc", "contrast-overlay-contrast-term_c"], group.Members);
+            Assert.Equal(["contrast-overlay-contrast-term_a", "contrast-overlay-contrast-sep_ab", "contrast-overlay-contrast-term_b", "contrast-overlay-contrast-sep_bc", "contrast-overlay-contrast-term_c", "contrast-overlay-contrast-strike"], group.Members);
             Assert.Contains(group.Id, result.Composition.Layers.Single(layer => layer.Id == "scene-contrast").Members);
             Assert.Equal(Legalizar - 0.15, group.Start.ToSeconds(), 6);
             Assert.Equal(Legalizar - 0.15 + 3.6 + (Tratar - Legalizar - 2.25), group.End.ToSeconds(), 6);

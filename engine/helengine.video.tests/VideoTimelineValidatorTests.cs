@@ -70,7 +70,7 @@ namespace helengine.video.tests {
         [InlineData("missing_duration", "invalid_timeline", ".definition.duration")]
         [InlineData("bad_keyframe_order", "invalid_timeline", ".definition.tracks[1].clips[0].scale[1].time")]
         [InlineData("nested_error", "invalid_timeline", ".definition.tracks[12].clips[0].definition.tracks[0].clips[0].rotation[0].curve")]
-        [InlineData("entity_slot", "invalid_timeline", ".definition.slots[1].kind")]
+        [InlineData("entity_slot", "invalid_timeline", ".definition.slots[0].kind")]
         [InlineData("unbound_slot", "invalid_timeline", ".bindings")]
         [InlineData("unknown_binding", "invalid_timeline", ".bindings.term_z")]
         [InlineData("kind_mismatch", "invalid_timeline", ".bindings.term_a")]
@@ -101,7 +101,7 @@ namespace helengine.video.tests {
                 case "missing_duration": TimelineEditSamples.ChangeDefinition(edit, node => node.Remove("duration")); break;
                 case "bad_keyframe_order": TimelineEditSamples.ChangeDefinition(edit, node => node["tracks"][1]["clips"][0]["scale"][1]["time"] = 0); break;
                 case "nested_error": TimelineEditSamples.ChangeDefinition(edit, node => node["tracks"][12]["clips"][0]["definition"]["tracks"][0]["clips"][0]["rotation"][0]["curve"] = "bounce.v1"); break;
-                case "entity_slot": TimelineEditSamples.ChangeDefinition(edit, node => node["slots"][1]["kind"] = "entity"); timeline.Bindings.Remove("term_a"); break;
+                case "entity_slot": TimelineEditSamples.ChangeDefinition(edit, node => node["slots"][0]["kind"] = "entity"); timeline.Bindings.Remove("term_a"); break;
                 case "unbound_slot": timeline.Bindings.Remove("term_b"); break;
                 case "unknown_binding": timeline.Bindings["term_z"] = new VideoTimelineBinding { Text = "x" }; break;
                 case "kind_mismatch": timeline.Bindings["term_a"] = new VideoTimelineBinding { Rect = new VideoTimelineRect { Color = JsonSerializer.SerializeToElement("#FFFFFF") } }; break;
@@ -112,8 +112,8 @@ namespace helengine.video.tests {
                 case "rect_color": timeline.Bindings["strike"].Rect.Color = JsonSerializer.SerializeToElement(new[] { 1.0, 2.0, 0.0 }); break;
                 case "rect_match": timeline.Bindings["strike"].Rect.Match = "strike"; break;
                 case "rect_width": timeline.Bindings["strike"].Rect.Match = null; timeline.Bindings["strike"].Rect.Width = 3; break;
-                case "unknown_media": SlotKind(edit, 1, "media"); timeline.Bindings["term_a"] = new VideoTimelineBinding { Media = "nope" }; break;
-                case "audio_media": SlotKind(edit, 1, "media"); edit.Media[0].Kind = "audio"; timeline.Bindings["term_a"] = new VideoTimelineBinding { Media = "take" }; break;
+                case "unknown_media": SlotKind(edit, 0, "media"); timeline.Bindings["term_a"] = new VideoTimelineBinding { Media = "nope" }; break;
+                case "audio_media": SlotKind(edit, 0, "media"); edit.Media[0].Kind = "audio"; timeline.Bindings["term_a"] = new VideoTimelineBinding { Media = "take" }; break;
                 case "unknown_channel": TimelineEditSamples.ChangeDefinition(edit, node => node["tracks"][4]["channel"] = "intensity"); break;
                 case "reveal_on_text": TimelineEditSamples.ChangeDefinition(edit, node => node["tracks"][4]["channel"] = "reveal"); break;
                 case "audio_track": TimelineEditSamples.ChangeDefinition(edit, node => node["tracks"].AsArray().Add(JsonNode.Parse("{\"kind\":\"audio\",\"clips\":[{\"start\":0,\"duration\":0.5,\"audio\":{\"path\":\"assets/sfx/pop.wav\"}}]}"))); break;
