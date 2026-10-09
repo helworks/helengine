@@ -145,6 +145,23 @@ namespace helengine.video.tests {
         }
 
         /// <summary>
+        /// Publishing timeline support fills the catalog with what the validator and compiler accept.
+        /// </summary>
+        [Fact]
+        public void Capabilities_PublishTimelineSupport() {
+            helengine.media.MediaCapabilities catalog = GraphicEditSamples.Catalog();
+
+            VideoTimelineCapabilities.Publish(catalog);
+
+            Assert.Equal("helengine.timeline.v1", catalog.Timeline.Format);
+            Assert.Equal(VideoTimelineValidator.SlotKinds, catalog.Timeline.SlotKinds);
+            Assert.Equal(["transform", "value", "activation", "event", "timeline"], catalog.Timeline.TrackKinds);
+            Assert.Equal(catalog.Curves, catalog.Timeline.Curves);
+            Assert.Equal(0.5, catalog.Timeline.DefaultMediaSize);
+            Assert.Equal(2, catalog.Describe().GetProperty("timeline").GetProperty("value_channels").GetArrayLength());
+        }
+
+        /// <summary>
         /// Changes the kind of one slot of the sample definition.
         /// </summary>
         /// <param name="edit">Edit to change.</param>

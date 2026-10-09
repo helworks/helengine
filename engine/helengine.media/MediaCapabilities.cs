@@ -24,6 +24,8 @@ public sealed class MediaCapabilities {
     public List<MediaGraphicTemplateDescriptor> GraphicTemplates {get;set;} = [];
     /// <summary>Scene arrangements edits may declare, with the region names and roles their layers and overlays can claim.</summary>
     public List<MediaArrangementDescriptor> Arrangements {get;set;} = [];
+    /// <summary>Overlay timelines edits may author (format, slot kinds, tracks, channels, curves), or null when the catalog does not support them.</summary>
+    public MediaTimelineDescriptor Timeline {get;set;}
     /// <summary>Publishes the current exact catalog without paths, commands or shader code.</summary>
     public JsonElement Describe() => JsonSerializer.SerializeToElement(this,new JsonSerializerOptions{PropertyNamingPolicy=JsonNamingPolicy.SnakeCaseLower});
 }
