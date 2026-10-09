@@ -4,7 +4,7 @@ namespace helengine.video {
     /// <summary>
     /// Combines an AI proposal with the current edit so that everything carrying a kept origin survives re-planning. By
     /// default only what a person locked (<c>"by": "human"</c>) is kept; incremental passes can also keep earlier AI work
-    /// (<c>"by": "ai"</c>). Kept scene objects, layers, motions, overlays, audio tracks and caption overrides are copied from
+    /// (<c>"by": "ai"</c>). Kept scene objects (duration, take, entry, voice, arrangement), layers, motions, overlays, audio tracks and caption overrides are copied from
     /// the current edit into the proposal, re-inserted when the proposal dropped them. Other content follows the proposal.
     /// </summary>
     public static class VideoEditMerge {
@@ -101,6 +101,9 @@ namespace helengine.video {
             if (IsKept(locked.Voice?.By, keptOrigins)) {
                 target.Voice = Clone(locked.Voice);
             }
+            if (IsKept(locked.Arrangement?.By, keptOrigins)) {
+                target.Arrangement = Clone(locked.Arrangement);
+            }
             for (int index = 0; index < locked.Layers.Count; index++) {
                 VideoLayer layer = locked.Layers[index];
                 if (IsKept(layer.By, keptOrigins)) {
@@ -124,7 +127,7 @@ namespace helengine.video {
         /// <param name="keptOrigins">Origins to keep.</param>
         /// <returns>True when something in the scene carries a kept origin.</returns>
         static bool HasKept(VideoScene scene, IReadOnlyCollection<string> keptOrigins) {
-            return IsKept(scene.Duration?.By, keptOrigins) || IsKept(scene.Take?.By, keptOrigins) || IsKept(scene.Entry?.By, keptOrigins) || IsKept(scene.Voice?.By, keptOrigins)
+            return IsKept(scene.Duration?.By, keptOrigins) || IsKept(scene.Take?.By, keptOrigins) || IsKept(scene.Entry?.By, keptOrigins) || IsKept(scene.Voice?.By, keptOrigins) || IsKept(scene.Arrangement?.By, keptOrigins)
                 || scene.Layers.Any(layer => IsKept(layer.By, keptOrigins) || IsKept(layer.Motion?.By, keptOrigins)) || scene.Overlays.Any(overlay => IsKept(overlay.By, keptOrigins));
         }
 

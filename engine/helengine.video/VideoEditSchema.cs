@@ -24,6 +24,9 @@ namespace helengine.video {
             [Key(typeof(VideoMask), nameof(VideoMask.Channel))] = ["alpha", "luma"],
             [Key(typeof(VideoCaptionTrack), nameof(VideoCaptionTrack.Source))] = ["voice"],
             [Key(typeof(VideoGraphic), nameof(VideoGraphic.Layout))] = ["auto", "vertical", "horizontal"],
+            [Key(typeof(VideoArrangement), nameof(VideoArrangement.Preset))] = VideoArrangementPresets.Ids,
+            [Key(typeof(VideoLayer), nameof(VideoLayer.Region))] = VideoArrangementPresets.RegionNames,
+            [Key(typeof(VideoOverlay), nameof(VideoOverlay.Region))] = VideoArrangementPresets.RegionNames,
             [Key(typeof(VideoEdit), nameof(VideoEdit.Schema))] = [VideoEditJson.SchemaId]
         };
 

@@ -3,8 +3,8 @@ using helengine.media;
 namespace helengine.video {
     /// <summary>
     /// Structural validation of an edit document against itself and the engine capability catalog: identities and
-    /// references, take and duration sources, moments, entries, layouts, effects, animations, overlay graphics and caption
-    /// settings.
+    /// references, take and duration sources, moments, entries, arrangements and regions, layouts, effects, animations,
+    /// overlay graphics and caption settings.
     /// Timing problems that depend on analysis (unresolved words, missing handles) are left to the compiler.
     /// </summary>
     public static class VideoEditValidator {
@@ -23,7 +23,7 @@ namespace helengine.video {
         /// </summary>
         /// <param name="edit">Edit to check.</param>
         /// <param name="capabilities">Engine catalog the edit must respect.</param>
-        /// <returns>Error diagnostics; empty when the edit is valid.</returns>
+        /// <returns>Error diagnostics, plus warnings for valid but doubtful choices (two pictures in one region); empty when the edit is clean.</returns>
         public static IReadOnlyList<VideoDiagnostic> Validate(VideoEdit edit, MediaCapabilities capabilities) {
             if (edit == null) {
                 throw new ArgumentNullException(nameof(edit));
@@ -100,6 +100,7 @@ namespace helengine.video {
                 Error(errors, "invalid_duration", scene.Id, path + ".duration.mode", "Duration mode must be from_take, fixed or estimate.");
             }
             ValidateEntry(scene, index, length, capabilities, errors);
+            VideoArrangementPreset arrangement = ValidateArrangement(scene, path, errors);
             if (scene.Voice != null) {
                 Lock(errors, scene, path + ".voice", scene.Voice.By);
                 if (!double.IsFinite(scene.Voice.Gain) || scene.Voice.Gain < 0) {
@@ -118,7 +119,9 @@ namespace helengine.video {
                     continue;
                 }
                 ValidateLayer(edit, scene, layer, layerPath, media, capabilities, errors);
+                Region(scene, arrangement, layer.Region, layerPath + ".region", errors);
             }
+            SharedRegions(scene, media, path, errors);
             HashSet<string> overlayIds = new HashSet<string>(StringComparer.Ordinal);
             for (int overlayIndex = 0; overlayIndex < scene.Overlays.Count; overlayIndex++) {
                 VideoOverlay overlay = scene.Overlays[overlayIndex];
@@ -128,6 +131,7 @@ namespace helengine.video {
                     continue;
                 }
                 Lock(errors, scene, overlayPath, overlay.By);
+                Region(scene, arrangement, overlay.Region, overlayPath + ".region", errors);
                 if (string.IsNullOrWhiteSpace(overlay.Text)) {
                     Error(errors, "invalid_overlay", scene.Id, overlayPath, "Overlays need text.");
                 }
@@ -138,6 +142,65 @@ namespace helengine.video {
                 Moment(scene, overlay.Until, overlayPath + ".until", false, errors);
                 if (overlay.Graphic != null) {
                     ValidateGraphic(scene, overlay.Graphic, overlayPath + ".graphic", capabilities, errors);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Validates the scene arrangement: a declared arrangement must name a built-in preset and carry a valid lock.
+        /// </summary>
+        /// <param name="scene">Scene.</param>
+        /// <param name="path">Scene JSON path.</param>
+        /// <param name="errors">Diagnostics sink.</param>
+        /// <returns>The scene's arrangement preset (<c>full</c> when none is declared), or null when the declared preset is unknown.</returns>
+        static VideoArrangementPreset ValidateArrangement(VideoScene scene, string path, List<VideoDiagnostic> errors) {
+            if (scene.Arrangement == null) {
+                return VideoArrangementPresets.Find(VideoArrangementPresets.Full);
+            }
+            Lock(errors, scene, path + ".arrangement", scene.Arrangement.By);
+            VideoArrangementPreset preset = VideoArrangementPresets.Find(scene.Arrangement.Preset);
+            if (preset == null) {
+                Error(errors, "unknown_arrangement", scene.Id, path + ".arrangement.preset", $"'{scene.Arrangement.Preset}' is not an arrangement; use one of {string.Join(", ", VideoArrangementPresets.Ids)}.");
+            }
+            return preset;
+        }
+
+        /// <summary>
+        /// Validates a region claimed by a layer or overlay: it must be a region of the scene's arrangement. A scene without
+        /// an arrangement is the <c>full</c> arrangement, whose only region is <c>main</c>.
+        /// </summary>
+        /// <param name="scene">Scene.</param>
+        /// <param name="arrangement">Scene arrangement preset, or null when it is unknown (already reported).</param>
+        /// <param name="region">Claimed region name, or null when the object claims none.</param>
+        /// <param name="path">JSON path of the region property.</param>
+        /// <param name="errors">Diagnostics sink.</param>
+        static void Region(VideoScene scene, VideoArrangementPreset arrangement, string region, string path, List<VideoDiagnostic> errors) {
+            if (region == null || arrangement == null) {
+                return;
+            }
+            if (arrangement.Find(region) == null) {
+                Error(errors, "unknown_region", scene.Id, path, $"Arrangement '{arrangement.Id}' has no region '{region}'; use one of {string.Join(", ", arrangement.Regions.Select(item => item.Name))}.");
+            }
+        }
+
+        /// <summary>
+        /// Warns when two picture layers (the take, or image and video media) claim the same region, since one would cover
+        /// the other.
+        /// </summary>
+        /// <param name="scene">Scene.</param>
+        /// <param name="media">Media by id.</param>
+        /// <param name="path">Scene JSON path.</param>
+        /// <param name="errors">Diagnostics sink.</param>
+        static void SharedRegions(VideoScene scene, Dictionary<string, VideoMedia> media, string path, List<VideoDiagnostic> errors) {
+            HashSet<string> claimed = new HashSet<string>(StringComparer.Ordinal);
+            for (int index = 0; index < scene.Layers.Count; index++) {
+                VideoLayer layer = scene.Layers[index];
+                if (layer?.Region == null) {
+                    continue;
+                }
+                bool picture = layer.Kind == "take" || (layer.Kind == "media" && media.TryGetValue(layer.Media ?? "", out VideoMedia source) && source.Kind is "image" or "video");
+                if (picture && !claimed.Add(layer.Region)) {
+                    errors.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Warning, "region_shared", scene.Id, $"{path}.layers[{index}].region", $"Another picture layer already fills region '{layer.Region}'; one of them will cover the other."));
                 }
             }
         }
