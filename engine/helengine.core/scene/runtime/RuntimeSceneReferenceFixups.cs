@@ -68,6 +68,42 @@ namespace helengine {
             NativeOwnership.Release(ref Requests);
         }
 
+        /// <summary>Gets the number of pending reference requests to validate in separate cooperative steps.</summary>
+        internal int RequestCount => Requests == null ? 0 : Requests.Count;
+
+        /// <summary>Validates one bound request after all authored entities have been inspected.</summary>
+        /// <param name="requestIndex">Index of the request that must resolve uniquely.</param>
+        internal void ValidateRequest(int requestIndex) {
+            Request request = Requests[requestIndex];
+            if (!request.Matched) {
+                throw new InvalidOperationException($"Component '{request.ComponentTypeId}' references missing scene entity id {request.EntityId}.");
+            }
+        }
+
+        /// <summary>Binds only one entity, leaving hierarchy traversal to the cooperative scene operation.</summary>
+        /// <param name="entity">Authored entity to inspect without visiting its children.</param>
+        internal void BindSingleEntity(Entity entity) {
+            if (Requests == null) {
+                return;
+            }
+            uint entityId = entity.SceneEntityRuntimeId;
+            if (entityId == 0u) {
+                return;
+            }
+            for (int requestIndex = 0; requestIndex < Requests.Count; requestIndex++) {
+                Request request = Requests[requestIndex];
+                if (request.EntityId != entityId) {
+                    continue;
+                }
+                if (request.Matched) {
+                    throw new InvalidOperationException($"Component '{request.ComponentTypeId}' references ambiguous scene entity id {request.EntityId}; more than one entity has that id.");
+                }
+                request.Matched = true;
+                Requests[requestIndex] = request;
+                request.Reference.ResolvedEntity = entity;
+            }
+        }
+
         /// <summary>
         /// Resolves references to this entity and visits existing children, including UI leaves without a child collection.
         /// </summary>

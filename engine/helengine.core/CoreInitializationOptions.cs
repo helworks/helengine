@@ -55,6 +55,12 @@ namespace helengine {
         public RuntimeSceneCatalog SceneCatalog { get; set; }
 
         /// <summary>
+        /// Gets or sets the cooperative scene-transition budget in milliseconds per frame, including preparation before publication.
+        /// Must be finite and positive. A synchronous read, asset upload or lifecycle callback is indivisible and can exceed this budget.
+        /// </summary>
+        public double SceneLoadingBudgetMilliseconds { get; set; } = 8d;
+
+        /// <summary>
         /// Gets or sets the optional editor-side resolver used to map stable scene ids back to authored scene paths.
         /// </summary>
         public ISceneIdPathResolver ScenePathResolver { get; set; }
@@ -89,6 +95,10 @@ namespace helengine {
         /// Validates option values for initialization.
         /// </summary>
         public void Normalize() {
+            if (double.IsNaN(SceneLoadingBudgetMilliseconds) || double.IsInfinity(SceneLoadingBudgetMilliseconds)
+                || SceneLoadingBudgetMilliseconds <= 0d) {
+                throw new InvalidOperationException("SceneLoadingBudgetMilliseconds must be finite and greater than zero.");
+            }
             if (ContentStreamSource == null) {
                 throw new InvalidOperationException("ContentStreamSource must be provided.");
             }

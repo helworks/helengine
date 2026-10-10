@@ -70,7 +70,7 @@ namespace helengine {
         /// </summary>
         /// <param name="meshComponent">Mesh component whose source model may require preparation.</param>
         /// <param name="trackPreparedModel">Tracks a created render model as owned by the loading scene.</param>
-        void PrepareMeshComponent(MeshComponent meshComponent, Action<RuntimeModel> trackPreparedModel) {
+        internal void PrepareMeshComponent(MeshComponent meshComponent, Action<RuntimeModel> trackPreparedModel) {
             bool tessellateAtLoadTime = meshComponent.GetSyntheticBooleanMemberOrDefault(TessellateMemberName, false)
                 && !meshComponent.GetSyntheticBooleanMemberOrDefault(TessellateAtCookTimeMemberName, true);
             bool bakeScaleAtLoadTime = meshComponent.GetSyntheticBooleanMemberOrDefault(BakeScaleMemberName, false)

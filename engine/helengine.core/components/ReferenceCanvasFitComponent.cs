@@ -176,11 +176,21 @@ namespace helengine {
             base.Dispose();
         }
 
-        /// <summary>
-        /// Rebuilds the subtree snapshot after runtime scene loading finishes and reapplies the current fit scale whenever a pending layout invalidation exists.
-        /// </summary>
+        /// <summary>Captures the complete initialized subtree and resolves its initial canvas fit before scene publication.</summary>
+        internal void PrepareSceneLayout() {
+            RebuildSnapshots();
+            PendingApplyValue = true;
+            ApplyPendingSceneLayout();
+        }
+
+        /// <summary>Rebuilds the subtree snapshot after hierarchy changes and reapplies pending canvas-fit changes.</summary>
         public override void Update() {
             base.Update();
+            ApplyPendingSceneLayout();
+        }
+
+        /// <summary>Runs builtin canvas layout without dispatching a derived gameplay Update during scene preparation.</summary>
+        void ApplyPendingSceneLayout() {
 
             if (Parent == null) {
                 return;

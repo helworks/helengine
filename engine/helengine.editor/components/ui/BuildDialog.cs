@@ -138,6 +138,8 @@ public class BuildDialog : EditorDialogBase {
         /// Root entity for all left-side build-planning controls.
         /// </summary>
         readonly EditorEntity BuildColumnRoot;
+        /// <summary>Edits user defaults and per-platform loading budgets and loading-screen scene ids.</summary>
+        readonly BuildDialogRuntimeLoadingControls RuntimeLoadingControls;
         /// <summary>
         /// Root entity for the bordered scene-list container.
         /// </summary>
@@ -724,6 +726,7 @@ public class BuildDialog : EditorDialogBase {
 
             BrowseOutputFolderButton = new ButtonComponent("Browse", new int2(GetBrowseButtonWidthPixels(), GetFooterButtonHeightPixels()), DialogFont, HandleBrowseOutputFolderClicked);
             BrowseOutputFolderButtonHost.AddComponent(BrowseOutputFolderButton);
+            RuntimeLoadingControls = new BuildDialogRuntimeLoadingControls(OwnerCore, InteractionServices, BuildColumnRoot, DialogFont);
 
             AddToBuildButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
@@ -970,6 +973,7 @@ public class BuildDialog : EditorDialogBase {
         /// Captures one queued-build request from the current active platform state.
         /// </summary>
         void HandleAddToBuildClicked() {
+            if (!RuntimeLoadingControls.TryCommit()) { return; }
             SyncActivePlatformConfig();
 
             EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
@@ -1148,6 +1152,7 @@ public class BuildDialog : EditorDialogBase {
         /// Raises the build-queue request event for the current queue.
         /// </summary>
         void HandleBuildQueueRequested() {
+            if (!RuntimeLoadingControls.TryCommit()) { return; }
             SyncActivePlatformConfig();
             BuildQueueRequested?.Invoke();
         }
@@ -1359,6 +1364,7 @@ public class BuildDialog : EditorDialogBase {
             LayoutLowerLeftControls();
             OutputDirectoryField.Text = platformConfig.OutputDirectoryPath ?? "";
             OutputDirectoryField.SetInvalidState(false);
+            RuntimeLoadingControls.Bind(CurrentBuildConfig, platformConfig);
             DebugBuildCheckBox.IsChecked = platformConfig.DebugBuild;
             OverrideProjectScenesCheckBox.IsChecked = platformConfig.OverridesProjectScenes;
             EnvironmentComboBox.SetItems(ActiveEnvironmentIds, ResolveEnvironmentIndex(platformConfig.SelectedEnvironmentId));
@@ -1719,7 +1725,9 @@ public class BuildDialog : EditorDialogBase {
             EnvironmentComboBoxHost.Position = new float3(GetBuildColumnWidth() - environmentComboBoxWidth, 0f, 0.1f);
             EnvironmentComboBox.Size = new int2(environmentComboBoxWidth, GetPlatformTabHeightPixels());
             int sceneListTop = GetPlatformTabHeightPixels() + GetSceneListTopMarginPixels();
-            int sceneListHeight = Math.Max(1, copySettingsButtonY - DialogMetrics.ScalePixels(12) - sceneListTop);
+            int loadingControlsTop = copySettingsButtonY - DialogMetrics.ScalePixels(124);
+            int sceneListHeight = Math.Max(1, loadingControlsTop - DialogMetrics.ScalePixels(12) - sceneListTop);
+            RuntimeLoadingControls.UpdateLayout(loadingControlsTop, GetBuildColumnWidth(), DialogMetrics);
 
             SceneListRoot.Position = new float3(SceneListShakeOffsetX, sceneListTop - DialogMetrics.ScalePixels(1), 0.1f);
             SceneListBackground.Size = new int2(GetBuildColumnWidth(), sceneListHeight + DialogMetrics.ScalePixels(1));

@@ -72,7 +72,7 @@ namespace helengine.core.tests.scene.runtime {
         public void TakeResult_TransfersOriginalContainersOnceAndKeepsCompletionState() {
             RuntimeSceneLoadOperation operation = CreateOperation();
             Assert.Throws<InvalidOperationException>(() => operation.TakeResult());
-            operation.Advance();
+            CompleteOperation(operation);
             IReadOnlyList<Entity> roots = operation.Result.RootEntities;
             RuntimeSceneOwnedAssetSet assets = operation.Result.OwnedAssets;
 
@@ -105,7 +105,7 @@ namespace helengine.core.tests.scene.runtime {
         [Fact]
         public void Dispose_UnconsumedCompletedResultClearsOwnerAndPreservesSceneData() {
             RuntimeSceneLoadOperation operation = CreateOperation();
-            operation.Advance();
+            CompleteOperation(operation);
             IReadOnlyList<Entity> roots = operation.Result.RootEntities;
             RuntimeSceneOwnedAssetSet assets = operation.Result.OwnedAssets;
 
@@ -121,6 +121,11 @@ namespace helengine.core.tests.scene.runtime {
             Assert.NotNull(assets.OwnedAnimationClips);
             Assert.Single(roots).Dispose();
             assets.Dispose();
+        }
+
+        /// <summary>Drains the resumable operation when a lifetime test requires finalized ownership rather than a partial step.</summary>
+        static void CompleteOperation(RuntimeSceneLoadOperation operation) {
+            while (!operation.IsCompleted) { operation.Advance(); }
         }
 
         /// <summary>Creates one real incremental load with a component-free root for result-transfer lifetime tests.</summary>

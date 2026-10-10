@@ -117,6 +117,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(document));
             }
 
+            EditorRuntimeLoadingSettingsResolver.Validate(document);
             SynchronizeSceneReferences(document);
             NormalizeDocument(document);
             WriteProjectDocument(document);

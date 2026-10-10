@@ -121,7 +121,7 @@ namespace helengine {
         /// Creates one resumable operation that materializes a packaged scene while tracking its owned runtime assets.
         /// </summary>
         /// <param name="sceneAsset">Packaged scene payload to materialize.</param>
-        /// <returns>Operation that materializes one root entity per advance.</returns>
+        /// <returns>Operation that advances by resumable entity, component and readiness steps.</returns>
         public RuntimeSceneLoadOperation CreateTrackedLoadOperation(SceneAsset sceneAsset) {
             return new RuntimeSceneLoadOperation(this, sceneAsset);
         }
@@ -158,6 +158,41 @@ namespace helengine {
         /// <returns>Materialized runtime root entity.</returns>
         internal Entity LoadRootEntity(SceneEntityAsset entityAsset, int rootEntityIndex, [NativeNoEscape] RuntimeSceneReferenceFixups fixups) {
             return LoadEntity(entityAsset, rootEntityIndex, 0, fixups);
+        }
+
+        /// <summary>Creates a suppressed root or unattached child shell without materializing its subtree or component records.</summary>
+        /// <param name="asset">Borrowed serialized entity payload.</param>
+        /// <param name="suppressRoot">Whether the new root must remain inactive until scene publication.</param>
+        /// <returns>Entity owned by the caller's root collection or parent hierarchy.</returns>
+        [NativeOwnedReturn]
+        internal Entity CreateEntityShell(SceneEntityAsset asset, bool suppressRoot) {
+            if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            }
+            Entity entity = new Entity(OwnerCore) {
+                RuntimeSuppressed = suppressRoot,
+                Static = asset.IsStatic,
+                Enabled = asset.Enabled,
+                LayerMask = asset.LayerMask,
+                LocalPosition = asset.LocalPosition,
+                LocalScale = asset.LocalScale,
+                LocalOrientation = asset.LocalOrientation
+            };
+            entity.InitComponents();
+            entity.InitChildren();
+            if (asset.Id != 0u) {
+                entity.AddComponent(new SceneEntityRuntimeIdComponent { SceneEntityId = asset.Id });
+            }
+            return entity;
+        }
+
+        /// <summary>Deserializes and attaches one component record without traversing the entity's remaining records or children.</summary>
+        /// <param name="cursor">Borrowed cursor identifying the owner and diagnostic indices.</param>
+        /// <param name="record">Borrowed record to materialize.</param>
+        /// <param name="fixups">Borrowed load-scoped reference collector.</param>
+        internal void LoadEntityComponent(RuntimeSceneEntityLoadCursor cursor, SceneComponentAssetRecord record,
+            [NativeNoEscape] RuntimeSceneReferenceFixups fixups) {
+            cursor.Entity.AddComponent(LoadComponent(record, cursor.RootIndex, cursor.Depth, fixups));
         }
 
         /// <summary>

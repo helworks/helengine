@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Tracks loaded built scenes, loads packaged payloads, and tears down runtime scene entities during unload.
     /// </summary>
-    public sealed class SceneManager {
+    public sealed class SceneManager : IDisposable {
         readonly Core OwnerCore;
         /// <summary>
         /// Catalog used to resolve built scenes by stable identifier.
@@ -118,6 +118,30 @@ namespace helengine {
         /// Stores the cooked content path resolved for the active transition target.
         /// </summary>
         string TransitionSceneContentPath = string.Empty;
+
+        /// <summary>Remembers the presentation-only arm boundary so the loading screen draws once before synchronous content IO.</summary>
+        bool TransitionPresentationArmed;
+
+        /// <summary>Owns the monotonic clock used to account for resumable scene preparation.</summary>
+        [NativeOwnedMember]
+        RuntimeSceneLoadingClock SceneLoadingClock = new RuntimeSceneLoadingClock();
+
+        /// <summary>Stores the finite positive cooperative budget applied to each frame-boundary transition advance.</summary>
+        double SceneLoadingBudgetMillisecondsValue = 8d;
+
+        /// <summary>
+        /// Gets or sets the scene-transition budget in milliseconds per frame; smaller entity/component/readiness steps yield after it expires.
+        /// Synchronous IO, a single asset preparation/upload or a lifecycle callback can exceed the budget because those steps are indivisible.
+        /// </summary>
+        public double SceneLoadingBudgetMilliseconds {
+            get { return SceneLoadingBudgetMillisecondsValue; }
+            set {
+                if (double.IsNaN(value) || double.IsInfinity(value) || value <= 0d) {
+                    throw new ArgumentOutOfRangeException(nameof(value), "Scene loading budget must be finite and greater than zero.");
+                }
+                SceneLoadingBudgetMillisecondsValue = value;
+            }
+        }
 
         /// <summary>
         /// Initializes one runtime scene manager.
@@ -388,6 +412,7 @@ namespace helengine {
 
             RecordTraceState("RequestSceneTransitionAccepted", sceneId);
             IsSceneTransitionActiveValue = true;
+            TransitionPresentationArmed = false;
             TransitionTargetSceneIdValue = sceneId;
             SceneTransitionProgressValue = 0f;
         }
@@ -551,7 +576,7 @@ namespace helengine {
         /// Advances the active engine-owned scene transition by its next observable loading stage.
         /// </summary>
         void AdvanceSceneTransition() {
-            if (TransitionLoadOperation == null) {
+            if (TransitionLoadOperation == null && !TransitionPresentationArmed) {
                 TransitionSceneContentPath = ResolveSceneContentPath(TransitionTargetSceneIdValue);
                 UnloadScenesForSingleLoad();
                 FlushReleasedAssets();
@@ -563,13 +588,19 @@ namespace helengine {
                     NativeOwnership.Delete(sceneLoadingEventArgs);
                 }
 
+                TransitionPresentationArmed = true;
+                SceneTransitionProgressValue = 0.1f;
+                return;
+            }
+
+            if (TransitionLoadOperation == null) {
                 TransitionSceneAsset = ContentManager.Load<SceneAsset>(TransitionSceneContentPath, RuntimeContentProcessorIds.SceneAsset);
                 TransitionLoadOperation = SceneLoadService.CreateTrackedLoadOperation(TransitionSceneAsset);
                 SceneTransitionProgressValue = 0.2f;
                 return;
             }
 
-            TransitionLoadOperation.Advance();
+            TransitionLoadOperation.AdvanceForBudget(SceneLoadingBudgetMilliseconds, SceneLoadingClock);
             SceneTransitionProgressValue = 0.2f + (0.75f * TransitionLoadOperation.Progress);
             if (!TransitionLoadOperation.IsCompleted) {
                 return;
@@ -1192,5 +1223,8 @@ namespace helengine {
             int componentCount = entity != null && entity.Components != null ? entity.Components.Count : 0;
             EntityDisposalDiagnosticsProvider.ReportEntityDisposalStage(stage, childCount, componentCount, componentIndex);
         }
+
+        /// <summary>Releases manager-owned scheduling resources; scene roots and assets retain their existing explicit unload lifecycle.</summary>
+        public void Dispose() { NativeOwnership.DisposeAndRelease(ref SceneLoadingClock); }
     }
 }

@@ -1149,6 +1149,8 @@ namespace helengine.editor {
         /// <param name="cookedManifest">Cooked manifest that already contains the final runtime scene layout.</param>
         /// <param name="generatedCoreRootPath">Generated core source root that will be compiled into the native player.</param>
         void WriteRuntimeNativeManifestSources(PlatformBuildManifest cookedManifest, string generatedCoreRootPath) {
+            EditorRuntimeLoadingSettings settings = EditorRuntimeLoadingSettingsResolver.Load(ProjectRootPath, PlatformDescriptor.Id);
+            EditorRuntimeLoadingSettingsResolver.Apply(cookedManifest, settings, ProjectRootPath);
             EditorRuntimeNativeManifestWriter writer = new();
             writer.Write(generatedCoreRootPath, cookedManifest);
         }
@@ -1462,6 +1464,9 @@ namespace helengine.editor {
                 cookedManifest.ContainerWritePlan,
                 cookedManifest.PlatformCookWorkItems,
                 cookedManifest.RuntimeFeatureManifest);
+
+            manifest.SceneLoadingBudgetMilliseconds = cookedManifest.SceneLoadingBudgetMilliseconds;
+            manifest.LoadingScreenSceneId = cookedManifest.LoadingScreenSceneId;
 
             PlatformBuildTargetVariant[] targetVariants = [
                 new PlatformBuildTargetVariant(

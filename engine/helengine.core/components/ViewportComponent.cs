@@ -329,11 +329,21 @@ namespace helengine {
             }
         }
 
-        /// <summary>
-        /// Rebuilds viewport scaling snapshots after subtree changes and reapplies scaling when a pending layout invalidation exists.
-        /// </summary>
+        /// <summary>Captures the fully initialized scene subtree before its first published frame, including components added after this viewport attached.</summary>
+        internal void PrepareSceneLayout() {
+            RebuildSnapshots();
+            PendingScaleApplyValue = true;
+            ApplyPendingSceneLayout();
+        }
+
+        /// <summary>Rebuilds viewport scaling snapshots after subtree changes and reapplies pending layout changes.</summary>
         public override void Update() {
             base.Update();
+            ApplyPendingSceneLayout();
+        }
+
+        /// <summary>Runs builtin viewport layout without dispatching a derived gameplay Update during scene preparation.</summary>
+        void ApplyPendingSceneLayout() {
             RefreshSubscriptions();
 
             if (Parent == null || !IsReferenceCanvasScalingActive()) {

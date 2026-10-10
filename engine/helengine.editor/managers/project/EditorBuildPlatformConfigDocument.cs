@@ -8,6 +8,15 @@ namespace helengine.editor {
         /// </summary>
         public string PlatformId { get; set; } = string.Empty;
 
+        /// <summary>Gets or sets this platform's cooperative loading budget in milliseconds; zero inherits the user default, otherwise a finite positive value is required.</summary>
+        public double SceneLoadingBudgetMilliseconds { get; set; }
+
+        /// <summary>Gets or sets whether this platform replaces the default loading-screen id, including an explicit empty id to disable the screen.</summary>
+        public bool OverridesLoadingScreenSceneId { get; set; }
+
+        /// <summary>Gets or sets the packaged loading-screen id used when this platform overrides the user default.</summary>
+        public string LoadingScreenSceneId { get; set; } = string.Empty;
+
         /// <summary>
         /// Gets or sets the project-relative scene identifiers selected for this platform.
         /// </summary>

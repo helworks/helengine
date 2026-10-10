@@ -633,6 +633,9 @@ namespace helengine {
             SceneRuntimeComponentRegistry = RuntimeComponentRegistry.CreateDefault();
             SceneLoadService = new RuntimeSceneLoadService(this, SceneAssetReferenceResolver, SceneRuntimeComponentRegistry);
             SceneManager = CreateSceneManager(contentManager, InitializationOptions.SceneCatalog);
+            if (SceneManager != null) {
+                SceneManager.SceneLoadingBudgetMilliseconds = InitializationOptions.SceneLoadingBudgetMilliseconds;
+            }
             RuntimeDiagnosticsService = new RuntimeDiagnosticsService(
                 InitializationOptions.RuntimeDiagnosticsProvider,
                 SceneManager,
@@ -875,6 +878,9 @@ namespace helengine {
         /// Releases managed resources for render managers.
         /// </summary>
         public void Dispose() {
+            if (SceneManager != null) {
+                SceneManager.Dispose();
+            }
             if (RenderManager3D != null) {
                 RenderManager3D.Dispose();
             }

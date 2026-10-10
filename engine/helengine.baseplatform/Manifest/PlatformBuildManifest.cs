@@ -104,6 +104,12 @@ namespace helengine.baseplatform.Manifest {
         /// </summary>
         public StandardPlatformInputConfiguration StandardPlatformInputConfiguration { get; set; } = StandardPlatformInputConfiguration.Empty;
 
+        /// <summary>Gets or sets the resolved cooperative loading budget in milliseconds per frame; an indivisible load step may exceed this value.</summary>
+        public double SceneLoadingBudgetMilliseconds { get; set; } = 8d;
+
+        /// <summary>Gets or sets the optional loading-screen scene id from this manifest's packaged scene catalog.</summary>
+        public string LoadingScreenSceneId { get; set; } = string.Empty;
+
         /// <summary>
         /// Gets the manifest schema version.
         /// </summary>

@@ -558,6 +558,21 @@ namespace helengine {
             }
         }
 
+        /// <summary>Begins resumable initialization without recursively initializing children; callbacks are advanced by the scene loader.</summary>
+        internal void BeginSceneInitialization() {
+            ThrowIfDisposed();
+            IsInitializedValue = true;
+        }
+
+        /// <summary>Runs one eligible initialization callback while the loading root remains runtime-suppressed.</summary>
+        /// <param name="componentIndex">Index of the component to initialize.</param>
+        internal void InitializeSceneComponent(int componentIndex) {
+            Component component = ComponentsValue[componentIndex];
+            if (ComponentExecutionPolicy.ShouldRunComponentLifecycle(component, this)) {
+                component.ComponentInitialized(this);
+            }
+        }
+
         /// <summary>
         /// Removes one component from the entity and triggers its detach callback.
         /// </summary>

@@ -247,6 +247,14 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Prepares presentation after scene initialization and core layout, while the new hierarchy is still suppressed.
+        /// Override only for readiness work; do not poll input or advance gameplay. Each callback is an indivisible loading step.
+        /// </summary>
+        /// <param name="entity">Initialized owner whose initial layout has been resolved.</param>
+        public virtual void ScenePrepared(Entity entity) {
+        }
+
+        /// <summary>
         /// Called when the component is allowed to run its detach lifecycle.
         /// </summary>
         /// <param name="entity">Entity losing the component.</param>

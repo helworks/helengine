@@ -7,20 +7,24 @@ namespace helengine.editor.tests.serialization.scene {
     /// </summary>
     public sealed class SceneManagerTests : IDisposable {
         /// <summary>
-        /// Temporary content root used by the scene-manager tests.
+        /// Visible workspace content root used by the scene-manager tests.
         /// </summary>
         readonly string TempRootPath;
 
         /// <summary>
-        /// Initializes one isolated temporary content root.
+        /// Initializes one isolated workspace content root under the configured test artifact directory.
         /// </summary>
         public SceneManagerTests() {
-            TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-scene-manager-tests", Guid.NewGuid().ToString("N"));
+            string fixtureRoot = Environment.GetEnvironmentVariable("HELENGINE_SCENE_MANAGER_TEST_ROOT");
+            if (string.IsNullOrWhiteSpace(fixtureRoot)) {
+                fixtureRoot = Path.Combine(GeneratedHelengineSourceRoot.Path, "builds", "scene-manager-test-fixtures");
+            }
+            TempRootPath = Path.Combine(fixtureRoot, Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
         }
 
         /// <summary>
-        /// Deletes the temporary content root after each test.
+        /// Deletes the isolated fixture content after each test.
         /// </summary>
         public void Dispose() {
             if (Directory.Exists(TempRootPath)) {
@@ -110,9 +114,9 @@ namespace helengine.editor.tests.serialization.scene {
             CommitFrame(core);
 
             Assert.True(core.SceneManager.IsSceneTransitionActive);
-            Assert.Equal(0.2f, core.SceneManager.SceneTransitionProgress);
+            Assert.Equal(0.1f, core.SceneManager.SceneTransitionProgress);
 
-            CommitFrame(core);
+            CompleteTransition(core);
 
             Assert.False(core.SceneManager.IsSceneTransitionActive);
             Assert.Equal(1f, core.SceneManager.SceneTransitionProgress);
@@ -128,8 +132,7 @@ namespace helengine.editor.tests.serialization.scene {
             Core core = CreateCore(CreateSceneCatalog(
                 new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
             core.SceneManager.RequestSceneTransition("Scenes/TestPlayableScene.helen");
-            CommitFrame(core);
-            CommitFrame(core);
+            CompleteTransition(core);
 
             Entity root = Assert.Single(Assert.Single(core.SceneManager.LoadedScenes).RootEntities);
             Assert.False(root.IsDisposed);
@@ -952,6 +955,15 @@ namespace helengine.editor.tests.serialization.scene {
             }
 
             core.Draw();
+        }
+
+        /// <summary>Drives cooperative frame boundaries until publication without coupling ownership tests to a fixed step count.</summary>
+        /// <param name="core">Initialized runtime with an accepted transition.</param>
+        void CompleteTransition(Core core) {
+            for (int frame = 0; frame < 128 && core.SceneManager.IsSceneTransitionActive; frame++) {
+                CommitFrame(core);
+            }
+            Assert.False(core.SceneManager.IsSceneTransitionActive);
         }
 
         /// <summary>
