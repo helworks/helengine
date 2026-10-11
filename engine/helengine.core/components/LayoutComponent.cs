@@ -71,6 +71,9 @@ namespace helengine {
         /// </summary>
         bool IsSubscribedToWindowResize;
 
+        /// <summary>The hierarchy-owned camera governing fallback anchoring when no bounds provider is authored.</summary>
+        CameraComponent FallbackCamera;
+
         /// <summary>
         /// Reused fallback anchor space returned when no explicit provider exists.
         /// </summary>
@@ -314,6 +317,8 @@ namespace helengine {
         /// Releases the reusable anchor-space records owned by this component.
         /// </summary>
         public override void Dispose() {
+            DetachFromBoundsProvider();
+            DetachFromWindowResize();
             NativeOwnership.Delete(FallbackAnchorSpaceValue);
             NativeOwnership.Delete(ParentAnchorSpaceValue);
             NativeOwnership.Delete(ChildAnchorSpaceValue);
@@ -351,11 +356,12 @@ namespace helengine {
         /// <summary>
         /// Handles fallback window resize notifications when no explicit provider exists.
         /// </summary>
-        /// <param name="handle">Window handle reported by the render manager.</param>
-        /// <param name="newWidth">Updated host width.</param>
-        /// <param name="newHeight">Updated host height.</param>
-        void HandleWindowResized(IntPtr handle, int newWidth, int newHeight) {
-            RefreshAnchoring();
+        /// <param name="tag">Named window whose usable layout dimensions changed.</param>
+        void HandleWindowLayoutChanged(string tag) {
+            string target = CameraWindowLayoutUtils.ResolveWindowTag(null, FallbackCamera);
+            if (string.Equals(target, tag, StringComparison.OrdinalIgnoreCase)) {
+                RefreshAnchoring();
+            }
         }
 
         /// <summary>
@@ -409,6 +415,16 @@ namespace helengine {
         /// Connects the fallback window-resize subscription when it is not already active.
         /// </summary>
         void AttachToWindowResize() {
+            CameraComponent camera = CameraWindowLayoutUtils.FindAncestorCamera(Parent);
+            if (!ReferenceEquals(FallbackCamera, camera)) {
+                if (FallbackCamera != null) {
+                    FallbackCamera.OutputWindowTargetChanged -= HandleAnchorBoundsChanged;
+                }
+                FallbackCamera = camera;
+                if (FallbackCamera != null) {
+                    FallbackCamera.OutputWindowTargetChanged += HandleAnchorBoundsChanged;
+                }
+            }
             if (IsSubscribedToWindowResize) {
                 return;
             }
@@ -416,7 +432,7 @@ namespace helengine {
                 return;
             }
 
-            OwnerCore.RenderManager3D.WindowResized += HandleWindowResized;
+            OwnerCore.RenderManager3D.WindowLayoutChanged += HandleWindowLayoutChanged;
             IsSubscribedToWindowResize = true;
         }
 
@@ -424,11 +440,15 @@ namespace helengine {
         /// Disconnects the fallback window-resize subscription when it is active.
         /// </summary>
         void DetachFromWindowResize() {
+            if (FallbackCamera != null) {
+                FallbackCamera.OutputWindowTargetChanged -= HandleAnchorBoundsChanged;
+                FallbackCamera = null;
+            }
             if (!IsSubscribedToWindowResize) {
                 return;
             }
 
-            OwnerCore.RenderManager3D.WindowResized -= HandleWindowResized;
+            OwnerCore.RenderManager3D.WindowLayoutChanged -= HandleWindowLayoutChanged;
             IsSubscribedToWindowResize = false;
         }
 
@@ -478,7 +498,7 @@ namespace helengine {
                 return AnchorBoundsProvider.AnchorSpace;
             }
 
-            FallbackAnchorSpaceValue.Update(OwnerCore.RenderManager3D.MainWindowSize, new float2(0f, 0f));
+            FallbackAnchorSpaceValue.Update(CameraWindowLayoutUtils.ResolveCameraSize(OwnerCore.RenderManager3D, FallbackCamera), new float2(0f, 0f));
             return FallbackAnchorSpaceValue;
         }
 

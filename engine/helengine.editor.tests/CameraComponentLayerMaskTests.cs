@@ -6,6 +6,21 @@ namespace helengine.editor.tests {
     /// Verifies that camera layer-mask changes keep render queues aligned with the camera's visible layers.
     /// </summary>
     public class CameraComponentLayerMaskTests {
+        /// <summary>Authored output targets survive binary component serialization; empty retains the original shared camera behavior.</summary>
+        /// <param name="target">The camera target written by the authoring pipeline.</param>
+        [Theory]
+        [InlineData("")]
+        [InlineData("main")]
+        [InlineData("glass")]
+        public void OutputWindowTag_RoundTripsThroughComponentPersistence(string target) {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            CameraComponent camera = new CameraComponent { OutputWindowTag = target };
+            IComponentPersistenceDescriptor descriptor = registry.GetDescriptor(camera);
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(camera, 0, new EntityComponentSaveState());
+            CameraComponent restored = Assert.IsType<CameraComponent>(descriptor.DeserializeComponent(record, null, null));
+            Assert.Equal(target, restored.OutputWindowTag);
+        }
+
         /// <summary>
         /// Ensures removing the scene-grid layer from an enabled camera also removes matching drawables from that camera queue.
         /// </summary>

@@ -13,6 +13,15 @@ namespace helengine {
         /// </summary>
         bool HasMainWindow;
 
+        /// <summary>Retains each active handle's last usable client dimensions across minimization.</summary>
+        readonly Dictionary<IntPtr, int2> WindowLayoutSizes = new Dictionary<IntPtr, int2>();
+
+        /// <summary>Retains named layout dimensions for the scene lifetime, including views that have closed.</summary>
+        readonly Dictionary<string, int2> NamedWindowLayoutSizes = new Dictionary<string, int2>();
+
+        /// <summary>Associates registered handles with their stable host view tags.</summary>
+        readonly Dictionary<IntPtr, string> WindowTags = new Dictionary<IntPtr, string>();
+
         /// <summary>
         /// Core that owns this renderer. Renderers must use this explicit owner
         /// when traversing scene state so a later Core construction cannot
@@ -35,6 +44,9 @@ namespace helengine {
         /// </summary>
         public IntPtr InputWindowHandle { get; private set; }
 
+        /// <summary>Gets the registered view currently receiving draw commands; it starts at the primary view.</summary>
+        public IntPtr RenderWindowHandle { get; private set; }
+
         /// <summary>
         /// Gets the input window's size, or the primary size before any host window is registered.
         /// </summary>
@@ -50,6 +62,9 @@ namespace helengine {
         /// </summary>
         public event Action<IntPtr, int, int> WindowResized;
 
+        /// <summary>Signals a named view whose usable layout dimensions were registered or changed.</summary>
+        public event Action<string> WindowLayoutChanged;
+
         /// <summary>
         /// Adds a window to the renderer and tracks its size.
         /// </summary>
@@ -64,11 +79,15 @@ namespace helengine {
                 throw new InvalidOperationException("The window is already registered with this renderer.");
             }
             WindowSizes.Add(handle, new int2(width, height));
+            WindowLayoutSizes.Add(handle, new int2(width, height));
+            WindowTags.Add(handle, HasMainWindow ? string.Empty : "main");
             if (!HasMainWindow) {
                 MainWindowHandle = handle;
                 InputWindowHandle = handle;
+                RenderWindowHandle = handle;
                 MainWindowSize = new int2(width, height);
                 HasMainWindow = true;
+                NamedWindowLayoutSizes["main"] = MainWindowSize;
             }
         }
 
@@ -82,6 +101,67 @@ namespace helengine {
                 throw new ArgumentException("The window is not registered with this renderer.", nameof(handle));
             }
             return WindowSizes[handle];
+        }
+
+        /// <summary>Assigns a unique host tag to a registered window without changing its size or layout ownership.</summary>
+        /// <param name="handle">Previously registered host window.</param>
+        /// <param name="tag">Nonempty host view identifier, compared without case.</param>
+        public void SetWindowTag(IntPtr handle, string tag) {
+            GetWindowSize(handle);
+            RenderWindowTagRules.Validate(tag, false);
+            if (handle == MainWindowHandle && !string.Equals(tag, "main", StringComparison.OrdinalIgnoreCase)) {
+                throw new ArgumentException("The primary output window retains the main tag.", nameof(tag));
+            }
+            foreach (KeyValuePair<IntPtr, string> entry in WindowTags) {
+                if (entry.Key != handle && string.Equals(entry.Value, tag, StringComparison.OrdinalIgnoreCase)) {
+                    throw new InvalidOperationException("The output window tag is already registered.");
+                }
+            }
+            WindowTags[handle] = tag;
+            NamedWindowLayoutSizes[tag.ToLowerInvariant()] = WindowLayoutSizes[handle];
+            WindowLayoutChanged?.Invoke(tag);
+        }
+
+        /// <summary>Returns the last usable dimensions of a declared named view, retaining them after minimize or closure.</summary>
+        /// <param name="tag">A host view registered at least once in this renderer's lifetime.</param>
+        /// <returns>The authoritative layout dimensions recorded for this view.</returns>
+        public int2 GetWindowLayoutSize(string tag) {
+            RenderWindowTagRules.Validate(tag, false);
+            string key = tag.ToLowerInvariant();
+            if (!NamedWindowLayoutSizes.ContainsKey(key)) {
+                throw new InvalidOperationException("The layout output window has not been registered: " + tag);
+            }
+            return NamedWindowLayoutSizes[key];
+        }
+
+        /// <summary>Resolves a camera's layout reference without depending on the currently drawn or focused window.</summary>
+        /// <param name="camera">The authored camera defining the UI output scope.</param>
+        /// <returns>Named view dimensions, or the primary layout dimensions for shared cameras.</returns>
+        public int2 GetCameraLayoutSize(ICamera camera) {
+            if (camera == null) {
+                throw new ArgumentNullException(nameof(camera));
+            }
+            return camera.OutputWindowTag.Length == 0 ? MainWindowSize : GetWindowLayoutSize(camera.OutputWindowTag);
+        }
+
+        /// <summary>Selects a registered presentation view while leaving input and the primary layout reference unchanged.</summary>
+        /// <param name="handle">Registered window receiving the next draw pass.</param>
+        public void SelectRenderWindow(IntPtr handle) {
+            GetWindowSize(handle);
+            RenderWindowHandle = handle;
+        }
+
+        /// <summary>Matches a camera's authored target against a registered view; an empty camera target keeps legacy shared rendering.</summary>
+        /// <param name="camera">Scene-owned camera whose target should be evaluated.</param>
+        /// <param name="handle">Registered presentation or input window.</param>
+        /// <returns>Whether this view displays the camera.</returns>
+        public bool IsCameraVisibleInWindow(ICamera camera, IntPtr handle) {
+            if (camera == null) {
+                throw new ArgumentNullException(nameof(camera));
+            }
+            GetWindowSize(handle);
+            string target = camera.OutputWindowTag;
+            return target.Length == 0 || string.Equals(target, WindowTags[handle], StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -104,6 +184,11 @@ namespace helengine {
                 throw new InvalidOperationException("The primary window cannot be removed while the renderer is running.");
             }
             WindowSizes.Remove(handle);
+            WindowLayoutSizes.Remove(handle);
+            WindowTags.Remove(handle);
+            if (RenderWindowHandle == handle) {
+                RenderWindowHandle = MainWindowHandle;
+            }
             if (InputWindowHandle == handle) {
                 InputWindowHandle = MainWindowHandle;
             }
@@ -249,6 +334,10 @@ namespace helengine {
         /// </summary>
         public virtual void Dispose() {
             WindowSizes.Clear();
+            WindowLayoutSizes.Clear();
+            NamedWindowLayoutSizes.Clear();
+            WindowTags.Clear();
+            RenderWindowHandle = (IntPtr)0;
             HasMainWindow = false;
             MainWindowSize = new int2(0, 0);
             MainWindowHandle = (IntPtr)0;
@@ -271,6 +360,14 @@ namespace helengine {
                 MainWindowSize = new int2(newWidth, newHeight);
             }
 
+            if (newWidth > 0 && newHeight > 0) {
+                WindowLayoutSizes[handle] = new int2(newWidth, newHeight);
+                string tag = WindowTags[handle];
+                if (tag.Length > 0) {
+                    NamedWindowLayoutSizes[tag.ToLowerInvariant()] = WindowLayoutSizes[handle];
+                    WindowLayoutChanged?.Invoke(tag);
+                }
+            }
             WindowResized?.Invoke(handle, newWidth, newHeight);
         }
     }

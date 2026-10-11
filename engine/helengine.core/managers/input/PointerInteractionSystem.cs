@@ -3,6 +3,9 @@ namespace helengine {
     /// Routes pointer hover and press interactions to 2D interactables using the current raw input frame.
     /// </summary>
     public sealed class PointerInteractionSystem {
+        /// <summary>Tracks the coordinate space owning cached hover and capture state across host focus changes.</summary>
+        IntPtr PreviousInputWindowHandle;
+
         /// <summary>
         /// Initializes a new pointer interaction router for one core instance.
         /// </summary>
@@ -178,6 +181,16 @@ namespace helengine {
         /// Updates hover and capture routing for the current pointer frame.
         /// </summary>
         public void Update() {
+            if (Core.RenderManager3D != null) {
+                IntPtr inputWindow = Core.RenderManager3D.InputWindowHandle;
+                if (inputWindow != PreviousInputWindowHandle) {
+                    CancelWindowInteraction();
+                    PreviousInputWindowHandle = inputWindow;
+                }
+            }
+            if (CapturedCamera != null && !IsCameraAvailableForInput(CapturedCamera)) {
+                CancelWindowInteraction();
+            }
             ObjectManager objectManager = Core.ObjectManager;
             List<IInteractable2D> interactables = objectManager.Interactables;
             List<IDrawable2D> drawables2D = objectManager.Drawables2D;
@@ -282,7 +295,7 @@ namespace helengine {
 
             for (int i = 0; i < cameras.Count; i++) {
                 ICamera camera = cameras[i];
-                if (!ResolveViewportInWindowSpace(camera).Contains(x, y)) {
+                if (!IsCameraAvailableForInput(camera) || !ResolveViewportInWindowSpace(camera).Contains(x, y)) {
                     continue;
                 }
 
@@ -328,7 +341,7 @@ namespace helengine {
 
             for (int i = 0; i < cameras.Count; i++) {
                 ICamera camera = cameras[i];
-                if (!ResolveViewportInWindowSpace(camera).Contains(x, y)) {
+                if (!IsCameraAvailableForInput(camera) || !ResolveViewportInWindowSpace(camera).Contains(x, y)) {
                     continue;
                 }
                 if ((interactable.Parent.LayerMask & camera.LayerMask) == 0) {
@@ -346,6 +359,31 @@ namespace helengine {
             }
 
             return matchedCamera;
+        }
+
+        /// <summary>Tests the input view's camera assignment without requiring a graphics host for shared headless cameras.</summary>
+        /// <param name="camera">Camera considered for pointer routing.</param>
+        /// <returns>Whether the active input window displays this camera.</returns>
+        bool IsCameraAvailableForInput(ICamera camera) {
+            return camera.OutputWindowTag.Length == 0 || (Core.RenderManager3D != null
+                && Core.RenderManager3D.IsCameraVisibleInWindow(camera, Core.RenderManager3D.InputWindowHandle));
+        }
+
+        /// <summary>Cancels transient pointer state when its view changes, sending Leave without triggering an activation on another view.</summary>
+        void CancelWindowInteraction() {
+            IInteractable2D captured = Highlighted;
+            IInteractable2D hovered = Hovering;
+            Highlighted = null;
+            Hovering = null;
+            CapturedCamera = null;
+            CursorOverrideOwner = null;
+            CursorOverrideKind = PointerCursorKind.Default;
+            if (captured != null) {
+                captured.OnCursor(new int2(0, 0), new int2(0, 0), PointerInteraction.Leave);
+            }
+            if (hovered != null && !ReferenceEquals(hovered, captured)) {
+                hovered.OnCursor(new int2(0, 0), new int2(0, 0), PointerInteraction.Leave);
+            }
         }
 
         /// <summary>
