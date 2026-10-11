@@ -171,7 +171,7 @@ namespace helengine.editor {
             builder.AppendLine("public:");
             builder.AppendLine($"    virtual ~{className}() = default;");
             builder.AppendLine();
-            builder.AppendLine("    const HeCppString& get_ComponentTypeId();");
+            builder.AppendLine("    HeCppString get_ComponentTypeId();");
             builder.AppendLine();
             builder.AppendLine("    ::Component* Deserialize(::SceneComponentAssetRecord* record, ::RuntimeSceneAssetReferenceResolver* referenceResolver, ::RuntimeSceneReferenceFixups* fixups);");
             builder.AppendLine("private:");
@@ -226,7 +226,7 @@ namespace helengine.editor {
                 }
             }
             builder.AppendLine();
-            builder.AppendLine($"const HeCppString& {className}::get_ComponentTypeId()");
+            builder.AppendLine($"HeCppString {className}::get_ComponentTypeId()");
             builder.AppendLine("{");
             builder.AppendLine("return ComponentType;");
             builder.AppendLine("}");

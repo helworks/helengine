@@ -231,7 +231,7 @@ namespace helengine.editor.tests.managers.project {
 
             Assert.DoesNotContain("std::string", header, StringComparison.Ordinal);
             Assert.DoesNotContain("std::string", source, StringComparison.Ordinal);
-            Assert.Contains("const HeCppString& get_ComponentTypeId();", header, StringComparison.Ordinal);
+            Assert.Contains("HeCppString get_ComponentTypeId();", header, StringComparison.Ordinal);
             Assert.Contains("static HeCppString ComponentType;", header, StringComparison.Ordinal);
             Assert.DoesNotContain("throw new", source, StringComparison.Ordinal);
             Assert.Contains("he_cpp_raise(ArgumentNullException(\"record\"));", source, StringComparison.Ordinal);
@@ -294,18 +294,18 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
-        /// Ensures generated native deserializer component-type accessors return constant string references so the interface contract matches generated const-reference string getters.
+        /// Ensures generated native deserializer component-type accessors return string values so implementations match the generated interface contract.
         /// </summary>
         [Fact]
-        public void GenerateNativeDeserializerSource_WhenSchemaContainsClipRectComponent_EmitsConstReferenceComponentTypeGetter() {
+        public void GenerateNativeDeserializerSource_WhenSchemaContainsClipRectComponent_EmitsValueComponentTypeGetter() {
             ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(ClipRectComponent));
             ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
 
             string header = generator.GenerateNativeDeserializerHeader(schema);
             string source = generator.GenerateNativeDeserializerSource(schema);
 
-            Assert.Contains("const HeCppString& get_ComponentTypeId();", header, StringComparison.Ordinal);
-            Assert.Contains("const HeCppString& GeneratedRuntimeClipRectComponentDeserializer::get_ComponentTypeId()", source, StringComparison.Ordinal);
+            Assert.Contains("HeCppString get_ComponentTypeId();", header, StringComparison.Ordinal);
+            Assert.Contains("HeCppString GeneratedRuntimeClipRectComponentDeserializer::get_ComponentTypeId()", source, StringComparison.Ordinal);
         }
 
         /// <summary>

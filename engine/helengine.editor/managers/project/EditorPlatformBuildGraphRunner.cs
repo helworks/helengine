@@ -1314,16 +1314,18 @@ namespace helengine.editor {
                 generatedCoreRootPath,
                 ResolveBuilderOwnedGeneratedCorePaths(workspace.GeneratedCoreRootPath, generatedCoreRootPath),
                 Path.Combine(nativeCacheSliceRootPath, "generated-core-editor"));
-            string nativeObjectCacheRootPath = Path.Combine(
-                workspace.NativeObjectCacheRootPath,
-                ComputeNativeCacheFingerprint(
-                    queueItem,
-                    selectedBuildProfileId,
-                    selectedGraphicsProfileId,
-                    selectedCodegenProfileId,
-                    queueItem.SelectedEnvironmentId,
-                    builder.Descriptor,
-                    selectedCodegenOptionValues));
+            string nativeCacheFingerprint = ComputeNativeCacheFingerprint(
+                queueItem,
+                selectedBuildProfileId,
+                selectedGraphicsProfileId,
+                selectedCodegenProfileId,
+                queueItem.SelectedEnvironmentId,
+                builder.Descriptor,
+                selectedCodegenOptionValues);
+            string nativeObjectCacheRootPath = string.Equals(PlatformDescriptor.Id, "windows", StringComparison.OrdinalIgnoreCase)
+                ? new EditorBuildIsolationPathResolver(ProjectRootPath).ResolveNativeObjectCacheRootPath(
+                    workspace.NativeObjectCacheRootPath, nativeCacheFingerprint)
+                : Path.Combine(workspace.NativeObjectCacheRootPath, nativeCacheFingerprint);
 
             PlatformBuildRequest request = BuildRequest(
                 queueItem,
@@ -1510,11 +1512,14 @@ namespace helengine.editor {
         /// <summary>
         /// Produces a stable cache namespace from editor-controlled profile and code-generation inputs.
         /// </summary>
+        /// <param name="queueItem">Resolved build request supplying build and graphics options.</param>
         /// <param name="buildProfileId">Selected native build profile.</param>
         /// <param name="graphicsProfileId">Selected graphics profile.</param>
         /// <param name="codegenProfileId">Selected code-generation profile.</param>
+        /// <param name="environmentId">Authored runtime environment selected for this build.</param>
+        /// <param name="builderDescriptor">Selected builder identity and version separating native toolchains.</param>
         /// <param name="codegenOptions">Effective code-generation option values.</param>
-        /// <returns>Lowercase SHA-256 cache namespace.</returns>
+        /// <returns>Lowercase SHA-256 fingerprint separating native build inputs.</returns>
         string ComputeNativeCacheFingerprint(
             EditorBuildQueueItemDocument queueItem,
             string buildProfileId,

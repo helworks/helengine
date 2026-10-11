@@ -300,5 +300,54 @@ namespace helengine.editor.tests.managers.project {
             Assert.Equal(Path.Combine(workspaceRootPath, "ps2", "execution-a"), executionRootPath);
             Assert.Equal(Path.Combine(workspaceRootPath, "ps2", "execution-a", "generated-dotnet"), generatedRootPath);
         }
+
+        /// <summary>Separates native option and profile scopes beneath a deterministic project-owned cache namespace.</summary>
+        [Fact]
+        public void ResolveNativeObjectCacheRootPath_StableCache_PreservesProjectAndInputIsolation() {
+            string root = Path.Combine(Directory.GetCurrentDirectory(), "builds", "native-cache-path-tests");
+            Environment.SetEnvironmentVariable("HELENGINE_BUILD_CACHE_ROOT", Path.Combine(root, "cache"));
+            string project = Path.Combine(root, "first-project");
+            string scope = Path.Combine(root, "profile", "debug", "native");
+            string fingerprint = new string('a', 64);
+            EditorBuildIsolationPathResolver resolver = new(project);
+            string first = resolver.ResolveNativeObjectCacheRootPath(scope, fingerprint);
+            Assert.Equal(first, new EditorBuildIsolationPathResolver(project).ResolveNativeObjectCacheRootPath(scope, fingerprint));
+            Assert.NotEqual(first, new EditorBuildIsolationPathResolver(Path.Combine(root, "second-project")).ResolveNativeObjectCacheRootPath(scope, fingerprint));
+            Assert.NotEqual(first, resolver.ResolveNativeObjectCacheRootPath(Path.Combine(root, "profile", "release", "native"), fingerprint));
+            Assert.NotEqual(first, resolver.ResolveNativeObjectCacheRootPath(scope, new string('b', 64)));
+            Assert.StartsWith(Path.Combine(root, "cache", "v2"), first, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("n", Path.GetFileName(Path.GetDirectoryName(first)));
+            Assert.Matches("^[a-z2-7]{52}$", Path.GetFileName(first));
+        }
+
+        /// <summary>Keeps direct-editor native objects inside the authored project's visible cache when no wrapper cache is configured.</summary>
+        [Fact]
+        public void ResolveNativeObjectCacheRootPath_DirectEditor_UsesAuthoredProjectCache() {
+            string project = Path.Combine(Directory.GetCurrentDirectory(), "builds", "native-cache-path-tests", "project");
+            EditorBuildIsolationPathResolver resolver = new(project);
+            string resolved = resolver.ResolveNativeObjectCacheRootPath(Path.Combine(project, "cache", "build", "windows", "debug", "native"), new string('a', 64));
+            Assert.StartsWith(Path.Combine(project, "cache", "native"), resolved, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>Reproduces the long host filename that exceeded MAX_PATH and verifies the compact layout also fits CMake's object-path budget.</summary>
+        [Fact]
+        public void ResolveNativeObjectCacheRootPath_CanonicalHostObject_StaysBelowCMakeAndMsvcLimits() {
+            Environment.SetEnvironmentVariable("HELENGINE_BUILD_CACHE_ROOT", @"C:\dev\helworks\builds\helengine\cache");
+            EditorBuildIsolationPathResolver resolver = new(@"C:\dev\helprojs\demodisc");
+            string fingerprint = new string('a', 64);
+            string objectRoot = resolver.ResolveNativeObjectCacheRootPath(
+                @"C:\dev\helworks\builds\helengine\cache\v2\5b89b8be7cb64a4decc58e30c0a34e39\b\windows\debug\debug\native", fingerprint);
+            string objectPath = Path.Combine(objectRoot, "CMakeFiles", "helengine_windows.dir", "src", "platform",
+                "windows", "runtime", "runtime_player_profile_configuration_error.cpp.obj");
+            Assert.True(objectPath.Length < 250, objectPath);
+        }
+
+        /// <summary>Rejects missing cache scope or option identity instead of sharing a default object directory.</summary>
+        [Fact]
+        public void ResolveNativeObjectCacheRootPath_MissingIdentity_Throws() {
+            EditorBuildIsolationPathResolver resolver = new(Directory.GetCurrentDirectory());
+            Assert.Throws<ArgumentException>(() => resolver.ResolveNativeObjectCacheRootPath(null, new string('a', 64)));
+            Assert.Throws<ArgumentException>(() => resolver.ResolveNativeObjectCacheRootPath(Directory.GetCurrentDirectory(), ""));
+        }
     }
 }

@@ -249,6 +249,35 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Places Windows native objects under a compact project cache namespace while retaining the complete profile and option identity.
+        /// Generated-source and lock roots remain owned by their existing profile cache slice.
+        /// </summary>
+        /// <param name="nativeCacheScopeRootPath">Existing project/platform/configuration/profile cache scope.</param>
+        /// <param name="fingerprint">Complete fingerprint of the selected native build options and builder identity.</param>
+        /// <returns>Short project-owned object cache root separated by every native build input.</returns>
+        internal string ResolveNativeObjectCacheRootPath(string nativeCacheScopeRootPath, string fingerprint) {
+            if (string.IsNullOrWhiteSpace(nativeCacheScopeRootPath)) {
+                throw new ArgumentException("Native cache scope must be provided.", nameof(nativeCacheScopeRootPath));
+            } else if (string.IsNullOrWhiteSpace(fingerprint)) {
+                throw new ArgumentException("Native build fingerprint must be provided.", nameof(fingerprint));
+            }
+
+            string namespaceRootPath;
+            if (UsesStableCacheRoot()) {
+                string cacheRootPath = Environment.GetEnvironmentVariable(CacheRootEnvironmentVariableName);
+                string versionRootPath = CombineStrictDescendantPath(ResolveCanonicalDirectoryPath(cacheRootPath), "v2");
+                string projectCacheRootPath = CombineStrictDescendantPath(versionRootPath, StableProjectHashSegment);
+                namespaceRootPath = CombineStrictDescendantPath(projectCacheRootPath, "n");
+            } else {
+                namespaceRootPath = Path.Combine(ProjectRootPath, "cache", "native");
+            }
+
+            string identity = ResolveCanonicalDirectoryPath(nativeCacheScopeRootPath) + "\n" + fingerprint;
+            byte[] digest = SHA256.HashData(Encoding.UTF8.GetBytes(identity));
+            return CombineStrictDescendantPath(namespaceRootPath, EditorNativeBuildCacheFingerprint.Encode(digest));
+        }
+
+        /// <summary>
         /// Determines whether deterministic headless cache mode is enabled.
         /// </summary>
         /// <returns><c>true</c> when a non-empty stable cache root is configured.</returns>
