@@ -36,7 +36,8 @@ namespace helengine.editor {
             return new ModelAssetProcessorSettings {
                 FlipWinding = source.FlipWinding,
                 Tessellate = source.Tessellate,
-                TessellationMaxEdgeLength = source.TessellationMaxEdgeLength
+                TessellationMaxEdgeLength = source.TessellationMaxEdgeLength,
+                GpuReduction = source.GpuReduction?.Clone()
             };
         }
 

@@ -13,6 +13,20 @@ namespace helengine.editor {
         /// </summary>
         public const string UvwMapKind = "UvwMap";
 
+        /// <summary>Identifies an explicit GPU-only reduction override applied after geometric modifiers.</summary>
+        public const string ReduceKind = "Reduce";
+
+        /// <summary>Enables the GPU-only override; false explicitly disables an inherited reduction policy.</summary>
+        public bool ReductionEnabled { get; set; } = true;
+        /// <summary>Maximum attribute vertices allowed by this component's render variant.</summary>
+        public int MaximumVertices { get; set; } = 256;
+        /// <summary>Maximum triangle indices allowed by this component's render variant.</summary>
+        public int MaximumIndices { get; set; } = 768;
+        /// <summary>Latitude segments for this component's generated GPU sphere.</summary>
+        public int SphereRings { get; set; } = 6;
+        /// <summary>Longitude segments for this component's generated GPU sphere.</summary>
+        public int SphereSectors { get; set; } = 12;
+
         /// <summary>
         /// Initializes one modifier entry of the supplied kind with default parameters.
         /// </summary>

@@ -434,6 +434,9 @@ namespace helengine {
         /// </summary>
         public RuntimeComponentRegistry SceneRuntimeComponentRegistry { get; private set; }
 
+        /// <summary>Gets the optional native code lifetime manager; monolithic platforms leave it unset.</summary>
+        public SceneModuleManager SceneModuleManager { get; private set; }
+
         /// <summary>
         /// Gets the most recent core-side scene-transition stage recorded for runtime diagnostics.
         /// </summary>
@@ -631,6 +634,9 @@ namespace helengine {
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, RenderManager2D);
             SceneAssetReferenceResolver = new RuntimeSceneAssetReferenceResolver(this, contentManager);
             SceneRuntimeComponentRegistry = RuntimeComponentRegistry.CreateDefault();
+            if (options.CodeModuleProvider != null) {
+                SceneModuleManager = new SceneModuleManager(this, options.CodeModuleManifest, options.CodeModuleProvider, SceneRuntimeComponentRegistry, options.SceneCatalog);
+            }
             SceneLoadService = new RuntimeSceneLoadService(this, SceneAssetReferenceResolver, SceneRuntimeComponentRegistry);
             SceneManager = CreateSceneManager(contentManager, InitializationOptions.SceneCatalog);
             if (SceneManager != null) {
@@ -658,8 +664,8 @@ namespace helengine {
         /// <summary>
         /// Registers one additional packaged-scene component deserializer with the active runtime scene loader.
         /// </summary>
-        /// <param name="deserializer">Deserializer to register for packaged runtime scene loading.</param>
-        public void RegisterRuntimeComponentDeserializer(IRuntimeComponentDeserializer deserializer) {
+        /// <param name="deserializer">Owned deserializer transferred to the registry for packaged runtime scene loading.</param>
+        public void RegisterRuntimeComponentDeserializer([NativeTakesOwnership] IRuntimeComponentDeserializer deserializer) {
             if (deserializer == null) {
                 throw new ArgumentNullException(nameof(deserializer));
             }
@@ -751,6 +757,13 @@ namespace helengine {
             PhysicsRuntimeValue = null;
             PhysicsSchedulerValue.Reset();
             PredictedPhysicsStepSeconds = 0d;
+        }
+
+        /// <summary>Detaches the active physics service and disposes its owned registration, including module callbacks, before native code can unload.</summary>
+        public void ReleasePhysicsRuntimeRegistration() {
+            PhysicsRuntimeValue = null;
+            ResetPhysicsTimingState();
+            NativeOwnership.DisposeAndRelease(ref PhysicsRuntimeRegistrationState);
         }
 
         /// <summary>
@@ -881,6 +894,8 @@ namespace helengine {
             if (SceneManager != null) {
                 SceneManager.Dispose();
             }
+            if (SceneModuleManager != null) { SceneModuleManager.Dispose(); }
+            if (SceneRuntimeComponentRegistry != null) { SceneRuntimeComponentRegistry.Dispose(); }
             if (RenderManager3D != null) {
                 RenderManager3D.Dispose();
             }

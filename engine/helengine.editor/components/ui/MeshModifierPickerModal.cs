@@ -38,7 +38,8 @@ namespace helengine.editor {
         /// </summary>
         static readonly string[] ModifierKinds = {
             MeshComponentModifier.TessellateKind,
-            MeshComponentModifier.UvwMapKind
+            MeshComponentModifier.UvwMapKind,
+            MeshComponentModifier.ReduceKind
         };
 
         /// <summary>

@@ -2,17 +2,23 @@ namespace helengine {
     /// <summary>
     /// Stores runtime component deserializers keyed by serialized type id.
     /// </summary>
-    public sealed class RuntimeComponentRegistry {
+    public sealed class RuntimeComponentRegistry : IDisposable {
         /// <summary>
         /// Deserializers keyed by stable serialized component type id.
         /// </summary>
-        readonly Dictionary<string, IRuntimeComponentDeserializer> DeserializersByTypeId;
+        [NativeOwnedMember]
+        Dictionary<string, IRuntimeComponentDeserializer> DeserializersByTypeId;
+
+        /// <summary>Associates overlay factories with their owning module, leaving resident factories untagged.</summary>
+        [NativeOwnedMember]
+        Dictionary<string, string> ModuleOwnersByTypeId;
 
         /// <summary>
         /// Initializes an empty runtime component registry.
         /// </summary>
         public RuntimeComponentRegistry() {
             DeserializersByTypeId = new Dictionary<string, IRuntimeComponentDeserializer>(StringComparer.Ordinal);
+            ModuleOwnersByTypeId = new Dictionary<string, string>(StringComparer.Ordinal);
         }
 
         /// <summary>
@@ -62,8 +68,8 @@ namespace helengine {
         /// <summary>
         /// Registers one runtime component deserializer.
         /// </summary>
-        /// <param name="deserializer">Deserializer to register.</param>
-        public void Register(IRuntimeComponentDeserializer deserializer) {
+        /// <param name="deserializer">Owned deserializer transferred into the registry's native-owning dictionary.</param>
+        public void Register([NativeTakesOwnership] IRuntimeComponentDeserializer deserializer) {
             if (deserializer == null) {
                 throw new ArgumentNullException(nameof(deserializer));
             }
@@ -75,6 +81,49 @@ namespace helengine {
             }
 
             DeserializersByTypeId.Add(deserializer.ComponentTypeId, deserializer);
+        }
+
+        /// <summary>Transfers a factory to one module's ownership; failed duplicate registration deletes the incoming factory.</summary>
+        /// <param name="moduleId">Stable native module owning the factory implementation.</param>
+        /// <param name="deserializer">Owned factory transferred by the module registration entry.</param>
+        public void RegisterForModule(string moduleId, [NativeTakesOwnership] IRuntimeComponentDeserializer deserializer) {
+            bool registered = false;
+            bool installed = false;
+            try {
+                if (string.IsNullOrWhiteSpace(moduleId)) { throw new ArgumentException("Factory module identity is required.", nameof(moduleId)); }
+                Register(deserializer);
+                installed = true;
+                ModuleOwnersByTypeId.Add(deserializer.ComponentTypeId, moduleId);
+                registered = true;
+            } finally {
+                if (!registered) {
+                    if (installed) { DeserializersByTypeId.Remove(deserializer.ComponentTypeId); }
+                    else { NativeOwnership.Delete(deserializer); }
+                }
+            }
+        }
+
+        /// <summary>Removes and destroys every factory implemented by a module before its executable allocation is released.</summary>
+        /// <param name="moduleId">Stable owning module identity.</param>
+        public void UnregisterModule(string moduleId) {
+            if (string.IsNullOrWhiteSpace(moduleId)) { throw new ArgumentException("Factory module identity is required.", nameof(moduleId)); }
+            List<string> removedIds = new List<string>();
+            try {
+                foreach (string typeId in ModuleOwnersByTypeId.Keys) {
+                    if (string.Equals(ModuleOwnersByTypeId[typeId], moduleId, StringComparison.OrdinalIgnoreCase)) { removedIds.Add(typeId); }
+                }
+                for (int index = 0; index < removedIds.Count; index++) {
+                    string typeId = removedIds[index];
+                    DeserializersByTypeId.Remove(typeId);
+                    ModuleOwnersByTypeId.Remove(typeId);
+                }
+            } finally { NativeOwnership.Delete(removedIds); }
+        }
+
+        /// <summary>Destroys remaining resident factories after scene and module teardown has completed.</summary>
+        public void Dispose() {
+            NativeOwnership.Release(ref DeserializersByTypeId);
+            NativeOwnership.Release(ref ModuleOwnersByTypeId);
         }
 
         /// <summary>

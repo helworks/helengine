@@ -481,6 +481,40 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
         Assert.Equal("gameplay", modules[0].ModuleId);
     }
 
+    /// <summary>Requires native module conversion to retain mandatory platform symbols and explicit user symbols without changing the managed project defines.</summary>
+    [Fact]
+    public void Compile_code_modules_preserves_runtime_contract_symbols_only_for_native_conversion() {
+        RecordingCodegenToolRunner toolRunner = new();
+        EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);
+        EditorCodeModuleManifestDocument manifestDocument = new([
+            new EditorCodeModuleManifestEntry("gameplay", "assets/Scripts", [], ["always-loaded"])
+        ]);
+
+        service.CompileModules(
+            manifestDocument,
+            "ps1",
+            "ps1-embedded-archive",
+            "/fake/codegen.exe",
+            new PlatformCodegenProfileDefinition("default", "PS1", "Fatal native conversion.", PlatformCodegenLanguage.Cpp, PlatformSerializationEndianness.LittleEndian, []),
+            ["gameplay"],
+            new Dictionary<string, string> {
+                ["codegen-use-exceptions"] = "false",
+                ["additional-preprocessor-symbols"] = "AUTHORED_EXTRA;HELENGINE_CODEGEN_FATAL_ONLY"
+            },
+            OutputRootPath,
+            "release",
+            ["HELENGINE_CODEGEN_FATAL_ONLY"]);
+
+        IReadOnlyList<string> arguments = Assert.Single(toolRunner.Invocations).Arguments;
+        string symbolSetting = Assert.Single(arguments.Where(argument => argument.StartsWith("additional-preprocessor-symbols=", StringComparison.Ordinal)));
+        Assert.Equal("additional-preprocessor-symbols=HELENGINE_ENV_RELEASE,HELENGINE_CODEGEN_FATAL_ONLY,AUTHORED_EXTRA", symbolSetting);
+        Assert.Contains("codegen-use-exceptions=false", arguments);
+        int projectIndex = Array.IndexOf(arguments.ToArray(), "--project");
+        string managedProject = File.ReadAllText(arguments[projectIndex + 1]);
+        Assert.Contains("<DefineConstants>HELENGINE_ENV_RELEASE</DefineConstants>", managedProject, StringComparison.Ordinal);
+        Assert.DoesNotContain("HELENGINE_CODEGEN_FATAL_ONLY", managedProject, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ResolveModulesToCompile_with_editor_only_inferred_root_throws_invalid_operation_exception() {
         EditorCodeModuleManifestDocument manifestDocument = new([

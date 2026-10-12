@@ -7,7 +7,7 @@ namespace DemoDisc.menu {
         /// Initializes one baked city menu item runtime record.
         /// </summary>
         /// <param name="definition">Serialized item metadata component.</param>
-        /// <param name="index">Enabled-item index inside the owning panel.</param>
+        /// <param name="index">Authored item index inside the owning panel, independent of packaged scenes.</param>
         /// <param name="entity">Owning row entity.</param>
         /// <param name="background">Rounded rectangle used for selection visuals.</param>
         public MenuItemRuntime(
@@ -27,7 +27,7 @@ namespace DemoDisc.menu {
         public MenuItemComponent Definition { get; }
 
         /// <summary>
-        /// Gets the enabled-item index inside the owning panel.
+        /// Gets the authored item index inside the owning panel.
         /// </summary>
         public int Index { get; }
 

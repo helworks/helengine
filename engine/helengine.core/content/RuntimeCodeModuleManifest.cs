@@ -29,7 +29,7 @@ namespace helengine {
             int residentModuleCount = 0;
             for (int index = 0; index < Entries.Length; index++) {
                 RuntimeCodeModuleManifestEntry entry = Entries[index];
-                if (entry.LoadState != RuntimeCodeModuleLoadState.Unloadable) {
+                if (entry.LoadState == RuntimeCodeModuleLoadState.ResidentAtStartup) {
                     residentModuleIds[residentModuleCount] = entry.ModuleId;
                     residentModuleCount++;
                 }

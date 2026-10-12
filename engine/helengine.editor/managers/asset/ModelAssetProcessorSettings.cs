@@ -17,5 +17,8 @@ namespace helengine.editor {
         /// Gets or sets the maximum permitted model triangle edge length before processing subdivides that edge.
         /// </summary>
         public double TessellationMaxEdgeLength { get; set; } = 1.0d;
+
+        /// <summary>Optional render-only policy persisted independently from base import identity; null inherits the build profile.</summary>
+        public ModelGpuReductionSettings GpuReduction { get; set; }
     }
 }

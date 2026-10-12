@@ -73,7 +73,7 @@ namespace helengine.editor {
             }
 
             using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            AppendText(hash, "scene-package-v1");
+            AppendText(hash, "scene-package-v7-gpu-only-reduction-variants");
             AppendText(hash, JsonSerializer.Serialize(platformDefinition));
             AppendText(hash, buildProfileId ?? string.Empty);
             AppendText(hash, graphicsProfileId ?? string.Empty);
@@ -149,8 +149,9 @@ namespace helengine.editor {
                 File.ReadAllText(Path.Combine(entryRootPath, "files.json")))
                 ?? throw new InvalidDataException($"Scene package cache '{key}' has no file manifest.");
             string payloadRootPath = Path.Combine(entryRootPath, "payload");
+            HashSet<string> selectedRuntimePaths = cachedResult.SceneCookedDependencies.Values.SelectMany(paths => paths).ToHashSet(StringComparer.Ordinal);
             foreach (KeyValuePair<string, string> fileEntry in fileHashes) {
-                string relativePath = ValidatePayloadPath(fileEntry.Key);
+                string relativePath = ValidatePayloadPath(fileEntry.Key, selectedRuntimePaths);
                 string payloadPath = Path.Combine(payloadRootPath, relativePath);
                 if (!File.Exists(payloadPath) || !string.Equals(ComputeFileHash(payloadPath), fileEntry.Value, StringComparison.Ordinal)) {
                     throw new InvalidDataException($"Scene package cache '{key}' contains a missing or modified file '{relativePath}'.");
@@ -171,7 +172,8 @@ namespace helengine.editor {
             result = new EditorPlatformBuildScenePackagerResult(
                 cachedResult.ReferencedShaderDependencies,
                 workItems,
-                cachedResult.CookedArtifactDeclarations);
+                cachedResult.CookedArtifactDeclarations,
+                cachedResult.SceneCookedDependencies);
             return true;
         }
 
@@ -200,6 +202,7 @@ namespace helengine.editor {
                 Dictionary<string, string> fileHashes = new(StringComparer.Ordinal);
                 StoreDirectory("cooked", executionRootPath, payloadRootPath, fileHashes);
                 StoreDirectory("generated", executionRootPath, payloadRootPath, fileHashes);
+                StoreSelectedRuntimeDependencies(executionRootPath, payloadRootPath, result.SceneCookedDependencies, fileHashes);
                 File.WriteAllText(Path.Combine(stagingRootPath, "source-root.txt"), Path.GetFullPath(executionRootPath));
                 File.WriteAllText(Path.Combine(stagingRootPath, "result.json"), JsonSerializer.Serialize(result));
                 File.WriteAllText(Path.Combine(stagingRootPath, "files.json"), JsonSerializer.Serialize(fileHashes));
@@ -297,6 +300,29 @@ namespace helengine.editor {
             }
         }
 
+        /// <summary>Preserves only selected materialized runtime files outside the standard cook directories, such as a legacy font copy.</summary>
+        /// <param name="executionRootPath">Fresh package execution root.</param>
+        /// <param name="payloadRootPath">Cache payload root receiving selected files.</param>
+        /// <param name="sceneDependencies">Authoritative rewritten scene dependency paths.</param>
+        /// <param name="fileHashes">Manifest receiving copied file identities and hashes.</param>
+        static void StoreSelectedRuntimeDependencies(string executionRootPath, string payloadRootPath,
+            IReadOnlyDictionary<string, string[]> sceneDependencies, IDictionary<string, string> fileHashes) {
+            HashSet<string> selectedRuntimePaths = sceneDependencies.Values.SelectMany(paths => paths).ToHashSet(StringComparer.Ordinal);
+            foreach (string selectedPath in selectedRuntimePaths.OrderBy(path => path, StringComparer.Ordinal)) {
+                string relativePath = ValidatePayloadPath(selectedPath, selectedRuntimePaths);
+                if (relativePath.StartsWith("cooked/", StringComparison.Ordinal) || relativePath.StartsWith("generated/", StringComparison.Ordinal)) continue;
+                string sourcePath = Path.Combine(executionRootPath, relativePath);
+                // Builder-owned outputs may be selected before their later platform cook phase.
+                // The package artifact validation remains responsible for requiring final files.
+                if (!File.Exists(sourcePath)) continue;
+                string destinationPath = Path.Combine(payloadRootPath, relativePath);
+                Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)
+                    ?? throw new InvalidOperationException("Selected cached dependency has no parent directory."));
+                File.Copy(sourcePath, destinationPath);
+                fileHashes.Add(relativePath, ComputeFileHash(sourcePath));
+            }
+        }
+
         /// <summary>
         /// Replaces a prior disposable-workspace source path with the current execution root.
         /// </summary>
@@ -332,13 +358,15 @@ namespace helengine.editor {
         /// Prevents a persisted relative file name from escaping its payload root.
         /// </summary>
         /// <param name="relativePath">File name read from the cache manifest.</param>
+        /// <param name="selectedRuntimePaths">Exact additional runtime files selected by the stored scene dependencies.</param>
         /// <returns>Validated relative file name.</returns>
-        static string ValidatePayloadPath(string relativePath) {
+        static string ValidatePayloadPath(string relativePath, IReadOnlySet<string> selectedRuntimePaths = null) {
             if (string.IsNullOrWhiteSpace(relativePath)
                 || Path.IsPathRooted(relativePath)
                 || relativePath.Split('/', '\\').Contains("..", StringComparer.Ordinal)
                 || !(relativePath.StartsWith("cooked/", StringComparison.Ordinal)
-                    || relativePath.StartsWith("generated/", StringComparison.Ordinal))) {
+                    || relativePath.StartsWith("generated/", StringComparison.Ordinal)
+                    || selectedRuntimePaths != null && selectedRuntimePaths.Contains(relativePath))) {
                 throw new InvalidDataException($"Scene package cache contains an invalid payload path '{relativePath}'.");
             }
             return relativePath;

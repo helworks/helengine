@@ -193,6 +193,10 @@ namespace helengine.editor {
 
             Dictionary<string, string> temporaryGeneratedScenePathOverrides = PrepareTemporaryGeneratedScenePathOverrides(queueItem);
             WritePhaseMarker(workspace, "boot-scene-prepared");
+            bool sceneCodeModules = builder.Definition.RuntimeGenerationContract.SupportsSceneCodeModules &&
+                effectiveCodegenOptionValues.TryGetValue("scene-code-modules", out string sceneModulesOption) &&
+                bool.TryParse(sceneModulesOption, out bool sceneModulesEnabled) && sceneModulesEnabled;
+            if (sceneCodeModules) EditorSceneCodeModuleSourcePlanWriter.ValidateCodegenPolicy(effectiveCodegenOptionValues);
             RunRegenerateCore(builder.Definition, selectedCodegenProfile, effectiveCodegenOptionValues, queueItem, workspace);
             WritePhaseMarker(workspace, "generated-core-ready");
             PlatformBuildManifest cookedManifest;
@@ -209,7 +213,7 @@ namespace helengine.editor {
                 DeleteTemporaryGeneratedSceneOverrides(temporaryGeneratedScenePathOverrides);
             }
             WritePhaseMarker(workspace, "assets-cooked");
-            PlatformBuildCodeModule[] codeModules = RunCompileCode(cookedManifest, selectedCodegenProfile, selectedStorageProfile, effectiveCodegenOptionValues, queueItem, workspace);
+            PlatformBuildCodeModule[] codeModules = RunCompileCode(cookedManifest, builder.Definition, selectedCodegenProfile, selectedStorageProfile, effectiveCodegenOptionValues, queueItem, workspace);
             WritePhaseMarker(workspace, "code-compiled");
             CopySceneReferencedRuntimeModuleSourcesIntoGeneratedCore(cookedManifest, codeModules, workspace.GeneratedCoreRootPath, workspace.CodeRootPath, workspace.ExecutionRootPath);
             EmitGeneratedRuntimeComponentDeserializersForCookedScenes(
@@ -220,6 +224,14 @@ namespace helengine.editor {
                 selectedBuildProfile,
                 selectedCodegenProfile,
                 effectiveCodegenOptionValues);
+            if (sceneCodeModules) {
+                WriteSceneCodeModuleSourcePlan(
+                    cookedManifest, workspace.GeneratedCoreRootPath, workspace.CodeRootPath, workspace.ExecutionRootPath,
+                    codeModules.Select(module => module.ModuleId).ToArray(), builder.Definition,
+                    EditorGeneratedCoreRegenerationService.UsesCompactNativeExceptionMessages(selectedBuildProfile, selectedCodegenProfile, effectiveCodegenOptionValues),
+                    EditorGeneratedCoreRegenerationService.UsesNativeExceptions(selectedBuildProfile, selectedCodegenProfile, effectiveCodegenOptionValues));
+            }
+            if (sceneCodeModules) CodeCookService.WriteCombinedFeatureManifest(CodegenToolProvider.Resolve(), workspace.GeneratedCoreRootPath);
             EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(workspace.GeneratedCoreRootPath);
             cookedManifest = ReplaceCodeModules(cookedManifest, codeModules);
             cookedManifest = ApplyRuntimeFeatureManifest(cookedManifest);
@@ -230,7 +242,8 @@ namespace helengine.editor {
             cookedManifest = RunLayoutMedia(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
             WritePhaseMarker(workspace, "media-laid-out");
             WriteRuntimeNativeManifestSources(cookedManifest, workspace.GeneratedCoreRootPath);
-            RunWriteContainers(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
+            RunWriteContainers(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace,
+                builder.Definition.RuntimeGenerationContract.SupportsSceneCodeModules);
             WritePhaseMarker(workspace, "containers-written");
 
             EditorBuildExecutionResult packageResult = RunPackagePlatform(
@@ -669,6 +682,7 @@ namespace helengine.editor {
         /// </summary>
         PlatformBuildCodeModule[] RunCompileCode(
             PlatformBuildManifest cookedManifest,
+            PlatformDefinition builderDefinition,
             PlatformCodegenProfileDefinition selectedCodegenProfile,
             PlatformStorageProfileDefinition selectedStorageProfile,
             IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
@@ -685,7 +699,8 @@ namespace helengine.editor {
                 inferredRootModuleIds,
                 selectedCodegenOptionValues,
                 workspace.CodeRootPath,
-                queueItem.SelectedEnvironmentId);
+                queueItem.SelectedEnvironmentId,
+                builderDefinition.RuntimeGenerationContract.PortableInputPreprocessorSymbols);
         }
 
         /// <summary>
@@ -777,6 +792,9 @@ namespace helengine.editor {
                 }
 
                 CopyGeneratedModuleDependencySourcesIntoGeneratedCore(generatedModuleRootPath, generatedCoreRootPath, componentType.Name);
+            }
+            foreach (string generatedModuleRootPath in generatedModuleRootsById.Values) {
+                EditorGeneratedCoreRegenerationService.MergeGeneratedConversionReport(generatedModuleRootPath, generatedCoreRootPath);
             }
         }
 
@@ -904,7 +922,8 @@ namespace helengine.editor {
                 throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
             }
 
-            if (string.Equals(relativePath, "helcpp_config.hpp", StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(relativePath, "helcpp_config.hpp", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(relativePath.Replace('\\', '/'), "runtime/feature_config.hpp", StringComparison.OrdinalIgnoreCase)) {
                 return;
             }
 
@@ -1155,6 +1174,24 @@ namespace helengine.editor {
             writer.Write(generatedCoreRootPath, cookedManifest);
         }
 
+        /// <summary>Applies the configured loading policy before choosing resident bootstrap factories and scene-module roots.</summary>
+        /// <param name="manifest">Actual cooked scene selection whose operational loading identity is resolved by the normal settings service.</param>
+        /// <param name="coreRoot">Combined generated source tree.</param>
+        /// <param name="codeRoot">Authored project conversion outputs.</param>
+        /// <param name="contentRoot">Actual cooked execution root.</param>
+        /// <param name="moduleIds">Selected authored module identities.</param>
+        /// <param name="definition">Current platform schema contract.</param>
+        /// <param name="compactMessages">Whether the native target uses compact errors.</param>
+        /// <param name="nativeExceptions">Whether native exception unwinding is enabled.</param>
+        /// <returns>The authoritative source-plan path consumed by the native module builder.</returns>
+        internal string WriteSceneCodeModuleSourcePlan(PlatformBuildManifest manifest, string coreRoot, string codeRoot,
+            string contentRoot, IReadOnlyList<string> moduleIds, PlatformDefinition definition, bool compactMessages, bool nativeExceptions) {
+            EditorRuntimeLoadingSettings settings = EditorRuntimeLoadingSettingsResolver.Load(ProjectRootPath, PlatformDescriptor.Id);
+            EditorRuntimeLoadingSettingsResolver.Apply(manifest, settings, ProjectRootPath);
+            return new EditorSceneCodeModuleSourcePlanWriter().Write(manifest, coreRoot, codeRoot, contentRoot,
+                moduleIds, ScriptTypeResolver, definition, compactMessages, nativeExceptions);
+        }
+
         /// <summary>
         /// Executes the container-writing phase using the current storage profile.
         /// </summary>
@@ -1162,7 +1199,8 @@ namespace helengine.editor {
             PlatformBuildManifest cookedManifest,
             PlatformStorageProfileDefinition selectedStorageProfile,
             PlatformMediaProfileDefinition selectedMediaProfile,
-            EditorPlatformBuildGraphWorkspace workspace) {
+            EditorPlatformBuildGraphWorkspace workspace,
+            bool supportsSceneCodeModules) {
             CopyDirectoryTree(workspace.CodeRootPath, Path.Combine(workspace.PackageRootPath, "code"));
             ContainerWriter.Write(
                 cookedManifest,
@@ -1171,6 +1209,17 @@ namespace helengine.editor {
                 selectedStorageProfile,
                 selectedMediaProfile);
             CopyDirectoryTree(workspace.CookRootPath, Path.Combine(workspace.PackageRootPath, "cooked"));
+            if (supportsSceneCodeModules) {
+                foreach (PlatformBuildArtifact artifact in cookedManifest.CookedArtifacts.Where(artifact => !artifact.RelativePath.StartsWith("cooked/", StringComparison.Ordinal))) {
+                    string relativePath = CanonicalPackagedAssetPath.Normalize(artifact.RelativePath);
+                    string sourcePath = Path.GetFullPath(Path.Combine(workspace.ExecutionRootPath, relativePath));
+                    string sourcePrefix = Path.GetFullPath(workspace.ExecutionRootPath) + Path.DirectorySeparatorChar;
+                    if (!sourcePath.StartsWith(sourcePrefix, StringComparison.OrdinalIgnoreCase) || !File.Exists(sourcePath)) throw new FileNotFoundException("Selected scene runtime artifact was not packaged.", sourcePath);
+                    string destinationPath = Path.GetFullPath(Path.Combine(workspace.PackageRootPath, relativePath));
+                    Directory.CreateDirectory(Path.GetDirectoryName(destinationPath));
+                    File.Copy(sourcePath, destinationPath, true);
+                }
+            }
         }
 
         /// <summary>

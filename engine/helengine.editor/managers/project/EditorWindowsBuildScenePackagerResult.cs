@@ -19,16 +19,21 @@ namespace helengine.editor {
         /// </summary>
         readonly PlatformCookedArtifactDeclaration[] CookedArtifactDeclarationsValue;
 
+        /// <summary>Stores the paths actually selected by each scene's packaging rewrites, including material textures and font atlases.</summary>
+        readonly IReadOnlyDictionary<string, string[]> SceneCookedDependenciesValue;
+
         /// <summary>
         /// Initializes a new scene-packaging result.
         /// </summary>
         /// <param name="referencedShaderDependencies">Complete shader dependencies reported by material cooking.</param>
         /// <param name="platformCookWorkItems">Builder-owned platform cook work items discovered while packaging the scenes.</param>
         /// <param name="cookedArtifactDeclarations">Explicit declarations for material and shader files written while packaging scenes.</param>
+        /// <param name="sceneCookedDependencies">Runtime paths selected by each canonical scene identity before build-order IDs are resolved.</param>
         public EditorPlatformBuildScenePackagerResult(
             IReadOnlyList<PlatformShaderDependency> referencedShaderDependencies,
             IReadOnlyList<PlatformCookWorkItem> platformCookWorkItems,
-            IReadOnlyList<PlatformCookedArtifactDeclaration> cookedArtifactDeclarations) {
+            IReadOnlyList<PlatformCookedArtifactDeclaration> cookedArtifactDeclarations,
+            IReadOnlyDictionary<string, string[]> sceneCookedDependencies = null) {
             if (referencedShaderDependencies == null) {
                 throw new ArgumentNullException(nameof(referencedShaderDependencies));
             } else if (platformCookWorkItems == null) {
@@ -40,7 +45,13 @@ namespace helengine.editor {
             ReferencedShaderDependenciesValue = referencedShaderDependencies.ToArray();
             PlatformCookWorkItemsValue = platformCookWorkItems.ToArray();
             CookedArtifactDeclarationsValue = cookedArtifactDeclarations.ToArray();
+            SceneCookedDependenciesValue = sceneCookedDependencies == null
+                ? new Dictionary<string, string[]>(StringComparer.Ordinal)
+                : sceneCookedDependencies.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray(), StringComparer.Ordinal);
         }
+
+        /// <summary>Gets complete cooked path selections keyed by the canonical identities supplied to PackagePreservingIdentityPaths.</summary>
+        public IReadOnlyDictionary<string, string[]> SceneCookedDependencies => SceneCookedDependenciesValue;
 
         /// <summary>
         /// Gets complete material-reported shader dependencies without reading material bytes during shader staging.

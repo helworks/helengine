@@ -21,6 +21,18 @@ namespace helengine.editor {
             CodegenToolRunner = codegenToolRunner ?? ProcessEditorCodegenToolRunner.Instance;
         }
 
+        /// <summary>Compiles runtime modules with the platform contract symbols used by generated Core, while keeping managed module projects unchanged.</summary>
+        /// <param name="manifestDocument">Authored module boundaries and dependency declarations.</param>
+        /// <param name="platformId">Target platform identifier.</param>
+        /// <param name="runtimeSpecializationId">Storage profile's runtime specialization.</param>
+        /// <param name="codegenToolPath">Bundled converter executable.</param>
+        /// <param name="codegenProfile">Selected native conversion profile.</param>
+        /// <param name="inferredRootModuleIds">Modules referenced by the cooked scenes.</param>
+        /// <param name="selectedOptionValues">Effective native profile options.</param>
+        /// <param name="outputRootPath">Generated authored module output directory.</param>
+        /// <param name="selectedEnvironmentId">Authored build environment.</param>
+        /// <param name="runtimeContractPreprocessorSymbols">Required symbols declared by the platform runtime contract, applied only during native conversion.</param>
+        /// <returns>Compiled module records for the packaged runtime.</returns>
         public PlatformBuildCodeModule[] CompileModules(
             EditorCodeModuleManifestDocument manifestDocument,
             string platformId,
@@ -30,7 +42,8 @@ namespace helengine.editor {
             IReadOnlyList<string> inferredRootModuleIds,
             IReadOnlyDictionary<string, string> selectedOptionValues,
             string outputRootPath,
-            string selectedEnvironmentId = "") {
+            string selectedEnvironmentId = "",
+            IReadOnlyList<string> runtimeContractPreprocessorSymbols = null) {
             if (manifestDocument == null) {
                 throw new ArgumentNullException(nameof(manifestDocument));
             }
@@ -84,7 +97,16 @@ namespace helengine.editor {
 
                 string moduleRootPath = Path.Combine(outputRootPath, moduleEntry.ModuleId);
                 string projectFilePath = moduleProjectPaths[moduleEntry.ModuleId];
-                IReadOnlyList<string> platformSymbols = EditorPlatformPreprocessorSymbolService.ResolveGameplaySymbols(platformId, selectedEnvironmentId);
+                IReadOnlyList<string> platformSymbols = EditorGeneratedCoreRegenerationService.CombineAdditionalPreprocessorSymbols(
+                    EditorPlatformPreprocessorSymbolService.ResolveGameplaySymbols(platformId, selectedEnvironmentId),
+                    runtimeContractPreprocessorSymbols ?? []);
+                if (selectedOptionValues != null
+                    && selectedOptionValues.TryGetValue("additional-preprocessor-symbols", out string selectedSymbols)
+                    && !string.IsNullOrWhiteSpace(selectedSymbols)) {
+                    platformSymbols = EditorGeneratedCoreRegenerationService.CombineAdditionalPreprocessorSymbols(
+                        platformSymbols,
+                        selectedSymbols.Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                }
                 string languageToken = "cpp";
                 string endiannessToken = codegenProfile.Endianness == helengine.baseplatform.Profiles.PlatformSerializationEndianness.BigEndian
                     ? "big"
@@ -109,7 +131,8 @@ namespace helengine.editor {
                     foreach (KeyValuePair<string, string> selectedOption in selectedOptionValues.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)) {
                         if (string.IsNullOrWhiteSpace(selectedOption.Key)
                             || string.IsNullOrWhiteSpace(selectedOption.Value)
-                            || string.Equals(selectedOption.Key, "include-project-defined-preprocessor-symbols", StringComparison.OrdinalIgnoreCase)) {
+                            || string.Equals(selectedOption.Key, "include-project-defined-preprocessor-symbols", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(selectedOption.Key, "additional-preprocessor-symbols", StringComparison.OrdinalIgnoreCase)) {
                             continue;
                         }
 
@@ -128,6 +151,17 @@ namespace helengine.editor {
             }
 
             return [.. compiledModules];
+        }
+
+        /// <summary>Emits one native feature manifest through the selected converter's official producer after all project reports have been combined.</summary>
+        /// <param name="codegenToolPath">Converter selected by the build graph, including its published producer implementation.</param>
+        /// <param name="generatedCoreRoot">Official merged native source tree containing the combined conversion report.</param>
+        internal void WriteCombinedFeatureManifest(string codegenToolPath, string generatedCoreRoot) {
+            CodegenToolRunner.Run(codegenToolPath, [
+                "--write-feature-manifest", "--report", Path.Combine(generatedCoreRoot, "cpp-conversion-report.json"),
+                "--feature-catalog", EditorGeneratedCoreRegenerationService.ResolveHelengineFeatureCatalogPath(),
+                "--output", generatedCoreRoot
+            ], ProjectRootPath);
         }
 
         static HashSet<string> BuildInferredRootModuleIdSet(IReadOnlyList<string> inferredRootModuleIds) {

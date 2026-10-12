@@ -7,18 +7,21 @@ namespace DemoDisc.menu {
         /// <summary>Ignores float-rounding differences smaller than a ten-thousandth of a framebuffer pixel.</summary>
         const double WidthTolerance = 0.0001d;
 
-        /// <summary>Finds a uniquely named heading once during menu binding without taking ownership of its component.</summary>
+        /// <summary>Finds a uniquely named heading once during menu binding, including valid leaves with uninitialized child collections, without taking ownership of its component.</summary>
         /// <param name="entity">Loaded hierarchy root whose components remain owned by their entities.</param>
         /// <param name="content">Exact, case-sensitive authored heading text.</param>
         /// <returns>The borrowed matching text component, or null when it is absent.</returns>
         [NativeBorrowedReturn]
         public static TextComponent Find(Entity entity, string content) {
-            for (int index = 0; index < entity.Components.Count; index++) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+            for (int index = 0; entity.Components != null && index < entity.Components.Count; index++) {
                 if (entity.Components[index] is TextComponent text && text.Text == content) {
                     return text;
                 }
             }
-            for (int index = 0; index < entity.Children.Count; index++) {
+            for (int index = 0; entity.Children != null && index < entity.Children.Count; index++) {
                 TextComponent text = Find(entity.Children[index], content);
                 if (text != null) {
                     return text;

@@ -39,10 +39,10 @@ namespace DemoDisc.menu {
         /// <summary>Gets the borrowed scroll component supplying bounds and offset.</summary>
         public ScrollComponent ItemsScrollComponent { get; }
 
-        /// <summary>Gets the owned records for the visible, available rows.</summary>
+        /// <summary>Gets the owned records for every authored row in the panel's original order.</summary>
         public MenuItemRuntime[] Items { get { return ItemsValue; } }
 
-        /// <summary>Gets or sets the selected row index in the filtered visible row order.</summary>
+        /// <summary>Gets or sets the selected row index in the complete authored row order.</summary>
         public int SelectedItemIndex { get; set; }
 
         /// <summary>

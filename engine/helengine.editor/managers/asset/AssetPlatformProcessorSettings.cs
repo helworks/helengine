@@ -45,6 +45,12 @@ namespace helengine.editor {
             }
         }
 
+        /// <summary>Gets or sets optional GPU-only limits; the base model processor never consumes this section.</summary>
+        public ModelGpuReductionSettings GpuModelReduction {
+            get { return AssetPlatformSettingsSectionRegistry.Shared.GetOrCreateSection<ModelGpuReductionSettings>(this, ModelGpuReductionSectionDefinition.SectionIdValue); }
+            set { AssetPlatformSettingsSectionRegistry.Shared.SetSection(this, ModelGpuReductionSectionDefinition.SectionIdValue, value ?? throw new ArgumentNullException(nameof(value))); }
+        }
+
         /// <summary>
         /// Gets or sets the processor settings that affect material asset authoring on this platform.
         /// </summary>

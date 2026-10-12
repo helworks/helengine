@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+    <PublisherRoot>C:/dev/helworks/builds/helengine-n64/menu-20261007/indexed-textures/editor</PublisherRoot>
+    <DemoDiscSourceRoot>C:/dev/helprojs/demodisc/assets/codebase</DemoDiscSourceRoot>
+    <MenuVariant Condition="'$(MenuVariant)' == ''">availability</MenuVariant>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="helengine" />
+    <Using Include="DemoDisc.menu" />
+    <Using Include="System.Reflection" />
+    <Using Include="Xunit" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <Reference Include="helengine.core"><HintPath>$(PublisherRoot)/helengine.core.dll</HintPath></Reference>
+    <Reference Include="helengine.physics"><HintPath>$(PublisherRoot)/helengine.physics.dll</HintPath></Reference>
+    <Reference Include="helengine.shader"><HintPath>$(PublisherRoot)/helengine.shader.dll</HintPath></Reference>
+    <Reference Include="helengine.nativeownership"><HintPath>$(PublisherRoot)/helengine.nativeownership.dll</HintPath></Reference>
+    <Compile Include="MenuContractFixture.cs;MenuContractTests.cs;TestAssembly.cs" />
+    <Compile Include="MenuItemRuntime.cs;MenuPanelRuntime.cs" />
+    <Compile Include="MenuComponent.cs" Condition="'$(MenuVariant)' == 'availability'" />
+    <Compile Include="../title-layout/MenuComponent.cs;../title-layout/DemoDiscTitleLayout.cs;MenuTitlePreparedTests.cs" Condition="'$(MenuVariant)' == 'title'" />
+    <Compile Include="$(DemoDiscSourceRoot)/menu/MenuPanelComponent.cs;$(DemoDiscSourceRoot)/menu/MenuItemComponent.cs;$(DemoDiscSourceRoot)/menu/MenuActionKind.cs;$(DemoDiscSourceRoot)/menu/DemoMenuLayout.cs;$(DemoDiscSourceRoot)/menu/DemoDiscGamepadInput.cs;$(DemoDiscSourceRoot)/menu/StartupInputGate.cs" />
+    <Compile Include="$(DemoDiscSourceRoot)/menu.authoring/*.cs" Exclude="$(DemoDiscSourceRoot)/menu.authoring/MenuHostItemRuntime.cs;$(DemoDiscSourceRoot)/menu.authoring/MenuHostPanelRuntime.cs;$(DemoDiscSourceRoot)/menu.authoring/MenuDefinitionProviderResolver.cs" />
+  </ItemGroup>
+</Project>

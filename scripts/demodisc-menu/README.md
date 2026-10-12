@@ -6,11 +6,13 @@ The original DemoDisc project remains unchanged. These files are source template
 and validation tools; compiled games, generated C++, emulator profiles and build
 history are kept in the workspace build directories.
 
-`availability` contains the reviewed runtime navigation sources that hide demos
-whose scenes are absent from the native package. `title-layout` contains the final
+`availability` contains the runtime navigation sources that preserve every authored
+panel and item, even when a target scene is absent from the native package. The
+generator and runtime produce the same menu for every platform. `title-layout` contains the final
 menu hook and heading layout. The two headings share one reducing font/effect
 ratio, align using visible glyph widths, and end at the same painted right margin.
-The layout preserves button styles and borrows entity-owned text components.
+The layout preserves button styles and borrows entity-owned text components. Scene
+preparation binds all rows and fits the headings before the menu becomes visible.
 
 The source manifests retain the accepted original and earlier staging hashes so
 the preparer can reject unexpected edits before writing any source. They describe
@@ -24,7 +26,8 @@ powershell -NoProfile -File .\scripts\demodisc-menu\restore-tools.ps1
 
 Then run the existing platform build scripts. Their preparation step invokes
 `prepare-staged-menu.ps1 -Platform <platform> -StagedProjectRoot <stage>` before
-code generation. The script accepts all seven platforms and is idempotent.
+code generation. The script accepts the supported console and Windows staging paths
+and is idempotent.
 
 `run-tests.ps1` runs 22 regressions against the real engine and the built DemoDisc
 managed module. It requires the editor and module dependencies from the current
@@ -33,6 +36,13 @@ visible bounds, shared font scale, native origin rounding, viewport resizing,
 effect proportions, unchanged buttons, borrowed component lifetime and zero
 managed allocations per menu update. `test-combined-preparation.ps1` verifies
 accepted source states, idempotence and rejection before writes.
+
+`availability/MenuAvailabilityContractTests.csproj` adds 13 checks against the real
+menu definition and runtime sources. They verify all seven panels and 34 rows with
+full, empty, Cube-only and unrestricted catalogs, preserving authored positions,
+navigation, scrolling, scene preparation and the Cube transition. The fixed test
+receipt and reproducible command are stored in
+`builds/helengine-n64/menu-20261007/loading-policy-tests/menu-contract/test-receipt.json`.
 
 PlayStation 1 font-size compensation is maintained in that platform repository's
 `scripts/normalize-staged-font-size.ps1`. Its emulator launcher also requires

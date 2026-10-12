@@ -26,11 +26,13 @@ namespace helengine.baseplatform.Definitions {
             RuntimeMaterialResolutionMode materialResolutionMode,
             bool supportsRenderManager2DTextureReleaseFlush,
             PackagedPathPolicy packagedPathPolicy,
-            IReadOnlyList<string> portableInputPreprocessorSymbols = null) {
+            IReadOnlyList<string> portableInputPreprocessorSymbols = null,
+            bool supportsSceneCodeModules = false) {
             MaterialResolutionMode = materialResolutionMode;
             SupportsRenderManager2DTextureReleaseFlush = supportsRenderManager2DTextureReleaseFlush;
             PackagedPathPolicy = packagedPathPolicy;
             PortableInputPreprocessorSymbols = portableInputPreprocessorSymbols ?? [];
+            SupportsSceneCodeModules = supportsSceneCodeModules;
         }
 
         /// <summary>
@@ -52,5 +54,8 @@ namespace helengine.baseplatform.Definitions {
         /// Gets the additional portable-input preprocessor symbols that select helengine-owned generated-core source branches.
         /// </summary>
         public IReadOnlyList<string> PortableInputPreprocessorSymbols { get; }
+
+        /// <summary>Gets whether the platform can consume generated per-scene native code partitions rather than a single resident gameplay image.</summary>
+        public bool SupportsSceneCodeModules { get; }
     }
 }

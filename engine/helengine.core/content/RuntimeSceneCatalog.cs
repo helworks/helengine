@@ -18,8 +18,8 @@ namespace helengine {
         /// <summary>
         /// Initializes one runtime scene catalog.
         /// </summary>
-        /// <param name="entries">Built runtime scene entries.</param>
-        public RuntimeSceneCatalog(RuntimeSceneCatalogEntry[] entries) {
+        /// <param name="entries">Borrowed built runtime scene entries copied into catalog-owned immutable entries.</param>
+        public RuntimeSceneCatalog([NativeNoEscape] RuntimeSceneCatalogEntry[] entries) {
             if (entries == null) {
                 throw new ArgumentNullException(nameof(entries));
             }
@@ -35,8 +35,8 @@ namespace helengine {
                     throw new InvalidOperationException($"Runtime scene catalog contains duplicate scene id '{entry.SceneId}'.");
                 }
 
-                copiedEntries[index] = entry;
-                entriesBySceneId.Add(entry.SceneId, entry);
+                copiedEntries[index] = new RuntimeSceneCatalogEntry(entry.SceneId, entry.CookedRelativePath, entry.RequiredCodeModuleIds);
+                entriesBySceneId.Add(entry.SceneId, copiedEntries[index]);
             }
 
             EntriesValue = copiedEntries;
@@ -63,11 +63,17 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Releases the array and dictionary containers owned by this immutable runtime catalog.
+        /// Releases catalog-owned entries and their dependency arrays after every core borrowing this catalog has been disposed.
         /// </summary>
         public void Dispose() {
-            NativeOwnership.Release(ref EntriesValue);
             NativeOwnership.Release(ref EntriesBySceneId);
+            if (EntriesValue != null) {
+                for (int index = 0; index < EntriesValue.Length; index++) {
+                    EntriesValue[index].Dispose();
+                    NativeOwnership.Delete(EntriesValue[index]);
+                }
+            }
+            NativeOwnership.Release(ref EntriesValue);
         }
     }
 }

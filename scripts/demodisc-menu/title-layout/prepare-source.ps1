@@ -1,8 +1,9 @@
 $ErrorActionPreference='Stop'
 $root=$PSScriptRoot
 $baseline='C:/dev/helworks/builds/helengine-n64/menu-20261007/menu-availability-hidden/MenuComponent.cs'
-$expected='c7a28b38c136ae9e83d0393a07078ac3204a4f3b1b47f59924a928741050a6ad'
-if((Get-FileHash -LiteralPath $baseline).Hash.ToLowerInvariant() -ne $expected){throw 'The reviewed HIDE menu baseline changed.'}
+$receipt=Get-Content -LiteralPath (Join-Path $root 'source-patch-receipt.json') -Raw | ConvertFrom-Json
+$expected=$receipt.menuBaselineSha256
+if((Get-FileHash -LiteralPath $baseline).Hash.ToLowerInvariant() -ne $expected){throw 'The reviewed complete menu baseline changed.'}
 $code=[IO.File]::ReadAllText($baseline).Replace("`r`n","`n")
 $constructor='        public MenuComponent() {'
 $fields=@'
@@ -30,6 +31,12 @@ $code=$code.Replace($update,@'
 
             if (StartupInputGate.IsBlocked) {
 '@)
+$prepared='            base.ScenePrepared(entity);'
+if([regex]::Matches($code,[regex]::Escape($prepared)).Count -ne 1){throw 'Unexpected menu scene preparation count.'}
+$preparedEnd='The prepared menu requires its complete authored hierarchy.'
+$preparedBlock="                throw new InvalidOperationException(`"$preparedEnd`");`n            }"
+if([regex]::Matches($code,[regex]::Escape($preparedBlock)).Count -ne 1){throw 'Unexpected prepared menu hierarchy guard.'}
+$code=$code.Replace($preparedBlock,$preparedBlock+"`n            DemoDiscTitleLayout.FitPair(FittedHelengineTitle, FittedDemoDiscTitle);")
 $bind="            ActivatePanel(InitialPanelIdValue, false);`n            IsInitialized = true;"
 if([regex]::Matches($code,[regex]::Escape($bind)).Count -ne 1){throw 'Unexpected menu initialization count.'}
 $code=$code.Replace($bind,@'
@@ -45,5 +52,7 @@ foreach($signature in @('        public override void ComponentRemoved(Entity en
 $menu=Join-Path $root 'MenuComponent.cs'
 [IO.File]::WriteAllText($menu,$code,[Text.UTF8Encoding]::new($false))
 $helper=Join-Path $root 'DemoDiscTitleLayout.cs'
-[ordered]@{policy='fit-and-align-two-painted-right-edges-one-pixel-inside-overlay';platforms=@('dc','ps1','n64','ps3','x360','xbox','windows');menuBaseline=$baseline;menuBaselineSha256=$expected;menuPatchedSha256=(Get-FileHash $menu).Hash.ToLowerInvariant();acceptedPreviousMenuSha256=@('c0810919c6d3e380a37923f6067b2ec9bfe727c0f132423b23c505654718b7d8');helperSha256=(Get-FileHash $helper).Hash.ToLowerInvariant();acceptedPreviousHelperSha256=@('2fda5f183d0bd7070d414837591d41b49970e08ac94e0838e6356b2c559e9b4c','abd3d7444dc953c107978dc2c9548884cfe0809d91a514d77722bffa7f3f7fc3');acceptedXboxMenuSha256='bb1dae3d7d7aa5fc9bb154789e1ce5ab80141b6381ff622334e111cc1d106168';obsoleteXboxHelperSha256='1062b1112ab475ab420ed4f7ad1427bd66f451d4330ed2d7f6968fdd1b9f7d76';paintedRightContract='shared-overlay-right-minus-one-framebuffer-pixel';nativeOriginRoundingTolerancePixels=0.5;commonHeadingReducingRatio=$true;generatedFilesModified=$false;originalProjectModified=$false} | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $root 'source-patch-receipt.json')
-Write-Output 'Prepared reviewed HIDE menu title overlay in the fixed common directory.'
+$receipt.menuPatchedSha256=(Get-FileHash $menu).Hash.ToLowerInvariant()
+$receipt.helperSha256=(Get-FileHash $helper).Hash.ToLowerInvariant()
+$receipt | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $root 'source-patch-receipt.json')
+Write-Output 'Prepared the complete authored menu with scene-ready fitted titles.'

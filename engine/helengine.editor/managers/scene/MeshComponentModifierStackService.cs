@@ -106,8 +106,19 @@ namespace helengine.editor {
                 if (modifier == null) {
                     throw new InvalidOperationException("Modifier stacks cannot contain null entries.");
                 }
+                if (string.Equals(modifier.Kind, MeshComponentModifier.ReduceKind, StringComparison.Ordinal)) {
+                    new ModelGpuReductionProfile {
+                        Reduction = new ModelGpuReductionSettings { Enabled = modifier.ReductionEnabled, MaximumVertices = modifier.MaximumVertices, MaximumIndices = modifier.MaximumIndices },
+                        SphereRings = modifier.SphereRings, SphereSectors = modifier.SphereSectors
+                    }.Validate();
+                }
 
                 overrideState.SetMemberValue(BuildMemberName(index, "Kind"), modifier.Kind);
+                overrideState.SetMemberValue(BuildMemberName(index, "ReductionEnabled"), modifier.ReductionEnabled.ToString(CultureInfo.InvariantCulture));
+                overrideState.SetMemberValue(BuildMemberName(index, "MaximumVertices"), modifier.MaximumVertices.ToString(CultureInfo.InvariantCulture));
+                overrideState.SetMemberValue(BuildMemberName(index, "MaximumIndices"), modifier.MaximumIndices.ToString(CultureInfo.InvariantCulture));
+                overrideState.SetMemberValue(BuildMemberName(index, "SphereRings"), modifier.SphereRings.ToString(CultureInfo.InvariantCulture));
+                overrideState.SetMemberValue(BuildMemberName(index, "SphereSectors"), modifier.SphereSectors.ToString(CultureInfo.InvariantCulture));
                 overrideState.SetMemberValue(BuildMemberName(index, "MaxEdgeLength"), modifier.MaxEdgeLength.ToString("R", CultureInfo.InvariantCulture));
                 overrideState.SetMemberValue(BuildMemberName(index, "AtCookTime"), modifier.AtCookTime.ToString(CultureInfo.InvariantCulture));
                 overrideState.SetMemberValue(BuildMemberName(index, "Preview"), modifier.Preview.ToString(CultureInfo.InvariantCulture));
@@ -170,6 +181,11 @@ namespace helengine.editor {
                 }
 
                 MeshComponentModifier modifier = new MeshComponentModifier(kind);
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "ReductionEnabled"), out string reductionEnabled)) modifier.ReductionEnabled = bool.Parse(reductionEnabled);
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "MaximumVertices"), out string maximumVertices)) modifier.MaximumVertices = int.Parse(maximumVertices, NumberStyles.None, CultureInfo.InvariantCulture);
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "MaximumIndices"), out string maximumIndices)) modifier.MaximumIndices = int.Parse(maximumIndices, NumberStyles.None, CultureInfo.InvariantCulture);
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "SphereRings"), out string sphereRings)) modifier.SphereRings = int.Parse(sphereRings, NumberStyles.None, CultureInfo.InvariantCulture);
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "SphereSectors"), out string sphereSectors)) modifier.SphereSectors = int.Parse(sphereSectors, NumberStyles.None, CultureInfo.InvariantCulture);
                 if (overrideState.TryGetMemberValue(BuildMemberName(index, "MaxEdgeLength"), out string maxEdgeLengthText)) {
                     modifier.MaxEdgeLength = double.Parse(maxEdgeLengthText, NumberStyles.Float, CultureInfo.InvariantCulture);
                 }

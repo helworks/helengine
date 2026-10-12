@@ -54,6 +54,15 @@ namespace helengine {
         /// </summary>
         public RuntimeSceneCatalog SceneCatalog { get; set; }
 
+        /// <summary>Gets or sets the native code residency manifest; it must be supplied together with CodeModuleProvider and SceneCatalog.</summary>
+        public RuntimeCodeModuleManifest CodeModuleManifest { get; set; }
+
+        /// <summary>Gets or sets the resident platform adapter that loads native code; a null manifest/provider pair preserves monolithic registration.</summary>
+        public IRuntimeCodeModuleProvider CodeModuleProvider { get; set; }
+
+        /// <summary>Gets or sets optional asynchronous asset prefetching used before synchronous scene readers; unconfigured platforms preserve direct content reads.</summary>
+        public IRuntimeSceneContentProvider SceneContentProvider { get; set; }
+
         /// <summary>
         /// Gets or sets the cooperative scene-transition budget in milliseconds per frame, including preparation before publication.
         /// Must be finite and positive. A synchronous read, asset upload or lifecycle callback is indivisible and can exceed this budget.
@@ -95,6 +104,12 @@ namespace helengine {
         /// Validates option values for initialization.
         /// </summary>
         public void Normalize() {
+            if ((CodeModuleManifest == null) != (CodeModuleProvider == null)) {
+                throw new InvalidOperationException("CodeModuleManifest and CodeModuleProvider must be configured together.");
+            }
+            if ((CodeModuleProvider != null || SceneContentProvider != null) && SceneCatalog == null) {
+                throw new InvalidOperationException("Native scene code or content loading requires an exact runtime scene catalog.");
+            }
             if (double.IsNaN(SceneLoadingBudgetMilliseconds) || double.IsInfinity(SceneLoadingBudgetMilliseconds)
                 || SceneLoadingBudgetMilliseconds <= 0d) {
                 throw new InvalidOperationException("SceneLoadingBudgetMilliseconds must be finite and greater than zero.");

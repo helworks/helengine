@@ -21,6 +21,7 @@ namespace helengine.editor {
             RegisterDefinition(new TextureAssetPlatformSettingsSectionDefinition());
             RegisterDefinition(new FontAtlasTextureAssetPlatformSettingsSectionDefinition());
             RegisterDefinition(new ModelAssetPlatformSettingsSectionDefinition());
+            RegisterDefinition(new ModelGpuReductionSectionDefinition());
             RegisterDefinition(new MaterialAssetPlatformSettingsSectionDefinition());
             RegisterDefinition(new FontAssetPlatformSettingsSectionDefinition());
             RegisterDefinition(new AudioAssetPlatformSettingsSectionDefinition());

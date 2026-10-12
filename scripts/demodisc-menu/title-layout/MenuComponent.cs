@@ -19,18 +19,6 @@ namespace DemoDisc.menu {
         const short GamepadStickNavigationThreshold = 16384;
 
         /// <summary>
-        /// Owns the container of borrowed row entities whose layout predates catalog filtering.
-        /// </summary>
-        [NativeOwnedMember]
-        List<Entity> OriginalItemEntities;
-
-        /// <summary>
-        /// Owns local row positions used to restore authored spacing before a subsequent binding pass.
-        /// </summary>
-        [NativeOwnedMember]
-        List<float3> OriginalItemPositions;
-
-        /// <summary>
         /// Baked panels keyed by stable panel id.
         /// </summary>
         readonly Dictionary<string, MenuPanelRuntime> PanelsById;
@@ -85,9 +73,6 @@ namespace DemoDisc.menu {
         public MenuComponent() {
             FittedHelengineTitle = null;
             FittedDemoDiscTitle = null;
-            OriginalItemEntities = new List<Entity>();
-            OriginalItemPositions = new List<float3>();
-            NativeOwnership.DetachOwned(OriginalItemEntities);
             PanelsById = new Dictionary<string, MenuPanelRuntime>(StringComparer.Ordinal);
             PanelRuntimes = new List<MenuPanelRuntime>();
             PanelHistory = new List<string>();
@@ -159,7 +144,6 @@ namespace DemoDisc.menu {
         public override void ComponentRemoved(Entity entity) {
             FittedHelengineTitle = null;
             FittedDemoDiscTitle = null;
-            RestoreItemLayout();
             ReleasePanelRuntimes(true);
             PanelsById.Clear();
             PanelRuntimes.Clear();
@@ -179,9 +163,6 @@ namespace DemoDisc.menu {
             FittedHelengineTitle = null;
             FittedDemoDiscTitle = null;
             ReleasePanelRuntimes(false);
-            NativeOwnership.DetachOwned(OriginalItemEntities);
-            NativeOwnership.Release(ref OriginalItemEntities);
-            NativeOwnership.Release(ref OriginalItemPositions);
             PanelsById.Clear();
             PanelRuntimes.Clear();
             PanelHistory.Clear();
@@ -191,6 +172,21 @@ namespace DemoDisc.menu {
             SelectedItemIdValue = string.Empty;
             IsInitialized = false;
             base.Dispose();
+        }
+
+        /// <summary>
+        /// Binds the complete menu hierarchy before publication without running keyboard, pointer or gamepad input.
+        /// </summary>
+        /// <param name="entity">Menu owner whose viewport and authored child references have finished preparation.</param>
+        public override void ScenePrepared(Entity entity) {
+            base.ScenePrepared(entity);
+            if (!IsInitialized) {
+                TryInitialize();
+            }
+            if (!IsInitialized) {
+                throw new InvalidOperationException("The prepared menu requires its complete authored hierarchy.");
+            }
+            DemoDiscTitleLayout.FitPair(FittedHelengineTitle, FittedDemoDiscTitle);
         }
 
         /// <summary>
@@ -248,7 +244,6 @@ namespace DemoDisc.menu {
         /// </summary>
         /// <param name="rootEntity">Owning menu root entity.</param>
         void BindPanels(Entity rootEntity) {
-            RestoreItemLayout();
             ReleasePanelRuntimes(true);
             PanelsById.Clear();
             PanelRuntimes.Clear();
@@ -289,7 +284,7 @@ namespace DemoDisc.menu {
         }
 
         /// <summary>
-        /// Binds the baked item metadata records contained by one panel root.
+        /// Binds every authored item in hierarchy order without changing row visibility or positions.
         /// </summary>
         /// <param name="panelEntity">Panel root whose baked items should be bound.</param>
         /// <param name="panelId">Stable panel id expected for every bound item.</param>
@@ -298,9 +293,7 @@ namespace DemoDisc.menu {
         MenuItemRuntime[] BindItems(Entity panelEntity, string panelId) {
             List<Entity> itemEntities = new List<Entity>();
             CollectEntitiesWithComponent<MenuItemComponent>(panelEntity, itemEntities);
-            List<MenuItemRuntime> availableItems = new List<MenuItemRuntime>();
-            float itemStep = itemEntities.Count > 0 ? ResolveItemsScrollStep(itemEntities[0].Parent) : 0f;
-            float firstItemY = itemEntities.Count > 0 ? itemEntities[0].LocalPosition.Y : 0f;
+            MenuItemRuntime[] itemRuntimes = new MenuItemRuntime[itemEntities.Count];
             for (int itemIndex = 0; itemIndex < itemEntities.Count; itemIndex++) {
                 Entity itemEntity = itemEntities[itemIndex];
                 MenuItemComponent itemComponent = FindRequiredComponent<MenuItemComponent>(itemEntity);
@@ -308,22 +301,10 @@ namespace DemoDisc.menu {
                     throw new InvalidOperationException($"Baked menu item '{itemComponent.ItemId}' does not match panel '{panelId}'.");
                 }
 
-                RememberItemLayout(itemEntity);
-                if (!IsItemAvailable(itemComponent)) {
-                    itemEntity.Enabled = false;
-                    continue;
-                }
-
-                itemEntity.Enabled = true;
-                itemEntity.LocalPosition = new float3(itemEntity.LocalPosition.X,
-                    firstItemY + availableItems.Count * itemStep, itemEntity.LocalPosition.Z);
                 RoundedRectComponent backgroundComponent = FindRequiredComponent<RoundedRectComponent>(itemEntity);
-                availableItems.Add(new MenuItemRuntime(itemComponent, availableItems.Count, itemEntity, backgroundComponent));
+                itemRuntimes[itemIndex] = new MenuItemRuntime(itemComponent, itemIndex, itemEntity, backgroundComponent);
             }
 
-            MenuItemRuntime[] itemRuntimes = availableItems.ToArray();
-            NativeOwnership.DetachOwned(availableItems);
-            NativeOwnership.Release(ref availableItems);
             NativeOwnership.DetachOwned(itemEntities);
             NativeOwnership.Release(ref itemEntities);
             if (itemRuntimes.Length == 0) {
@@ -331,60 +312,6 @@ namespace DemoDisc.menu {
             }
 
             return itemRuntimes;
-        }
-
-        /// <summary>
-        /// Checks scene actions against this attached menu's owning core catalog, preserving editor authoring.
-        /// </summary>
-        /// <param name="itemComponent">Baked action whose resolved runtime scene must be packaged.</param>
-        /// <returns>True for non-scene actions, editor rows, unrestricted catalogs, or packaged scenes.</returns>
-        bool IsItemAvailable(MenuItemComponent itemComponent) {
-            if (OwnerCore == null) {
-                throw new InvalidOperationException("Menu availability requires an attached owning core.");
-            }
-            if (itemComponent.ActionKind != MenuActionKind.LoadScene
-                || ComponentExecutionContext.CurrentMode == ComponentExecutionMode.Editor) {
-                return true;
-            }
-            CoreInitializationOptions options = OwnerCore.InitializationOptions;
-            RuntimeSceneCatalog catalog = options != null ? options.SceneCatalog : null;
-            if (catalog == null) {
-                return true;
-            }
-            string sceneId = SceneMapComponent.ResolveSceneId(itemComponent.TargetId);
-            if (string.IsNullOrWhiteSpace(sceneId)) {
-                return false;
-            }
-            for (int index = 0; index < catalog.Entries.Length; index++) {
-                if (string.Equals(catalog.Entries[index].SceneId, sceneId, StringComparison.OrdinalIgnoreCase)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// Saves each borrowed row and its current viewport-scaled local position exactly once before reflow.
-        /// </summary>
-        /// <param name="itemEntity">Authored row whose unfiltered layout should survive rebinding.</param>
-        void RememberItemLayout(Entity itemEntity) {
-            for (int index = 0; index < OriginalItemEntities.Count; index++) {
-                if (OriginalItemEntities[index] == itemEntity) { return; }
-            }
-            OriginalItemEntities.Add(itemEntity);
-            OriginalItemPositions.Add(itemEntity.LocalPosition);
-            NativeOwnership.DetachOwned(OriginalItemEntities);
-        }
-
-        /// <summary>
-        /// Restores live row visibility and spacing before rebinding or before parent detachment destroys children.
-        /// </summary>
-        void RestoreItemLayout() {
-            for (int index = 0; index < OriginalItemEntities.Count; index++) {
-                Entity itemEntity = OriginalItemEntities[index];
-                itemEntity.LocalPosition = OriginalItemPositions[index];
-                itemEntity.Enabled = true;
-            }
         }
 
         /// <summary>
@@ -447,7 +374,7 @@ namespace DemoDisc.menu {
         /// Applies the selected-state visuals and description text for one baked item.
         /// </summary>
         /// <param name="panelRuntime">Panel that owns the item.</param>
-        /// <param name="itemIndex">Enabled-item index to select.</param>
+        /// <param name="itemIndex">Authored item index to select.</param>
         void SetSelection(MenuPanelRuntime panelRuntime, int itemIndex) {
             if (panelRuntime == null) {
                 throw new ArgumentNullException(nameof(panelRuntime));
@@ -941,7 +868,7 @@ namespace DemoDisc.menu {
         /// Ensures the selected menu row remains inside the currently visible scroll window.
         /// </summary>
         /// <param name="panelRuntime">Panel that owns the selected row.</param>
-        /// <param name="selectedItemIndex">Selected enabled-item index.</param>
+        /// <param name="selectedItemIndex">Selected authored item index.</param>
         void EnsureSelectedItemVisible(MenuPanelRuntime panelRuntime, int selectedItemIndex) {
             if (panelRuntime == null) {
                 throw new ArgumentNullException(nameof(panelRuntime));
@@ -1003,16 +930,16 @@ namespace DemoDisc.menu {
                 return DemoMenuLayout.ButtonHeight + DemoMenuLayout.ButtonSpacing;
             }
 
-            Entity firstEnabledItem = null;
+            Entity firstItem = null;
             for (int index = 0; index < itemsRootEntity.Children.Count; index++) {
                 Entity child = itemsRootEntity.Children[index];
-                if (!child.Enabled || FindFirstComponent<MenuItemComponent>(child) == null) {
+                if (FindFirstComponent<MenuItemComponent>(child) == null) {
                     continue;
                 }
-                if (firstEnabledItem == null) {
-                    firstEnabledItem = child;
+                if (firstItem == null) {
+                    firstItem = child;
                 } else {
-                    float step = child.LocalPosition.Y - firstEnabledItem.LocalPosition.Y;
+                    float step = child.LocalPosition.Y - firstItem.LocalPosition.Y;
                     if (step > 0f) {
                         return step;
                     }

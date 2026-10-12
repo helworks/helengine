@@ -17,6 +17,10 @@ foreach ($Mapping in @(
 )) {
     $null = New-Item -ItemType Directory -Path $Mapping.Target -Force
     foreach ($File in Get-ChildItem -LiteralPath $Mapping.Source -File) {
+        if ([IO.Path]::GetFileName($Mapping.Source) -eq 'availability' -and
+            $File.Name -notin @('MenuComponent.cs','MenuItemRuntime.cs','MenuPanelRuntime.cs','source-patch-receipt.json')) {
+            continue
+        }
         $Target = Join-Path $Mapping.Target $File.Name
         Copy-Item -LiteralPath $File.FullName -Destination $Target -Force
         if ((Get-FileHash -LiteralPath $File.FullName).Hash -ne (Get-FileHash -LiteralPath $Target).Hash) {

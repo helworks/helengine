@@ -8,6 +8,33 @@ namespace helengine.editor.tests.managers.project {
     /// </summary>
     public sealed class ScriptComponentPlayerDeserializerGeneratorTests {
         /// <summary>
+        /// Checks the manual AmbientLight factory against the native interface's borrowed string getter and preserves its official output for standalone compilation.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializer_WhenAmbientLightSchema_ReturnsStableComponentTypeReference() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(AmbientLightComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator(true, false);
+            string className = generator.BuildNativeDeserializerClassName(schema);
+            string header = generator.GenerateNativeDeserializerHeader(schema);
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("const HeCppString& get_ComponentTypeId() override;", header, StringComparison.Ordinal);
+            Assert.Contains("static HeCppString ComponentType;", header, StringComparison.Ordinal);
+            Assert.Contains("const HeCppString& " + className + "::get_ComponentTypeId()", source, StringComparison.Ordinal);
+            Assert.Contains("return ComponentType;", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("HeCppString get_ComponentTypeId()", header, StringComparison.Ordinal);
+
+            string root = Environment.GetEnvironmentVariable("HELENGINE_DESERIALIZER_INTERFACE_TEST_ROOT");
+            if (string.IsNullOrWhiteSpace(root)) {
+                return;
+            }
+            string generatedRoot = Path.Combine(root, "generated");
+            Directory.CreateDirectory(generatedRoot);
+            File.WriteAllText(Path.Combine(generatedRoot, className + ".hpp"), header);
+            File.WriteAllText(Path.Combine(generatedRoot, className + ".cpp"), source);
+        }
+
+        /// <summary>
         /// Ensures supported reflected member schemas emit ordinal reader source without editor tagged-field lookup.
         /// </summary>
         [Fact]

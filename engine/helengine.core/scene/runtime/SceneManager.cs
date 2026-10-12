@@ -122,6 +122,15 @@ namespace helengine {
         /// <summary>Remembers the presentation-only arm boundary so the loading screen draws once before synchronous content IO.</summary>
         bool TransitionPresentationArmed;
 
+        /// <summary>Owned pending code acquisition, advanced before any component payload is deserialized.</summary>
+        [NativeOwnedMember] SceneModuleLoadOperation TransitionModuleOperation;
+        /// <summary>Records completion of code preparation for the current transition.</summary>
+        bool TransitionModulesReady;
+        /// <summary>Records completion of asynchronous content preloading for the current transition.</summary>
+        bool TransitionContentReady;
+        /// <summary>Owns pending content preloads and completed cache leases until scene unload, including dependencies reopened by live components.</summary>
+        [NativeOwnedMember] Dictionary<string, IRuntimeSceneContentLoadOperation> ContentLeases;
+
         /// <summary>Owns the monotonic clock used to account for resumable scene preparation.</summary>
         [NativeOwnedMember]
         RuntimeSceneLoadingClock SceneLoadingClock = new RuntimeSceneLoadingClock();
@@ -183,6 +192,7 @@ namespace helengine {
             LoadedSceneRecords = new List<LoadedSceneRecord>();
             LoadedSceneRecordsById = new Dictionary<string, LoadedSceneRecord>(StringComparer.OrdinalIgnoreCase);
             PendingOperations = new List<PendingSceneOperation>();
+            ContentLeases = new Dictionary<string, IRuntimeSceneContentLoadOperation>(StringComparer.OrdinalIgnoreCase);
             OwnedTextureTable = new SceneOwnedAssetReferenceTable<RuntimeTexture>("runtime texture", ReleaseOwnedAsset);
             OwnedFontTable = new SceneOwnedAssetReferenceTable<FontAsset>("font asset", ReleaseOwnedFont);
             OwnedAudioTable = new SceneOwnedAssetReferenceTable<AudioAsset>("audio asset", ReleaseOwnedAudioAsset);
@@ -220,6 +230,9 @@ namespace helengine {
         /// Gets whether an engine-owned single-scene transition is active.
         /// </summary>
         public bool IsSceneTransitionActive => IsSceneTransitionActiveValue;
+
+        /// <summary>Gets whether direct scene load or unload requests await a frame boundary, allowing native hosts to fence GPU resources only before scene mutation.</summary>
+        public bool HasPendingSceneOperations => PendingOperations.Count != 0;
 
         /// <summary>
         /// Gets the stable identifier of the target scene requested through the transition path.
@@ -492,6 +505,19 @@ namespace helengine {
         /// <param name="sceneId">Stable scene identifier to load.</param>
         /// <param name="loadMode">Runtime load behavior to apply.</param>
         void LoadSceneImmediate(string sceneId, SceneLoadMode loadMode) {
+            bool succeeded = false;
+            try {
+                LoadPreparedSceneImmediate(sceneId, loadMode);
+                succeeded = true;
+            } finally {
+                if (!succeeded && !LoadedSceneRecordsById.ContainsKey(sceneId)) { ReleaseScenePreparation(sceneId); }
+            }
+        }
+
+        /// <summary>Loads a scene synchronously only when optional native preparations can complete immediately.</summary>
+        /// <param name="sceneId">Stable scene identity.</param>
+        /// <param name="loadMode">Single or additive lifetime behavior.</param>
+        void LoadPreparedSceneImmediate(string sceneId, SceneLoadMode loadMode) {
             RecordTraceState("LoadSceneImmediateBegin", sceneId);
             RecordTraceState("LoadSceneImmediateBeforeResolveSceneContentPath", sceneId);
             string sceneContentPath = ResolveSceneContentPath(sceneId);
@@ -523,6 +549,7 @@ namespace helengine {
             } finally {
                 NativeOwnership.Delete(sceneLoadingEventArgs);
             }
+            PrepareSceneSynchronously(sceneId);
             RecordTraceState("LoadSceneImmediateBeforeContentLoad", sceneId);
             SceneAsset sceneAsset = ContentManager.Load<SceneAsset>(sceneContentPath, RuntimeContentProcessorIds.SceneAsset);
             try {
@@ -576,6 +603,22 @@ namespace helengine {
         /// Advances the active engine-owned scene transition by its next observable loading stage.
         /// </summary>
         void AdvanceSceneTransition() {
+            bool succeeded = false;
+            try {
+                AdvancePreparedSceneTransition();
+                succeeded = true;
+            } finally {
+                if (!succeeded) {
+                    NativeOwnership.DisposeAndRelease(ref TransitionLoadOperation);
+                    if (TransitionSceneAsset != null) { ReleaseTransientSceneAsset(TransitionSceneAsset); TransitionSceneAsset = null; }
+                    NativeOwnership.DisposeAndRelease(ref TransitionModuleOperation);
+                    if (!LoadedSceneRecordsById.ContainsKey(TransitionTargetSceneIdValue)) { ReleaseScenePreparation(TransitionTargetSceneIdValue); }
+                }
+            }
+        }
+
+        /// <summary>Advances code, asynchronous content and entity preparation at separate observable frame boundaries.</summary>
+        void AdvancePreparedSceneTransition() {
             if (TransitionLoadOperation == null && !TransitionPresentationArmed) {
                 TransitionSceneContentPath = ResolveSceneContentPath(TransitionTargetSceneIdValue);
                 UnloadScenesForSingleLoad();
@@ -589,7 +632,35 @@ namespace helengine {
                 }
 
                 TransitionPresentationArmed = true;
+                TransitionModulesReady = OwnerCore.SceneModuleManager == null;
+                TransitionContentReady = OwnerCore.InitializationOptions.SceneContentProvider == null;
                 SceneTransitionProgressValue = 0.1f;
+                return;
+            }
+
+            if (!TransitionModulesReady) {
+                if (TransitionModuleOperation == null) {
+                    NativeOwnership.Release(ref TransitionModuleOperation);
+                    TransitionModuleOperation = OwnerCore.SceneModuleManager.BeginAcquireScene(TransitionTargetSceneIdValue);
+                }
+                TransitionModuleOperation.AdvanceForBudget(SceneLoadingBudgetMilliseconds, SceneLoadingClock);
+                SceneTransitionProgressValue = 0.1f + (0.05f * (float)TransitionModuleOperation.Progress);
+                if (TransitionModuleOperation.IsCompleted) {
+                    TransitionModuleOperation.CommitSceneLease();
+                    NativeOwnership.DisposeAndRelease(ref TransitionModuleOperation);
+                    TransitionModulesReady = true;
+                }
+                return;
+            }
+            if (!TransitionContentReady) {
+                if (!ContentLeases.ContainsKey(TransitionTargetSceneIdValue)) {
+                    IRuntimeSceneContentLoadOperation createdContent = BeginContentPreload(TransitionTargetSceneIdValue);
+                    ContentLeases.Add(TransitionTargetSceneIdValue, createdContent);
+                }
+                IRuntimeSceneContentLoadOperation content = ContentLeases[TransitionTargetSceneIdValue];
+                content.Advance();
+                if (content.IsCompleted) { TransitionContentReady = true; }
+                SceneTransitionProgressValue = 0.15f;
                 return;
             }
 
@@ -683,6 +754,7 @@ namespace helengine {
             } finally {
                 NativeOwnership.Delete(sceneUnloadedEventArgs);
             }
+            ReleaseScenePreparation(loadedSceneId);
             RecordTraceState("UnloadSceneImmediateEnd", loadedSceneId);
         }
 
@@ -1225,6 +1297,68 @@ namespace helengine {
         }
 
         /// <summary>Releases manager-owned scheduling resources; scene roots and assets retain their existing explicit unload lifecycle.</summary>
-        public void Dispose() { NativeOwnership.DisposeAndRelease(ref SceneLoadingClock); }
+        public void Dispose() {
+            NativeOwnership.DisposeAndRelease(ref TransitionLoadOperation);
+            NativeOwnership.DisposeAndRelease(ref TransitionModuleOperation);
+            if (SceneLoadingClock != null) {
+                if (TransitionSceneAsset != null) { ReleaseTransientSceneAsset(TransitionSceneAsset); TransitionSceneAsset = null; }
+                if (!LoadedSceneRecordsById.ContainsKey(TransitionTargetSceneIdValue)) { ReleaseScenePreparation(TransitionTargetSceneIdValue); }
+                while (LoadedSceneRecords.Count != 0) { UnloadSceneImmediate(LoadedSceneRecords[LoadedSceneRecords.Count - 1].SceneId); }
+            }
+            NativeOwnership.DisposeAndRelease(ref SceneLoadingClock);
+            NativeOwnership.Release(ref ContentLeases);
+        }
+
+        /// <summary>Acquires optional preparations without waiting for pending platform IO in the synchronous API.</summary>
+        /// <param name="sceneId">Scene whose exact dependency catalog is being acquired.</param>
+        void PrepareSceneSynchronously(string sceneId) {
+            SceneModuleLoadOperation modules = null;
+            IRuntimeSceneContentLoadOperation content = null;
+            try {
+                if (OwnerCore.SceneModuleManager != null) {
+                    modules = OwnerCore.SceneModuleManager.BeginAcquireScene(sceneId);
+                    while (!modules.IsCompleted) {
+                        double before = modules.Progress;
+                        modules.Advance();
+                        if (!modules.IsCompleted && modules.Progress == before) { throw new InvalidOperationException("Pending native code IO requires RequestSceneTransition instead of synchronous LoadScene."); }
+                    }
+                    modules.CommitSceneLease();
+                }
+                if (OwnerCore.InitializationOptions.SceneContentProvider != null) {
+                    content = BeginContentPreload(sceneId);
+                    content.Advance();
+                    if (!content.IsCompleted) { throw new InvalidOperationException("Pending scene content IO requires RequestSceneTransition instead of synchronous LoadScene."); }
+                    ContentLeases.Add(sceneId, content);
+                    content = null;
+                }
+            } finally {
+                NativeOwnership.DisposeAndDelete(modules);
+                NativeOwnership.DisposeAndDelete(content);
+            }
+        }
+
+        /// <summary>Starts exact scene preloading without converting missing content into a fallback stream.</summary>
+        /// <param name="sceneId">Exact packaged scene identity.</param>
+        /// <returns>Owned resident-adapter operation retaining the scene's content cache.</returns>
+        [NativeOwnedReturn]
+        IRuntimeSceneContentLoadOperation BeginContentPreload(string sceneId) {
+            if (SceneCatalog == null || !SceneCatalog.TryGetEntry(sceneId, out RuntimeSceneCatalogEntry entry)) { throw new InvalidOperationException($"Scene '{sceneId}' requires an exact packaged content catalog entry."); }
+            IRuntimeSceneContentLoadOperation operation = OwnerCore.InitializationOptions.SceneContentProvider.BeginPreloadScene(entry);
+            if (operation == null) { throw new InvalidOperationException("Scene content providers must return an owned preload operation."); }
+            return operation;
+        }
+
+        /// <summary>Retires GPU work and retained content before releasing the code implementing scene resources and callbacks.</summary>
+        /// <param name="sceneId">Scene whose objects and unload notifications have completed.</param>
+        void ReleaseScenePreparation(string sceneId) {
+            bool hasContent = ContentLeases != null && ContentLeases.ContainsKey(sceneId);
+            bool hasModules = OwnerCore.SceneModuleManager != null && OwnerCore.SceneModuleManager.HasSceneLease(sceneId);
+            if (hasContent || hasModules) { FlushReleasedAssets(); }
+            if (ContentLeases != null && ContentLeases.TryGetValue(sceneId, out IRuntimeSceneContentLoadOperation content)) {
+                content.Dispose();
+                ContentLeases.Remove(sceneId);
+            }
+            if (OwnerCore.SceneModuleManager != null && OwnerCore.SceneModuleManager.HasSceneLease(sceneId)) { OwnerCore.SceneModuleManager.ReleaseScene(sceneId); }
+        }
     }
 }

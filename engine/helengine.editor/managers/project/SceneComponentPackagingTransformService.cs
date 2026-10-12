@@ -14,6 +14,12 @@ namespace helengine.editor {
     /// Rewrites shared scene component payloads into packaged runtime forms.
     /// </summary>
     public sealed class SceneComponentPackagingTransformService {
+        /// <summary>Records each resolved runtime reference before global asset deduplication for per-scene streaming closure.</summary>
+        readonly Action<string> CookedPathSelectionSink;
+        /// <summary>Uses the owning scene packager's authoritative default-font producer when a typed member selects the generated font.</summary>
+        readonly Func<string, SceneAssetReference> GeneratedEditorFontReferenceRewriter;
+        /// <summary>Tracks effective component references independently for each scene.</summary>
+        internal SceneComponentReferenceSelection ReferenceSelection { get; } = new();
         /// <summary>
         /// Stable serialized component id for mesh components.
         /// </summary>
@@ -334,6 +340,8 @@ namespace helengine.editor {
         /// <param name="shaderDependencySink">Optional callback that records complete material shader dependencies in the owning scene packager.</param>
         /// <param name="overrideScopeResolver">Optional shared override scope resolver; when null an empty group tree with the default level order is used.</param>
         /// <param name="selectedEnvironmentId">Selected environment id that occupies the Build Config level of the packaging target's scope path.</param>
+        /// <param name="cookedPathSelectionSink">Records exact resolved paths needed by the current scene even when their files were deduplicated globally.</param>
+        /// <param name="generatedEditorFontReferenceRewriter">Optional default-font producer shared with the scene table rewrite.</param>
         public SceneComponentPackagingTransformService(
             string assetsRootPath,
             ContentManager projectContentManager,
@@ -352,7 +360,11 @@ namespace helengine.editor {
             Action<PlatformCookedArtifactDeclaration> cookedArtifactDeclarationSink = null,
             Action<PlatformShaderDependency> shaderDependencySink = null,
             EditorOverrideScopeResolver overrideScopeResolver = null,
-            string selectedEnvironmentId = "") {
+            string selectedEnvironmentId = "",
+            Action<string> cookedPathSelectionSink = null,
+            Func<string, SceneAssetReference> generatedEditorFontReferenceRewriter = null) {
+            CookedPathSelectionSink = cookedPathSelectionSink;
+            GeneratedEditorFontReferenceRewriter = generatedEditorFontReferenceRewriter;
             AssetsRootPath = string.IsNullOrWhiteSpace(assetsRootPath)
                 ? throw new ArgumentException("Assets root path must be provided.", nameof(assetsRootPath))
                 : Path.GetFullPath(assetsRootPath);
@@ -868,9 +880,39 @@ namespace helengine.editor {
             }
 
             ScriptComponentReflectionSchema schema = PlatformExtendedSchemaBuilder.Build(component.GetType(), PlatformDefinition);
-            EntityComponentSaveState rewrittenSaveState = RewriteAutomaticComponentSaveStateReferences(schema, saveState, buildRootPath);
+            RememberAuthoredComponentReferenceCandidates(sourceRecord, ScriptComponentSchemaBuilder.Build(component.GetType()));
+            Dictionary<string, SceneAssetReference[]> directReferences = new(StringComparer.Ordinal);
+            foreach (ScriptComponentReflectionMember member in schema.Members) {
+                if (member.ValueType == typeof(SceneAssetReference)) {
+                    directReferences.Add(member.Name, new[] { member.GetValue(component) as SceneAssetReference });
+                } else if (member.ValueType == typeof(SceneAssetReference[])) {
+                    directReferences.Add(member.Name, (SceneAssetReference[])member.GetValue(component) ?? Array.Empty<SceneAssetReference>());
+                }
+            }
+            EntityComponentSaveState rewrittenSaveState = RewriteAutomaticComponentSaveStateReferences(schema, saveState, buildRootPath, component is MeshComponent);
+            if (rewrittenSaveState != null) {
+                foreach (SceneAssetReference intermediate in rewrittenSaveState.EnumerateAssetReferences()) ReferenceSelection.RememberIntermediate(intermediate);
+            }
             RewriteCpuReadableModelReferenceMembers(schema, component, buildRootPath);
-            ApplyMeshComponentTessellationVariant(component, rewrittenSaveState, buildRootPath, context, meshTessellationSettings, meshUvwModifiers, sourceRecord);
+            ModelGpuReductionProfile gpuProfile = component is MeshComponent ? ResolveMeshGpuReductionProfile(saveState, sourceRecord, targetPath) : new ModelGpuReductionProfile();
+            SceneAssetReference originalModelReference = null;
+            if (saveState != null) saveState.TryGetAssetReference(nameof(MeshComponent.Model), out originalModelReference);
+            ApplyMeshComponentTessellationVariant(component, rewrittenSaveState, buildRootPath, context, meshTessellationSettings, meshUvwModifiers, sourceRecord, gpuProfile, originalModelReference);
+            if (saveState != null && rewrittenSaveState != null) {
+                foreach (KeyValuePair<string, SceneAssetReference> sourceReference in saveState.EnumerateNamedAssetReferences()) {
+                    if (rewrittenSaveState.TryGetAssetReference(sourceReference.Key, out SceneAssetReference packagedReference)) {
+                        ReferenceSelection.RememberSelected(sourceReference.Value, packagedReference);
+                    }
+                }
+            }
+            foreach (ScriptComponentReflectionMember member in schema.Members) {
+                if (!directReferences.TryGetValue(member.Name, out SceneAssetReference[] sourceReferences)) continue;
+                SceneAssetReference[] finalReferences = member.ValueType == typeof(SceneAssetReference)
+                    ? new[] { member.GetValue(component) as SceneAssetReference }
+                    : (SceneAssetReference[])member.GetValue(component) ?? Array.Empty<SceneAssetReference>();
+                if (sourceReferences.Length != finalReferences.Length) throw new InvalidOperationException("Direct reference rewriting changed the member's array length.");
+                for (int index = 0; index < sourceReferences.Length; index++) ReferenceSelection.RememberSelected(sourceReferences[index], finalReferences[index]);
+            }
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
@@ -889,6 +931,63 @@ namespace helengine.editor {
                 ComponentIndex = componentIndex,
                 Payload = stream.ToArray()
             };
+        }
+
+        /// <summary>Records authored component references before entity and component existence overrides remove inactive alternatives.</summary>
+        /// <param name="record">Authored component, including its scoped reference alternatives.</param>
+        internal void RememberAuthoredComponentReferenceCandidates(SceneComponentAssetRecord record) {
+            if (record == null) return;
+            if (!TryResolvePersistenceDescriptor(record.ComponentTypeId, out IComponentPersistenceDescriptor descriptor) || descriptor is not AutomaticScriptComponentPersistenceDescriptor) return;
+            Type componentType = EditorPersistedComponentTypeResolver.Resolve(record.ComponentTypeId, ScriptTypeResolver);
+            if (componentType == null) throw new InvalidOperationException($"Component dependency selection could not resolve '{record.ComponentTypeId}'.");
+            RememberAuthoredComponentReferenceCandidates(record, ScriptComponentSchemaBuilder.Build(componentType));
+        }
+
+        /// <summary>Collects component alternatives before selection so unused override references cannot be reintroduced through the scene table.</summary>
+        /// <param name="record">Original authored component record.</param>
+        /// <param name="schema">Authored schema without synthetic platform members.</param>
+        void RememberAuthoredComponentReferenceCandidates(SceneComponentAssetRecord record, ScriptComponentReflectionSchema schema) {
+            foreach (EntityComponentPlatformOverrideState state in PlatformOverridePayloadService.ReadOverrideStates(record)) {
+                foreach (KeyValuePair<string, SceneAssetReference> reference in state.EnumerateNamedAssetReferences()) {
+                    ReferenceSelection.RememberCandidate(reference.Value);
+                }
+            }
+            SceneComponentAssetRecord baseRecord = PlatformOverridePayloadService.UnwrapBaseRecord(record);
+            ScenePersistenceValueWalker walker = new(new SceneComponentReferenceCollectionReader(ReferenceSelection.RememberCandidate), "Scene component dependency selection");
+            EditorTaggedSceneComponentFieldReader taggedReader;
+            try {
+                taggedReader = new EditorTaggedSceneComponentFieldReader(baseRecord.Payload);
+            } catch (Exception exception) when (exception is InvalidOperationException || exception is EndOfStreamException) {
+                RememberOrdinalComponentReferenceCandidates(baseRecord, schema, walker);
+                return;
+            }
+            foreach (ScriptComponentReflectionMember member in schema.Members) {
+                if (IsAssetReferenceSelectionValueType(member.ValueType) && taggedReader.TryGetFieldReader(member.Name, out EngineBinaryReader reader)) {
+                    using (reader) { walker.ReadValue(reader, member.ValueType); }
+                }
+            }
+        }
+
+        /// <summary>Recognizes direct references and supported typed asset values, including their persisted arrays.</summary>
+        /// <param name="valueType">Member or array element type.</param>
+        /// <returns>True when the member carries authored reference identities.</returns>
+        static bool IsAssetReferenceSelectionValueType(Type valueType) {
+            if (valueType.IsArray) return IsAssetReferenceSelectionValueType(valueType.GetElementType());
+            return valueType == typeof(SceneAssetReference) || AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(valueType);
+        }
+
+        /// <summary>Collects references from the supported ordinal authored format through the same reflected value walk used by its reader.</summary>
+        /// <param name="record">Unwrapped ordinal component payload.</param>
+        /// <param name="schema">Declared authored member order.</param>
+        /// <param name="walker">Reference-only value decoder.</param>
+        static void RememberOrdinalComponentReferenceCandidates(SceneComponentAssetRecord record, ScriptComponentReflectionSchema schema, ScenePersistenceValueWalker walker) {
+            using MemoryStream stream = new(record.Payload, false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+            if (reader.ReadByte() != AutomaticScriptComponentRuntimeDeserializer.CurrentVersion || reader.ReadInt32() != schema.Members.Count) {
+                throw new InvalidOperationException("Component dependency selection requires the current authored component schema.");
+            }
+            foreach (ScriptComponentReflectionMember member in schema.Members) walker.ReadValue(reader, member.ValueType);
+            if (stream.Position != stream.Length) throw new InvalidOperationException("Component dependency selection encountered trailing ordinal data.");
         }
 
         /// <summary>
@@ -921,7 +1020,9 @@ namespace helengine.editor {
 
                 SceneAssetReference reference = member.GetValue(component) as SceneAssetReference;
                 if (reference != null) {
-                    member.SetValue(component, RewriteCpuReadableModelReference(reference, buildRootPath));
+                    SceneAssetReference packagedReference = RewriteCpuReadableModelReference(reference, buildRootPath);
+                    member.SetValue(component, packagedReference);
+                    ReferenceSelection.RememberSelected(reference, packagedReference);
                 }
             }
         }
@@ -1200,11 +1301,13 @@ namespace helengine.editor {
             SceneComponentPackagingTransformContext context,
             MeshComponentTessellationSettings settings,
             IReadOnlyList<MeshComponentModifier> meshUvwModifiers,
-            SceneComponentAssetRecord sourceRecord) {
+            SceneComponentAssetRecord sourceRecord,
+            ModelGpuReductionProfile gpuProfile,
+            SceneAssetReference originalModelReference) {
             bool tessellateAtCookTime = settings.Tessellate && settings.TessellateAtCookTime;
             bool bakeScaleAtCookTime = settings.BakeScale && settings.BakeScaleAtCookTime;
             bool applyUvwAtCookTime = meshUvwModifiers != null && meshUvwModifiers.Count > 0;
-            if ((!tessellateAtCookTime && !bakeScaleAtCookTime && !applyUvwAtCookTime) || component is not MeshComponent) {
+            if ((!tessellateAtCookTime && !bakeScaleAtCookTime && !applyUvwAtCookTime && !gpuProfile.Reduction.Enabled) || component is not MeshComponent) {
                 return;
             }
             if (rewrittenSaveState == null) {
@@ -1212,6 +1315,11 @@ namespace helengine.editor {
             }
             if (!rewrittenSaveState.TryGetAssetReference(nameof(MeshComponent.Model), out SceneAssetReference sourceModelReference)) {
                 throw new InvalidOperationException($"Enabled MeshComponent tessellation requires model reference '{nameof(MeshComponent.Model)}'. Component='{sourceRecord.ComponentKey}'.");
+            }
+            if (gpuProfile.Reduction.Enabled && !tessellateAtCookTime && !bakeScaleAtCookTime && !applyUvwAtCookTime) {
+                if (originalModelReference == null) throw new InvalidOperationException("GPU model reduction requires the authored source model reference.");
+                rewrittenSaveState.SetAssetReference(nameof(MeshComponent.Model), RewriteGpuModelReference(originalModelReference, buildRootPath, gpuProfile));
+                return;
             }
 
             string identity = BuildMeshComponentTessellationVariantIdentity(
@@ -1222,13 +1330,24 @@ namespace helengine.editor {
             if (applyUvwAtCookTime) {
                 identity += "\n" + BuildUvwVariantIdentitySuffix(meshUvwModifiers, context);
             }
+            string sourceModelPath = ResolvePackagedModelAssetPath(buildRootPath, sourceModelReference.RelativePath);
+            if (gpuProfile.Reduction.Enabled) {
+                identity += string.Join("\n", "", "GpuUse=MeshComponent", "Environment=" + SelectedEnvironmentId,
+                    "SourceSha256=" + Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourceModelPath))),
+                    "GpuAlgorithm=" + ModelGpuReductionProcessor.AlgorithmVersion,
+                    "MaximumVertices=" + gpuProfile.Reduction.MaximumVertices,
+                    "MaximumIndices=" + gpuProfile.Reduction.MaximumIndices,
+                    "SphereRings=" + gpuProfile.SphereRings, "SphereSectors=" + gpuProfile.SphereSectors);
+            }
             if (MeshTessellationVariantReferencesByIdentity.TryGetValue(identity, out SceneAssetReference existingReference)) {
                 rewrittenSaveState.SetAssetReference(nameof(MeshComponent.Model), existingReference);
                 return;
             }
 
-            string sourceModelPath = ResolvePackagedModelAssetPath(buildRootPath, sourceModelReference.RelativePath);
             ModelAsset sourceModelAsset = LoadPackagedModelAsset(sourceModelPath, sourceModelReference.RelativePath, sourceRecord.ComponentKey);
+            if (gpuProfile.Reduction.Enabled && string.Equals(sourceModelAsset.Id, ModelUtils.GeneratedSphereModelId, StringComparison.Ordinal)) {
+                sourceModelAsset = ModelGpuSphereProcessor.Create(gpuProfile);
+            }
             if (bakeScaleAtCookTime) {
                 ModelTessellationProcessor.ApplyBakeScale(sourceModelAsset, context.WorldScale);
             }
@@ -1266,12 +1385,37 @@ namespace helengine.editor {
                     }
                 }
             }
+            ModelGpuReductionProcessor.Apply(sourceModelAsset, gpuProfile.Reduction);
             string variantRelativePath = BuildMeshTessellationVariantRelativePath(identity);
             sourceModelAsset.Id = "generated:tessellation:" + identity;
             WriteAsset(Path.Combine(buildRootPath, variantRelativePath), sourceModelAsset);
             SceneAssetReference variantReference = CreateFileSystemReference(BuildRuntimeModelReferenceRelativePath(variantRelativePath));
             MeshTessellationVariantReferencesByIdentity.Add(identity, variantReference);
             rewrittenSaveState.SetAssetReference(nameof(MeshComponent.Model), variantReference);
+        }
+
+        /// <summary>Resolves render-only build defaults, sparse asset/environment settings and the last scoped mesh override.</summary>
+        ModelGpuReductionProfile ResolveMeshGpuReductionProfile(EntityComponentSaveState saveState, SceneComponentAssetRecord sourceRecord, EditorOverrideScope targetPath) {
+            ModelGpuReductionProfile profile = ModelGpuReductionProfileResolver.Resolve(AssetImportManager.ProjectRootPath, TargetPlatformId);
+            if (saveState != null && saveState.TryGetAssetReference(nameof(MeshComponent.Model), out SceneAssetReference source)
+                && source.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
+                string sourcePath = ResolveProjectAssetPath(source.RelativePath);
+                ModelGpuReductionSettings policy = ModelGpuReductionAssetSettingsReader.Read(sourcePath, TargetPlatformId, SelectedEnvironmentId);
+                if (policy != null) profile.Reduction = policy;
+            }
+            EntityComponentSaveState metadata = new EntityComponentSaveState();
+            EntityComponentPlatformOverrideState common = ResolveCommonScopeComponentOverride(sourceRecord);
+            if (common != null) metadata.SetPlatformOverride(ComponentPlatformEditingService.CommonPlatformId, common);
+            IReadOnlyList<EntityComponentPlatformOverrideState> states = PlatformOverridePayloadService.ReadOverrideStates(sourceRecord);
+            if (EditorOverrideScopeResolver.TrySelectDeepest(states, state => state.Scope, targetPath, out EntityComponentPlatformOverrideState selected)) metadata.SetPlatformOverride(TargetPlatformId, selected);
+            foreach (MeshComponentModifier modifier in MeshComponentModifierStackService.ResolveEffectiveStack(metadata, TargetPlatformId)) {
+                if (!string.Equals(modifier.Kind, MeshComponentModifier.ReduceKind, StringComparison.Ordinal)) continue;
+                profile.Reduction = new ModelGpuReductionSettings { Enabled = modifier.ReductionEnabled, MaximumVertices = modifier.MaximumVertices, MaximumIndices = modifier.MaximumIndices };
+                profile.SphereRings = modifier.SphereRings;
+                profile.SphereSectors = modifier.SphereSectors;
+            }
+            ModelGpuReductionProfileResolver.ValidatePlatformLimits(profile, TargetPlatformId);
+            return profile;
         }
 
         /// <summary>
@@ -1420,7 +1564,8 @@ namespace helengine.editor {
         EntityComponentSaveState RewriteAutomaticComponentSaveStateReferences(
             ScriptComponentReflectionSchema schema,
             EntityComponentSaveState saveState,
-            string buildRootPath) {
+            string buildRootPath,
+            bool deferMeshModelReduction) {
             if (schema == null) {
                 throw new ArgumentNullException(nameof(schema));
             }
@@ -1444,7 +1589,9 @@ namespace helengine.editor {
 
                     rewrittenSaveState.SetAssetReference(
                         member.Name,
-                        RewriteAutomaticComponentReference(member.ValueType, sourceReference, buildRootPath));
+                        deferMeshModelReduction && member.Name == nameof(MeshComponent.Model)
+                            ? RewriteRawModelReference(sourceReference, buildRootPath)
+                            : RewriteAutomaticComponentReference(member.ValueType, sourceReference, buildRootPath));
                     continue;
                 }
 
@@ -1575,6 +1722,7 @@ namespace helengine.editor {
                     throw new InvalidOperationException($"Unsupported generated font provider '{reference.ProviderId}'.");
                 }
                 if (string.Equals(reference.AssetId, EditorFontAssetId, StringComparison.Ordinal)) {
+                    if (GeneratedEditorFontReferenceRewriter != null) return GeneratedEditorFontReferenceRewriter(buildRootPath);
                     return CreateFontFileReference(EditorFontRelativePath);
                 }
                 throw new InvalidOperationException($"Unsupported generated font asset id '{reference.AssetId}'.");
@@ -1620,7 +1768,13 @@ namespace helengine.editor {
 
             string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
             string cookedRelativePath = BuildCookedAnimationClipRelativePath(reference.RelativePath);
-            CopyFile(sourcePath, Path.Combine(buildRootPath, cookedRelativePath));
+            Asset serializedAsset = EditorPlatformBuildScenePackager.TryLoadSerializedProjectAsset(sourcePath, reference.RelativePath);
+            if (serializedAsset is AnimationClipAsset clip) {
+                AnimationClipAsset resolvedClip = new AnimationClipPlatformResolutionService().ResolveForScope(clip, new EditorOverrideScope(TargetPlatformId, SelectedEnvironmentId));
+                WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), resolvedClip);
+            } else {
+                CopyFile(sourcePath, Path.Combine(buildRootPath, cookedRelativePath));
+            }
             return CreateFileSystemReference(cookedRelativePath);
         }
 
@@ -1828,7 +1982,50 @@ namespace helengine.editor {
             };
         }
 
-        SceneAssetReference RewriteModelReference(SceneAssetReference reference, string buildRootPath) {
+        /// <summary>
+        /// Packages a render-model reference using the build profile and any asset platform/environment reduction override.
+        /// Creates GPU-only variants when enabled, while leaving the base import and CPU-readable companions unchanged.
+        /// </summary>
+        /// <param name="reference">The authored generated-model or file-system reference selected for rendering.</param>
+        /// <param name="buildRootPath">The package root where the original model and optional GPU variant are materialized.</param>
+        /// <returns>The runtime reference to the original cooked model or its deduplicated GPU-only variant.</returns>
+        public SceneAssetReference RewriteModelReference(SceneAssetReference reference, string buildRootPath) {
+            ModelGpuReductionProfile profile = ModelGpuReductionProfileResolver.Resolve(AssetImportManager.ProjectRootPath, TargetPlatformId);
+            if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
+                ModelGpuReductionSettings policy = ModelGpuReductionAssetSettingsReader.Read(ResolveProjectAssetPath(reference.RelativePath), TargetPlatformId, SelectedEnvironmentId);
+                if (policy != null) profile.Reduction = policy;
+            }
+            profile.Validate();
+            return RewriteGpuModelReference(reference, buildRootPath, profile);
+        }
+
+        /// <summary>Packages render-only default variants for typed/spawner/table references without touching CPU companions.</summary>
+        SceneAssetReference RewriteGpuModelReference(SceneAssetReference reference, string buildRootPath, ModelGpuReductionProfile profile) {
+            ModelGpuReductionProfileResolver.ValidatePlatformLimits(profile, TargetPlatformId);
+            SceneAssetReference raw = RewriteRawModelReference(reference, buildRootPath);
+            if (!profile.Reduction.Enabled) return raw;
+            string sourcePath = ResolvePackagedModelAssetPath(buildRootPath, raw.RelativePath);
+            ModelAsset model = LoadPackagedModelAsset(sourcePath, raw.RelativePath, "render-default");
+            bool sphere = string.Equals(model.Id, ModelUtils.GeneratedSphereModelId, StringComparison.Ordinal);
+            if (!sphere && model.Positions.Length <= profile.Reduction.MaximumVertices && ModelAssetIndexData.Resolve(model).IndexCount <= profile.Reduction.MaximumIndices) return raw;
+            string identity = string.Join("\n", "GpuUse=Render", "Platform=" + TargetPlatformId, "Environment=" + SelectedEnvironmentId,
+                "SourceSha256=" + Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath))), "Algorithm=" + ModelGpuReductionProcessor.AlgorithmVersion,
+                "Vertices=" + profile.Reduction.MaximumVertices, "Indices=" + profile.Reduction.MaximumIndices,
+                "SphereRings=" + profile.SphereRings, "SphereSectors=" + profile.SphereSectors);
+            if (MeshTessellationVariantReferencesByIdentity.TryGetValue(identity, out SceneAssetReference cached)) return cached;
+            if (sphere) model = ModelGpuSphereProcessor.Create(profile);
+            ModelGpuReductionProcessor.Apply(model, profile.Reduction);
+            string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity))).ToLowerInvariant();
+            string path = "cooked/generated/models/gpu/" + hash + ".hasset";
+            model.Id = "generated:gpu:" + hash;
+            WriteAsset(Path.Combine(buildRootPath, path), model);
+            SceneAssetReference result = CreateFileSystemReference(BuildRuntimeModelReferenceRelativePath(path));
+            MeshTessellationVariantReferencesByIdentity.Add(identity, result);
+            return result;
+        }
+
+        /// <summary>Packages the original render-model source before any per-use GPU transforms.</summary>
+        SceneAssetReference RewriteRawModelReference(SceneAssetReference reference, string buildRootPath) {
             if (reference == null) {
                 return null;
             }
@@ -2836,6 +3033,7 @@ namespace helengine.editor {
         }
 
         SceneAssetReference CreateFileSystemReference(string relativePath) {
+            CookedPathSelectionSink?.Invoke(relativePath);
             return global::helengine.SceneAssetReferenceFactory.Rehydrate(
                 SceneAssetReferenceSourceKind.FileSystem,
                 ResolveRuntimeReferencePath(relativePath),
@@ -2865,6 +3063,7 @@ namespace helengine.editor {
         /// <param name="assetId">Stable generated asset id.</param>
         /// <returns>Generated scene asset reference targeting the cooked packaged file.</returns>
         SceneAssetReference CreateGeneratedPackagedReference(string relativePath, string providerId, string assetId) {
+            CookedPathSelectionSink?.Invoke(relativePath);
             if (string.IsNullOrWhiteSpace(providerId)) {
                 throw new ArgumentException("Generated provider id must be provided.", nameof(providerId));
             }
@@ -2926,7 +3125,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="relativePath">Original project-relative animation clip path.</param>
         /// <returns>Cooked packaged animation-clip relative path.</returns>
-        string BuildCookedAnimationClipRelativePath(string relativePath) {
+        internal string BuildCookedAnimationClipRelativePath(string relativePath) {
             string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
             return NormalizeRelativePath(Path.Combine("cooked", normalizedRelativePath));
         }

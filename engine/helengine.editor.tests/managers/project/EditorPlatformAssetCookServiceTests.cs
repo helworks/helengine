@@ -388,7 +388,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             ["windows"],
             builder);
 
-        string packagedAnimationPath = Path.Combine(BuildRootPath, "Animations", "DemoDiscLogoIdle.hanim");
+        string packagedAnimationPath = Path.Combine(BuildRootPath, "cooked", "Animations", "DemoDiscLogoIdle.hanim");
         Assert.True(File.Exists(packagedAnimationPath));
 
         using FileStream stream = new(packagedAnimationPath, FileMode.Open, FileAccess.Read, FileShare.Read);

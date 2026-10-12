@@ -1271,7 +1271,7 @@ namespace helengine.editor {
         /// <param name="generator">Native deserializer generator used to validate supported schemas.</param>
         /// <param name="additionalComponentTypes">Additional scene-referenced scripted component types that must participate in generated native runtime deserializer emission.</param>
         /// <returns>Deterministically ordered schemas eligible for generated native runtime deserializer emission.</returns>
-        static IReadOnlyList<ScriptComponentReflectionSchema> DiscoverAutomaticRuntimeComponentSchemas(
+        internal static IReadOnlyList<ScriptComponentReflectionSchema> DiscoverAutomaticRuntimeComponentSchemas(
             ScriptComponentReflectionSchemaBuilder schemaBuilder,
             ScriptComponentPlayerDeserializerGenerator generator,
             IReadOnlyList<Type> additionalComponentTypes,
@@ -1682,7 +1682,7 @@ namespace helengine.editor {
         /// <param name="schemas">Reflected component schemas whose generated deserializers should be registered.</param>
         /// <param name="generator">Native deserializer generator used to resolve generated class names.</param>
         /// <returns>Generated native registration source text.</returns>
-        static string BuildGeneratedRuntimeComponentDeserializerRegistrationSource(
+        internal static string BuildGeneratedRuntimeComponentDeserializerRegistrationSource(
             IReadOnlyList<ScriptComponentReflectionSchema> schemas,
             ScriptComponentPlayerDeserializerGenerator generator) {
             if (schemas == null) {

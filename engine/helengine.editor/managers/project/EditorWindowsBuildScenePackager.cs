@@ -10,6 +10,11 @@ namespace helengine.editor {
     /// Packages selected editor scenes and their required runtime assets into one Windows player content root.
     /// </summary>
     public sealed class EditorPlatformBuildScenePackager : IDisposable {
+        /// <summary>Accumulates the current scene's resolved outputs independently of global artifact deduplication.</summary>
+        HashSet<string> CurrentSceneCookedPaths;
+
+        /// <summary>Identifies the packaged root used to turn output writes into canonical relative dependencies.</summary>
+        string CurrentCookRootPath;
         /// <summary>
         /// Current payload version for serialized camera component scene records.
         /// </summary>
@@ -689,7 +694,9 @@ namespace helengine.editor {
                 declaration => RememberCookedArtifactDeclaration(declaration),
                 dependency => RememberReferencedShaderDependency(dependency),
                 OverrideScopeResolver,
-                SelectedEnvironmentId);
+                SelectedEnvironmentId,
+                path => RememberSceneCookedPath(path),
+                RewriteGeneratedEditorFontReference);
         }
 
         /// <summary>
@@ -731,6 +738,8 @@ namespace helengine.editor {
 
             string fullBuildRootPath = Path.GetFullPath(buildRootPath);
             Directory.CreateDirectory(fullBuildRootPath);
+            CurrentCookRootPath = fullBuildRootPath;
+            Dictionary<string, string[]> sceneCookedDependencies = new(StringComparer.Ordinal);
 
             ReferencedShaderDependencies.Clear();
             ReferencedShaderDependencyKeys.Clear();
@@ -747,19 +756,53 @@ namespace helengine.editor {
 
             for (int index = 0; index < sceneIds.Count; index++) {
                 string sceneId = sceneIds[index];
+                CurrentSceneCookedPaths = new HashSet<string>(StringComparer.Ordinal);
+                TransformService.ReferenceSelection.Clear();
                 string sceneSourcePath = sceneSourcePaths[index];
                 SceneAsset packagedSceneAsset = LoadSceneAsset(sceneId, sceneSourcePath);
+                RememberAuthoredEntityReferenceCandidates(packagedSceneAsset.RootEntities);
                 PruneEntitySubtreesForTargetPlatform(packagedSceneAsset);
                 BlueprintExpansionService.Expand(packagedSceneAsset);
+                RememberAuthoredEntityReferenceCandidates(packagedSceneAsset.RootEntities);
                 PruneEntitySubtreesForTargetPlatform(packagedSceneAsset);
                 packagedSceneAsset.Id = sceneId;
                 RewriteSceneAsset(packagedSceneAsset, fullBuildRootPath);
 
                 string packagedSceneRelativePath = BuildPackagedSceneRelativePath(sceneId, index);
                 WriteAsset(Path.Combine(fullBuildRootPath, packagedSceneRelativePath), packagedSceneAsset);
+                ValidateSceneFinalReferenceClosure(sceneId);
+                sceneCookedDependencies.Add(sceneId, CurrentSceneCookedPaths.OrderBy(path => path, StringComparer.Ordinal).ToArray());
             }
 
-            return new EditorPlatformBuildScenePackagerResult(ReferencedShaderDependencies, PlatformCookWorkItems, CookedArtifactDeclarations);
+            CurrentSceneCookedPaths = null;
+            return new EditorPlatformBuildScenePackagerResult(ReferencedShaderDependencies, PlatformCookWorkItems, CookedArtifactDeclarations, sceneCookedDependencies);
+        }
+
+        /// <summary>Rejects incomplete preload metadata before a scene can enter the package cache or the native source plan.</summary>
+        /// <param name="sceneId">Operational scene identifier included in the failure diagnostic.</param>
+        void ValidateSceneFinalReferenceClosure(string sceneId) {
+            foreach (string finalPath in TransformService.ReferenceSelection.GetFinalPaths()) {
+                if (!CurrentSceneCookedPaths.Contains(finalPath)) {
+                    throw new InvalidOperationException($"Scene '{sceneId}' final runtime reference '{finalPath}' is absent from its preload dependency closure.");
+                }
+            }
+        }
+
+        /// <summary>Collects component reference alternatives before platform removals so discarded components cannot leave required runtime dependencies behind.</summary>
+        /// <param name="entities">Authored entity subtrees or newly expanded blueprint subtrees.</param>
+        void RememberAuthoredEntityReferenceCandidates(SceneEntityAsset[] entities) {
+            foreach (SceneEntityAsset entity in entities ?? Array.Empty<SceneEntityAsset>()) {
+                if (entity == null) continue;
+                foreach (SceneComponentAssetRecord record in entity.Components ?? Array.Empty<SceneComponentAssetRecord>()) {
+                    TransformService.RememberAuthoredComponentReferenceCandidates(record);
+                }
+                foreach (SceneEntityPlatformComponentOverrideAsset componentOverride in entity.PlatformComponentOverrides ?? Array.Empty<SceneEntityPlatformComponentOverrideAsset>()) {
+                    foreach (SceneEntityPlatformAddedComponentAsset added in componentOverride.AddedComponents ?? Array.Empty<SceneEntityPlatformAddedComponentAsset>()) {
+                        TransformService.RememberAuthoredComponentReferenceCandidates(added?.Component);
+                    }
+                }
+                RememberAuthoredEntityReferenceCandidates(entity.Children);
+            }
         }
 
         /// <summary>
@@ -878,10 +921,21 @@ namespace helengine.editor {
             SceneAssetReference[] assetReferences = sceneAsset.AssetReferences ?? Array.Empty<SceneAssetReference>();
             List<SceneAssetReference> rewrittenAssetReferences = new List<SceneAssetReference>(assetReferences.Length);
             for (int index = 0; index < assetReferences.Length; index++) {
-                rewrittenAssetReferences.Add(RewriteSceneAssetReference(assetReferences[index], buildRootPath));
+                if (TransformService.ReferenceSelection.TryGetSelection(assetReferences[index], out SceneAssetReference[] selectedReferences)) {
+                    foreach (SceneAssetReference selectedReference in selectedReferences) {
+                        RememberSceneCookedPath(selectedReference.RelativePath.TrimStart('/'));
+                        rewrittenAssetReferences.Add(selectedReference);
+                    }
+                    continue;
+                }
+                SceneAssetReference rewrittenReference = RewriteSceneAssetReference(assetReferences[index], buildRootPath);
+                TransformService.ReferenceSelection.RememberSelected(assetReferences[index], rewrittenReference);
+                rewrittenAssetReferences.Add(rewrittenReference);
             }
 
             sceneAsset.AssetReferences = rewrittenAssetReferences.ToArray();
+            CurrentSceneCookedPaths.UnionWith(TransformService.ReferenceSelection.GetFinalPaths());
+            foreach (string unusedPath in TransformService.ReferenceSelection.GetUnusedIntermediatePaths()) CurrentSceneCookedPaths.Remove(unusedPath);
             sceneAsset.Physics3DSceneFeatureFlags = (uint)PhysicsSceneFeatureAnalyzer3D.Analyze(sceneAsset);
         }
 
@@ -1161,9 +1215,13 @@ namespace helengine.editor {
                 if (IsFileSystemMaterialReference(reference.RelativePath)) {
                     return RewriteFileSystemMaterialReference(reference, buildRootPath);
                 }
-                if (CanContainSerializedAnimationClip(fullExtension) &&
-                    TryRewriteSerializedAnimationClipReference(reference, fullPath, buildRootPath, out SceneAssetReference rewrittenAnimationClipReference)) {
-                    return rewrittenAnimationClipReference;
+                if (CanContainSerializedAnimationClip(fullExtension)) {
+                    if (TryRewriteSerializedAnimationClipReference(reference, fullPath, buildRootPath, out SceneAssetReference rewrittenAnimationClipReference)) {
+                        return rewrittenAnimationClipReference;
+                    }
+                    string cookedAnimationRelativePath = TransformService.BuildCookedAnimationClipRelativePath(reference.RelativePath);
+                    CopyFile(fullPath, Path.Combine(buildRootPath, cookedAnimationRelativePath));
+                    return CreateFileSystemReference(cookedAnimationRelativePath);
                 }
 
                 string copiedRelativePath = NormalizeRelativePath(reference.RelativePath);
@@ -1186,7 +1244,7 @@ namespace helengine.editor {
                     (string.Equals(reference.AssetId, CubeGeneratedAssetId, StringComparison.Ordinal) ||
                      string.Equals(reference.AssetId, PlaneGeneratedAssetId, StringComparison.Ordinal) ||
                      string.Equals(reference.AssetId, SphereGeneratedAssetId, StringComparison.Ordinal))) {
-                    return RewriteGeneratedModelReference(reference, buildRootPath);
+                    return TransformService.RewriteModelReference(reference, buildRootPath);
                 }
 
                 throw new InvalidOperationException($"Unsupported generated scene asset reference '{reference.ProviderId}:{reference.AssetId}'.");
@@ -1240,9 +1298,9 @@ namespace helengine.editor {
             AnimationClipAsset resolvedAnimationClip = AnimationClipPlatformResolutionService.ResolveForScope(
                 animationClipAsset,
                 new EditorOverrideScope(TargetPlatformId, SelectedEnvironmentId));
-            string copiedRelativePath = NormalizeRelativePath(reference.RelativePath);
-            WriteAsset(Path.Combine(buildRootPath, copiedRelativePath), resolvedAnimationClip);
-            rewrittenReference = CreateFileSystemReference(copiedRelativePath);
+            string cookedRelativePath = TransformService.BuildCookedAnimationClipRelativePath(reference.RelativePath);
+            WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), resolvedAnimationClip);
+            rewrittenReference = CreateFileSystemReference(cookedRelativePath);
             return true;
         }
 
@@ -1252,7 +1310,7 @@ namespace helengine.editor {
         /// <param name="fullPath">Absolute authored asset path to inspect.</param>
         /// <param name="relativePath">Project-relative authored asset path used for error context.</param>
         /// <returns>Deserialized asset instance.</returns>
-        static Asset TryLoadSerializedProjectAsset(string fullPath, string relativePath) {
+        internal static Asset TryLoadSerializedProjectAsset(string fullPath, string relativePath) {
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Full path must be provided.", nameof(fullPath));
             }
@@ -1619,15 +1677,7 @@ namespace helengine.editor {
                 return null;
             }
 
-            if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
-                return RewriteGeneratedModelReference(reference, buildRootPath);
-            }
-
-            if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
-                return RewriteFileSystemModelReference(reference, buildRootPath);
-            }
-
-            throw new InvalidOperationException($"Unsupported model reference source kind '{reference.SourceKind}'.");
+            return TransformService.RewriteModelReference(reference, buildRootPath);
         }
 
         /// <summary>
@@ -2333,6 +2383,7 @@ namespace helengine.editor {
             if (workItem == null) {
                 return;
             }
+            RememberSceneCookedPath(workItem.OutputRelativePath);
 
             if (PlatformCookWorkItemIds.Add(workItem.WorkItemId)) {
                 PlatformCookWorkItems.Add(workItem);
@@ -2861,6 +2912,7 @@ namespace helengine.editor {
         /// <param name="relativePath">Packaged asset path relative to the build root.</param>
         /// <returns>File-backed packaged scene reference.</returns>
         SceneAssetReference CreateFileSystemReference(string relativePath) {
+            RememberSceneCookedPath(relativePath);
             return global::helengine.SceneAssetReferenceFactory.Rehydrate(
                 SceneAssetReferenceSourceKind.FileSystem,
                 ResolveRuntimeReferencePath(relativePath),
@@ -2890,6 +2942,7 @@ namespace helengine.editor {
         /// <param name="assetId">Stable generated asset id.</param>
         /// <returns>Generated scene asset reference targeting the cooked packaged file.</returns>
         SceneAssetReference CreateGeneratedPackagedReference(string relativePath, string providerId, string assetId) {
+            RememberSceneCookedPath(relativePath);
             if (string.IsNullOrWhiteSpace(providerId)) {
                 throw new ArgumentException("Generated provider id must be provided.", nameof(providerId));
             }
@@ -2910,6 +2963,7 @@ namespace helengine.editor {
         /// <param name="fullPath">Absolute output path.</param>
         /// <param name="fontAsset">Font asset to serialize.</param>
         void WriteFontAsset(string fullPath, FontAsset fontAsset) {
+            RememberSceneCookedOutput(fullPath);
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Output path must be provided.", nameof(fullPath));
             }
@@ -3153,6 +3207,7 @@ namespace helengine.editor {
         /// <param name="fullPath">Absolute output path.</param>
         /// <param name="asset">Serialized asset to write.</param>
         void WriteAsset(string fullPath, Asset asset) {
+            RememberSceneCookedOutput(fullPath);
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Output path must be provided.", nameof(fullPath));
             }
@@ -3176,6 +3231,7 @@ namespace helengine.editor {
         /// <param name="fullPath">Absolute output path.</param>
         /// <param name="data">Serialized asset bytes to write.</param>
         void WriteBytes(string fullPath, byte[] data) {
+            RememberSceneCookedOutput(fullPath);
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Output path must be provided.", nameof(fullPath));
             } else if (data == null) {
@@ -3197,6 +3253,7 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute source file path.</param>
         /// <param name="targetPath">Absolute packaged output path.</param>
         void CopyFile(string sourcePath, string targetPath) {
+            RememberSceneCookedOutput(targetPath);
             if (string.IsNullOrWhiteSpace(sourcePath)) {
                 throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
             }
@@ -3211,6 +3268,29 @@ namespace helengine.editor {
 
             Directory.CreateDirectory(directoryPath);
             File.Copy(sourcePath, targetPath, true);
+        }
+
+        /// <summary>Records a target-selected dependency even when its bytes were already emitted by another scene.</summary>
+        /// <param name="relativePath">Canonical cooked path selected by the packaging operation.</param>
+        void RememberSceneCookedPath(string relativePath) {
+            if (CurrentSceneCookedPaths != null) {
+                CurrentSceneCookedPaths.Add(CanonicalPackagedAssetPath.Normalize(relativePath));
+            }
+        }
+
+        /// <summary>Records materialized runtime outputs while excluding temporary generated source inputs used by later platform cook work items.</summary>
+        /// <param name="fullPath">Absolute file written by the active scene's packaging operation.</param>
+        void RememberSceneCookedOutput(string fullPath) {
+            if (CurrentSceneCookedPaths == null || string.IsNullOrWhiteSpace(fullPath)) {
+                return;
+            }
+            string relativePath = Path.GetRelativePath(CurrentCookRootPath, fullPath);
+            if (relativePath.Replace('\\', '/').StartsWith("generated/", StringComparison.Ordinal)) {
+                return;
+            }
+            if (!Path.IsPathRooted(relativePath) && relativePath != ".." && !relativePath.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)) {
+                RememberSceneCookedPath(relativePath);
+            }
         }
 
         /// <summary>

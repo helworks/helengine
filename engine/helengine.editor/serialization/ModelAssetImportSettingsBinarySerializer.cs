@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Serializer version for the current model asset import settings payload layout.
         /// </summary>
-        public const byte CurrentVersion = 3;
+        public const byte CurrentVersion = 4;
 
         /// <summary>
         /// Payload endianness used by the current model asset import settings format.
@@ -79,12 +79,14 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(stream));
             }
 
-            using EngineBinaryReader reader = VersionedBinaryPayload.ReadHeader(
+            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+            using EngineBinaryReader reader = VersionedBinaryPayload.ValidateHeader(
                 stream,
+                header,
                 EditorAssetBinarySerializer.FormatId,
                 (ushort)RecordKind,
                 (ushort)AssetImportSettingsBinaryValueKind.ModelAssetImportSettings,
-                CurrentVersion,
+                header.Version == 3 ? (byte)3 : CurrentVersion,
                 "model asset import settings",
                 "model asset import settings",
                 "model asset import settings",
@@ -107,7 +109,7 @@ namespace helengine.editor {
                     throw new InvalidOperationException("Model asset import settings cannot contain a blank processor platform id.");
                 }
 
-                ModelAssetProcessorSettings platformSettings = ReadModelSettings(reader);
+                ModelAssetProcessorSettings platformSettings = ReadModelSettings(reader, header.Version >= 4);
 
                 settings.Processor.Platforms.Add(platformId, platformSettings);
             }
@@ -121,7 +123,7 @@ namespace helengine.editor {
                 Dictionary<string, ModelAssetProcessorSettings> environments = new Dictionary<string, ModelAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
                 for (int environmentIndex = 0; environmentIndex < environmentCount; environmentIndex++) {
                     string environmentId = reader.ReadString();
-                    environments.Add(environmentId, ReadModelSettings(reader));
+                    environments.Add(environmentId, ReadModelSettings(reader, header.Version >= 4));
                 }
                 settings.Processor.Environments.Add(platformId, environments);
             }
@@ -159,21 +161,30 @@ namespace helengine.editor {
             throw new InvalidOperationException($"Unsupported model asset import settings boolean value '{value}'.");
         }
 
+        /// <summary>Writes base processor values plus an optional render-only policy that never participates in import identity.</summary>
         static void WriteModelSettings(EngineBinaryWriter writer, ModelAssetProcessorSettings settings) {
             if (settings == null) throw new InvalidOperationException("Model processor settings cannot be null.");
             writer.WriteByte(settings.FlipWinding ? (byte)1 : (byte)0);
             writer.WriteByte(settings.Tessellate ? (byte)1 : (byte)0);
             ValidateTessellationMaxEdgeLength(settings.TessellationMaxEdgeLength);
             writer.WriteDouble(settings.TessellationMaxEdgeLength);
+            writer.WriteByte(settings.GpuReduction == null ? (byte)0 : (byte)1);
+            if (settings.GpuReduction != null) new ModelGpuReductionSectionDefinition().Serialize(writer, settings.GpuReduction);
         }
 
-        static ModelAssetProcessorSettings ReadModelSettings(EngineBinaryReader reader) {
+        /// <summary>Reads current values or migrates a v3 record by retaining an absent inherited GPU policy.</summary>
+        static ModelAssetProcessorSettings ReadModelSettings(EngineBinaryReader reader, bool hasGpuPolicy) {
             ModelAssetProcessorSettings settings = new ModelAssetProcessorSettings {
                 FlipWinding = ReadBooleanByte(reader),
                 Tessellate = ReadBooleanByte(reader),
                 TessellationMaxEdgeLength = reader.ReadDouble()
             };
             ValidateTessellationMaxEdgeLength(settings.TessellationMaxEdgeLength);
+            if (hasGpuPolicy) {
+                byte present = reader.ReadByte();
+                if (present > 1) throw new InvalidOperationException("Invalid optional GPU model policy marker.");
+                if (present == 1) settings.GpuReduction = (ModelGpuReductionSettings)new ModelGpuReductionSectionDefinition().Deserialize(reader);
+            }
             return settings;
         }
     }

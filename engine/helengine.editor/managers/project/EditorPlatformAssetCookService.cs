@@ -149,7 +149,7 @@ namespace helengine.editor {
 
             Console.WriteLine("[helengine-editor] build scene entries begin");
             cookStageTimer.Restart();
-            PlatformBuildScene[] scenes = BuildSceneEntries(orderedSceneIds, orderedSceneIdentityPaths, effectiveCookRootPath);
+            PlatformBuildScene[] scenes = BuildSceneEntries(orderedSceneIds, orderedSceneIdentityPaths, effectiveCookRootPath, packagerResult.SceneCookedDependencies);
             Console.WriteLine("[helengine-editor] build scene entries completed");
             Console.WriteLine($"[cook] scene-entries-ms={cookStageTimer.ElapsedMilliseconds}");
             Console.WriteLine("[helengine-editor] build cooked artifacts begin");
@@ -158,7 +158,10 @@ namespace helengine.editor {
                 effectiveCookRootPath,
                 targetIds,
                 platformCookWorkItems,
-                cookedArtifactDeclarations);
+                cookedArtifactDeclarations,
+                effectiveExecutionRootPath,
+                platformDefinition.RuntimeGenerationContract.SupportsSceneCodeModules
+                    ? packagerResult.SceneCookedDependencies.Values.SelectMany(paths => paths).ToArray() : []);
             Console.WriteLine("[helengine-editor] build cooked artifacts completed");
             Console.WriteLine($"[cook] artifact-manifest-ms={cookStageTimer.ElapsedMilliseconds}");
 
@@ -337,7 +340,7 @@ namespace helengine.editor {
                 : platform.Version.Trim();
         }
 
-        PlatformBuildScene[] BuildSceneEntries(IReadOnlyList<string> orderedSceneIds, IReadOnlyList<string> orderedSceneIdentityPaths, string cookRootPath) {
+        PlatformBuildScene[] BuildSceneEntries(IReadOnlyList<string> orderedSceneIds, IReadOnlyList<string> orderedSceneIdentityPaths, string cookRootPath, IReadOnlyDictionary<string, string[]> sceneCookedDependencies) {
             if (orderedSceneIds == null) {
                 throw new ArgumentNullException(nameof(orderedSceneIds));
             }
@@ -355,18 +358,20 @@ namespace helengine.editor {
                 string cookedRelativePath = BuildCookedSceneRelativePath(canonicalScenePath, index);
                 uint physics3DSceneFeatureFlags = ReadCookedScenePhysics3DFeatureFlags(cookRootPath, cookedRelativePath);
                 string automaticRuntimeComponentTypeIds = ReadCookedSceneAutomaticRuntimeComponentTypeIds(cookRootPath, cookedRelativePath, ScriptTypeResolver);
+                if (!sceneCookedDependencies.TryGetValue(canonicalScenePath, out string[] dependencies) || !dependencies.Contains(cookedRelativePath, StringComparer.Ordinal)) {
+                    throw new InvalidOperationException($"Cooked dependency selection is incomplete for scene '{sceneId}'.");
+                }
                 scenes[index] = new PlatformBuildScene(
                     sceneId,
                     SceneIdUtility.FromPath(canonicalScenePath),
                     cookedRelativePath,
-                    [
-                        new PlatformBuildPayloadReference(cookedRelativePath, cookedRelativePath)
-                    ],
+                    [new PlatformBuildPayloadReference(cookedRelativePath, cookedRelativePath)],
                     [
                         new KeyValuePair<string, string>("build-order-index", index.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                         new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, cookedRelativePath),
                         new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.Physics3DSceneFeatureFlags, physics3DSceneFeatureFlags.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-                        new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.AutomaticRuntimeComponentTypeIds, automaticRuntimeComponentTypeIds)
+                        new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.AutomaticRuntimeComponentTypeIds, automaticRuntimeComponentTypeIds),
+                        new KeyValuePair<string, string>("cooked-dependency-paths", System.Text.Json.JsonSerializer.Serialize(dependencies))
                     ]);
             }
 
@@ -534,7 +539,9 @@ namespace helengine.editor {
             string cookRootPath,
             IReadOnlyList<string> targetIds,
             IReadOnlyList<PlatformCookWorkItem> platformCookWorkItems,
-            IReadOnlyList<PlatformCookedArtifactDeclaration> cookedArtifactDeclarations) {
+            IReadOnlyList<PlatformCookedArtifactDeclaration> cookedArtifactDeclarations,
+            string executionRootPath,
+            IReadOnlyList<string> selectedDependencyPaths) {
             if (platformCookWorkItems == null) {
                 throw new ArgumentNullException(nameof(platformCookWorkItems));
             } else if (cookedArtifactDeclarations == null) {
@@ -558,6 +565,18 @@ namespace helengine.editor {
                     continue;
                 }
 
+                artifactPool.AddFile(fullPath, relativePath, ResolveArtifactKind(fullPath, relativePath), variantId);
+            }
+
+            string executionPrefix = Path.GetFullPath(executionRootPath) + Path.DirectorySeparatorChar;
+            foreach (string selectedPath in selectedDependencyPaths.Distinct(StringComparer.Ordinal).OrderBy(path => path, StringComparer.Ordinal)) {
+                string relativePath = CanonicalPackagedAssetPath.Normalize(selectedPath);
+                if (relativePath.StartsWith("cooked/", StringComparison.Ordinal) || builderOwnedOutputPaths.Contains(relativePath)) continue;
+                if (relativePath.StartsWith("generated/", StringComparison.Ordinal)) throw new InvalidOperationException("A runtime scene dependency points to a temporary generated cook input: " + relativePath);
+                string fullPath = Path.GetFullPath(Path.Combine(executionRootPath, relativePath));
+                if (!fullPath.StartsWith(executionPrefix, StringComparison.OrdinalIgnoreCase) || !File.Exists(fullPath)) {
+                    throw new FileNotFoundException("Selected runtime dependency was not materialized by the scene cook.", fullPath);
+                }
                 artifactPool.AddFile(fullPath, relativePath, ResolveArtifactKind(fullPath, relativePath), variantId);
             }
 

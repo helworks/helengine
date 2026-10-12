@@ -872,6 +872,17 @@ namespace helengine.editor {
                         BuildMeshModifierMemberName(modifierIndex, "AtCookTime"), "At Cook Time", typeof(bool));
                     AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Boolean,
                         BuildMeshModifierMemberName(modifierIndex, "Preview"), "Preview", typeof(bool));
+                } else if (string.Equals(modifier.Kind, MeshComponentModifier.ReduceKind, StringComparison.Ordinal)) {
+                    AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Boolean,
+                        BuildMeshModifierMemberName(modifierIndex, "ReductionEnabled"), "Reduce GPU Model", typeof(bool));
+                    AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
+                        BuildMeshModifierMemberName(modifierIndex, "MaximumVertices"), "Vertex Limit", typeof(int));
+                    AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
+                        BuildMeshModifierMemberName(modifierIndex, "MaximumIndices"), "Index Limit", typeof(int));
+                    AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
+                        BuildMeshModifierMemberName(modifierIndex, "SphereRings"), "Sphere Rings", typeof(int));
+                    AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
+                        BuildMeshModifierMemberName(modifierIndex, "SphereSectors"), "Sphere Sectors", typeof(int));
                 } else if (string.Equals(modifier.Kind, MeshComponentModifier.UvwMapKind, StringComparison.Ordinal)) {
                     AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.ComboBox,
                         BuildMeshModifierMemberName(modifierIndex, "UvwMode"), "Mode", typeof(string),
@@ -1150,6 +1161,11 @@ namespace helengine.editor {
             }
 
             MeshComponentModifier modifier = modifierIndex >= 0 && modifierIndex < modifiers.Count ? modifiers[modifierIndex] : null;
+            if (string.Equals(fieldName, "ReductionEnabled", StringComparison.Ordinal)) return modifier?.ReductionEnabled ?? true;
+            if (string.Equals(fieldName, "MaximumVertices", StringComparison.Ordinal)) return modifier?.MaximumVertices ?? 256;
+            if (string.Equals(fieldName, "MaximumIndices", StringComparison.Ordinal)) return modifier?.MaximumIndices ?? 768;
+            if (string.Equals(fieldName, "SphereRings", StringComparison.Ordinal)) return modifier?.SphereRings ?? 6;
+            if (string.Equals(fieldName, "SphereSectors", StringComparison.Ordinal)) return modifier?.SphereSectors ?? 12;
             if (string.Equals(fieldName, "MaxEdgeLength", StringComparison.Ordinal)) {
                 return modifier?.MaxEdgeLength ?? MeshComponentTessellationSettings.DefaultTessellationMaxEdgeLength;
             }
@@ -1216,7 +1232,17 @@ namespace helengine.editor {
             }
 
             MeshComponentModifier modifier = modifiers[modifierIndex];
-            if (string.Equals(fieldName, "MaxEdgeLength", StringComparison.Ordinal)) {
+            if (string.Equals(fieldName, "ReductionEnabled", StringComparison.Ordinal)) {
+                modifier.ReductionEnabled = value is bool enabled ? enabled : throw new ArgumentException("GPU reduction enabled value must be boolean.", nameof(value));
+            } else if (string.Equals(fieldName, "MaximumVertices", StringComparison.Ordinal)) {
+                modifier.MaximumVertices = value is int maximumVertices ? maximumVertices : throw new ArgumentException("GPU vertex limit must be an integer.", nameof(value));
+            } else if (string.Equals(fieldName, "MaximumIndices", StringComparison.Ordinal)) {
+                modifier.MaximumIndices = value is int maximumIndices ? maximumIndices : throw new ArgumentException("GPU index limit must be an integer.", nameof(value));
+            } else if (string.Equals(fieldName, "SphereRings", StringComparison.Ordinal)) {
+                modifier.SphereRings = value is int sphereRings ? sphereRings : throw new ArgumentException("GPU sphere ring count must be an integer.", nameof(value));
+            } else if (string.Equals(fieldName, "SphereSectors", StringComparison.Ordinal)) {
+                modifier.SphereSectors = value is int sphereSectors ? sphereSectors : throw new ArgumentException("GPU sphere sector count must be an integer.", nameof(value));
+            } else if (string.Equals(fieldName, "MaxEdgeLength", StringComparison.Ordinal)) {
                 if (value is not double maxEdgeLength) {
                     throw new ArgumentException("Modifier maximum edge length values must be double.", nameof(value));
                 }
