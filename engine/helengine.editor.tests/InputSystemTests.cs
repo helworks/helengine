@@ -7,6 +7,60 @@ namespace helengine.editor.tests {
     /// Verifies pointer hit testing chooses the interactable that is visually on top.
     /// </summary>
     public class InputSystemTests {
+        /// <summary>Pointer targets follow the input window's camera even when another view has a higher-order overlapping camera.</summary>
+        [Fact]
+        public void WindowRouting_SelectsOnlyVisibleCameraControls() {
+            TestInputBackend input = InitializeWindowRoutingCore();
+            RenderManager3D renderer = Core.Instance.RenderManager3D;
+            renderer.AddWindow(new IntPtr(984), 320, 240);
+            renderer.SetWindowTag(new IntPtr(984), "glass");
+            CameraComponent mainCamera = CreateUiCamera(new float4(0f, 0f, 320f, 240f), 1, 1);
+            mainCamera.OutputWindowTag = "main";
+            CameraComponent glassCamera = CreateUiCamera(new float4(0f, 0f, 320f, 240f), 2, 255);
+            glassCamera.OutputWindowTag = "glass";
+            InteractableComponent main = CreateInteractableEntity(new float3(24f, 24f, 0f), new int2(80, 40), 10, 1);
+            InteractableComponent glass = CreateInteractableEntity(new float3(24f, 24f, 0f), new int2(80, 40), 100, 2);
+            CaptureInputFrame(input, CreateReleasedMouseState(40, 40));
+            Assert.Same(main, Core.Instance.PointerInteractionSystem.Hovering);
+            renderer.SelectInputWindow(new IntPtr(984));
+            CaptureInputFrame(input, CreateReleasedMouseState(40, 40));
+            Assert.Same(glass, Core.Instance.PointerInteractionSystem.Hovering);
+            renderer.SelectInputWindow(renderer.MainWindowHandle);
+            CaptureInputFrame(input, CreateReleasedMouseState(40, 40));
+            Assert.Same(main, Core.Instance.PointerInteractionSystem.Hovering);
+        }
+
+        /// <summary>Switching input views during a press sends Leave and cannot deliver a release activation to the old view.</summary>
+        [Fact]
+        public void WindowRouting_CancelsCaptureBeforeCrossViewRelease() {
+            TestInputBackend input = InitializeWindowRoutingCore();
+            RenderManager3D renderer = Core.Instance.RenderManager3D;
+            renderer.AddWindow(new IntPtr(984), 320, 240);
+            renderer.SetWindowTag(new IntPtr(984), "glass");
+            CameraComponent camera = CreateUiCamera(new float4(0f, 0f, 320f, 240f), 2, 1);
+            camera.OutputWindowTag = "glass";
+            InteractableComponent control = CreateInteractableEntity(new float3(24f, 24f, 0f), new int2(80, 40), 10, 2);
+            int leaves = 0;
+            int releases = 0;
+            control.CursorEvent += (position, delta, interaction) => {
+                if (interaction == PointerInteraction.Leave) {
+                    leaves++;
+                }
+                if (interaction == PointerInteraction.Release) {
+                    releases++;
+                }
+            };
+            renderer.SelectInputWindow(new IntPtr(984));
+            CaptureInputFrame(input, CreatePressedMouseState(40, 40));
+            Assert.Same(control, Core.Instance.PointerInteractionSystem.Highlighted);
+            renderer.SelectInputWindow(renderer.MainWindowHandle);
+            CaptureInputFrame(input, CreateReleasedMouseState(40, 40));
+            Assert.Null(Core.Instance.PointerInteractionSystem.Highlighted);
+            Assert.Null(Core.Instance.PointerInteractionSystem.Hovering);
+            Assert.Equal(1, leaves);
+            Assert.Equal(0, releases);
+        }
+
         /// <summary>
         /// Ensures overlapping interactables route hover to the higher depth element instead of the one registered later.
         /// </summary>
@@ -401,6 +455,17 @@ namespace helengine.editor.tests {
                 allocatedBytes <= 2048,
                 $"Expected warm input updates to stay under 2048 allocated bytes across 120 frames, but observed {allocatedBytes} bytes.");
             Assert.True(Core.Instance.InputSystem.IsActionDown(actionId));
+        }
+
+        /// <summary>Initializes the routing fixture with a sized, registered primary view before core startup.</summary>
+        /// <returns>The deterministic backend supplying pointer frames to the registered views.</returns>
+        TestInputBackend InitializeWindowRoutingCore() {
+            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            TestInputBackend input = new TestInputBackend();
+            TestRenderManager3D renderer = new TestRenderManager3D();
+            renderer.OnWindowResize(IntPtr.Zero, 320, 240);
+            core.Initialize(renderer, new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
+            return input;
         }
 
         /// <summary>

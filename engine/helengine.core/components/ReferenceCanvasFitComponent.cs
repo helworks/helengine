@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Scales one authored 2D subtree from a reference canvas into the current main-window size while preserving the original layout as the source of truth.
+    /// Scales one authored 2D subtree from a reference canvas into the camera's layout surface size while preserving the original layout as the source of truth.
     /// </summary>
 #if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
     [RunInEditor]
@@ -22,14 +22,20 @@ namespace helengine {
         readonly List<ReferenceCanvasFitSnapshot> SnapshotsValue;
 
         /// <summary>
-        /// Tracks whether the component is currently subscribed to main-window resize events.
+        /// Tracks whether the component is currently subscribed to layout-window size events.
         /// </summary>
-        bool IsSubscribedToWindowResizeValue;
+        bool IsSubscribedToWindowLayoutChanges;
 
         /// <summary>
         /// Tracks whether the subtree should be re-evaluated on the next update.
         /// </summary>
         bool PendingApplyValue;
+
+        /// <summary>The hierarchy-owned viewport governing this fitted subtree, when one is authored.</summary>
+        ViewportComponent LayoutViewport;
+
+        /// <summary>The hierarchy-owned camera supplying layout dimensions when no explicit viewport overrides them.</summary>
+        CameraComponent LayoutCamera;
 
         /// <summary>
         /// Tracks the number of entities captured in the current authored snapshot set.
@@ -133,7 +139,8 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
             RebuildSnapshots();
-            AttachToWindowResize();
+            RefreshLayoutProviders();
+            AttachToWindowLayoutChanges();
             PendingApplyValue = true;
         }
 
@@ -145,12 +152,13 @@ namespace helengine {
             base.ParentEnabledChange(newEnabled);
 
             if (newEnabled) {
-                AttachToWindowResize();
+                RefreshLayoutProviders();
+                AttachToWindowLayoutChanges();
                 PendingApplyValue = true;
                 return;
             }
 
-            DetachFromWindowResize();
+            DetachFromWindowLayoutChanges();
         }
 
         /// <summary>
@@ -159,7 +167,7 @@ namespace helengine {
         /// <param name="entity">Entity losing the fit component.</param>
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
-            DetachFromWindowResize();
+            DetachFromWindowLayoutChanges();
             ReleaseSnapshotItems();
             SnapshotEntityCountValue = 0;
             PendingApplyValue = false;
@@ -169,7 +177,7 @@ namespace helengine {
         /// Releases fit snapshots and resize subscriptions before the native backend deletes this component.
         /// </summary>
         public override void Dispose() {
-            DetachFromWindowResize();
+            DetachFromWindowLayoutChanges();
             ReleaseSnapshots();
             NativeOwnership.Delete(CurrentAnchorSpaceValue);
             CurrentAnchorSpaceValue = null;
@@ -202,6 +210,7 @@ namespace helengine {
                 PendingApplyValue = true;
             }
 
+            RefreshLayoutProviders();
             if (PendingApplyValue) {
                 ApplyCurrentScale();
                 PendingApplyValue = false;
@@ -209,44 +218,90 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Handles main-window resize notifications by reapplying the reference-canvas fit scale.
+        /// Handles named layout-window size notifications by reapplying the reference-canvas fit scale.
         /// </summary>
-        /// <param name="handle">Window handle reported by the render manager.</param>
-        /// <param name="newWidth">Updated window width.</param>
-        /// <param name="newHeight">Updated window height.</param>
-        void HandleWindowResized(IntPtr handle, int newWidth, int newHeight) {
+        /// <param name="tag">Named window whose usable layout size changed.</param>
+        void HandleWindowLayoutChanged(string tag) {
+            if (string.Equals(CameraWindowLayoutUtils.ResolveWindowTag(LayoutViewport, LayoutCamera), tag, StringComparison.OrdinalIgnoreCase)) {
+                PendingApplyValue = true;
+            }
+        }
+
+        /// <summary>
+        /// Attaches to the named layout-window change event when the component is active.
+        /// </summary>
+        void AttachToWindowLayoutChanges() {
+            if (IsSubscribedToWindowLayoutChanges) {
+                return;
+            }
+            if (OwnerCore == null || OwnerCore.RenderManager3D == null) {
+                return;
+            }
+
+            OwnerCore.RenderManager3D.WindowLayoutChanged += HandleWindowLayoutChanged;
+            IsSubscribedToWindowLayoutChanges = true;
+        }
+
+        /// <summary>
+        /// Detaches from the named layout-window change event when currently subscribed.
+        /// </summary>
+        void DetachFromWindowLayoutChanges() {
+            DetachFromLayoutProviders();
+            if (!IsSubscribedToWindowLayoutChanges) {
+                return;
+            }
+            if (OwnerCore == null || OwnerCore.RenderManager3D == null) {
+                IsSubscribedToWindowLayoutChanges = false;
+                return;
+            }
+
+            OwnerCore.RenderManager3D.WindowLayoutChanged -= HandleWindowLayoutChanged;
+            IsSubscribedToWindowLayoutChanges = false;
+        }
+
+        /// <summary>Tracks the explicit viewport or nearest camera and subscribes to authored layout-scope changes.</summary>
+        void RefreshLayoutProviders() {
+            ViewportComponent viewport = CameraWindowLayoutUtils.FindAncestorViewport(Parent);
+            CameraComponent camera = viewport != null ? viewport.GetBoundCameraComponent() : CameraWindowLayoutUtils.FindAncestorCamera(Parent);
+            if (!ReferenceEquals(LayoutViewport, viewport) || !ReferenceEquals(LayoutCamera, camera)) {
+                DetachFromLayoutProviders();
+                LayoutViewport = viewport;
+                LayoutCamera = camera;
+                if (LayoutViewport != null) {
+                    LayoutViewport.AnchorBoundsChanged += HandleLayoutBoundsChanged;
+                }
+                if (LayoutCamera != null) {
+                    LayoutCamera.ViewportChanged += HandleLayoutBoundsChanged;
+                    LayoutCamera.OutputWindowTargetChanged += HandleLayoutBoundsChanged;
+                }
+                PendingApplyValue = true;
+            }
+        }
+
+        /// <summary>Disconnects borrowed viewport and camera callbacks before this component releases its hierarchy scope.</summary>
+        void DetachFromLayoutProviders() {
+            if (LayoutViewport != null) {
+                LayoutViewport.AnchorBoundsChanged -= HandleLayoutBoundsChanged;
+                LayoutViewport = null;
+            }
+            if (LayoutCamera != null) {
+                LayoutCamera.ViewportChanged -= HandleLayoutBoundsChanged;
+                LayoutCamera.OutputWindowTargetChanged -= HandleLayoutBoundsChanged;
+                LayoutCamera = null;
+            }
+        }
+
+        /// <summary>Invalidates the fitted subtree when its authored viewport or camera target changes.</summary>
+        void HandleLayoutBoundsChanged() {
             PendingApplyValue = true;
         }
 
-        /// <summary>
-        /// Attaches to the shared main-window resize event when the component is active.
-        /// </summary>
-        void AttachToWindowResize() {
-            if (IsSubscribedToWindowResizeValue) {
-                return;
-            }
-            if (OwnerCore == null || OwnerCore.RenderManager3D == null) {
-                return;
-            }
-
-            OwnerCore.RenderManager3D.WindowResized += HandleWindowResized;
-            IsSubscribedToWindowResizeValue = true;
-        }
-
-        /// <summary>
-        /// Detaches from the shared main-window resize event when currently subscribed.
-        /// </summary>
-        void DetachFromWindowResize() {
-            if (!IsSubscribedToWindowResizeValue) {
-                return;
-            }
-            if (OwnerCore == null || OwnerCore.RenderManager3D == null) {
-                IsSubscribedToWindowResizeValue = false;
-                return;
-            }
-
-            OwnerCore.RenderManager3D.WindowResized -= HandleWindowResized;
-            IsSubscribedToWindowResizeValue = false;
+        /// <summary>Uses the authored viewport's resolved pixels, or the nearest camera's named layout surface.</summary>
+        /// <returns>Dimensions of this subtree's own layout reference.</returns>
+        int2 ResolveLayoutSurfaceSize() {
+            RefreshLayoutProviders();
+            return LayoutViewport != null ? LayoutViewport.ResolvedViewportSize
+                : CameraWindowLayoutUtils.ResolveCameraSize(OwnerCore.RenderManager3D, LayoutCamera);
         }
 
         /// <summary>
@@ -296,7 +351,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Applies the fit scale resolved from the current main-window size to the captured authored subtree.
+        /// Applies the fit scale resolved from the current camera or viewport surface to the captured authored subtree.
         /// </summary>
         void ApplyCurrentScale() {
             if (Parent == null || OwnerCore == null || OwnerCore.RenderManager3D == null || SnapshotsValue.Count == 0) {
@@ -325,11 +380,11 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Resolves the current fitted anchor space using the live main-window dimensions and the authored reference canvas.
+        /// Resolves the current fitted anchor space using the camera-scoped layout dimensions and the authored reference canvas.
         /// </summary>
         /// <returns>Anchor space that descendants should use for local anchoring.</returns>
         int2 ResolveCurrentAnchorSpaceSize() {
-            int2 mainWindowSize = OwnerCore.RenderManager3D.MainWindowSize;
+            int2 mainWindowSize = ResolveLayoutSurfaceSize();
             double liveWidth = mainWindowSize.X > 0 ? mainWindowSize.X : ReferenceWidthValue;
             double liveHeight = mainWindowSize.Y > 0 ? mainWindowSize.Y : ReferenceHeightValue;
             if (LiveWindowMatchesReferenceAspect(liveWidth, liveHeight)) {
@@ -354,7 +409,7 @@ namespace helengine {
         /// <param name="anchorSpace">Anchor space resolved for the current live window.</param>
         /// <returns>Root-entity offset that places the fitted canvas inside the live window.</returns>
         float2 ResolveCurrentCanvasOrigin(int2 anchorSpaceSize) {
-            int2 mainWindowSize = OwnerCore.RenderManager3D.MainWindowSize;
+            int2 mainWindowSize = ResolveLayoutSurfaceSize();
             double liveWidth = mainWindowSize.X > 0 ? mainWindowSize.X : ReferenceWidthValue;
             double liveHeight = mainWindowSize.Y > 0 ? mainWindowSize.Y : ReferenceHeightValue;
             float originX = (float)((liveWidth - anchorSpaceSize.X) * 0.5d);

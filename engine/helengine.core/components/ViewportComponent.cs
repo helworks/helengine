@@ -56,6 +56,9 @@ namespace helengine {
         /// </summary>
         CameraComponent ActiveCameraComponentValue;
 
+        /// <summary>The renderer currently publishing layout changes; detached object initializers have no host subscription.</summary>
+        RenderManager3D LayoutRenderer;
+
         /// <summary>
         /// Stores the explicitly assigned camera used by the explicit camera binding mode.
         /// </summary>
@@ -388,6 +391,21 @@ namespace helengine {
                 DetachFromCamera();
                 DetachFromWindowResize();
             }
+            RefreshWindowLayoutSubscription();
+        }
+
+        /// <summary>Registers named layout notifications once both camera binding and component ownership have been initialized.</summary>
+        void RefreshWindowLayoutSubscription() {
+            RenderManager3D renderer = ActiveCameraComponentValue != null && OwnerCore != null ? OwnerCore.RenderManager3D : null;
+            if (!ReferenceEquals(LayoutRenderer, renderer)) {
+                if (LayoutRenderer != null) {
+                    LayoutRenderer.WindowLayoutChanged -= HandleCameraWindowLayoutChanged;
+                }
+                LayoutRenderer = renderer;
+                if (LayoutRenderer != null) {
+                    LayoutRenderer.WindowLayoutChanged += HandleCameraWindowLayoutChanged;
+                }
+            }
         }
 
         /// <summary>
@@ -399,6 +417,7 @@ namespace helengine {
             }
 
             ActiveCameraComponentValue.ViewportChanged += HandleCameraViewportChanged;
+            ActiveCameraComponentValue.OutputWindowTargetChanged += HandleCameraViewportChanged;
         }
 
         /// <summary>
@@ -407,8 +426,10 @@ namespace helengine {
         void DetachFromCamera() {
             if (ActiveCameraComponentValue != null) {
                 ActiveCameraComponentValue.ViewportChanged -= HandleCameraViewportChanged;
+                ActiveCameraComponentValue.OutputWindowTargetChanged -= HandleCameraViewportChanged;
                 ActiveCameraComponentValue = null;
             }
+            RefreshWindowLayoutSubscription();
         }
 
         /// <summary>
@@ -439,7 +460,18 @@ namespace helengine {
         /// Handles ancestor camera viewport changes.
         /// </summary>
         void HandleCameraViewportChanged() {
+            PendingScaleApplyValue = true;
             RaiseAnchorBoundsChanged();
+        }
+
+        /// <summary>Invalidates only the viewport whose camera uses the named view that changed size.</summary>
+        /// <param name="tag">The named view with updated usable layout dimensions.</param>
+        void HandleCameraWindowLayoutChanged(string tag) {
+            string target = CameraWindowLayoutUtils.ResolveWindowTag(this, ActiveCameraComponentValue);
+            if (string.Equals(target, tag, StringComparison.OrdinalIgnoreCase)) {
+                PendingScaleApplyValue = true;
+                RaiseAnchorBoundsChanged();
+            }
         }
 
         /// <summary>
@@ -449,6 +481,9 @@ namespace helengine {
         /// <param name="newWidth">Updated window width.</param>
         /// <param name="newHeight">Updated window height.</param>
         void HandleWindowResized(IntPtr handle, int newWidth, int newHeight) {
+            if (handle != OwnerCore.RenderManager3D.MainWindowHandle) {
+                return;
+            }
             PendingScaleApplyValue = true;
             RaiseAnchorBoundsChanged();
         }
@@ -537,7 +572,7 @@ namespace helengine {
                 return viewport;
             }
 
-            int2 mainWindowSize = OwnerCore.RenderManager3D.MainWindowSize;
+            int2 mainWindowSize = OwnerCore.RenderManager3D.GetCameraLayoutSize(cameraComponent);
             if (mainWindowSize.X <= 0 || mainWindowSize.Y <= 0) {
                 return viewport;
             }
@@ -551,21 +586,7 @@ namespace helengine {
         /// <returns>An entity-owned ancestor camera component borrowed by the viewport when one exists; otherwise null.</returns>
         [NativeBorrowedReturn]
         CameraComponent ResolveAncestorCameraComponent() {
-            Entity current = Parent;
-
-            while (current != null) {
-                if (current.Components != null) {
-                    for (int index = 0; index < current.Components.Count; index++) {
-                        if (current.Components[index] is CameraComponent cameraComponent) {
-                            return cameraComponent;
-                        }
-                    }
-                }
-
-                current = current.Parent;
-            }
-
-            return null;
+            return CameraWindowLayoutUtils.FindAncestorCamera(Parent);
         }
 
         /// <summary>

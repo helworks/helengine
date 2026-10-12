@@ -119,6 +119,9 @@ namespace helengine.core.tests {
         /// Component that is both a 2D drawable and a camera so the refresh must rebuild the render and the camera registration.
         /// </summary>
         sealed class DrawableCameraComponent : Component, IDrawable2D, ICamera {
+            /// <summary>Uses shared rendering in this registration-only camera fixture.</summary>
+            public string OutputWindowTag { get; set; } = string.Empty;
+
             readonly RenderList2D RenderQueue2DValue = new RenderList2D(4);
             readonly RenderList3D RenderQueue3DValue = new RenderList3D(4);
 

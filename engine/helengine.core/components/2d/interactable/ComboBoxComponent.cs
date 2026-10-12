@@ -975,7 +975,8 @@ namespace helengine {
             List<ICamera> cameras = OwnerCore.ObjectManager.Cameras;
             for (int i = cameras.Count - 1; i >= 0; i--) {
                 ICamera camera = cameras[i];
-                if ((camera.LayerMask & layerMask) == 0) {
+                if ((camera.LayerMask & layerMask) == 0 || (camera.OutputWindowTag.Length != 0
+                    && !OwnerCore.RenderManager3D.IsCameraVisibleInWindow(camera, OwnerCore.RenderManager3D.InputWindowHandle))) {
                     continue;
                 }
 

@@ -13,6 +13,9 @@ namespace helengine {
         /// </summary>
         ushort LayerMask { get; set; }
 
+        /// <summary>Gets or sets the output view tag; empty renders in all views and main identifies the primary view.</summary>
+        string OutputWindowTag { get; set; }
+
         /// <summary>
         /// Gets or sets the draw order for the camera.
         /// </summary>

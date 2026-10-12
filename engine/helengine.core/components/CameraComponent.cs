@@ -16,6 +16,9 @@ namespace helengine {
         /// </summary>
         ushort LayerMaskValue;
 
+        /// <summary>Identifies the host view receiving this camera, or empty to render in every view.</summary>
+        string OutputWindowTagValue = string.Empty;
+
         /// <summary>
         /// Cached viewport rectangle used by render backends and editor previews.
         /// </summary>
@@ -62,6 +65,9 @@ namespace helengine {
         /// </summary>
         public event Action ViewportChanged;
 
+        /// <summary>Signals a change of output view so camera-bound UI can rebind its layout reference.</summary>
+        public event Action OutputWindowTargetChanged;
+
         /// <summary>
         /// Initializes a new camera component with default lists and viewport.
         /// </summary>
@@ -93,6 +99,22 @@ namespace helengine {
                     } else {
                         CameraDrawOrderValue = value;
                     }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the host window tag receiving this camera's output.
+        /// Empty preserves shared rendering; main targets the primary view and named tags target secondary views.
+        /// </summary>
+        [EditorPropertyDisplayName("Output Window Tag")]
+        public string OutputWindowTag {
+            get { return OutputWindowTagValue; }
+            set {
+                RenderWindowTagRules.Validate(value, true);
+                if (!string.Equals(OutputWindowTagValue, value, StringComparison.Ordinal)) {
+                    OutputWindowTagValue = value;
+                    OutputWindowTargetChanged?.Invoke();
                 }
             }
         }
