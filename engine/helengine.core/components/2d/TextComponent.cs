@@ -47,6 +47,10 @@ namespace helengine {
         /// </summary>
         float FontScaleValue;
         /// <summary>
+        /// Selects native-pixel glyph rendering and the whole-pixel snapping applied to scaled outline and shadow offsets.
+        /// </summary>
+        TextNativePixelMode NativeFontPixelsValue;
+        /// <summary>
         /// Stores the rotation applied during rendering.
         /// </summary>
         float RotationValue;
@@ -296,6 +300,9 @@ namespace helengine {
         public float FontScale {
             get { return FontScaleValue; }
             set {
+                if (NativeFontPixelsValue != TextNativePixelMode.Disabled && value != 1f) {
+                    throw new ArgumentOutOfRangeException(nameof(value), "Native font pixels require a font scale of one.");
+                }
                 if (value <= 0f) {
                     throw new ArgumentOutOfRangeException(nameof(value), "Font scale must be greater than zero.");
                 }
@@ -305,6 +312,27 @@ namespace helengine {
                     UpdateSelectionVisual();
                     MarkTextRenderStateDirty();
                 }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets whether the cooked font's pixels render at one-to-one size while its surrounding UI layout still follows the viewport,
+        /// and how outline and shadow offsets snap to whole pixels in that case.
+        /// Any mode other than <see cref="TextNativePixelMode.Disabled"/> resets font scale to one and rejects subsequent attempts to resize the glyphs.
+        /// </summary>
+        [ScenePersistenceAppend(0)]
+        public TextNativePixelMode NativeFontPixels {
+            get { return NativeFontPixelsValue; }
+            set {
+                if (NativeFontPixelsValue == value) {
+                    return;
+                }
+                NativeFontPixelsValue = value;
+                if (value != TextNativePixelMode.Disabled) {
+                    FontScaleValue = 1f;
+                }
+                UpdateSelectionVisual();
+                MarkTextRenderStateDirty();
             }
         }
 
@@ -404,6 +432,7 @@ namespace helengine {
             SourceRect = new float4(0, 0, 1, 1);
             WrapText = false;
             FontScaleValue = 1f;
+            NativeFontPixelsValue = TextNativePixelMode.Disabled;
             Alignment = TextAlignment.Left;
             ConvertTextToSprite = false;
         }

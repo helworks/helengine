@@ -16,6 +16,12 @@ namespace helengine {
         /// <summary>Retains each active handle's last usable client dimensions across minimization.</summary>
         readonly Dictionary<IntPtr, int2> WindowLayoutSizes = new Dictionary<IntPtr, int2>();
 
+        /// <summary>Stores host-reported display density without changing rendering or pointer coordinates.</summary>
+        readonly Dictionary<IntPtr, int> WindowDensityDpi = new Dictionary<IntPtr, int>();
+
+        /// <summary>Retains density for named layout views, including temporarily closed windows.</summary>
+        readonly Dictionary<string, int> NamedWindowDensityDpi = new Dictionary<string, int>();
+
         /// <summary>Retains named layout dimensions for the scene lifetime, including views that have closed.</summary>
         readonly Dictionary<string, int2> NamedWindowLayoutSizes = new Dictionary<string, int2>();
 
@@ -103,6 +109,37 @@ namespace helengine {
             return WindowSizes[handle];
         }
 
+        /// <summary>Reports display density to viewport layout; physical render dimensions and input pixels remain independent.</summary>
+        /// <param name="handle">Registered host window whose display density changed.</param>
+        /// <param name="densityDpi">Positive host-reported dots per inch.</param>
+        public void SetWindowDensityDpi(IntPtr handle, int densityDpi) {
+            GetWindowSize(handle);
+            if (densityDpi <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(densityDpi), "Display density must be positive.");
+            }
+            if (WindowDensityDpi.ContainsKey(handle) && WindowDensityDpi[handle] == densityDpi) {
+                return;
+            }
+            WindowDensityDpi[handle] = densityDpi;
+            string tag = WindowTags[handle];
+            if (tag.Length > 0) {
+                NamedWindowDensityDpi[tag.ToLowerInvariant()] = densityDpi;
+                WindowLayoutChanged?.Invoke(tag);
+            }
+        }
+
+        /// <summary>Returns the density reported for a named view; density scaling requires the host to supply this measurement.</summary>
+        /// <param name="tag">Registered layout view, normally main or a camera's output tag.</param>
+        /// <returns>Reported dots per inch.</returns>
+        public int GetWindowDensityDpi(string tag) {
+            RenderWindowTagRules.Validate(tag, false);
+            string key = tag.ToLowerInvariant();
+            if (!NamedWindowDensityDpi.ContainsKey(key)) {
+                throw new InvalidOperationException("Display density has not been reported for layout view: " + tag);
+            }
+            return NamedWindowDensityDpi[key];
+        }
+
         /// <summary>Assigns a unique host tag to a registered window without changing its size or layout ownership.</summary>
         /// <param name="handle">Previously registered host window.</param>
         /// <param name="tag">Nonempty host view identifier, compared without case.</param>
@@ -119,6 +156,11 @@ namespace helengine {
             }
             WindowTags[handle] = tag;
             NamedWindowLayoutSizes[tag.ToLowerInvariant()] = WindowLayoutSizes[handle];
+            if (WindowDensityDpi.ContainsKey(handle)) {
+                NamedWindowDensityDpi[tag.ToLowerInvariant()] = WindowDensityDpi[handle];
+            } else {
+                NamedWindowDensityDpi.Remove(tag.ToLowerInvariant());
+            }
             WindowLayoutChanged?.Invoke(tag);
         }
 
@@ -185,6 +227,7 @@ namespace helengine {
             }
             WindowSizes.Remove(handle);
             WindowLayoutSizes.Remove(handle);
+            WindowDensityDpi.Remove(handle);
             WindowTags.Remove(handle);
             if (RenderWindowHandle == handle) {
                 RenderWindowHandle = MainWindowHandle;
@@ -335,6 +378,8 @@ namespace helengine {
         public virtual void Dispose() {
             WindowSizes.Clear();
             WindowLayoutSizes.Clear();
+            WindowDensityDpi.Clear();
+            NamedWindowDensityDpi.Clear();
             NamedWindowLayoutSizes.Clear();
             WindowTags.Clear();
             RenderWindowHandle = (IntPtr)0;

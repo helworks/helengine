@@ -9,9 +9,9 @@ namespace helengine.editor {
         const string GeneratedFolderName = "generated";
 
         /// <summary>
-        /// Cache-format version included in the font-variant settings hash so import-pipeline fixes can invalidate stale cached atlases.
+        /// Cache-format version included in the settings hash; v5 rebuilds fonts whose cropped glyph origins previously lost their horizontal bearings.
         /// </summary>
-        const string CacheFormatVersion = "font-variant-cache-v4";
+        const string CacheFormatVersion = "font-variant-cache-v5";
 
         /// <summary>
         /// Folder name used for cached per-platform font variants.

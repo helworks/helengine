@@ -41,7 +41,7 @@ namespace helengine {
                 }
 
                 double glyphWidth = Math.Max(1d, glyph.SourceRect.Z * textureWidth * fontScale);
-                visibleWidth = Math.Max(visibleWidth, offsetX + glyphWidth);
+                visibleWidth = Math.Max(visibleWidth, offsetX + glyph.BearingX * fontScale + glyphWidth);
                 offsetX += glyph.AdvanceWidth > 0f
                     ? glyph.AdvanceWidth * fontScale
                     : glyphWidth;

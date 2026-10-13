@@ -19,6 +19,11 @@ namespace helengine {
         float FontScaleValue = 1f;
 
         /// <summary>
+        /// Selects native-pixel glyph rendering for every overlay row; any mode other than disabled pins the effective scale to one.
+        /// </summary>
+        TextNativePixelMode NativeFontPixelsValue = TextNativePixelMode.Disabled;
+
+        /// <summary>
         /// Additional authored overlay text retained for compatibility even though only two visible rows are rendered.
         /// </summary>
         string AdditionalTextValue = string.Empty;
@@ -129,6 +134,9 @@ namespace helengine {
         public float FontScale {
             get { return FontScaleValue; }
             set {
+                if (NativeFontPixelsValue != TextNativePixelMode.Disabled && value != 1f) {
+                    throw new ArgumentOutOfRangeException(nameof(value), "Native font pixels require a font scale of one.");
+                }
                 if (value <= 0f) {
                     throw new ArgumentOutOfRangeException(nameof(value), "Font scale must be greater than zero.");
                 }
@@ -138,6 +146,27 @@ namespace helengine {
                 }
 
                 FontScaleValue = value;
+                ApplyFont();
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets whether the overlay rows draw the cooked font at its native pixel size, and how their shadow snaps to whole pixels.
+        /// Any mode other than <see cref="TextNativePixelMode.Disabled"/> resets font scale to one and ignores the platform overlay scale multiplier,
+        /// because the font asset is then cooked at the size it is displayed on each platform.
+        /// </summary>
+        [ScenePersistenceAppend(0)]
+        public TextNativePixelMode NativeFontPixels {
+            get { return NativeFontPixelsValue; }
+            set {
+                if (NativeFontPixelsValue == value) {
+                    return;
+                }
+
+                NativeFontPixelsValue = value;
+                if (value != TextNativePixelMode.Disabled) {
+                    FontScaleValue = 1f;
+                }
                 ApplyFont();
             }
         }
@@ -180,6 +209,11 @@ namespace helengine {
         /// Gets how many FPS components are currently registered for frame sampling.
         /// </summary>
         public static int ActiveComponentCount => ActiveComponents.Count;
+
+        /// <summary>Gets the borrowed generated row hierarchy whose padding and font size are controlled by this overlay.</summary>
+        [ScenePersistenceIgnore]
+        [NativeBorrowedReturn]
+        public Entity OverlayLayoutRoot => OverlayHost;
 
         /// <summary>
         /// Stores the current refresh interval.
@@ -323,6 +357,7 @@ namespace helengine {
             UpdateTextComponent.Color = new byte4(255, 255, 255, 255);
             ApplyTextShadow(UpdateTextComponent);
             UpdateTextComponent.Font = Font;
+            UpdateTextComponent.NativeFontPixels = NativeFontPixels;
             UpdateTextComponent.FontScale = ResolveEffectiveFontScale();
             UpdateRowHost.AddComponent(UpdateTextComponent);
 
@@ -336,6 +371,7 @@ namespace helengine {
             RenderTextComponent.Color = new byte4(255, 255, 255, 255);
             ApplyTextShadow(RenderTextComponent);
             RenderTextComponent.Font = Font;
+            RenderTextComponent.NativeFontPixels = NativeFontPixels;
             RenderTextComponent.FontScale = ResolveEffectiveFontScale();
             RenderRowHost.AddComponent(RenderTextComponent);
 
@@ -438,11 +474,13 @@ namespace helengine {
 
             if (UpdateTextComponent != null) {
                 UpdateTextComponent.Font = Font;
+                UpdateTextComponent.NativeFontPixels = NativeFontPixels;
                 UpdateTextComponent.FontScale = ResolveEffectiveFontScale();
             }
 
             if (RenderTextComponent != null) {
                 RenderTextComponent.Font = Font;
+                RenderTextComponent.NativeFontPixels = NativeFontPixels;
                 RenderTextComponent.FontScale = ResolveEffectiveFontScale();
             }
 
@@ -659,6 +697,7 @@ namespace helengine {
 
                 TextComponent textComponent = AdditionalLineTextComponents[lineIndex];
                 textComponent.Font = Font;
+                textComponent.NativeFontPixels = NativeFontPixels;
                 textComponent.FontScale = ResolveEffectiveFontScale();
                 textComponent.Text = lineText;
             }
@@ -730,6 +769,7 @@ namespace helengine {
             textComponent.Color = new byte4(255, 255, 255, 255);
             ApplyTextShadow(textComponent);
             textComponent.Font = Font;
+            textComponent.NativeFontPixels = NativeFontPixels;
             textComponent.FontScale = ResolveEffectiveFontScale();
             textComponent.Text = lineText;
             int componentIndex = rowHost.Components.Count;
@@ -755,9 +795,13 @@ namespace helengine {
         }
         /// <summary>
         /// Resolves the runtime text scale while preserving the authored component value for serialization and editor inspection.
+        /// Native-pixel overlays always draw at one because their font is cooked at the displayed size.
         /// </summary>
         /// <returns>Effective scale used by the generated FPS text drawables.</returns>
         float ResolveEffectiveFontScale() {
+            if (NativeFontPixelsValue != TextNativePixelMode.Disabled) {
+                return 1f;
+            }
             if (OwnerCore == null) {
                 return FontScale;
             }

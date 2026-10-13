@@ -140,6 +140,42 @@ public sealed class EditorPlatformFontVariantCacheServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Leaves a valid v4 variant in place and verifies the corrected crop-bearing importer selects a new cache identity instead of reporting that stale variant as a hit.
+    /// </summary>
+    [Fact]
+    public void ResolveVariant_WhenLegacyCropBearingVariantExists_RebuildsWithoutDeletingLegacyFiles() {
+        string sourcePath = WriteSourceFont("Fonts/LegacyBearing.ttf");
+        AssetImportManager manager = CreateFontManager(new TestFontImporter());
+        EditorPlatformFontVariantCacheService service = new EditorPlatformFontVariantCacheService(manager);
+        AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+        using MemoryStream legacySettings = new MemoryStream();
+        byte[] legacyVersion = System.Text.Encoding.UTF8.GetBytes("font-variant-cache-v4");
+        legacySettings.Write(legacyVersion, 0, legacyVersion.Length);
+        SectionedAssetImportSettingsBinarySerializer.Serialize(legacySettings, settings);
+        string checksum = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(legacySettings.ToArray())).ToLowerInvariant();
+        EditorPlatformFontVariantCacheKey legacyKey = new EditorPlatformFontVariantCacheKey("gamecube", settings.Importer.SourceChecksum, checksum);
+        string legacyDirectory = Path.Combine(manager.ImportRootPath, "generated", "platform-fonts", "gamecube", legacyKey.VariantId);
+        string legacyFont = Path.Combine(legacyDirectory, "LegacyBearing.hefont");
+        string legacyAtlas = Path.Combine(legacyDirectory, "LegacyBearing.hetex");
+        EditorPlatformFontVariantCacheResult initial = service.ResolveVariant(sourcePath, "gamecube");
+        Assert.NotEqual(legacyFont, initial.CachedFontAssetPath);
+        Directory.CreateDirectory(legacyDirectory);
+        File.Copy(initial.CachedFontAssetPath, legacyFont);
+        File.Copy(initial.CachedAtlasTextureAssetPath, legacyAtlas);
+        File.Delete(initial.CachedFontAssetPath);
+        File.Delete(initial.CachedAtlasTextureAssetPath);
+
+        EditorPlatformFontVariantCacheResult rebuilt = service.ResolveVariant(sourcePath, "gamecube");
+
+        Assert.False(rebuilt.IsCacheHit);
+        Assert.NotEqual(legacyFont, rebuilt.CachedFontAssetPath);
+        Assert.True(File.Exists(legacyFont));
+        Assert.True(File.Exists(legacyAtlas));
+        Assert.True(File.Exists(rebuilt.CachedFontAssetPath));
+        Assert.True(service.ResolveVariant(sourcePath, "gamecube").IsCacheHit);
+    }
+
+    /// <summary>
     /// Creates one font-enabled asset import manager for the current temporary project.
     /// </summary>
     /// <param name="fontImporter">Deterministic font importer used by the test case.</param>

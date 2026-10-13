@@ -55,7 +55,7 @@ namespace helengine.editor {
         /// <param name="offset">Padding offset applied before rendering.</param>
         /// <param name="useClearType">Whether to rasterize independent RGB coverage on an opaque black background.</param>
         /// <param name="bitmap">Output bitmap containing the rendered glyph.</param>
-        /// <param name="rectangle">Output bounds of the glyph within the bitmap.</param>
+        /// <param name="rectangle">Cropped bitmap bounds including its one-pixel transparent border; its origin relative to the raster pen supplies glyph bearings.</param>
         private static void GenerateChar(char c,
             Font font,
             int res,
@@ -182,7 +182,7 @@ namespace helengine.editor {
                     bmp,
                     glyphOffsetY,
                     advanceWidth,
-                    0,                 // BearingX (not computed with GDI+)
+                    rect.X - offset,   // Retain the cropped bitmap's horizontal origin, including its border.
                     0                  // BearingY
                 );
             }

@@ -1,6 +1,37 @@
 namespace helengine.core.tests {
     /// <summary>Verifies named layout dimensions remain independent of render/input selection and window visibility.</summary>
     public sealed class WindowLayoutSizeTests {
+        /// <summary>Host DPI reports publish layout changes while keeping physical rendering and pointer coordinates intact.</summary>
+        [Fact]
+        public void DisplayDensityIsIndependentOfRenderSize() {
+            using MultiWindowTestRenderManager renderer = CreateRenderer();
+            renderer.OnWindowResize(new IntPtr(1), 1920, 1080);
+            List<string> changes = new List<string>();
+            renderer.WindowLayoutChanged += changes.Add;
+            renderer.SetWindowDensityDpi(new IntPtr(1), 420);
+            renderer.SetWindowDensityDpi(new IntPtr(1), 420);
+            renderer.SetWindowDensityDpi(new IntPtr(2), 320);
+            Assert.Equal(420, renderer.GetWindowDensityDpi("MAIN"));
+            Assert.Equal(320, renderer.GetWindowDensityDpi("glass"));
+            Assert.Equal(new[] { "main", "glass" }, changes);
+            Assert.Equal(new int2(1920, 1080), renderer.GetWindowSize(new IntPtr(1)));
+            Assert.Equal(new int2(1920, 1080), renderer.MainWindowSize);
+            Assert.Equal(new int2(1920, 1080), renderer.InputWindowSize);
+            Assert.Equal(new int2(1920, 1080), renderer.GetCameraLayoutSize(new CameraComponent()));
+            renderer.SelectInputWindow(new IntPtr(2));
+            Assert.Equal(new int2(640, 360), renderer.InputWindowSize);
+        }
+
+        /// <summary>Density scaling requires an explicit positive host report and rejects unregistered windows.</summary>
+        [Fact]
+        public void DisplayDensityRejectsMissingOrInvalidReports() {
+            using MultiWindowTestRenderManager renderer = CreateRenderer();
+            Assert.Throws<InvalidOperationException>(() => renderer.GetWindowDensityDpi("main"));
+            Assert.Throws<ArgumentOutOfRangeException>(() => renderer.SetWindowDensityDpi(new IntPtr(1), 0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => renderer.SetWindowDensityDpi(new IntPtr(1), -1));
+            Assert.Throws<ArgumentException>(() => renderer.SetWindowDensityDpi(new IntPtr(99), 160));
+            Assert.Equal(new int2(1280, 720), renderer.MainWindowSize);
+        }
         /// <summary>Named cameras use their own dimensions while shared cameras retain the primary layout reference.</summary>
         [Fact]
         public void CameraLayoutUsesItsNamedView() {

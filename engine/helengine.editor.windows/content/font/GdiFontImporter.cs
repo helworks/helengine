@@ -50,7 +50,9 @@ namespace helengine.editor {
                     settings.PixelSize,
                     System.Drawing.FontStyle.Regular,
                     System.Drawing.GraphicsUnit.Pixel);
-                return GDIFontProcessor.ImportFont(font, RenderManager2D);
+                FontAsset asset = GDIFontProcessor.ImportFont(font, RenderManager2D);
+                FontHorizontalMetricsProcessor.Apply(asset, settings);
+                return asset;
             } finally {
                 if (!string.IsNullOrWhiteSpace(temporaryFontFilePath) && File.Exists(temporaryFontFilePath)) {
                     File.Delete(temporaryFontFilePath);

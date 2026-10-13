@@ -41,6 +41,15 @@ namespace helengine {
         /// </summary>
         public const byte ReferenceCanvasStretchScalingMode = 2;
 
+        /// <summary>Scaling mode that converts authored pixels to display pixels using the host DPI and the viewport's pixels per centimeter.</summary>
+        public const byte DensityScalingMode = 3;
+
+        /// <summary>Authored pixel density; the initial value corresponds to a 160 DPI reference canvas.</summary>
+        float PixelsPerCentimeterValue = (float)(160d / 2.54d);
+
+        /// <summary>User-selected size multiplier applied after physical density conversion.</summary>
+        float UiScaleValue = 1f;
+
         /// <summary>
         /// Stores the selected viewport binding mode.
         /// </summary>
@@ -176,6 +185,47 @@ namespace helengine {
             }
         }
 
+        /// <summary>Gets or sets how many authored viewport pixels represent one centimeter in density mode; host DPI determines the approximate physical conversion.</summary>
+        public float PixelsPerCentimeter {
+            get { return PixelsPerCentimeterValue; }
+            set {
+                if (!(value > 0f) || float.IsInfinity(value)) {
+                    throw new ArgumentOutOfRangeException(nameof(value), "Pixels per centimeter must be finite and positive.");
+                }
+                if (PixelsPerCentimeterValue != value) {
+                    PixelsPerCentimeterValue = value;
+                    PendingScaleApplyValue = true;
+                    RaiseAnchorBoundsChanged();
+                }
+            }
+        }
+
+        /// <summary>Gets or sets an additional positive UI size multiplier for density scaling.</summary>
+        public float UiScale {
+            get { return UiScaleValue; }
+            set {
+                if (!(value > 0f) || float.IsInfinity(value)) {
+                    throw new ArgumentOutOfRangeException(nameof(value), "UI scale must be finite and positive.");
+                }
+                if (UiScaleValue != value) {
+                    UiScaleValue = value;
+                    PendingScaleApplyValue = true;
+                    RaiseAnchorBoundsChanged();
+                }
+            }
+        }
+
+        /// <summary>Gets physical pixels per authored pixel in density mode, using the screen or bound camera's named output view.</summary>
+        [ScenePersistenceIgnore]
+        public float DensityScale {
+            get {
+                RefreshSubscriptions();
+                string tag = ActiveCameraComponentValue == null || ActiveCameraComponentValue.OutputWindowTag.Length == 0
+                    ? "main" : ActiveCameraComponentValue.OutputWindowTag;
+                return (float)(OwnerCore.RenderManager3D.GetWindowDensityDpi(tag) / (PixelsPerCentimeterValue * 2.54d) * UiScaleValue);
+            }
+        }
+
         /// <summary>
         /// Gets or sets the authored reference canvas width used by viewport-owned scaling.
         /// </summary>
@@ -294,6 +344,7 @@ namespace helengine {
             base.ComponentRemoved(entity);
             DetachFromCamera();
             DetachFromWindowResize();
+            DetachFromWindowLayout();
             ReleaseLayoutSnapshotItems();
             SnapshotEntityCountValue = 0;
             PendingScaleApplyValue = false;
@@ -305,6 +356,7 @@ namespace helengine {
         public override void Dispose() {
             DetachFromCamera();
             DetachFromWindowResize();
+            DetachFromWindowLayout();
             ReleaseLayoutSnapshots();
             NativeOwnership.Delete(CurrentAnchorSpaceValue);
             NativeOwnership.Delete(CurrentViewportAnchorSpaceValue);
@@ -329,6 +381,7 @@ namespace helengine {
             } else {
                 DetachFromCamera();
                 DetachFromWindowResize();
+                DetachFromWindowLayout();
             }
         }
 
@@ -396,7 +449,8 @@ namespace helengine {
 
         /// <summary>Registers named layout notifications once both camera binding and component ownership have been initialized.</summary>
         void RefreshWindowLayoutSubscription() {
-            RenderManager3D renderer = ActiveCameraComponentValue != null && OwnerCore != null ? OwnerCore.RenderManager3D : null;
+            RenderManager3D renderer = OwnerCore != null && (ActiveCameraComponentValue != null || BindingModeValue == ScreenBindingMode)
+                ? OwnerCore.RenderManager3D : null;
             if (!ReferenceEquals(LayoutRenderer, renderer)) {
                 if (LayoutRenderer != null) {
                     LayoutRenderer.WindowLayoutChanged -= HandleCameraWindowLayoutChanged;
@@ -405,6 +459,14 @@ namespace helengine {
                 if (LayoutRenderer != null) {
                     LayoutRenderer.WindowLayoutChanged += HandleCameraWindowLayoutChanged;
                 }
+            }
+        }
+
+        /// <summary>Releases host layout notifications when this viewport leaves its scene or is disposed.</summary>
+        void DetachFromWindowLayout() {
+            if (LayoutRenderer != null) {
+                LayoutRenderer.WindowLayoutChanged -= HandleCameraWindowLayoutChanged;
+                LayoutRenderer = null;
             }
         }
 
@@ -467,7 +529,7 @@ namespace helengine {
         /// <summary>Invalidates only the viewport whose camera uses the named view that changed size.</summary>
         /// <param name="tag">The named view with updated usable layout dimensions.</param>
         void HandleCameraWindowLayoutChanged(string tag) {
-            string target = CameraWindowLayoutUtils.ResolveWindowTag(this, ActiveCameraComponentValue);
+            string target = BindingModeValue == ScreenBindingMode ? "main" : CameraWindowLayoutUtils.ResolveWindowTag(this, ActiveCameraComponentValue);
             if (string.Equals(target, tag, StringComparison.OrdinalIgnoreCase)) {
                 PendingScaleApplyValue = true;
                 RaiseAnchorBoundsChanged();
@@ -593,13 +655,16 @@ namespace helengine {
         /// Rebuilds the authored snapshots for the current entity subtree when viewport-owned scaling is active.
         /// </summary>
         void RebuildSnapshots() {
-            ReleaseLayoutSnapshotItems();
             if (Parent == null) {
+                ReleaseLayoutSnapshotItems();
                 SnapshotEntityCountValue = 0;
                 return;
             }
 
-            CaptureSnapshotsRecursive(Parent, true);
+            ViewportLayoutSnapshot[] previous = LayoutSnapshotsValue.ToArray();
+            LayoutSnapshotsValue.Clear();
+            CaptureSnapshotsRecursive(Parent, true, previous);
+            NativeOwnership.Delete(previous);
             SnapshotEntityCountValue = LayoutSnapshotsValue.Count;
         }
 
@@ -608,15 +673,47 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Current entity to capture.</param>
         /// <param name="isRootEntity">True when the entity is the root of the scaled subtree.</param>
-        void CaptureSnapshotsRecursive(Entity entity, bool isRootEntity) {
-            LayoutSnapshotsValue.Add(new ViewportLayoutSnapshot(entity, isRootEntity));
+        /// <param name="previous">Existing authored records retained across dynamic subtree changes.</param>
+        void CaptureSnapshotsRecursive(Entity entity, bool isRootEntity, [NativeNoEscape] ViewportLayoutSnapshot[] previous) {
+            ViewportLayoutSnapshot snapshot = null;
+            for (int index = 0; index < previous.Length; index++) {
+                if (ReferenceEquals(previous[index].Entity, entity)) {
+                    snapshot = previous[index];
+                    break;
+                }
+            }
+            LayoutSnapshotsValue.Add(snapshot ?? new ViewportLayoutSnapshot(entity, isRootEntity));
             if (entity.Children == null) {
                 return;
             }
 
             for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
-                CaptureSnapshotsRecursive(entity.Children[childIndex], false);
+                if (ShouldCaptureChild(entity.Children[childIndex])) {
+                    CaptureSnapshotsRecursive(entity.Children[childIndex], false, previous);
+                }
             }
+        }
+
+        /// <summary>Leaves independently owned viewport and generated performance-overlay subtrees to their respective layout owners.</summary>
+        /// <param name="child">Child whose layout ownership is inspected.</param>
+        /// <returns>Whether the current viewport should capture this child's layout.</returns>
+        bool ShouldCaptureChild(Entity child) {
+            if (child.Components != null) {
+                for (int index = 0; index < child.Components.Count; index++) {
+                    if (child.Components[index] is ViewportComponent) {
+                        return false;
+                    }
+                }
+            }
+            Entity parent = child.Parent;
+            if (parent != null && parent.Components != null) {
+                for (int index = 0; index < parent.Components.Count; index++) {
+                    if (parent.Components[index] is FPSComponent fps && ReferenceEquals(child, fps.OverlayLayoutRoot)) {
+                        return false;
+                    }
+                }
+            }
+            return true;
         }
 
         /// <summary>
@@ -650,7 +747,12 @@ namespace helengine {
 
             CurrentAnchorSpaceValue.Update(resolvedAnchorSpaceSize, resolvedAnchorSpaceOrigin);
             CurrentCanvasOriginValue = resolvedCanvasOrigin;
+            double densityScale = ScalingModeValue == DensityScalingMode ? DensityScale : 1d;
             for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
+                if (ScalingModeValue == DensityScalingMode) {
+                    LayoutSnapshotsValue[snapshotIndex].ApplyDensityScale(densityScale);
+                    continue;
+                }
                 LayoutSnapshotsValue[snapshotIndex].Apply(
                     CurrentAnchorSpaceValue,
                     resolvedCanvasOrigin,
@@ -674,7 +776,7 @@ namespace helengine {
         /// <returns>Anchor-space size that descendants should use for local anchoring.</returns>
         int2 ResolveCurrentAnchorSpaceSize() {
             int2 viewportBounds = ResolveAnchorBounds();
-            if (ScalingModeValue == ReferenceCanvasStretchScalingMode) {
+            if (ScalingModeValue == ReferenceCanvasStretchScalingMode || ScalingModeValue == DensityScalingMode) {
                 return viewportBounds;
             }
 
@@ -777,7 +879,8 @@ namespace helengine {
         /// </summary>
         bool IsReferenceCanvasScalingActive() {
             return ScalingModeValue == ReferenceCanvasScalingMode
-                || ScalingModeValue == ReferenceCanvasStretchScalingMode;
+                || ScalingModeValue == ReferenceCanvasStretchScalingMode
+                || ScalingModeValue == DensityScalingMode;
         }
 
         /// <summary>
@@ -796,7 +899,9 @@ namespace helengine {
             }
 
             for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
-                count += CountEntitiesRecursive(entity.Children[childIndex]);
+                if (ShouldCaptureChild(entity.Children[childIndex])) {
+                    count += CountEntitiesRecursive(entity.Children[childIndex]);
+                }
             }
 
             return count;

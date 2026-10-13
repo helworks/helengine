@@ -452,7 +452,7 @@ namespace helengine {
                         CommandListValue.AddGlyphQuad(
                             font.Texture,
                             new float4(
-                                (float)(lineOriginX + offsetX + pass.Offset.X),
+                                (float)(lineOriginX + offsetX + glyph.BearingX * fontScale + pass.Offset.X),
                                 (float)(baseY + snappedLineOffsetY + (glyph.OffsetY * fontScale) + pass.Offset.Y),
                                 (float)glyphWidth,
                                 (float)glyphHeight),
@@ -463,7 +463,7 @@ namespace helengine {
                     CommandListValue.AddGlyphQuad(
                         font.Texture,
                         new float4(
-                            (float)(lineOriginX + offsetX),
+                            (float)(lineOriginX + offsetX + glyph.BearingX * fontScale),
                             (float)(baseY + snappedLineOffsetY + (glyph.OffsetY * fontScale)),
                             (float)glyphWidth,
                             (float)glyphHeight),
@@ -541,7 +541,7 @@ namespace helengine {
                 }
 
                 double glyphWidth = Math.Max(1d, glyph.SourceRect.Z * font.AtlasWidth * fontScale);
-                visibleWidth = Math.Max(visibleWidth, offsetX + glyphWidth);
+                visibleWidth = Math.Max(visibleWidth, offsetX + glyph.BearingX * fontScale + glyphWidth);
                 offsetX += glyph.AdvanceWidth > 0f
                     ? glyph.AdvanceWidth * fontScale
                     : glyphWidth;

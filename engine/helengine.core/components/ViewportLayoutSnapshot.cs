@@ -13,6 +13,12 @@ namespace helengine {
             IsRootEntity = isRootEntity;
             LocalPosition = entity.LocalPosition;
 
+            TrackedFpsComponent = FindFpsComponent(entity);
+            if (TrackedFpsComponent != null) {
+                FpsFontScale = TrackedFpsComponent.FontScale;
+                FpsPadding = TrackedFpsComponent.Padding;
+            }
+
             TrackedLayoutComponent = FindLayoutComponent(entity);
             if (TrackedLayoutComponent != null) {
                 AnchorDistances = TrackedLayoutComponent.AnchorDistances;
@@ -69,6 +75,15 @@ namespace helengine {
         /// Gets the authored local position captured for the entity.
         /// </summary>
         public float3 LocalPosition { get; }
+
+        /// <summary>Gets the performance overlay that owns its generated text subtree, when attached.</summary>
+        public FPSComponent TrackedFpsComponent { get; }
+
+        /// <summary>Gets the authored font scale propagated by the performance overlay to its generated rows.</summary>
+        public float FpsFontScale { get; }
+
+        /// <summary>Gets the authored performance overlay margin before density conversion.</summary>
+        public int2 FpsPadding { get; }
 
         /// <summary>
         /// Gets the attached anchor component when one exists.
@@ -182,6 +197,21 @@ namespace helengine {
             double widthScale = referenceWidth > 0 ? (double)anchorSpace.Size.X / referenceWidth : 1d;
             double heightScale = referenceHeight > 0 ? (double)anchorSpace.Size.Y / referenceHeight : 1d;
             double scalarScale = stretchCanvas ? heightScale : Math.Min(widthScale, heightScale);
+            ApplyScale(canvasOrigin, widthScale, heightScale, scalarScale);
+        }
+
+        /// <summary>Applies a uniform physical-density scale from authored values, including layout bounds used by pointer hit tests.</summary>
+        /// <param name="scale">Physical pixels per authored viewport pixel.</param>
+        public void ApplyDensityScale(double scale) {
+            ApplyScale(new float2(0f, 0f), scale, scale, scale);
+        }
+
+        /// <summary>Restores each tracked layout field from its authored snapshot and applies the requested axis and glyph scales.</summary>
+        /// <param name="canvasOrigin">Root displacement within the physical viewport.</param>
+        /// <param name="widthScale">Horizontal pixels per authored pixel.</param>
+        /// <param name="heightScale">Vertical pixels per authored pixel.</param>
+        /// <param name="scalarScale">Uniform glyph and decoration scale.</param>
+        void ApplyScale(float2 canvasOrigin, double widthScale, double heightScale, double scalarScale) {
             float positionX = ScaleFloat(LocalPosition.X, widthScale);
             float positionY = ScaleFloat(LocalPosition.Y, heightScale);
             if (IsRootEntity) {
@@ -190,6 +220,12 @@ namespace helengine {
             }
 
             Entity.LocalPosition = new float3(positionX, positionY, LocalPosition.Z);
+
+            if (TrackedFpsComponent != null) {
+                TrackedFpsComponent.FontScale = TrackedFpsComponent.NativeFontPixels != TextNativePixelMode.Disabled
+                    ? 1f : ScaleFloat(FpsFontScale, scalarScale);
+                TrackedFpsComponent.Padding = ScaleInt2(FpsPadding, widthScale, heightScale);
+            }
 
             if (TrackedLayoutComponent != null) {
                 TrackedLayoutComponent.AnchorDistances = new float4(
@@ -207,11 +243,19 @@ namespace helengine {
 
             if (TrackedTextComponent != null) {
                 TrackedTextComponent.Size = ScaleInt2(TextSize, widthScale, heightScale);
-                TrackedTextComponent.FontScale = ScaleFloat(TextFontScale, scalarScale);
-                TrackedTextComponent.OutlineScale = ScaleFloat(TextOutlineScale, scalarScale);
-                TrackedTextComponent.ShadowOffset = new float2(
+                TrackedTextComponent.FontScale = TrackedTextComponent.NativeFontPixels != TextNativePixelMode.Disabled ? 1f : ScaleFloat(TextFontScale, scalarScale);
+                float outlineScale = ScaleFloat(TextOutlineScale, scalarScale);
+                float2 shadowOffset = new float2(
                     ScaleFloat(TextShadowOffset.X, scalarScale),
                     ScaleFloat(TextShadowOffset.Y, scalarScale));
+                TextNativePixelMode nativePixels = TrackedTextComponent.NativeFontPixels;
+                if (nativePixels != TextNativePixelMode.Disabled) {
+                    outlineScale = TextNativePixelEffectUtils.SnapOutlineScale(outlineScale, nativePixels);
+                    shadowOffset = TextNativePixelEffectUtils.SnapShadowOffset(shadowOffset, nativePixels);
+                }
+
+                TrackedTextComponent.OutlineScale = outlineScale;
+                TrackedTextComponent.ShadowOffset = shadowOffset;
             }
 
             if (TrackedSpriteComponent != null) {
@@ -258,6 +302,21 @@ namespace helengine {
                 }
             }
 
+            return null;
+        }
+
+        /// <summary>Finds the performance overlay whose generated children are laid out by the overlay itself.</summary>
+        /// <param name="entity">Entity whose components are inspected.</param>
+        /// <returns>The borrowed attached overlay, or null.</returns>
+        [NativeBorrowedReturn]
+        static FPSComponent FindFpsComponent(Entity entity) {
+            if (entity.Components != null) {
+                for (int index = 0; index < entity.Components.Count; index++) {
+                    if (entity.Components[index] is FPSComponent component) {
+                        return component;
+                    }
+                }
+            }
             return null;
         }
 

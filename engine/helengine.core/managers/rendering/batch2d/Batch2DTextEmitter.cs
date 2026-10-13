@@ -104,7 +104,7 @@ namespace helengine {
                 double pixelHeight = glyph.SourceRect.W * atlas.Height * fontScale;
                 double snappedLineOffsetY = Math.Round(offsetY);
                 double advance = glyph.AdvanceWidth > 0f ? glyph.AdvanceWidth * fontScale : pixelWidth;
-                double glyphX = lineOriginX + offsetX;
+                double glyphX = lineOriginX + offsetX + glyph.BearingX * fontScale;
                 double glyphY = baseY + snappedLineOffsetY + glyph.OffsetY * fontScale;
                 offsetX += advance;
 

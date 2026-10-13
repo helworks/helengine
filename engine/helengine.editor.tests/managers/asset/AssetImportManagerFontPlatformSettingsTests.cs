@@ -6,6 +6,26 @@ namespace helengine.editor.tests.managers.asset {
     /// Verifies platform font settings are forwarded into font imports.
     /// </summary>
     public sealed class AssetImportManagerFontPlatformSettingsTests : IDisposable {
+        /// <summary>The official platform build path retains the native horizontal policy through section cloning and importer dispatch.</summary>
+        [Fact]
+        public void BuildFontAssetForPlatformForwardsHorizontalPixelPolicy() {
+            string sourcePath = Path.Combine(AssetsRootPath, "Fonts", "Native.ttf");
+            Directory.CreateDirectory(Path.GetDirectoryName(sourcePath));
+            File.WriteAllBytes(sourcePath, [0x01, 0x02, 0x03]);
+            ContentManager content = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
+            RecordingFontImporter importer = new RecordingFontImporter();
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, content);
+            manager.RegisterFontImporter(new FontImporterRegistration("test-font", importer, [".ttf"]));
+            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            settings.Processor.Platforms["ps2"] = new AssetPlatformProcessorSettings {
+                Font = new FontAssetProcessorSettings { PixelSize = 34, SnapHorizontalMetricsToPixels = true }
+            };
+            manager.SaveImportSettings(sourcePath, settings);
+            using FontAsset font = manager.BuildFontAssetForPlatform(sourcePath, "ps2");
+            Assert.Equal(34, importer.LastSettings.PixelSize);
+            Assert.True(importer.LastSettings.SnapHorizontalMetricsToPixels);
+        }
+
         /// <summary>
         /// Temporary project root used by each isolated test case.
         /// </summary>

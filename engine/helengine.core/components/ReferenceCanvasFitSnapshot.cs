@@ -209,11 +209,19 @@ namespace helengine {
 
             if (TrackedTextComponent != null) {
                 TrackedTextComponent.Size = ScaleInt2(TextSize, widthScale, heightScale);
-                TrackedTextComponent.FontScale = ScaleFloat(TextFontScale, scalarScale);
-                TrackedTextComponent.OutlineScale = ScaleFloat(TextOutlineScale, scalarScale);
-                TrackedTextComponent.ShadowOffset = new float2(
+                TrackedTextComponent.FontScale = TrackedTextComponent.NativeFontPixels != TextNativePixelMode.Disabled ? 1f : ScaleFloat(TextFontScale, scalarScale);
+                float outlineScale = ScaleFloat(TextOutlineScale, scalarScale);
+                float2 shadowOffset = new float2(
                     ScaleFloat(TextShadowOffset.X, scalarScale),
                     ScaleFloat(TextShadowOffset.Y, scalarScale));
+                TextNativePixelMode nativePixels = TrackedTextComponent.NativeFontPixels;
+                if (nativePixels != TextNativePixelMode.Disabled) {
+                    outlineScale = TextNativePixelEffectUtils.SnapOutlineScale(outlineScale, nativePixels);
+                    shadowOffset = TextNativePixelEffectUtils.SnapShadowOffset(shadowOffset, nativePixels);
+                }
+
+                TrackedTextComponent.OutlineScale = outlineScale;
+                TrackedTextComponent.ShadowOffset = shadowOffset;
             }
 
             if (TrackedSpriteComponent != null) {

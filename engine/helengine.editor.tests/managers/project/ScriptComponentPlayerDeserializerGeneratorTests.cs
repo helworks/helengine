@@ -8,21 +8,21 @@ namespace helengine.editor.tests.managers.project {
     /// </summary>
     public sealed class ScriptComponentPlayerDeserializerGeneratorTests {
         /// <summary>
-        /// Checks the manual AmbientLight factory against the native interface's borrowed string getter and preserves its official output for standalone compilation.
+        /// Checks the AmbientLight factory against the native interface's string value getter and preserves its official output for standalone compilation.
         /// </summary>
         [Fact]
-        public void GenerateNativeDeserializer_WhenAmbientLightSchema_ReturnsStableComponentTypeReference() {
+        public void GenerateNativeDeserializer_WhenAmbientLightSchema_ReturnsComponentTypeByValue() {
             ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(AmbientLightComponent));
             ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator(true, false);
             string className = generator.BuildNativeDeserializerClassName(schema);
             string header = generator.GenerateNativeDeserializerHeader(schema);
             string source = generator.GenerateNativeDeserializerSource(schema);
 
-            Assert.Contains("const HeCppString& get_ComponentTypeId() override;", header, StringComparison.Ordinal);
+            Assert.Contains("HeCppString get_ComponentTypeId() override;", header, StringComparison.Ordinal);
             Assert.Contains("static HeCppString ComponentType;", header, StringComparison.Ordinal);
-            Assert.Contains("const HeCppString& " + className + "::get_ComponentTypeId()", source, StringComparison.Ordinal);
+            Assert.Contains("HeCppString " + className + "::get_ComponentTypeId()", source, StringComparison.Ordinal);
             Assert.Contains("return ComponentType;", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("HeCppString get_ComponentTypeId()", header, StringComparison.Ordinal);
+            Assert.DoesNotContain("const HeCppString& get_ComponentTypeId()", header, StringComparison.Ordinal);
 
             string root = Environment.GetEnvironmentVariable("HELENGINE_DESERIALIZER_INTERFACE_TEST_ROOT");
             if (string.IsNullOrWhiteSpace(root)) {
@@ -258,7 +258,7 @@ namespace helengine.editor.tests.managers.project {
 
             Assert.DoesNotContain("std::string", header, StringComparison.Ordinal);
             Assert.DoesNotContain("std::string", source, StringComparison.Ordinal);
-            Assert.Contains("HeCppString get_ComponentTypeId();", header, StringComparison.Ordinal);
+            Assert.Contains("HeCppString get_ComponentTypeId() override;", header, StringComparison.Ordinal);
             Assert.Contains("static HeCppString ComponentType;", header, StringComparison.Ordinal);
             Assert.DoesNotContain("throw new", source, StringComparison.Ordinal);
             Assert.Contains("he_cpp_raise(ArgumentNullException(\"record\"));", source, StringComparison.Ordinal);
@@ -331,7 +331,7 @@ namespace helengine.editor.tests.managers.project {
             string header = generator.GenerateNativeDeserializerHeader(schema);
             string source = generator.GenerateNativeDeserializerSource(schema);
 
-            Assert.Contains("HeCppString get_ComponentTypeId();", header, StringComparison.Ordinal);
+            Assert.Contains("HeCppString get_ComponentTypeId() override;", header, StringComparison.Ordinal);
             Assert.Contains("HeCppString GeneratedRuntimeClipRectComponentDeserializer::get_ComponentTypeId()", source, StringComparison.Ordinal);
         }
 
