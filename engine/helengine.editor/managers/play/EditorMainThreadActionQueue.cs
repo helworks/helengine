@@ -37,21 +37,24 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Runs every queued action on the calling thread, which must be the editor frame thread. Actions enqueued while
-        /// the drain runs are also executed before it returns. An action that throws stops the drain and propagates; the
-        /// actions behind it stay queued for the next drain.
+        /// Runs the actions that were queued when the drain started, on the calling thread, which must be the editor
+        /// frame thread. Actions enqueued while the drain runs wait for the next drain, so a producer that never stops
+        /// (such as a player spamming its console) cannot keep the frame from finishing. An action that throws stops the
+        /// drain and propagates; the actions behind it stay queued for the next drain.
         /// </summary>
         public void ProcessPending() {
-            while (true) {
+            int remainingCount;
+            lock (PendingActionLock) {
+                remainingCount = PendingActions.Count;
+            }
+
+            while (remainingCount > 0) {
                 Action action;
                 lock (PendingActionLock) {
-                    if (PendingActions.Count == 0) {
-                        return;
-                    }
-
                     action = PendingActions.Dequeue();
                 }
 
+                remainingCount--;
                 action();
             }
         }

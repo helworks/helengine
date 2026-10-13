@@ -59,6 +59,7 @@ public sealed class EditorPlayProcessTests {
         Assert.Equal(1, exitedCount);
         Assert.True(process.HasExited);
         Assert.Equal(3, process.ExitCode);
+        Assert.True(process.ProcessId > 0);
         Assert.Equal(new[] { "hello" }, outputLines);
         Assert.Equal(new[] { "oops" }, errorLines);
         Assert.Equal(1, outputLineCountAtExit);

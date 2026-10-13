@@ -3599,7 +3599,7 @@ namespace helengine.editor {
                     Logger.WriteError(result.Message);
                 }
             } catch (Exception ex) {
-                Logger.WriteError($"Play failed: {ex.Message}");
+                Logger.WriteError($"Play failed: {ex}");
             }
         }
 

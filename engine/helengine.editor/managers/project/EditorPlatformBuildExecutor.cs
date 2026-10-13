@@ -104,16 +104,22 @@ namespace helengine.editor {
         /// in the stable Play workspace, with no code generation or native build.
         /// </summary>
         /// <param name="queueItem">Queued build item naming the platform, profiles and the scenes to cook.</param>
-        /// <returns>The staged content root and startup scene, or the failure reported by the build graph.</returns>
+        /// <returns>
+        /// The staged content root and startup scene, or a failure carrying the full exception when validation or the
+        /// build graph throws, the same way <see cref="Execute"/> reports failures.
+        /// </returns>
         /// <exception cref="ArgumentNullException">Thrown when the queue item is null.</exception>
-        /// <exception cref="InvalidOperationException">Thrown when the queue item targets another platform, selects no scene or names no output directory.</exception>
         public EditorPlayCookResult ExecuteAssetsOnly(EditorBuildQueueItemDocument queueItem) {
             if (queueItem == null) {
                 throw new ArgumentNullException(nameof(queueItem));
             }
 
-            ValidateQueueItem(queueItem);
-            return BuildGraphRunner.ExecuteAssetsOnly(queueItem);
+            try {
+                ValidateQueueItem(queueItem);
+                return BuildGraphRunner.ExecuteAssetsOnly(queueItem);
+            } catch (Exception ex) {
+                return EditorPlayCookResult.Failure($"Play cook for platform '{PlatformDescriptor.Id}' failed: {ex}");
+            }
         }
 
         /// <summary>

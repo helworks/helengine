@@ -35,10 +35,10 @@ public sealed class EditorMainThreadActionQueueTests {
     }
 
     /// <summary>
-    /// Ensures an action enqueued while draining runs within the same drain.
+    /// Ensures an action enqueued while draining waits for the next drain instead of extending the current one.
     /// </summary>
     [Fact]
-    public void ProcessPending_RunsActionsEnqueuedDuringTheDrain() {
+    public void ProcessPending_DefersActionsEnqueuedDuringTheDrainToTheNextDrain() {
         EditorMainThreadActionQueue queue = new EditorMainThreadActionQueue();
         List<string> executed = new List<string>();
         queue.Enqueue(() => {
@@ -47,8 +47,31 @@ public sealed class EditorMainThreadActionQueueTests {
         });
 
         queue.ProcessPending();
+        Assert.Equal(new[] { "first" }, executed);
 
+        queue.ProcessPending();
         Assert.Equal(new[] { "first", "second" }, executed);
+    }
+
+    /// <summary>
+    /// Ensures an action that re-enqueues itself runs once per drain, so an endless producer cannot stall the frame.
+    /// </summary>
+    [Fact]
+    public void ProcessPending_WhenActionReenqueuesItself_RunsOncePerDrain() {
+        EditorMainThreadActionQueue queue = new EditorMainThreadActionQueue();
+        int runCount = 0;
+        Action selfReenqueuing = null;
+        selfReenqueuing = () => {
+            runCount++;
+            queue.Enqueue(selfReenqueuing);
+        };
+        queue.Enqueue(selfReenqueuing);
+
+        queue.ProcessPending();
+        Assert.Equal(1, runCount);
+
+        queue.ProcessPending();
+        Assert.Equal(2, runCount);
     }
 
     /// <summary>
