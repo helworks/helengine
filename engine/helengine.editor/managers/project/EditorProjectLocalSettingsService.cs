@@ -68,7 +68,8 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Persists one validated active project platform to `user_settings/project.json`.
+        /// Persists one validated active project platform to `user_settings/project.json`, keeping the other stored
+        /// settings such as the last Play platform unchanged.
         /// </summary>
         /// <param name="activePlatform">Supported platform identifier to persist.</param>
         public void SaveActivePlatform(string activePlatform) {
@@ -76,9 +77,52 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Platform '{activePlatform}' is not supported by the current project.");
             }
 
-            WriteDocument(new EditorProjectLocalSettingsDocument {
-                ActivePlatform = activePlatform
-            });
+            EditorProjectLocalSettingsDocument document = LoadDocumentForUpdate();
+            document.ActivePlatform = activePlatform;
+            WriteDocument(document);
+        }
+
+        /// <summary>
+        /// Loads the platform last chosen in the viewport Play platform selector. Unlike the active platform, nothing is
+        /// written when the key is missing: the Play selection service resolves the first playable platform itself.
+        /// </summary>
+        /// <returns>Stored `lastPlayPlatform` value, or an empty string when the selector has never been used.</returns>
+        public string LoadLastPlayPlatform() {
+            EditorProjectLocalSettingsDocument document = TryLoadDocument();
+            if (document == null || string.IsNullOrWhiteSpace(document.LastPlayPlatform)) {
+                return string.Empty;
+            }
+
+            return document.LastPlayPlatform;
+        }
+
+        /// <summary>
+        /// Persists the platform chosen in the viewport Play platform selector as `lastPlayPlatform`, keeping the active
+        /// preview platform unchanged.
+        /// </summary>
+        /// <param name="playPlatform">Supported platform identifier to persist.</param>
+        public void SaveLastPlayPlatform(string playPlatform) {
+            if (!IsSupportedPlatform(playPlatform)) {
+                throw new InvalidOperationException($"Platform '{playPlatform}' is not supported by the current project.");
+            }
+
+            EditorProjectLocalSettingsDocument document = LoadDocumentForUpdate();
+            document.LastPlayPlatform = playPlatform;
+            WriteDocument(document);
+        }
+
+        /// <summary>
+        /// Loads the stored document so one setting can be changed without discarding the others; a missing or
+        /// malformed file starts from an empty document.
+        /// </summary>
+        /// <returns>Document to modify and write back.</returns>
+        EditorProjectLocalSettingsDocument LoadDocumentForUpdate() {
+            EditorProjectLocalSettingsDocument document = TryLoadDocument();
+            if (document == null) {
+                return new EditorProjectLocalSettingsDocument();
+            }
+
+            return document;
         }
 
         /// <summary>
