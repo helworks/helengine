@@ -124,6 +124,44 @@ namespace helengine.video.tests {
         }
 
         /// <summary>
+        /// Chosen breaks replace the automatic split, ignoring case, accents and punctuation, for planned speech and for
+        /// the timed words of a take alike.
+        /// </summary>
+        [Fact]
+        public void Compile_ChosenCaptionBreaksSplitTheCues() {
+            VideoEdit edit = VideoEditSamples.TwoScenes();
+            edit.Scenes[0].Speech = "se algum filho da puta vai achar que tem o direito";
+            edit.Tracks.Captions.WordsPerCue = 10;
+            edit.Tracks.Captions.Breaks.Add(new VideoCaptionBreaks { Scene = "hook", Starts = ["Vai achar"], By = "human" });
+            edit.Tracks.Captions.Breaks.Add(new VideoCaptionBreaks { Scene = "question", Starts = ["a lei"], By = "human" });
+
+            VideoCompileResult result = Compile(edit);
+            List<VisualLayer> layers = result.Composition.Layers;
+
+            Assert.Equal(["se algum filho da puta", "vai achar que tem o direito"], layers.Where(layer => layer.Id.StartsWith("caption-hook-", StringComparison.Ordinal)).Select(layer => layer.Text.Cues[0].Text));
+            VisualLayer second = layers.Single(layer => layer.Id == "caption-question-1");
+            Assert.Equal("a lei? Política, política", second.Text.Cues[0].Text);
+            Assert.Equal(4, second.Text.Cues[0].Words.Count);
+            Assert.DoesNotContain(result.Diagnostics, item => item.Code == "caption_break_unmatched");
+        }
+
+        /// <summary>
+        /// A break phrase missing from the speech (e.g. after re-recording) falls back to the automatic split and says so.
+        /// </summary>
+        [Fact]
+        public void Compile_UnmatchedCaptionBreakFallsBackWithWarning() {
+            VideoEdit edit = VideoEditSamples.TwoScenes();
+            edit.Tracks.Captions.Breaks.Add(new VideoCaptionBreaks { Scene = "question", Starts = ["constituição"], By = "human" });
+
+            VideoCompileResult result = Compile(edit);
+
+            Assert.Equal("Qual é a lei?", result.Composition.Layers.Single(layer => layer.Id == "caption-question-0").Text.Cues[0].Text);
+            VideoDiagnostic warning = Assert.Single(result.Diagnostics, item => item.Code == "caption_break_unmatched");
+            Assert.Equal(VideoDiagnosticSeverity.Warning, warning.Severity);
+            Assert.False(result.HasErrors);
+        }
+
+        /// <summary>
         /// The music track starts half a second into the second scene and runs to the end of the video.
         /// </summary>
         [Fact]

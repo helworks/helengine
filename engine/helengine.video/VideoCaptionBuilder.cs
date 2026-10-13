@@ -32,7 +32,7 @@ namespace helengine.video {
                         state.Diagnostics.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Pending, "caption_alignment", span.Scene.Id, $"scenes[{span.Index}].take", "Captions need the timed words of a recorded take."));
                         continue;
                     }
-                    cues = EstimatedCues(span, captions);
+                    cues = EstimatedCues(state, span, captions);
                 }
                 for (int index = 0; index < cues.Count; index++) {
                     MediaTime start = cues[index][0].Start;
@@ -69,18 +69,19 @@ namespace helengine.video {
                     Start = span.Start + MediaTime.FromSeconds(word.StartSec - take.InSec),
                     End = span.Start + MediaTime.FromSeconds(Math.Min(word.EndSec, take.OutSec) - take.InSec)
                 }).ToList();
-            return words.Count == 0 ? null : BalancedCues(words, word => word.Text, captions.WordsPerCue);
+            return words.Count == 0 ? null : SplitCues(state, span, captions, words, word => word.Text);
         }
 
         /// <summary>
         /// Spreads the planned speech over the scene in proportion to the length of each cue's text.
         /// </summary>
+        /// <param name="state">Compilation state.</param>
         /// <param name="span">Scene span.</param>
         /// <param name="captions">Caption settings.</param>
         /// <returns>Estimated cues, each holding one pseudo-word with the cue text and start; never used as word timings.</returns>
-        static List<List<CompositionTextWord>> EstimatedCues(VideoSceneSpan span, VideoCaptionTrack captions) {
+        static List<List<CompositionTextWord>> EstimatedCues(VideoCompileState state, VideoSceneSpan span, VideoCaptionTrack captions) {
             string[] words = span.Scene.Speech.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
-            List<string> texts = BalancedCues(words, word => word, captions.WordsPerCue).Select(chunk => string.Join(" ", chunk)).ToList();
+            List<string> texts = SplitCues(state, span, captions, words, word => word).Select(chunk => string.Join(" ", chunk)).ToList();
             double total = texts.Sum(text => text.Length), cursor = 0, duration = span.Duration.ToSeconds();
             List<List<CompositionTextWord>> cues = new List<List<CompositionTextWord>>();
             foreach (string text in texts) {
@@ -89,6 +90,61 @@ namespace helengine.video {
                 cursor += duration * text.Length / total;
             }
             return cues;
+        }
+
+        /// <summary>
+        /// Splits the scene words into cues: at the chosen breaks of the scene when every break phrase is found in order,
+        /// otherwise automatically, with a warning naming the phrase that no longer matches the speech.
+        /// </summary>
+        /// <typeparam name="T">Word type.</typeparam>
+        /// <param name="state">Compilation state.</param>
+        /// <param name="span">Scene span.</param>
+        /// <param name="captions">Caption settings.</param>
+        /// <param name="words">Words in spoken order.</param>
+        /// <param name="text">Text of a word.</param>
+        /// <returns>Cues covering every word once, in order.</returns>
+        static List<List<T>> SplitCues<T>(VideoCompileState state, VideoSceneSpan span, VideoCaptionTrack captions, IReadOnlyList<T> words, Func<T, string> text) {
+            int breaksIndex = captions.Breaks.FindIndex(item => item.Scene == span.Scene.Id);
+            if (breaksIndex >= 0) {
+                List<List<T>> chosen = ChosenCues(words, text, captions.Breaks[breaksIndex].Starts, out string missing);
+                if (chosen != null) {
+                    return chosen;
+                }
+                state.Diagnostics.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Warning, "caption_break_unmatched", span.Scene.Id, $"tracks.captions.breaks[{breaksIndex}]", $"The caption break \"{missing}\" is not in the scene speech; captions use the automatic split."));
+            }
+            return BalancedCues(words, text, captions.WordsPerCue);
+        }
+
+        /// <summary>
+        /// Cuts the words before each break phrase, searching in spoken order after the previous break.
+        /// </summary>
+        /// <typeparam name="T">Word type.</typeparam>
+        /// <param name="words">Words in spoken order.</param>
+        /// <param name="text">Text of a word.</param>
+        /// <param name="starts">Opening phrase of every cue after the first.</param>
+        /// <param name="missing">The first phrase not found, when the result is null.</param>
+        /// <returns>Cues, or null when a phrase is not found.</returns>
+        internal static List<List<T>> ChosenCues<T>(IReadOnlyList<T> words, Func<T, string> text, IReadOnlyList<string> starts, out string missing) {
+            string[] normalized = words.Select(word => VideoMomentResolver.Normalize(text(word))).ToArray();
+            List<int> cuts = [0];
+            missing = null;
+            foreach (string start in starts) {
+                string[] phrase = (start ?? "").Split((char[])null, StringSplitOptions.RemoveEmptyEntries).Select(VideoMomentResolver.Normalize).Where(word => word.Length > 0).ToArray();
+                int found = -1;
+                for (int index = cuts[^1] + 1; phrase.Length > 0 && index + phrase.Length <= normalized.Length; index++) {
+                    if (phrase.Select((word, offset) => normalized[index + offset] == word).All(match => match)) {
+                        found = index;
+                        break;
+                    }
+                }
+                if (found < 0) {
+                    missing = start;
+                    return null;
+                }
+                cuts.Add(found);
+            }
+            cuts.Add(words.Count);
+            return cuts.Zip(cuts.Skip(1), (from, to) => words.Skip(from).Take(to - from).ToList()).ToList();
         }
 
         /// <summary>

@@ -69,13 +69,18 @@ namespace helengine.video {
                 }
             }
             List<VideoCaptionOverride> overrides = current.Tracks.Captions?.Overrides.Where(item => IsKept(item.By, keptOrigins)).ToList() ?? [];
-            if (overrides.Count > 0) {
+            List<VideoCaptionBreaks> breaks = current.Tracks.Captions?.Breaks.Where(item => IsKept(item.By, keptOrigins)).ToList() ?? [];
+            if (overrides.Count > 0 || breaks.Count > 0) {
                 if (result.Tracks.Captions == null) {
                     result.Tracks.Captions = Clone(current.Tracks.Captions);
                 } else {
                     foreach (VideoCaptionOverride item in overrides) {
                         result.Tracks.Captions.Overrides.RemoveAll(other => other.Scene == item.Scene && other.Cue == item.Cue);
                         result.Tracks.Captions.Overrides.Add(Clone(item));
+                    }
+                    foreach (VideoCaptionBreaks item in breaks) {
+                        result.Tracks.Captions.Breaks.RemoveAll(other => other.Scene == item.Scene);
+                        result.Tracks.Captions.Breaks.Add(Clone(item));
                     }
                 }
             }

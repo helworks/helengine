@@ -468,6 +468,14 @@ namespace helengine.video {
                     }
                     Lock(errors, null, "tracks.captions.overrides", item.By);
                 }
+                for (int index = 0; index < captions.Breaks.Count; index++) {
+                    VideoCaptionBreaks item = captions.Breaks[index];
+                    if (!sceneIds.Contains(item.Scene ?? "") || item.Starts.Any(start => string.IsNullOrWhiteSpace(VideoMomentResolver.Normalize(start)))
+                        || captions.Breaks.FindIndex(other => other.Scene == item.Scene) != index) {
+                        Error(errors, "invalid_captions", item.Scene, $"tracks.captions.breaks[{index}]", "Caption breaks need an existing scene, one entry per scene and words to start each cue.");
+                    }
+                    Lock(errors, null, $"tracks.captions.breaks[{index}]", item.By);
+                }
             }
         }
 

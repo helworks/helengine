@@ -50,5 +50,10 @@ namespace helengine.video {
         /// </summary>
         public List<VideoCaptionOverride> Overrides { get; set; } = [];
 
+        /// <summary>
+        /// Per-scene cue boundaries chosen instead of the automatic split.
+        /// </summary>
+        public List<VideoCaptionBreaks> Breaks { get; set; } = [];
+
     }
 }

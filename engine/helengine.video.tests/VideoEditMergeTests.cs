@@ -68,6 +68,21 @@ namespace helengine.video.tests {
         }
 
         /// <summary>
+        /// Locked caption breaks replace the proposal's breaks for the same scene.
+        /// </summary>
+        [Fact]
+        public void Replan_LockedCaptionBreaksSurvive() {
+            VideoEdit current = VideoEditSamples.TwoScenes();
+            current.Tracks.Captions.Breaks.Add(new VideoCaptionBreaks { Scene = "question", Starts = ["política"], By = "human" });
+            VideoEdit proposal = VideoEditSamples.TwoScenes();
+            proposal.Tracks.Captions.Breaks.Add(new VideoCaptionBreaks { Scene = "question", Starts = ["a lei"] });
+
+            VideoEdit merged = VideoEditMerge.Replan(current, proposal);
+
+            Assert.Equal(["política"], Assert.Single(merged.Tracks.Captions.Breaks).Starts);
+        }
+
+        /// <summary>
         /// Replanning with human and ai origins keeps both kinds of objects while the proposal wins elsewhere.
         /// </summary>
         [Fact]
