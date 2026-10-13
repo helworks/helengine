@@ -56,6 +56,10 @@ namespace helengine.editor {
         /// </summary>
         readonly HashSet<int> SelectedRowIndices;
         /// <summary>
+        /// Scratch list reused to shift selected row indices after each insert without allocating per entry.
+        /// </summary>
+        readonly List<int> SelectionShiftScratch;
+        /// <summary>
         /// Context menu shown for the currently right-clicked row selection.
         /// </summary>
         readonly ContextMenu RowContextMenu;
@@ -136,6 +140,7 @@ namespace helengine.editor {
             stagedEntries = new List<LogEntry>(32);
             rows = new List<LoggerPanelRow>(32);
             SelectedRowIndices = new HashSet<int>();
+            SelectionShiftScratch = new List<int>();
             syncRoot = new object();
             FocusedRowIndex = -1;
             AnchorRowIndex = -1;
@@ -211,12 +216,8 @@ namespace helengine.editor {
                 pendingEntries.Clear();
             }
 
-            for (int i = 0; i < stagedEntries.Count; i++) {
-                AppendEntry(stagedEntries[i]);
-            }
+            InsertEntries(stagedEntries);
             stagedEntries.Clear();
-
-            LayoutRows();
         }
 
         /// <summary>
@@ -248,19 +249,19 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Inserts a log entry at the top of the newest-first list and trims the oldest entries from the bottom.
+        /// Inserts one batch of log entries at the top of the newest-first list and relayouts the rows once.
         /// A view resting at the top stays pinned to the newest entry; a view scrolled down to older entries
-        /// advances by one row so the same entry stays in view.
+        /// advances by the batch size in a single scroll so the same entry stays the first visible row.
         /// </summary>
-        /// <param name="entry">Log entry to add.</param>
-        void AppendEntry(LogEntry entry) {
-            bool isPinnedToNewest = ScrollComponent.ScrollOffset == 0;
+        /// <param name="newEntries">Entries to insert, in the order they were logged.</param>
+        void InsertEntries(List<LogEntry> newEntries) {
+            if (newEntries.Count == 0) {
+                return;
+            }
 
-            entries.Insert(0, entry);
-            ShiftRowStateAfterInsert();
-            if (entries.Count > MaxEntries) {
-                entries.RemoveRange(MaxEntries, entries.Count - MaxEntries);
-                ClampRowStateAfterTrim();
+            bool isPinnedToNewest = ScrollComponent.ScrollOffset == 0;
+            for (int entryIndex = 0; entryIndex < newEntries.Count; entryIndex++) {
+                AppendEntry(newEntries[entryIndex]);
             }
 
             EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
@@ -268,12 +269,27 @@ namespace helengine.editor {
                 new int2(Math.Max(Size.X, MinSize.X), Math.Max(Size.Y, MinSize.Y)),
                 GetRowHeightPixels(),
                 entries.Count);
-            if (!isPinnedToNewest) {
-                ScrollComponent.ScrollTo(ScrollComponent.ScrollOffset + 1);
+
+            // A changed scroll offset raises ScrollOffsetChanged, which already relayouts the rows.
+            bool didScroll = !isPinnedToNewest && ScrollComponent.ScrollTo(ScrollComponent.ScrollOffset + newEntries.Count);
+            if (!didScroll) {
+                LayoutRows();
             }
-            ScrollComponent.ClampScrollOffset();
-            FirstVisibleRowIndex = ScrollComponent.ScrollOffset;
-            UpdateContentRootPosition();
+        }
+
+        /// <summary>
+        /// Inserts one log entry at the top of the newest-first list, keeps row state tracking the same entries,
+        /// and trims the oldest entries from the bottom. Scrolling and row layout are applied once per batch by
+        /// <see cref="InsertEntries"/>.
+        /// </summary>
+        /// <param name="entry">Log entry to add.</param>
+        void AppendEntry(LogEntry entry) {
+            entries.Insert(0, entry);
+            ShiftRowStateAfterInsert();
+            if (entries.Count > MaxEntries) {
+                entries.RemoveRange(MaxEntries, entries.Count - MaxEntries);
+                ClampRowStateAfterTrim();
+            }
         }
 
         /// <summary>
@@ -580,7 +596,8 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds one text payload from the currently selected rows in visible row order.
+        /// Builds one text payload from the currently selected rows in chronological order (oldest first), even
+        /// though rows display newest-first, so pasted logs read naturally in bug reports.
         /// </summary>
         /// <returns>Joined logger text payload for the current selection.</returns>
         string BuildSelectedRowsText() {
@@ -593,7 +610,7 @@ namespace helengine.editor {
             }
 
             List<string> lines = new List<string>(SelectedRowIndices.Count);
-            for (int rowIndex = 0; rowIndex < entries.Count; rowIndex++) {
+            for (int rowIndex = entries.Count - 1; rowIndex >= 0; rowIndex--) {
                 if (!SelectedRowIndices.Contains(rowIndex)) {
                     continue;
                 }
@@ -847,16 +864,20 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Shifts selection, focus, anchor, and pressed-row state down by one row after a new entry is inserted at
-        /// the top, so every index keeps referring to the same log entry.
+        /// Shifts selection, focus, and anchor state down by one row after a new entry is inserted at the top, so
+        /// every index keeps referring to the same log entry. An in-progress pointer press is cancelled instead of
+        /// shifted, because the row under the pointer now shows different content and a stale release must not act
+        /// on it.
         /// </summary>
         void ShiftRowStateAfterInsert() {
             if (SelectedRowIndices.Count > 0) {
-                List<int> previousSelection = new List<int>(SelectedRowIndices);
+                SelectionShiftScratch.Clear();
+                SelectionShiftScratch.AddRange(SelectedRowIndices);
                 SelectedRowIndices.Clear();
-                for (int selectionIndex = 0; selectionIndex < previousSelection.Count; selectionIndex++) {
-                    SelectedRowIndices.Add(previousSelection[selectionIndex] + 1);
+                for (int selectionIndex = 0; selectionIndex < SelectionShiftScratch.Count; selectionIndex++) {
+                    SelectedRowIndices.Add(SelectionShiftScratch[selectionIndex] + 1);
                 }
+                SelectionShiftScratch.Clear();
             }
 
             if (FocusedRowIndex >= 0) {
@@ -867,14 +888,12 @@ namespace helengine.editor {
                 AnchorRowIndex++;
             }
 
-            if (PressedRowIndex >= 0) {
-                PressedRowIndex++;
-            }
+            PressedRowIndex = -1;
         }
 
         /// <summary>
-        /// Drops selection of rows trimmed from the bottom of the logger and clamps focus, anchor, and pressed-row
-        /// state that pointed at a trimmed row onto the oldest remaining row.
+        /// Drops selection of rows trimmed from the bottom of the logger and clamps focus and anchor state that
+        /// pointed at a trimmed row onto the oldest remaining row.
         /// </summary>
         void ClampRowStateAfterTrim() {
             int lastRemainingIndex = entries.Count - 1;
@@ -886,10 +905,6 @@ namespace helengine.editor {
 
             if (AnchorRowIndex > lastRemainingIndex) {
                 AnchorRowIndex = lastRemainingIndex;
-            }
-
-            if (PressedRowIndex > lastRemainingIndex) {
-                PressedRowIndex = -1;
             }
         }
     }

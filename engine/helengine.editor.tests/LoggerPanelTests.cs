@@ -203,7 +203,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the shared copy path writes all selected visible rows to the clipboard.
+        /// Ensures the shared copy path writes all selected rows to the clipboard, oldest (bottom) row first.
         /// </summary>
         [Fact]
         public void CopySelection_WhenMultipleRowsSelected_WritesJoinedVisibleRowsToClipboard() {
@@ -219,8 +219,8 @@ namespace helengine.editor.tests {
                 List<LoggerPanelRow> rows = GetPrivateField<List<LoggerPanelRow>>(panel, "rows");
                 string expected = string.Join(
                     Environment.NewLine,
-                    rows[1].Label.Text,
-                    rows[3].Label.Text);
+                    rows[3].Label.Text,
+                    rows[1].Label.Text);
 
                 InvokePrivate(panel, "CopySelection");
 
@@ -269,8 +269,8 @@ namespace helengine.editor.tests {
                 List<LoggerPanelRow> rows = GetPrivateField<List<LoggerPanelRow>>(panel, "rows");
                 string expected = string.Join(
                     Environment.NewLine,
-                    rows[1].Label.Text,
-                    rows[3].Label.Text);
+                    rows[3].Label.Text,
+                    rows[1].Label.Text);
 
                 InvokePrivate(panel, "HandleRowRightPressed", 3, new int2(24, 72));
                 InvokePrivate(panel, "HandleCopyContextMenuRequested");
@@ -486,8 +486,8 @@ namespace helengine.editor.tests {
             panel.Size = new int2(320, LoggerPanel.RowHeight * 2);
 
             try {
-                InvokePrivate(panel, "AppendEntry", new LogEntry(LogLevel.Error, "newest-error", 0d));
-                InvokePrivate(panel, "LayoutRows");
+                Logger.WriteError("newest-error");
+                panel.FlushPendingEntries();
 
                 List<LoggerPanelRow> rows = GetPrivateField<List<LoggerPanelRow>>(panel, "rows");
                 Assert.Equal(0, GetPrivateField<int>(panel, "FirstVisibleRowIndex"));
@@ -513,14 +513,93 @@ namespace helengine.editor.tests {
                 List<LoggerPanelRow> rows = GetPrivateField<List<LoggerPanelRow>>(panel, "rows");
                 string firstVisibleTextBefore = rows[2].Label.Text;
 
-                InvokePrivate(panel, "AppendEntry", new LogEntry(LogLevel.Info, "late-entry", 0d));
-                InvokePrivate(panel, "LayoutRows");
+                Logger.WriteLine("late-entry");
+                panel.FlushPendingEntries();
 
                 int firstVisibleRowIndex = GetPrivateField<int>(panel, "FirstVisibleRowIndex");
                 Assert.Equal(3, firstVisibleRowIndex);
                 Assert.Equal(3, scrollComponent.ScrollOffset);
                 Assert.Equal(firstVisibleTextBefore, rows[firstVisibleRowIndex].Label.Text);
                 Assert.EndsWith("late-entry", rows[0].Label.Text);
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures one flushed batch of several entries scrolls a scrolled-down view by the batch size so the
+        /// anchored entry stays the first visible row.
+        /// </summary>
+        [Fact]
+        public void FlushPendingEntries_WhenBatchArrivesWhileScrolledDown_KeepsTheAnchoredEntryAsTheFirstVisibleRow() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3", "row-4", "row-5", "row-6");
+            panel.MinSize = new int2(0, 0);
+            panel.Size = new int2(320, LoggerPanel.RowHeight * 2);
+
+            try {
+                ScrollComponent scrollComponent = GetPrivateField<EditorScrollComponent>(panel, "ScrollComponent");
+                Assert.True(scrollComponent.ScrollTo(2));
+                List<LoggerPanelRow> rows = GetPrivateField<List<LoggerPanelRow>>(panel, "rows");
+                string anchoredTextBefore = rows[2].Label.Text;
+
+                Logger.WriteLine("batch-0");
+                Logger.WriteLine("batch-1");
+                Logger.WriteLine("batch-2");
+                panel.FlushPendingEntries();
+
+                Assert.Equal(5, scrollComponent.ScrollOffset);
+                Assert.Equal(5, GetPrivateField<int>(panel, "FirstVisibleRowIndex"));
+                Assert.Equal(anchoredTextBefore, rows[5].Label.Text);
+                Assert.True(rows[5].Entity.Enabled);
+                Assert.EndsWith("batch-2", rows[0].Label.Text);
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures copying a multi-row selection writes entries chronologically (oldest first) even though the
+        /// rows display newest-first.
+        /// </summary>
+        [Fact]
+        public void CopySelection_WhenRowsDisplayNewestFirst_WritesSelectedEntriesInChronologicalOrder() {
+            LoggerPanel panel = CreatePanelWithEntries("first-logged", "second-logged", "third-logged");
+
+            try {
+                InvokePrivate(panel, "HandleRowPressed", 0, false, false);
+                InvokePrivate(panel, "HandleRowPressed", 2, false, true);
+
+                InvokePrivate(panel, "CopySelection");
+
+                string[] lines = ClipboardService.ReadText().Split(Environment.NewLine);
+                Assert.Equal(3, lines.Length);
+                Assert.EndsWith("first-logged", lines[0]);
+                Assert.EndsWith("second-logged", lines[1]);
+                Assert.EndsWith("third-logged", lines[2]);
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures an in-progress row press is cancelled when a new entry arrives, so a stale release cannot act on
+        /// the different content now shown under the pointer.
+        /// </summary>
+        [Fact]
+        public void FlushPendingEntries_WhenRowIsPressed_CancelsThePress() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2");
+
+            try {
+                List<LoggerPanelRow> rows = GetPrivateField<List<LoggerPanelRow>>(panel, "rows");
+                rows[1].Interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Press);
+                Assert.Equal(1, GetPrivateField<int>(panel, "PressedRowIndex"));
+
+                Logger.WriteLine("interrupting-entry");
+                panel.FlushPendingEntries();
+                rows[1].Interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Release);
+
+                Assert.Equal(-1, GetPrivateField<int>(panel, "PressedRowIndex"));
+                Assert.Empty(GetPrivateField<HashSet<int>>(panel, "SelectedRowIndices"));
             } finally {
                 panel.Detach();
             }
