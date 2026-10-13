@@ -159,7 +159,7 @@ namespace helengine.editor {
                 }
 
                 string moduleId = modules[index].ModuleId;
-                if (!File.Exists(Path.Combine(runtimeModulesRootPath, moduleId, moduleId + ".dll"))) {
+                if (!File.Exists(EditorPlayModuleLayout.ResolveModuleAssemblyPath(runtimeModulesRootPath, moduleId))) {
                     return false;
                 }
             }

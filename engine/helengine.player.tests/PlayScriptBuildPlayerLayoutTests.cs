@@ -31,7 +31,7 @@ namespace helengine.player.tests {
         /// on it, and a nested editor module.
         /// </summary>
         public PlayScriptBuildPlayerLayoutTests() {
-            ScratchRootPath = Path.Combine(@"C:\dev\helworks\builds\helengine\play-tests", Guid.NewGuid().ToString("N"));
+            ScratchRootPath = Path.Combine(ResolvePlayTestsRootPath(), Guid.NewGuid().ToString("N"));
             ProjectRootPath = Path.Combine(ScratchRootPath, "project");
             string codebasePath = Path.Combine(ProjectRootPath, "assets", "codebase");
             WriteModule(codebasePath, CoreModuleId, "runtime", "[]", "namespace PlayFixture { public class CoreProbe { } }");
@@ -85,6 +85,25 @@ namespace helengine.player.tests {
             Assert.Contains("script build skipped", second.Message);
             Assert.Equal(modulesRootPath, secondModulesRootPath);
             Assert.Equal(firstCoreWriteTimeUtc, File.GetLastWriteTimeUtc(coreAssemblyPath));
+        }
+
+        /// <summary>
+        /// Resolves the workspace-owned scratch root <c>&lt;checkout parent&gt;/builds/helengine/play-tests</c> by walking up
+        /// from the test binaries to the helengine checkout, identified by its <c>dotnetw.cmd</c> wrapper. Build outputs
+        /// never go to the system temp folder.
+        /// </summary>
+        /// <returns>Absolute scratch root for Play build fixtures.</returns>
+        /// <exception cref="DirectoryNotFoundException">Thrown when the test binaries are not inside a helengine checkout.</exception>
+        static string ResolvePlayTestsRootPath() {
+            DirectoryInfo directory = new DirectoryInfo(AppContext.BaseDirectory);
+            while (directory != null && !File.Exists(Path.Combine(directory.FullName, "dotnetw.cmd"))) {
+                directory = directory.Parent;
+            }
+            if (directory == null || directory.Parent == null) {
+                throw new DirectoryNotFoundException($"No helengine checkout with a parent folder contains '{AppContext.BaseDirectory}'.");
+            }
+
+            return Path.Combine(directory.Parent.FullName, "builds", "helengine", "play-tests");
         }
 
         /// <summary>

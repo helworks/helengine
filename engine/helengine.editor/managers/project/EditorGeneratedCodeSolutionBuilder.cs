@@ -22,11 +22,6 @@ namespace helengine.editor {
         const string EditorTargetFrameworkValue = "net9.0";
 
         /// <summary>
-        /// Build configuration the editor compiles generated projects with; part of the SDK default output layout.
-        /// </summary>
-        const string BuildConfigurationValue = "Debug";
-
-        /// <summary>
         /// Builds the generated code solution description for the supplied authored modules.
         /// </summary>
         /// <param name="projectRootPath">Absolute game project root path.</param>
@@ -207,7 +202,7 @@ namespace helengine.editor {
             }
 
             if (outputLayout == EditorGeneratedCodeOutputLayout.ConfigurationAndTargetFramework) {
-                return Path.Combine(baseOutputPath, BuildConfigurationValue, targetFramework);
+                return Path.Combine(baseOutputPath, EditorDotNetScriptBuildTool.BuildConfigurationValue, targetFramework);
             } else if (outputLayout == EditorGeneratedCodeOutputLayout.ModuleFolder) {
                 return baseOutputPath;
             }

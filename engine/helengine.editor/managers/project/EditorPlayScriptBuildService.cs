@@ -104,10 +104,10 @@ namespace helengine.editor {
                 return EditorBuildExecutionResult.Success("Play script build skipped: the project declares no code modules.");
             }
 
+            RequirePlayerModuleLayout(solutionService.GeneratedModuleProjects, runtimeModulesRootPath);
             IReadOnlyList<string> gameplaySymbols = EditorPlatformPreprocessorSymbolService.ResolveGameplaySymbols(platformId, environmentId);
             using EditorGeneratedCodeWorkspaceLease workspaceLease = solutionService.AcquireWorkspaceLease();
             solutionService.GenerateSolutionFiles(workspaceLease);
-            RequirePlayerModuleLayout(solutionService.GeneratedModuleProjects, runtimeModulesRootPath);
             return BuildTool.Build(
                 solutionService.GeneratedProductionSolutionFilterFilePath,
                 playOutputRootPath,
@@ -116,10 +116,10 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Verifies that every generated module project reports its assembly directory as
-        /// <c>&lt;runtime modules root&gt;/&lt;ModuleId&gt;</c>, the folder the player loads <c>&lt;ModuleId&gt;.dll</c> from.
-        /// The generated projects' reported output directories are the single source of truth for where assemblies
-        /// land, so a layout drift fails here, before compiling, instead of as a missing assembly in the player.
+        /// Verifies, before any project file is written, that every generated module project reports its assembly
+        /// directory as the <see cref="EditorPlayModuleLayout"/> module folder the player loads from. The generated
+        /// projects' reported output directories describe where assemblies really land, so a layout drift fails here
+        /// instead of as a missing assembly in the player.
         /// </summary>
         /// <param name="moduleProjects">Generated runtime module projects of the Play solution.</param>
         /// <param name="runtimeModulesRootPath">Runtime module root handed to the player.</param>
@@ -128,7 +128,7 @@ namespace helengine.editor {
             string fullModulesRootPath = Path.GetFullPath(runtimeModulesRootPath);
             for (int index = 0; index < moduleProjects.Count; index++) {
                 EditorGeneratedCodeModuleProject moduleProject = moduleProjects[index];
-                string expectedDirectoryPath = Path.Combine(fullModulesRootPath, moduleProject.ModuleId);
+                string expectedDirectoryPath = EditorPlayModuleLayout.ResolveModuleDirectoryPath(fullModulesRootPath, moduleProject.ModuleId);
                 if (!string.Equals(Path.GetFullPath(moduleProject.OutputDirectoryPath), expectedDirectoryPath, StringComparison.OrdinalIgnoreCase)) {
                     throw new InvalidOperationException(
                         $"Play module '{moduleProject.ModuleId}' would publish to '{moduleProject.OutputDirectoryPath}', but the player loads it from '{expectedDirectoryPath}'.");

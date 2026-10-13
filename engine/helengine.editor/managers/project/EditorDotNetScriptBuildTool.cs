@@ -8,9 +8,10 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorDotNetScriptBuildTool : IEditorScriptBuildToolWithWorkspaceLease {
         /// <summary>
-        /// Build configuration used for editor-driven script reloads.
+        /// Build configuration every generated script build runs with. <see cref="EditorGeneratedCodeSolutionBuilder"/>
+        /// uses the same value to report the SDK default output directory, so the two cannot disagree.
         /// </summary>
-        const string BuildConfigurationValue = "Debug";
+        internal const string BuildConfigurationValue = "Debug";
 
         /// <summary>
         /// CLI executable used for solution builds.

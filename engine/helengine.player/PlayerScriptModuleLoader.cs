@@ -1,4 +1,5 @@
 using System.Reflection;
+using helengine.editor;
 
 namespace helengine.player {
     /// <summary>
@@ -23,9 +24,9 @@ namespace helengine.player {
         }
 
         /// <summary>
-        /// Resolves, in ordinal module-folder order, the assembly the player loads for every module folder under the root:
-        /// <c>&lt;modulesRootPath&gt;/&lt;moduleId&gt;/&lt;moduleId&gt;.dll</c>. This is the single definition of the
-        /// layout the player expects, so the editor's Play build can be verified against it without loading anything.
+        /// Resolves, in ordinal module-folder order, the assembly the player loads for every module folder under the root,
+        /// using the shared <see cref="EditorPlayModuleLayout"/> rule, so the editor's Play build can be verified against
+        /// exactly what the player loads without loading anything.
         /// </summary>
         /// <param name="modulesRootPath">Root folder that holds one sub-folder per script module.</param>
         /// <returns>Absolute assembly paths, one per module folder; empty when the root holds no module folders.</returns>
@@ -44,7 +45,7 @@ namespace helengine.player {
             List<string> assemblyPaths = new List<string>(moduleDirectories.Length);
             for (int index = 0; index < moduleDirectories.Length; index++) {
                 string moduleId = Path.GetFileName(moduleDirectories[index]);
-                string assemblyPath = Path.Combine(moduleDirectories[index], moduleId + ".dll");
+                string assemblyPath = EditorPlayModuleLayout.ResolveModuleAssemblyPath(modulesRootPath, moduleId);
                 if (!File.Exists(assemblyPath)) {
                     throw new FileNotFoundException($"Script module '{moduleId}' is missing its assembly.", assemblyPath);
                 }
