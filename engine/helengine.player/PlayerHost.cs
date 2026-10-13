@@ -65,6 +65,7 @@ namespace helengine.player {
                 CoreInitializationOptions coreOptions = new CoreInitializationOptions {
                     ContentStreamSource = source,
                     AssetContentManagerConfigurator = new PlayerAdapterContentManagerConfigurator(adapter),
+                    PackagedAssetPathPolicy = new ContentRootPackagedAssetPathPolicy(),
                     SceneCatalog = sceneCatalog
                 };
                 core = new Core(coreOptions);
