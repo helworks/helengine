@@ -33,7 +33,7 @@ namespace helengine.editor {
         readonly EditorEntity contentRoot;
 
         /// <summary>
-        /// Log entries displayed by the panel.
+        /// Log entries displayed by the panel, ordered newest-first so index 0 is the most recent entry and the top row.
         /// </summary>
         readonly List<LogEntry> entries;
 
@@ -248,15 +248,19 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Adds a log entry to the visible list and trims excess entries.
+        /// Inserts a log entry at the top of the newest-first list and trims the oldest entries from the bottom.
+        /// A view resting at the top stays pinned to the newest entry; a view scrolled down to older entries
+        /// advances by one row so the same entry stays in view.
         /// </summary>
         /// <param name="entry">Log entry to add.</param>
         void AppendEntry(LogEntry entry) {
-            entries.Add(entry);
+            bool isPinnedToNewest = ScrollComponent.ScrollOffset == 0;
+
+            entries.Insert(0, entry);
+            ShiftRowStateAfterInsert();
             if (entries.Count > MaxEntries) {
-                int removeCount = entries.Count - MaxEntries;
-                entries.RemoveRange(0, removeCount);
-                ShiftSelectionStateAfterTrim(removeCount);
+                entries.RemoveRange(MaxEntries, entries.Count - MaxEntries);
+                ClampRowStateAfterTrim();
             }
 
             EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
@@ -264,6 +268,9 @@ namespace helengine.editor {
                 new int2(Math.Max(Size.X, MinSize.X), Math.Max(Size.Y, MinSize.Y)),
                 GetRowHeightPixels(),
                 entries.Count);
+            if (!isPinnedToNewest) {
+                ScrollComponent.ScrollTo(ScrollComponent.ScrollOffset + 1);
+            }
             ScrollComponent.ClampScrollOffset();
             FirstVisibleRowIndex = ScrollComponent.ScrollOffset;
             UpdateContentRootPosition();
@@ -840,50 +847,49 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Shifts selection, focus, and anchor state after old rows are trimmed from the front of the logger.
+        /// Shifts selection, focus, anchor, and pressed-row state down by one row after a new entry is inserted at
+        /// the top, so every index keeps referring to the same log entry.
         /// </summary>
-        /// <param name="removeCount">Number of rows removed from the front of the logger.</param>
-        void ShiftSelectionStateAfterTrim(int removeCount) {
-            if (removeCount <= 0) {
-                return;
-            }
-
-            HashSet<int> shiftedSelection = new HashSet<int>();
-            foreach (int selectedRowIndex in SelectedRowIndices) {
-                int shiftedRowIndex = selectedRowIndex - removeCount;
-                if (shiftedRowIndex >= 0) {
-                    shiftedSelection.Add(shiftedRowIndex);
+        void ShiftRowStateAfterInsert() {
+            if (SelectedRowIndices.Count > 0) {
+                List<int> previousSelection = new List<int>(SelectedRowIndices);
+                SelectedRowIndices.Clear();
+                for (int selectionIndex = 0; selectionIndex < previousSelection.Count; selectionIndex++) {
+                    SelectedRowIndices.Add(previousSelection[selectionIndex] + 1);
                 }
             }
 
-            SelectedRowIndices.Clear();
-            foreach (int shiftedRowIndex in shiftedSelection) {
-                SelectedRowIndices.Add(shiftedRowIndex);
+            if (FocusedRowIndex >= 0) {
+                FocusedRowIndex++;
             }
 
-            FocusedRowIndex -= removeCount;
-            AnchorRowIndex -= removeCount;
-            FirstVisibleRowIndex = Math.Max(0, FirstVisibleRowIndex - removeCount);
-
-            if (entries.Count == 0) {
-                FocusedRowIndex = -1;
-                AnchorRowIndex = -1;
-                SelectedRowIndices.Clear();
-                FirstVisibleRowIndex = 0;
-                return;
+            if (AnchorRowIndex >= 0) {
+                AnchorRowIndex++;
             }
 
+            if (PressedRowIndex >= 0) {
+                PressedRowIndex++;
+            }
+        }
+
+        /// <summary>
+        /// Drops selection of rows trimmed from the bottom of the logger and clamps focus, anchor, and pressed-row
+        /// state that pointed at a trimmed row onto the oldest remaining row.
+        /// </summary>
+        void ClampRowStateAfterTrim() {
             int lastRemainingIndex = entries.Count - 1;
-            if (FocusedRowIndex < 0) {
-                FocusedRowIndex = 0;
-            } else if (FocusedRowIndex > lastRemainingIndex) {
+            SelectedRowIndices.RemoveWhere(selectedRowIndex => selectedRowIndex > lastRemainingIndex);
+
+            if (FocusedRowIndex > lastRemainingIndex) {
                 FocusedRowIndex = lastRemainingIndex;
             }
 
-            if (AnchorRowIndex < 0) {
-                AnchorRowIndex = 0;
-            } else if (AnchorRowIndex > lastRemainingIndex) {
+            if (AnchorRowIndex > lastRemainingIndex) {
                 AnchorRowIndex = lastRemainingIndex;
+            }
+
+            if (PressedRowIndex > lastRemainingIndex) {
+                PressedRowIndex = -1;
             }
         }
     }

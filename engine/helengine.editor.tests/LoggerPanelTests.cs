@@ -458,44 +458,137 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures trimming old entries shifts selection, focus, and anchor indices downward.
+        /// Ensures the logger lists entries newest-first so the most recent entry is the first visible row.
         /// </summary>
         [Fact]
-        public void AppendEntry_WhenOldRowsAreTrimmed_ShiftsSelectionFocusAndAnchorDownward() {
-            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3");
+        public void FlushPendingEntries_AfterLoggingAThenB_ShowsBInTheFirstVisibleRow() {
+            LoggerPanel panel = CreatePanelWithEntries("entry-a", "entry-b");
 
             try {
-                InvokePrivate(panel, "HandleRowPressed", 1, false, false);
-                InvokePrivate(panel, "HandleRowPressed", 3, true, false);
+                List<LoggerPanelRow> rows = GetPrivateField<List<LoggerPanelRow>>(panel, "rows");
 
-                for (int entryIndex = 0; entryIndex < LoggerPanel.MaxEntries - 2; entryIndex++) {
-                    InvokePrivate(panel, "AppendEntry", new LogEntry(LogLevel.Info, $"extra-{entryIndex}", entryIndex));
-                }
-
-                Assert.Equal(1, GetPrivateField<int>(panel, "FocusedRowIndex"));
-                Assert.Equal(1, GetPrivateField<int>(panel, "AnchorRowIndex"));
-                Assert.Equal(new[] { 1 }, GetPrivateField<HashSet<int>>(panel, "SelectedRowIndices").OrderBy(value => value));
+                Assert.Equal(0, GetPrivateField<int>(panel, "FirstVisibleRowIndex"));
+                Assert.True(rows[0].Entity.Position.Y < rows[1].Entity.Position.Y);
+                Assert.EndsWith("entry-b", rows[0].Label.Text);
+                Assert.EndsWith("entry-a", rows[1].Label.Text);
             } finally {
                 panel.Detach();
             }
         }
 
         /// <summary>
-        /// Ensures focus clamps to the nearest remaining row when trimming removes the previously focused row.
+        /// Ensures a view resting at the top stays pinned to the newest entry when more entries arrive.
+        /// </summary>
+        [Fact]
+        public void AppendEntry_WhenViewIsAtTheTop_KeepsTheNewestEntryAsTheFirstVisibleRow() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3", "row-4", "row-5", "row-6");
+            panel.MinSize = new int2(0, 0);
+            panel.Size = new int2(320, LoggerPanel.RowHeight * 2);
+
+            try {
+                InvokePrivate(panel, "AppendEntry", new LogEntry(LogLevel.Error, "newest-error", 0d));
+                InvokePrivate(panel, "LayoutRows");
+
+                List<LoggerPanelRow> rows = GetPrivateField<List<LoggerPanelRow>>(panel, "rows");
+                Assert.Equal(0, GetPrivateField<int>(panel, "FirstVisibleRowIndex"));
+                Assert.EndsWith("newest-error", rows[0].Label.Text);
+                Assert.True(rows[0].Entity.Enabled);
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures a view scrolled down to older entries keeps showing the same entry when a new entry arrives.
+        /// </summary>
+        [Fact]
+        public void AppendEntry_WhenViewIsScrolledDown_KeepsTheSameEntryInView() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3", "row-4", "row-5", "row-6");
+            panel.MinSize = new int2(0, 0);
+            panel.Size = new int2(320, LoggerPanel.RowHeight * 2);
+
+            try {
+                ScrollComponent scrollComponent = GetPrivateField<EditorScrollComponent>(panel, "ScrollComponent");
+                Assert.True(scrollComponent.ScrollTo(2));
+                List<LoggerPanelRow> rows = GetPrivateField<List<LoggerPanelRow>>(panel, "rows");
+                string firstVisibleTextBefore = rows[2].Label.Text;
+
+                InvokePrivate(panel, "AppendEntry", new LogEntry(LogLevel.Info, "late-entry", 0d));
+                InvokePrivate(panel, "LayoutRows");
+
+                int firstVisibleRowIndex = GetPrivateField<int>(panel, "FirstVisibleRowIndex");
+                Assert.Equal(3, firstVisibleRowIndex);
+                Assert.Equal(3, scrollComponent.ScrollOffset);
+                Assert.Equal(firstVisibleTextBefore, rows[firstVisibleRowIndex].Label.Text);
+                Assert.EndsWith("late-entry", rows[0].Label.Text);
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures new entries shift selection, focus, and anchor so they keep tracking the same log entries.
+        /// </summary>
+        [Fact]
+        public void AppendEntry_WhenNewEntryArrives_ShiftsSelectionFocusAndAnchorToTrackTheSameEntries() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3");
+
+            try {
+                InvokePrivate(panel, "HandleRowPressed", 1, false, false);
+                InvokePrivate(panel, "HandleRowPressed", 3, true, false);
+
+                InvokePrivate(panel, "AppendEntry", new LogEntry(LogLevel.Info, "fresh", 0d));
+
+                Assert.Equal(4, GetPrivateField<int>(panel, "FocusedRowIndex"));
+                Assert.Equal(4, GetPrivateField<int>(panel, "AnchorRowIndex"));
+                Assert.Equal(new[] { 2, 4 }, GetPrivateField<HashSet<int>>(panel, "SelectedRowIndices").OrderBy(value => value));
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures trimming the oldest entries from the bottom drops their selection and keeps surviving rows tracked.
+        /// </summary>
+        [Fact]
+        public void AppendEntry_WhenOldestRowsAreTrimmed_DropsTrimmedSelectionAndKeepsSurvivingRowsTracked() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3");
+
+            try {
+                // Newest-first display order is row-3, row-2, row-1, row-0; select row-3 (index 0) and row-0 (index 3).
+                InvokePrivate(panel, "HandleRowPressed", 3, false, false);
+                InvokePrivate(panel, "HandleRowPressed", 0, true, false);
+
+                for (int entryIndex = 0; entryIndex < LoggerPanel.MaxEntries - 2; entryIndex++) {
+                    InvokePrivate(panel, "AppendEntry", new LogEntry(LogLevel.Info, $"extra-{entryIndex}", entryIndex));
+                }
+
+                // row-0 and row-1 were trimmed; row-3 shifted from index 0 to index 254.
+                Assert.Equal(254, GetPrivateField<int>(panel, "FocusedRowIndex"));
+                Assert.Equal(254, GetPrivateField<int>(panel, "AnchorRowIndex"));
+                Assert.Equal(new[] { 254 }, GetPrivateField<HashSet<int>>(panel, "SelectedRowIndices").OrderBy(value => value));
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures focus clamps to the nearest remaining (oldest) row when trimming removes the previously focused row.
         /// </summary>
         [Fact]
         public void AppendEntry_WhenTrimRemovesFocusedRow_ClampsFocusToTheNearestRemainingRow() {
             LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1");
 
             try {
-                InvokePrivate(panel, "HandleRowPressed", 0, false, false);
+                // Newest-first display order is row-1, row-0; focus the oldest entry.
+                InvokePrivate(panel, "HandleRowPressed", 1, false, false);
 
                 for (int entryIndex = 0; entryIndex < LoggerPanel.MaxEntries - 1; entryIndex++) {
                     InvokePrivate(panel, "AppendEntry", new LogEntry(LogLevel.Info, $"trim-{entryIndex}", entryIndex));
                 }
 
-                Assert.Equal(0, GetPrivateField<int>(panel, "FocusedRowIndex"));
-                Assert.Equal(0, GetPrivateField<int>(panel, "AnchorRowIndex"));
+                Assert.Equal(LoggerPanel.MaxEntries - 1, GetPrivateField<int>(panel, "FocusedRowIndex"));
+                Assert.Equal(LoggerPanel.MaxEntries - 1, GetPrivateField<int>(panel, "AnchorRowIndex"));
                 Assert.Empty(GetPrivateField<HashSet<int>>(panel, "SelectedRowIndices"));
             } finally {
                 panel.Detach();
