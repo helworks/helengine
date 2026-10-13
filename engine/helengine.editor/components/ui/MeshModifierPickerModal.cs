@@ -47,7 +47,8 @@ namespace helengine.editor {
         /// </summary>
         static readonly string[] ModifierDisplayNames = {
             "Tessellate",
-            "UVW Map"
+            "UVW Map",
+            "Reduce"
         };
 
         /// <summary>
