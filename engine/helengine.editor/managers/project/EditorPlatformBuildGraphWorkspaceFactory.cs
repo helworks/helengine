@@ -62,6 +62,22 @@ namespace helengine.editor {
         /// <param name="queueItemId">Queued build item identifier used to isolate disposable graph state.</param>
         /// <returns>Workspace with invocation-owned graph paths and stable project/profile cache paths.</returns>
         public EditorPlatformBuildGraphWorkspace Create(string platformId, string buildProfileId, string queueItemId) {
+            return Create(platformId, buildProfileId, queueItemId, false);
+        }
+
+        /// <summary>
+        /// Creates a graph workspace with persistent generated-source and native-object roots for one profile, optionally
+        /// at a stable execution root that every call for the same platform and queue item id resolves to.
+        /// </summary>
+        /// <param name="platformId">Stable target platform identifier.</param>
+        /// <param name="buildProfileId">Selected build profile identifier.</param>
+        /// <param name="queueItemId">Queued build item identifier used to isolate graph state.</param>
+        /// <param name="stableExecutionRoot">
+        /// True to omit the per-invocation segment so repeated calls share one execution root (editor Play keeps its
+        /// staged content and builder fingerprints there); false to give every invocation a fresh execution root.
+        /// </param>
+        /// <returns>Workspace with stable or invocation-owned graph paths and stable project/profile cache paths.</returns>
+        public EditorPlatformBuildGraphWorkspace Create(string platformId, string buildProfileId, string queueItemId, bool stableExecutionRoot) {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             } else if (string.IsNullOrWhiteSpace(buildProfileId)) {
@@ -70,7 +86,9 @@ namespace helengine.editor {
                 throw new ArgumentException("Queue item id must be provided.", nameof(queueItemId));
             }
 
-            string executionRootPath = IsolationPathResolver.ResolveWorkspaceExecutionRootPath(platformId, queueItemId, Guid.NewGuid().ToString("N"));
+            string executionRootPath = stableExecutionRoot
+                ? IsolationPathResolver.ResolveWorkspaceExecutionRootPath(platformId, queueItemId)
+                : IsolationPathResolver.ResolveWorkspaceExecutionRootPath(platformId, queueItemId, Guid.NewGuid().ToString("N"));
             string cacheRootPath = IsolationPathResolver.UsesStableCacheRoot()
                 ? IsolationPathResolver.ResolveStableProfileCacheRootPath(platformId)
                 : EditorNativeBuildCache.ResolveCacheRootPath(ProjectRootPath, platformId, buildProfileId);

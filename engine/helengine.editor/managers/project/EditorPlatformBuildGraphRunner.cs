@@ -50,6 +50,12 @@ namespace helengine.editor {
         readonly IEngineCodegenToolProvider CodegenToolProvider;
 
         /// <summary>
+        /// Constant queue item id for editor Play cooks; together with the stable-execution-root workspace it keeps every
+        /// Play cook for one platform and profile in the same workspace, so builder fingerprints and staged content persist.
+        /// </summary>
+        const string PlayWorkspaceQueueItemId = "play";
+
+        /// <summary>
         /// Initializes one build-graph runner for the supplied project and platform descriptor.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative source project root path.</param>
@@ -260,6 +266,135 @@ namespace helengine.editor {
                 selectedStorageProfileId);
             WritePhaseMarker(workspace, "platform-packaged");
             return FinalizeBuildExecution(selectionModel, queueItem, packageResult);
+        }
+
+        /// <summary>
+        /// Cooks the queue item's scenes for editor Play: assets only, with no core regeneration, code compilation or native build.
+        /// The cook runs in a stable per-platform/profile workspace whose builder working root (fingerprints and staged content)
+        /// survives between Play sessions, and the platform builder is asked to package with
+        /// <see cref="PlatformBuildExecutionScope.AssetsOnly"/>.
+        /// </summary>
+        /// <param name="queueItem">Queued build item describing the scenes and profiles to cook.</param>
+        /// <returns>
+        /// The staged content root and startup scene for the desktop player, or a failure when the platform does not support
+        /// Play or the builder reports a failed package.
+        /// </returns>
+        public virtual EditorPlayCookResult ExecuteAssetsOnly(EditorBuildQueueItemDocument queueItem) {
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            }
+
+            IPlatformAssetBuilder builder = BuilderLoader.Load(PlatformDescriptor.BuilderAssemblyPath);
+            PlatformPlayerCapability playerCapability = builder.Definition.PlayerCapability;
+            if (!playerCapability.SupportsPlay) {
+                return EditorPlayCookResult.Failure($"Platform '{PlatformDescriptor.Id}' does not support Play.");
+            }
+
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(builder.Definition);
+            PlatformBuildProfileDefinition previousBuildProfile = selectionModel.TryResolveBuildProfileExact(queueItem.SelectedBuildProfileId);
+            PlatformBuildProfileDefinition selectedBuildProfile = EditorBuildProfileDefaultResolver.ResolveBuildProfile(
+                selectionModel,
+                queueItem.SelectedBuildProfileId,
+                queueItem.DebugBuild);
+            string selectedBuildProfileId = selectedBuildProfile?.ProfileId ?? ResolveSelectedBuildProfileId(queueItem, selectionModel);
+            string selectedGraphicsProfileId = ResolveSelectedGraphicsProfileId(queueItem, selectedBuildProfileId, selectionModel);
+            string selectedCodegenProfileId = ResolveSelectedCodegenProfileId(queueItem, selectedBuildProfileId, selectionModel);
+            string selectedStorageProfileId = ResolveSelectedStorageProfileId(queueItem, selectionModel);
+            string selectedMediaProfileId = ResolveSelectedMediaProfileId(queueItem, selectionModel);
+            PlatformStorageProfileDefinition selectedStorageProfile = selectionModel.ResolveStorageProfile(selectedStorageProfileId);
+            PlatformMediaProfileDefinition selectedMediaProfile = selectionModel.ResolveMediaProfile(selectedMediaProfileId);
+            PlatformCodegenProfileDefinition selectedCodegenProfile = selectionModel.ResolveCodegenProfile(selectedCodegenProfileId);
+            Dictionary<string, string> effectiveCodegenOptionValues = EditorBuildProfileDefaultResolver.CreateEffectiveCodegenOptionValues(
+                queueItem.SelectedCodegenOptionValues,
+                selectedCodegenProfile,
+                previousBuildProfile,
+                selectedBuildProfile);
+            EditorPlatformBuildGraphWorkspace workspace = WorkspaceFactory.Create(
+                PlatformDescriptor.Id,
+                selectedBuildProfileId,
+                PlayWorkspaceQueueItemId,
+                true);
+
+            ResetPlayExecutionDirectories(workspace);
+            WritePhaseMarker(workspace, "play-workspace-ready");
+
+            Dictionary<string, string> temporaryGeneratedScenePathOverrides = PrepareTemporaryGeneratedScenePathOverrides(queueItem);
+            PlatformBuildManifest cookedManifest;
+            try {
+                cookedManifest = RunCookAssets(
+                    builder,
+                    builder.Definition,
+                    selectedBuildProfileId,
+                    selectedGraphicsProfileId,
+                    queueItem,
+                    workspace,
+                    temporaryGeneratedScenePathOverrides);
+            } finally {
+                DeleteTemporaryGeneratedSceneOverrides(temporaryGeneratedScenePathOverrides);
+            }
+            WritePhaseMarker(workspace, "assets-cooked");
+            cookedManifest = RunResolveVariants(cookedManifest, workspace);
+            WritePhaseMarker(workspace, "variants-resolved");
+            cookedManifest = RunLayoutMedia(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
+            WritePhaseMarker(workspace, "media-laid-out");
+            // Play compiles no code modules, so there are no scene-module runtime artifacts to copy (supportsSceneCodeModules: false).
+            RunWriteContainers(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace, false);
+            WritePhaseMarker(workspace, "containers-written");
+
+            EditorBuildExecutionResult packageResult = RunPackagePlatform(
+                builder,
+                queueItem,
+                workspace,
+                cookedManifest,
+                builder.Definition,
+                selectedBuildProfileId,
+                selectedGraphicsProfileId,
+                selectedCodegenProfileId,
+                effectiveCodegenOptionValues,
+                selectedMediaProfileId,
+                selectedStorageProfileId,
+                PlatformBuildExecutionScope.AssetsOnly);
+            WritePhaseMarker(workspace, "platform-packaged");
+            if (!packageResult.Succeeded) {
+                return EditorPlayCookResult.Failure(packageResult.Message);
+            }
+
+            return new EditorPlayCookResult(
+                true,
+                packageResult.Message,
+                Path.Combine(workspace.BuilderWorkingRootPath, playerCapability.ContentRootRelativePath),
+                cookedManifest.StartupSceneId,
+                ResolveStartupSceneCookedRelativePath(cookedManifest));
+        }
+
+        /// <summary>
+        /// Resolves the cooked relative path of the manifest's startup scene, normalized to forward slashes, so the
+        /// desktop player can open the startup scene directly from the staged content root.
+        /// </summary>
+        /// <param name="cookedManifest">Cooked manifest whose startup scene is resolved.</param>
+        /// <returns>Forward-slash cooked relative path of the startup scene.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the startup scene is missing or has no cooked relative path.</exception>
+        static string ResolveStartupSceneCookedRelativePath(PlatformBuildManifest cookedManifest) {
+            if (cookedManifest == null) {
+                throw new ArgumentNullException(nameof(cookedManifest));
+            }
+
+            for (int sceneIndex = 0; sceneIndex < cookedManifest.Scenes.Length; sceneIndex++) {
+                PlatformBuildScene scene = cookedManifest.Scenes[sceneIndex];
+                if (!string.Equals(scene.SceneId, cookedManifest.StartupSceneId, StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                for (int metadataIndex = 0; metadataIndex < scene.ResolvedMetadata.Length; metadataIndex++) {
+                    KeyValuePair<string, string> metadata = scene.ResolvedMetadata[metadataIndex];
+                    if (string.Equals(metadata.Key, PlatformBuildSceneMetadataKeys.CookedRelativePath, StringComparison.OrdinalIgnoreCase)
+                        && !string.IsNullOrWhiteSpace(metadata.Value)) {
+                        return metadata.Value.Replace('\\', '/');
+                    }
+                }
+            }
+
+            throw new InvalidOperationException($"Startup scene '{cookedManifest.StartupSceneId}' did not define a cooked relative path.");
         }
 
         /// <summary>
@@ -1335,7 +1470,10 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Executes the final platform package/build phase.
+        /// Executes the final platform package/build phase. With <see cref="PlatformBuildExecutionScope.AssetsOnly"/> (editor Play)
+        /// it skips everything native: no native build lock, no generated-core sync into the shared native cache, no native
+        /// cache fingerprint and no feature summary, and the builder receives empty generated-core and native-cache roots.
+        /// The shared native caches of full builds are therefore never read or touched by a Play cook.
         /// </summary>
         EditorBuildExecutionResult RunPackagePlatform(
             IPlatformAssetBuilder builder,
@@ -1348,8 +1486,27 @@ namespace helengine.editor {
             string selectedCodegenProfileId,
             IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
             string selectedMediaProfileId,
-            string selectedStorageProfileId) {
+            string selectedStorageProfileId,
+            PlatformBuildExecutionScope executionScope = PlatformBuildExecutionScope.Full) {
             string builderWorkingRootPath = workspace.BuilderWorkingRootPath;
+            if (executionScope == PlatformBuildExecutionScope.AssetsOnly) {
+                PlatformBuildRequest assetsOnlyRequest = BuildScopedRequest(
+                    queueItem,
+                    cookedManifest,
+                    workspace.CookRootPath,
+                    builderWorkingRootPath,
+                    selectedBuildProfileId,
+                    selectedGraphicsProfileId,
+                    selectedCodegenProfileId,
+                    selectedCodegenOptionValues,
+                    selectedMediaProfileId,
+                    string.Empty,
+                    selectedStorageProfileId,
+                    string.Empty,
+                    executionScope);
+                return RunBuilderPackage(builder, queueItem, workspace, assetsOnlyRequest, string.Empty);
+            }
+
             string generatedCoreRootPath = workspace.GeneratedCoreRootPath;
             string nativeCacheSliceRootPath = Path.GetDirectoryName(workspace.NativeObjectCacheRootPath);
             if (string.IsNullOrWhiteSpace(nativeCacheSliceRootPath)) {
@@ -1389,13 +1546,31 @@ namespace helengine.editor {
                 generatedCoreRootPath,
                 selectedStorageProfileId,
                 nativeObjectCacheRootPath);
+            string detectedFeatureSummary = BuildDetectedFeatureSummary(workspace.GeneratedCoreRootPath);
+            return RunBuilderPackage(builder, queueItem, workspace, request, detectedFeatureSummary);
+        }
+
+        /// <summary>
+        /// Stages the package root into the builder's package-source folder and runs the platform builder with the
+        /// prepared request from inside the package root, mapping the builder report to an editor build result.
+        /// </summary>
+        /// <param name="builder">Platform builder that packages the request.</param>
+        /// <param name="queueItem">Queued build item whose output directory is reported on success.</param>
+        /// <param name="workspace">Workspace that owns the package root and builder working root.</param>
+        /// <param name="request">Fully prepared package request.</param>
+        /// <param name="detectedFeatureSummary">Runtime feature summary appended to the result message; empty when unavailable.</param>
+        /// <returns>Editor build result for the package phase.</returns>
+        EditorBuildExecutionResult RunBuilderPackage(
+            IPlatformAssetBuilder builder,
+            EditorBuildQueueItemDocument queueItem,
+            EditorPlatformBuildGraphWorkspace workspace,
+            PlatformBuildRequest request,
+            string detectedFeatureSummary) {
             EditorPlatformBuildProgressReporter progressReporter = new();
             EditorPlatformBuildDiagnosticCollector diagnosticCollector = new();
-            string detectedFeatureSummary = BuildDetectedFeatureSummary(workspace.GeneratedCoreRootPath);
-
             string previousWorkingDirectory = Directory.GetCurrentDirectory();
             try {
-                StageBuilderPackageSourceRoot(workspace.PackageRootPath, builderWorkingRootPath);
+                StageBuilderPackageSourceRoot(workspace.PackageRootPath, workspace.BuilderWorkingRootPath);
                 Directory.SetCurrentDirectory(workspace.PackageRootPath);
                 PlatformBuildReport report = builder.BuildAsync(request, progressReporter, diagnosticCollector, CancellationToken.None).GetAwaiter().GetResult();
                 if (!report.Succeeded) {
@@ -1426,6 +1601,30 @@ namespace helengine.editor {
             Directory.CreateDirectory(builderWorkingRoot);
         }
 
+        /// <summary>
+        /// Prepares the stable Play workspace: clears only the cook, package and layout roots so every Play cook starts from
+        /// fresh cooked content, and creates the variant, logs and builder working roots the kept phases need. The execution
+        /// root and the builder working root (platform fingerprint store and staged content) are never deleted, and the
+        /// generated-core root is not touched.
+        /// </summary>
+        /// <param name="workspace">Stable Play workspace to prepare.</param>
+        static void ResetPlayExecutionDirectories(EditorPlatformBuildGraphWorkspace workspace) {
+            if (workspace == null) {
+                throw new ArgumentNullException(nameof(workspace));
+            }
+
+            DeleteDirectoryIfPresent(workspace.CookRootPath);
+            DeleteDirectoryIfPresent(workspace.PackageRootPath);
+            DeleteDirectoryIfPresent(workspace.LayoutRootPath);
+
+            Directory.CreateDirectory(workspace.CookRootPath);
+            Directory.CreateDirectory(workspace.PackageRootPath);
+            Directory.CreateDirectory(workspace.LayoutRootPath);
+            Directory.CreateDirectory(workspace.VariantRootPath);
+            Directory.CreateDirectory(workspace.LogsRootPath);
+            Directory.CreateDirectory(workspace.BuilderWorkingRootPath);
+        }
+
         static void DeleteDirectoryIfPresent(string path) {
             if (string.IsNullOrWhiteSpace(path)) {
                 return;
@@ -1454,6 +1653,10 @@ namespace helengine.editor {
             CopyDirectoryTree(fullPackageRootPath, builderPackageSourceRootPath);
         }
 
+        /// <summary>
+        /// Builds the platform package request for a full build (<see cref="PlatformBuildExecutionScope.Full"/>).
+        /// </summary>
+        /// <returns>Full-scope package request.</returns>
         PlatformBuildRequest BuildRequest(
             EditorBuildQueueItemDocument queueItem,
             PlatformBuildManifest cookedManifest,
@@ -1467,6 +1670,41 @@ namespace helengine.editor {
             string generatedCoreRootPath,
             string selectedStorageProfileId,
             string nativeObjectCacheRootPath) {
+            return BuildScopedRequest(
+                queueItem,
+                cookedManifest,
+                stagingRoot,
+                builderWorkingRoot,
+                selectedBuildProfileId,
+                selectedGraphicsProfileId,
+                selectedCodegenProfileId,
+                selectedCodegenOptionValues,
+                selectedMediaProfileId,
+                generatedCoreRootPath,
+                selectedStorageProfileId,
+                nativeObjectCacheRootPath,
+                PlatformBuildExecutionScope.Full);
+        }
+
+        /// <summary>
+        /// Builds the platform package request from the staged cooked tree and the selected profiles, carrying the requested
+        /// execution scope so the builder knows whether to run the whole pipeline or stop after cooking content.
+        /// </summary>
+        /// <returns>Package request for the requested execution scope.</returns>
+        PlatformBuildRequest BuildScopedRequest(
+            EditorBuildQueueItemDocument queueItem,
+            PlatformBuildManifest cookedManifest,
+            string stagingRoot,
+            string builderWorkingRoot,
+            string selectedBuildProfileId,
+            string selectedGraphicsProfileId,
+            string selectedCodegenProfileId,
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
+            string selectedMediaProfileId,
+            string generatedCoreRootPath,
+            string selectedStorageProfileId,
+            string nativeObjectCacheRootPath,
+            PlatformBuildExecutionScope executionScope) {
             if (cookedManifest == null) {
                 throw new ArgumentNullException(nameof(cookedManifest));
             }
@@ -1555,7 +1793,8 @@ namespace helengine.editor {
                 selectedMediaProfileId,
                 selectedStorageProfileId,
                 queueItem.SelectedEnvironmentId,
-                nativeObjectCacheRootPath);
+                nativeObjectCacheRootPath,
+                executionScope);
         }
 
         /// <summary>

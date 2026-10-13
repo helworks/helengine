@@ -73,6 +73,23 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures a stable-execution-root workspace resolves the same execution and builder roots on every call, so editor Play reuses its staged content and builder fingerprints.
+        /// </summary>
+        [Fact]
+        public void Create_WhenStableExecutionRootIsRequested_ReturnsSameWorkspaceForRepeatedCalls() {
+            EditorPlatformBuildGraphWorkspaceFactory factory = new(Path.Combine(Path.GetTempPath(), "helengine-isolation-tests", "factory-project"));
+
+            EditorPlatformBuildGraphWorkspace firstWorkspace = factory.Create("ps2", "release", "play", true);
+            EditorPlatformBuildGraphWorkspace secondWorkspace = factory.Create("ps2", "release", "play", true);
+            EditorPlatformBuildGraphWorkspace invocationWorkspace = factory.Create("ps2", "release", "play", false);
+
+            Assert.Equal(firstWorkspace.ExecutionRootPath, secondWorkspace.ExecutionRootPath);
+            Assert.Equal(firstWorkspace.BuilderWorkingRootPath, secondWorkspace.BuilderWorkingRootPath);
+            Assert.Equal(Path.Combine(firstWorkspace.ExecutionRootPath, "builder"), firstWorkspace.BuilderWorkingRootPath);
+            Assert.NotEqual(firstWorkspace.ExecutionRootPath, invocationWorkspace.ExecutionRootPath);
+        }
+
+        /// <summary>
         /// Ensures the default Windows native object path leaves explicit headroom below CMake's maximum path budget.
         /// </summary>
         [Fact]
