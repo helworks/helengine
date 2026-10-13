@@ -246,6 +246,148 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Anchors that answer to the full viewport rect (CameraViewportLayoutSpace, as the DemoDisc main menu panel background
+        /// and footer use) resolve against the live window in the preview; saving at 1904x1041, at 1600x900 and after a reload
+        /// at 1600x900 must still write byte-identical scenes with the authored anchor results.
+        /// </summary>
+        [Fact]
+        public void Save_WhenViewportRectAnchorsFollowTheEditorWindow_WritesIdenticalScene() {
+            EditorEntity root = CreateEntity("MenuRoot", new float3(0f, 0f, 0f));
+            root.AddComponent(CreateStretchViewport());
+            EditorEntity background = CreateEntity("Background", new float3(40f, 90f, 0f));
+            background.AddComponent(new RoundedRectComponent { Size = new int2(400, 540) });
+            LayoutComponent backgroundLayout = new LayoutComponent { LayoutSpace = LayoutComponent.CameraViewportLayoutSpace };
+            background.AddComponent(backgroundLayout);
+            root.AddChild(background);
+            backgroundLayout.SetAnchorDistances(left: 40f, top: 90f, bottom: 90f);
+            EditorEntity footer = CreateEntity("Footer", new float3(0f, 678f, 0f));
+            footer.AddComponent(new RoundedRectComponent { Size = new int2(1280, 42) });
+            LayoutComponent footerLayout = new LayoutComponent { LayoutSpace = LayoutComponent.CameraViewportLayoutSpace };
+            footer.AddComponent(footerLayout);
+            root.AddChild(footer);
+            footerLayout.SetAnchorDistances(left: 0f, bottom: 0f);
+            GetComponent<ViewportComponent>(root).Update();
+            Assert.Equal(1041 - 130 - 130, GetComponent<RoundedRectComponent>(background).Size.Y);
+
+            using SceneSaveService saveService = CreateSceneSaveService();
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "ViewportRectAnchors.helen");
+            saveService.Save(scenePath);
+            byte[] savedAtEditorSize = File.ReadAllBytes(scenePath);
+            ((TestRenderManager3D)CoreValue.RenderManager3D).OnWindowResize(IntPtr.Zero, 1600, 900);
+            GetComponent<ViewportComponent>(root).Update();
+            saveService.Save(scenePath);
+            byte[] savedAtSmallerSize = File.ReadAllBytes(scenePath);
+            root.Dispose();
+            root = LoadSingleRoot(scenePath);
+            GetComponent<ViewportComponent>(root).Update();
+            saveService.Save(scenePath);
+            byte[] savedAfterReload = File.ReadAllBytes(scenePath);
+
+            Assert.Equal(new float3(40f, 90f, 0f), ReadSavedChildPosition(scenePath, "Background"));
+            Assert.Equal(678f, ReadSavedChildPosition(scenePath, "Footer").Y);
+            Assert.Equal(savedAtEditorSize, savedAtSmallerSize);
+            Assert.Equal(savedAtEditorSize, savedAfterReload);
+            root.Dispose();
+            ((TestRenderManager3D)CoreValue.RenderManager3D).OnWindowResize(IntPtr.Zero, 1280, 720);
+            EditorEntity reloaded = LoadSingleRoot(scenePath);
+            GetComponent<ViewportComponent>(reloaded).Update();
+            Assert.Equal(new int2(400, 540), GetComponent<RoundedRectComponent>(FindChild(reloaded, "Background")).Size);
+            Assert.Equal(new float3(0f, 678f, 0f), FindChild(reloaded, "Footer").LocalPosition);
+        }
+
+        /// <summary>
+        /// A reference-canvas fit subtree saves byte-identical scenes at different editor window sizes and after a reload.
+        /// </summary>
+        [Fact]
+        public void Save_WhenReferenceCanvasFitWindowSizeDiffers_WritesIdenticalScene() {
+            EditorEntity root = CreateMenu(new ReferenceCanvasFitComponent { ReferenceWidth = 1280, ReferenceHeight = 720 });
+            GetComponent<ReferenceCanvasFitComponent>(root).Update();
+            using SceneSaveService saveService = CreateSceneSaveService();
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "FitWindowInvariant.helen");
+            saveService.Save(scenePath);
+            byte[] savedAtEditorSize = File.ReadAllBytes(scenePath);
+
+            ((TestRenderManager3D)CoreValue.RenderManager3D).OnWindowResize(IntPtr.Zero, 1600, 1000);
+            GetComponent<ReferenceCanvasFitComponent>(root).Update();
+            Assert.Equal(new int2(640, 120), GetComponent<RoundedRectComponent>(FindChild(root, "Panel")).Size);
+            saveService.Save(scenePath);
+            byte[] savedAtSmallerSize = File.ReadAllBytes(scenePath);
+
+            root.Dispose();
+            root = LoadSingleRoot(scenePath);
+            GetComponent<ReferenceCanvasFitComponent>(root).Update();
+            saveService.Save(scenePath);
+            byte[] savedAfterReload = File.ReadAllBytes(scenePath);
+
+            Assert.Equal(678f, ReadSavedChildPosition(scenePath, "Footer").Y);
+            Assert.Equal(savedAtEditorSize, savedAtSmallerSize);
+            Assert.Equal(savedAtEditorSize, savedAfterReload);
+        }
+
+        /// <summary>
+        /// A reference-canvas fit subtree nested inside a stretch viewport subtree is restored innermost-first and re-applied
+        /// outermost-first, so neither owner mistakes the other's output for a preview edit and the saved values never drift.
+        /// </summary>
+        [Fact]
+        public void SaveReloadSave_WhenFitIsNestedInsideStretchViewport_PersistsAuthoredLayoutWithoutDrift() {
+            EditorEntity root = CreateEntity("MenuRoot", new float3(0f, 0f, 0f));
+            root.AddComponent(CreateStretchViewport());
+            EditorEntity card = CreateEntity("Card", new float3(100f, 50f, 0f));
+            card.AddComponent(new ReferenceCanvasFitComponent { ReferenceWidth = 1280, ReferenceHeight = 720 });
+            root.AddChild(card);
+            EditorEntity cardPanel = CreateEntity("Panel", new float3(384f, 90f, 0f));
+            cardPanel.AddComponent(new RoundedRectComponent { Size = new int2(512, 96), Radius = 12f });
+            card.AddChild(cardPanel);
+            EditorEntity sibling = CreateEntity("Sibling", new float3(200f, 300f, 0f));
+            sibling.AddComponent(new RoundedRectComponent { Size = new int2(100, 50) });
+            root.AddChild(sibling);
+            UpdateNested(root);
+            Assert.Equal(new int2(740, 139), GetComponent<RoundedRectComponent>(FindChild(FindChild(root, "Card"), "Panel")).Size);
+            Assert.Equal(new int2(149, 72), GetComponent<RoundedRectComponent>(FindChild(root, "Sibling")).Size);
+            TestRenderManager3D renderManager = (TestRenderManager3D)CoreValue.RenderManager3D;
+            renderManager.OnWindowResize(IntPtr.Zero, 1600, 900);
+            UpdateNested(root);
+            renderManager.OnWindowResize(IntPtr.Zero, EditorWindowSize.X, EditorWindowSize.Y);
+            UpdateNested(root);
+            Assert.Equal(new int2(740, 139), GetComponent<RoundedRectComponent>(FindChild(FindChild(root, "Card"), "Panel")).Size);
+
+            using SceneSaveService saveService = CreateSceneSaveService();
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "Nested.helen");
+            byte[] firstSave = null;
+            for (int cycle = 0; cycle < 3; cycle++) {
+                saveService.Save(scenePath);
+                if (firstSave == null) {
+                    firstSave = File.ReadAllBytes(scenePath);
+                } else {
+                    Assert.Equal(firstSave, File.ReadAllBytes(scenePath));
+                }
+
+                Assert.Equal(new int2(740, 139), GetComponent<RoundedRectComponent>(FindChild(FindChild(root, "Card"), "Panel")).Size);
+                Assert.Equal(new int2(149, 72), GetComponent<RoundedRectComponent>(FindChild(root, "Sibling")).Size);
+                root.Dispose();
+                root = LoadSingleRoot(scenePath);
+                EditorEntity loadedCard = FindChild(root, "Card");
+                EditorEntity loadedPanel = FindChild(loadedCard, "Panel");
+                Assert.Equal(new float3(100f, 50f, 0f), loadedCard.LocalPosition);
+                Assert.Equal(new float3(384f, 90f, 0f), loadedPanel.LocalPosition);
+                Assert.Equal(new int2(512, 96), GetComponent<RoundedRectComponent>(loadedPanel).Size);
+                Assert.Equal(12f, GetComponent<RoundedRectComponent>(loadedPanel).Radius);
+                Assert.Equal(new float3(200f, 300f, 0f), FindChild(root, "Sibling").LocalPosition);
+                Assert.Equal(new int2(100, 50), GetComponent<RoundedRectComponent>(FindChild(root, "Sibling")).Size);
+                UpdateNested(root);
+            }
+        }
+
+        /// <summary>
+        /// Runs one editor frame for the nested owners in hierarchy order: the outer viewport first, then the inner fit component.
+        /// </summary>
+        /// <param name="root">Menu root carrying the viewport; its "Card" child carries the fit component.</param>
+        static void UpdateNested(EditorEntity root) {
+            GetComponent<ViewportComponent>(root).Update();
+            GetComponent<ReferenceCanvasFitComponent>(FindChild(root, "Card")).Update();
+        }
+
+        /// <summary>
         /// Creates the screen-bound stretch viewport used by the DemoDisc main menu (1280x720 reference).
         /// </summary>
         /// <returns>A detached viewport component.</returns>

@@ -39,6 +39,7 @@ namespace helengine.editor {
                 scope.CollectSubtree(roots[index]);
             }
 
+            scope.OrderInnermostFirst();
             return scope;
         }
 
@@ -60,6 +61,7 @@ namespace helengine.editor {
             }
 
             scope.CollectSubtree(entity);
+            scope.OrderInnermostFirst();
             return scope;
         }
 
@@ -92,8 +94,10 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Writes the authored layout back onto every collected subtree, absorbing edits made in the scaled preview. Each owner
-        /// is counted before it is restored, so an owner that throws partway is still re-applied.
+        /// Writes the authored layout back onto every collected subtree, innermost owner first, absorbing edits made in the
+        /// scaled preview. A nested owner writes the final values of its subtree, so it must restore them before an enclosing
+        /// owner compares its subtree with its own last pass. Each owner is counted before it is restored, so an owner that
+        /// throws partway is still re-applied.
         /// </summary>
         void Restore() {
             for (int index = RestoredCount; index < Owners.Count; index++) {
@@ -103,14 +107,53 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Re-applies the scale to every subtree restored by <see cref="Restore"/> so the editor preview is scaled again.
+        /// Re-applies the scale to every subtree restored by <see cref="Restore"/>, outermost owner first, so nested owners
+        /// write the final preview values of their subtrees last, exactly as the editor frame update does.
         /// </summary>
         void Reapply() {
             int restoredCount = RestoredCount;
             RestoredCount = 0;
-            for (int index = 0; index < restoredCount; index++) {
+            for (int index = restoredCount - 1; index >= 0; index--) {
                 Owners[index].ReapplyLayout();
             }
+        }
+
+        /// <summary>
+        /// Orders the collected owners by the depth of their entities, deepest first, so restore runs innermost-first and
+        /// re-apply (which walks the list backwards) runs outermost-first. Owners at the same depth own disjoint subtrees.
+        /// </summary>
+        void OrderInnermostFirst() {
+            List<IAuthoredLayoutOwner> ordered = new List<IAuthoredLayoutOwner>();
+            List<int> depths = new List<int>();
+            for (int index = 0; index < Owners.Count; index++) {
+                int depth = ResolveDepth(((Component)Owners[index]).Parent);
+                int insertAt = 0;
+                while (insertAt < depths.Count && depths[insertAt] >= depth) {
+                    insertAt++;
+                }
+
+                ordered.Insert(insertAt, Owners[index]);
+                depths.Insert(insertAt, depth);
+            }
+
+            Owners.Clear();
+            Owners.AddRange(ordered);
+        }
+
+        /// <summary>
+        /// Counts the ancestors of one entity.
+        /// </summary>
+        /// <param name="entity">Entity whose hierarchy depth is resolved.</param>
+        /// <returns>Zero for a root entity, otherwise the number of ancestors.</returns>
+        static int ResolveDepth(Entity entity) {
+            int depth = 0;
+            Entity current = entity == null ? null : entity.Parent;
+            while (current != null) {
+                depth++;
+                current = current.Parent;
+            }
+
+            return depth;
         }
 
         /// <summary>
