@@ -33,6 +33,11 @@ public sealed class EditorPlaySessionServiceTests {
     const string AdapterTypeName = "helengine.ps2.player.Ps2PlayerAdapter";
 
     /// <summary>
+    /// Target frame rate the selected platform's Play capability declares, passed through to the player.
+    /// </summary>
+    const double TargetFrameRate = 60d;
+
+    /// <summary>
     /// Runtime script module root reported by the fake script builder.
     /// </summary>
     const string RuntimeModulesRootPath = @"C:\project\cache\play\modules";
@@ -337,7 +342,7 @@ public sealed class EditorPlaySessionServiceTests {
     public void IsPlayAvailable_FollowsCapability() {
         EditorPlaySessionService service = new EditorPlaySessionService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), new FakePlayProcessLauncher(), PlayerExecutablePath);
 
-        Assert.True(service.IsPlayAvailable(new PlatformPlayerCapability(true, AdapterTypeName, "ps2-staging")));
+        Assert.True(service.IsPlayAvailable(new PlatformPlayerCapability(true, AdapterTypeName, "ps2-staging", TargetFrameRate)));
         Assert.False(service.IsPlayAvailable(PlatformPlayerCapability.CreateUnsupported()));
     }
 

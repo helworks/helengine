@@ -220,7 +220,7 @@ public sealed class EditorPlayPlatformSelectionServiceTests : IDisposable {
     /// <returns>Loaded builder for the selection service.</returns>
     static EditorLoadedPlatformBuilder CreateBuilder(string platformId, string displayName, bool installed, bool supportsPlay) {
         PlatformPlayerCapability capability = supportsPlay
-            ? new PlatformPlayerCapability(true, platformId + ".adapter", platformId + "-staging")
+            ? new PlatformPlayerCapability(true, platformId + ".adapter", platformId + "-staging", 60d)
             : PlatformPlayerCapability.CreateUnsupported();
         AvailablePlatformDescriptor descriptor = new AvailablePlatformDescriptor(
             platformId,
