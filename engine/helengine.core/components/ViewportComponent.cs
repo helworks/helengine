@@ -120,10 +120,10 @@ namespace helengine {
         double AppliedScalarScaleValue;
 
         /// <summary>
-        /// True while <see cref="RestoreAuthoredLayout"/> re-anchors descendants; the full-viewport anchor space then resolves
-        /// to the authored reference canvas instead of the live editor window.
+        /// Authored canvas size that the full-viewport anchor space resolves to while a layout owner re-anchors its subtree in
+        /// authored space (editor restore only), with a zero origin; (0, 0) when the live viewport bounds apply.
         /// </summary>
-        bool RestoringAuthoredLayoutValue;
+        int2 AuthoredViewportRectSizeValue;
 
         /// <summary>
         /// Tracks whether the component is subscribed to screen resize events.
@@ -508,9 +508,9 @@ namespace helengine {
                 // provider produced must not be persisted: re-anchor against the authored reference canvas so the saved
                 // positions and stretched sizes are identical for every editor window size.
                 // Anchors answering to the full viewport rect resolve through ViewportAnchorSpace, which follows the same
-                // reference canvas while RestoringAuthoredLayoutValue is set.
+                // reference canvas while the authored viewport rect is active.
                 CurrentAnchorSpaceValue.Update(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
-                RestoringAuthoredLayoutValue = true;
+                BeginAuthoredViewportRect(new int2(ReferenceWidthValue, ReferenceHeightValue));
                 try {
                     for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
                         ViewportLayoutSnapshot snapshot = LayoutSnapshotsValue[snapshotIndex];
@@ -519,7 +519,7 @@ namespace helengine {
                         }
                     }
                 } finally {
-                    RestoringAuthoredLayoutValue = false;
+                    EndAuthoredViewportRect();
                 }
             }
 
@@ -533,6 +533,29 @@ namespace helengine {
             AppliedLayoutSnapshotsValue.Clear();
             PendingScaleApplyValue = true;
         }
+
+        /// <summary>
+        /// Makes this viewport's bounds and full-viewport anchor space resolve to one authored canvas with a zero origin while a
+        /// layout owner re-anchors descendants in authored space during an editor restore. Callers must pair it with
+        /// <see cref="EndAuthoredViewportRect"/> in a finally block.
+        /// </summary>
+        /// <param name="authoredCanvasSize">Reference canvas of the owner that is restoring its subtree.</param>
+        internal void BeginAuthoredViewportRect(int2 authoredCanvasSize) {
+            AuthoredViewportRectSizeValue = authoredCanvasSize;
+        }
+
+        /// <summary>
+        /// Returns this viewport's bounds and full-viewport anchor space to the live viewport after an authored re-anchor pass.
+        /// </summary>
+        internal void EndAuthoredViewportRect() {
+            AuthoredViewportRectSizeValue = new int2(0, 0);
+        }
+
+        /// <summary>
+        /// Gets whether this viewport rescales its subtree (reference fit, reference stretch or density). A viewport without
+        /// scaling leaves its subtree's values to any enclosing layout owner.
+        /// </summary>
+        internal bool ScalesSubtree => IsReferenceCanvasScalingActive();
 
         /// <summary>
         /// Re-applies the viewport scale to the subtree, typically after <see cref="RestoreAuthoredLayout"/> exposed the authored values for serialization.
@@ -779,8 +802,8 @@ namespace helengine {
         /// </summary>
         /// <returns>Resolved viewport bounds in local pixels.</returns>
         int2 ResolveAnchorBounds() {
-            if (RestoringAuthoredLayoutValue) {
-                return new int2(ReferenceWidthValue, ReferenceHeightValue);
+            if (AuthoredViewportRectSizeValue.X > 0 && AuthoredViewportRectSizeValue.Y > 0) {
+                return AuthoredViewportRectSizeValue;
             }
 
             float4 viewport = ResolveViewportBounds();
@@ -924,9 +947,11 @@ namespace helengine {
 
         /// <summary>
         /// Leaves independently owned viewport and generated performance-overlay subtrees to their respective layout owners.
-        /// In the editor, any nested <see cref="IAuthoredLayoutOwner"/> (for example a reference-canvas fit) also owns its
-        /// subtree exclusively, so this viewport never writes values that the nested owner would then mistake for preview
-        /// edits, and each owner restores only what it wrote. Runtime hosts keep the original shared behavior.
+        /// In the editor, a nested <see cref="ReferenceCanvasFitComponent"/> also owns its subtree exclusively, so this viewport
+        /// never writes values the fit would then mistake for preview edits, and each owner restores only what it wrote. The
+        /// fit writes every field it tracks after this viewport at runtime too, so the preview matches the player except for
+        /// performance-overlay (FPS) font scale and padding inside the fit, which only a viewport scales. Runtime hosts keep the
+        /// original shared behavior.
         /// </summary>
         /// <param name="child">Child whose layout ownership is inspected.</param>
         /// <returns>Whether the current viewport should capture this child's layout.</returns>
@@ -937,7 +962,7 @@ namespace helengine {
                     if (child.Components[index] is ViewportComponent) {
                         return false;
                     }
-                    if (editorAuthoring && child.Components[index] is IAuthoredLayoutOwner) {
+                    if (editorAuthoring && child.Components[index] is ReferenceCanvasFitComponent) {
                         return false;
                     }
                 }
@@ -1096,7 +1121,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Viewport-space origin correction expressed in local pixels.</returns>
         float2 ResolveViewportAnchorOrigin() {
-            if (RestoringAuthoredLayoutValue) {
+            if (AuthoredViewportRectSizeValue.X > 0 && AuthoredViewportRectSizeValue.Y > 0) {
                 return new float2(0f, 0f);
             }
 

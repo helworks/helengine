@@ -287,12 +287,19 @@ namespace helengine {
 
             // Anchored axes are derived from the anchor space; re-anchor against the authored reference canvas so persisted
             // positions and stretched sizes never depend on the editor window or a load-time fallback provider.
+            // Layouts answering to the full viewport rect resolve through the governing viewport (or a non-scaling viewport
+            // inside this subtree); those must see the same authored canvas with a zero origin while re-anchoring.
             CurrentAnchorSpaceValue.Update(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
-            for (int snapshotIndex = 0; snapshotIndex < SnapshotsValue.Count; snapshotIndex++) {
-                ReferenceCanvasFitSnapshot snapshot = SnapshotsValue[snapshotIndex];
-                if (!snapshot.IsRootEntity && IsInFittedSubtree(snapshot.Entity)) {
-                    snapshot.RefreshAnchoring();
+            SetAuthoredViewportRect(true);
+            try {
+                for (int snapshotIndex = 0; snapshotIndex < SnapshotsValue.Count; snapshotIndex++) {
+                    ReferenceCanvasFitSnapshot snapshot = SnapshotsValue[snapshotIndex];
+                    if (!snapshot.IsRootEntity && IsInFittedSubtree(snapshot.Entity)) {
+                        snapshot.RefreshAnchoring();
+                    }
                 }
+            } finally {
+                SetAuthoredViewportRect(false);
             }
 
             for (int snapshotIndex = 0; snapshotIndex < SnapshotsValue.Count; snapshotIndex++) {
@@ -304,6 +311,39 @@ namespace helengine {
 
             AppliedSnapshotsValue.Clear();
             PendingApplyValue = true;
+        }
+
+        /// <summary>
+        /// Switches the viewport rect seen by this subtree's full-viewport anchors between the authored reference canvas and
+        /// the live viewport: the governing viewport and every viewport attached inside the captured subtree.
+        /// </summary>
+        /// <param name="authored">True to resolve the reference canvas with a zero origin; false to return to live bounds.</param>
+        void SetAuthoredViewportRect(bool authored) {
+            int2 referenceSize = new int2(ReferenceWidthValue, ReferenceHeightValue);
+            if (LayoutViewport != null) {
+                if (authored) {
+                    LayoutViewport.BeginAuthoredViewportRect(referenceSize);
+                } else {
+                    LayoutViewport.EndAuthoredViewportRect();
+                }
+            }
+
+            for (int snapshotIndex = 0; snapshotIndex < SnapshotsValue.Count; snapshotIndex++) {
+                Entity entity = SnapshotsValue[snapshotIndex].Entity;
+                if (entity.Components == null || !IsInFittedSubtree(entity)) {
+                    continue;
+                }
+
+                for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
+                    if (entity.Components[componentIndex] is ViewportComponent viewport) {
+                        if (authored) {
+                            viewport.BeginAuthoredViewportRect(referenceSize);
+                        } else {
+                            viewport.EndAuthoredViewportRect();
+                        }
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -375,9 +415,11 @@ namespace helengine {
         }
 
         /// <summary>
-        /// In the editor, leaves a child subtree that carries its own <see cref="IAuthoredLayoutOwner"/> to that owner, so this
-        /// component never writes values the nested owner would mistake for preview edits and each owner restores only what it
-        /// wrote. Runtime hosts capture every child, exactly as before.
+        /// In the editor, leaves a child subtree to a nested owner that actually rescales it (another fit, or a viewport with
+        /// reference or density scaling), so this component never writes values that owner would mistake for preview edits and
+        /// each owner restores only what it wrote. A non-scaling viewport stays captured and scaled by this fit, as at runtime.
+        /// The nested scaling owner writes its fields after this fit at runtime as well, so the preview matches the player.
+        /// Runtime hosts capture every child, exactly as before.
         /// </summary>
         /// <param name="child">Child whose layout ownership is inspected.</param>
         /// <returns>Whether this component should capture the child's layout.</returns>
@@ -387,7 +429,10 @@ namespace helengine {
             }
 
             for (int index = 0; index < child.Components.Count; index++) {
-                if (child.Components[index] is IAuthoredLayoutOwner) {
+                if (child.Components[index] is ReferenceCanvasFitComponent) {
+                    return false;
+                }
+                if (child.Components[index] is ViewportComponent viewport && viewport.ScalesSubtree) {
                     return false;
                 }
             }
