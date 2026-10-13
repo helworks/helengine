@@ -5,7 +5,7 @@ namespace helengine {
 #if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
     [RunInEditor]
 #endif
-    public class ViewportComponent : UpdateComponent, IAnchorBoundsProvider, ICameraBoundViewportOwner {
+    public class ViewportComponent : UpdateComponent, IAnchorBoundsProvider, ICameraBoundViewportOwner, IAuthoredLayoutOwner {
         /// <summary>
         /// Binding mode that resolves the viewport from the current screen size.
         /// </summary>
@@ -461,8 +461,10 @@ namespace helengine {
 
         /// <summary>
         /// Writes the authored, unscaled layout back onto the scaled subtree so it can be serialized as authored data, and
-        /// re-captures the authored snapshots from it. Values edited in the scaled editor preview since the last scale pass are
-        /// mapped back into authored space first. Entities that no recorded scale pass has touched already hold authored values
+        /// re-captures the authored snapshots from it. Contract: any tracked live value that differs from what the last
+        /// recorded scale pass wrote ("live != last applied") counts as a user edit made in the scaled editor preview and is
+        /// mapped back into authored space; unchanged values resolve to the captured authored values. Anchored descendants are
+        /// then re-anchored against the reference canvas so their derived positions do not depend on the editor window. Entities that no recorded scale pass has touched already hold authored values
         /// and are only re-captured. Runtime hosts never record a preview pass, so outside the editor this does nothing.
         /// Call <see cref="ReapplyLayout"/> afterwards to restore the scaled preview.
         /// </summary>
@@ -492,6 +494,19 @@ namespace helengine {
                         AppliedCanvasOriginValue,
                         AppliedWidthScaleValue,
                         AppliedHeightScaleValue);
+                }
+            }
+
+            if (ScalingModeValue != DensityScalingMode) {
+                // Anchored axes are derived from the anchor space, and whatever the editor window or a load-time fallback
+                // provider produced must not be persisted: re-anchor against the authored reference canvas so the saved
+                // positions and stretched sizes are identical for every editor window size.
+                CurrentAnchorSpaceValue.Update(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
+                for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
+                    ViewportLayoutSnapshot snapshot = LayoutSnapshotsValue[snapshotIndex];
+                    if (!snapshot.IsRootEntity && IsInScaledSubtree(snapshot.Entity)) {
+                        snapshot.RefreshAnchoring();
+                    }
                 }
             }
 

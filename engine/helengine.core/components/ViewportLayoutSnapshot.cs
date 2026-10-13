@@ -287,85 +287,88 @@ namespace helengine {
 
         /// <summary>
         /// Writes the authored component values back onto the tracked components so the subtree holds unscaled layout data.
-        /// A live value that differs from the value recorded right after the last scale pass is treated as an edit made in the
-        /// scaled preview and is mapped back into authored space instead of being discarded. Entity positions are restored
-        /// separately by <see cref="RestoreAuthoredPosition"/> so no component write can move them afterwards.
+        /// Contract: a live value that differs from <paramref name="applied"/> (what the last scale pass wrote) counts as a user
+        /// edit made in the scaled preview and is mapped back into authored space; an unchanged value resolves to the captured
+        /// authored value. Entity positions are restored separately by <see cref="RestoreAuthoredPosition"/> so no component
+        /// write can move them afterwards.
         /// </summary>
-        /// <param name="applied">Live values recorded right after the last scale pass, or null when no edits should be detected.</param>
+        /// <param name="applied">Live values recorded right after the last scale pass.</param>
         /// <param name="widthScale">Horizontal pixels per authored pixel used by the last scale pass.</param>
         /// <param name="heightScale">Vertical pixels per authored pixel used by the last scale pass.</param>
         /// <param name="scalarScale">Uniform glyph and decoration scale used by the last scale pass.</param>
         public void RestoreAuthoredComponents(ViewportLayoutSnapshot applied, double widthScale, double heightScale, double scalarScale) {
-            bool hasApplied = applied != null;
+            if (applied == null) {
+                throw new ArgumentNullException(nameof(applied));
+            }
+
             if (TrackedFpsComponent != null) {
                 double fpsFontScale = TrackedFpsComponent.NativeFontPixels != TextNativePixelMode.Disabled ? 1d : scalarScale;
-                TrackedFpsComponent.FontScale = UnscaleFloat(TrackedFpsComponent.FontScale, hasApplied ? applied.FpsFontScale : 0f, hasApplied, FpsFontScale, fpsFontScale);
-                TrackedFpsComponent.Padding = UnscaleInt2(TrackedFpsComponent.Padding, hasApplied ? applied.FpsPadding : new int2(0, 0), hasApplied, FpsPadding, widthScale, heightScale);
+                TrackedFpsComponent.FontScale = AuthoredLayoutScaleUtils.UnscaleFloat(TrackedFpsComponent.FontScale, applied.FpsFontScale, FpsFontScale, fpsFontScale);
+                TrackedFpsComponent.Padding = AuthoredLayoutScaleUtils.UnscaleInt2(TrackedFpsComponent.Padding, applied.FpsPadding, FpsPadding, widthScale, heightScale);
             }
 
             if (TrackedLayoutComponent != null) {
                 float4 live = TrackedLayoutComponent.AnchorDistances;
-                float4 appliedDistances = hasApplied ? applied.AnchorDistances : new float4(0f, 0f, 0f, 0f);
                 TrackedLayoutComponent.AnchorDistances = new float4(
-                    UnscaleFloat(live.X, appliedDistances.X, hasApplied, AnchorDistances.X, widthScale),
-                    UnscaleFloat(live.Y, appliedDistances.Y, hasApplied, AnchorDistances.Y, widthScale),
-                    UnscaleFloat(live.Z, appliedDistances.Z, hasApplied, AnchorDistances.Z, heightScale),
-                    UnscaleFloat(live.W, appliedDistances.W, hasApplied, AnchorDistances.W, heightScale));
+                    AuthoredLayoutScaleUtils.UnscaleFloat(live.X, applied.AnchorDistances.X, AnchorDistances.X, widthScale),
+                    AuthoredLayoutScaleUtils.UnscaleFloat(live.Y, applied.AnchorDistances.Y, AnchorDistances.Y, widthScale),
+                    AuthoredLayoutScaleUtils.UnscaleFloat(live.Z, applied.AnchorDistances.Z, AnchorDistances.Z, heightScale),
+                    AuthoredLayoutScaleUtils.UnscaleFloat(live.W, applied.AnchorDistances.W, AnchorDistances.W, heightScale));
             }
 
             if (TrackedRoundedRectComponent != null) {
-                TrackedRoundedRectComponent.Size = UnscaleInt2(TrackedRoundedRectComponent.Size, hasApplied ? applied.RoundedRectSize : new int2(0, 0), hasApplied, RoundedRectSize, widthScale, heightScale);
-                TrackedRoundedRectComponent.Radius = UnscaleFloat(TrackedRoundedRectComponent.Radius, hasApplied ? applied.RoundedRectRadius : 0f, hasApplied, RoundedRectRadius, scalarScale);
-                TrackedRoundedRectComponent.BorderThickness = UnscaleFloat(TrackedRoundedRectComponent.BorderThickness, hasApplied ? applied.RoundedRectBorderThickness : 0f, hasApplied, RoundedRectBorderThickness, scalarScale);
+                TrackedRoundedRectComponent.Size = AuthoredLayoutScaleUtils.UnscaleInt2(TrackedRoundedRectComponent.Size, applied.RoundedRectSize, RoundedRectSize, widthScale, heightScale);
+                TrackedRoundedRectComponent.Radius = AuthoredLayoutScaleUtils.UnscaleFloat(TrackedRoundedRectComponent.Radius, applied.RoundedRectRadius, RoundedRectRadius, scalarScale);
+                TrackedRoundedRectComponent.BorderThickness = AuthoredLayoutScaleUtils.UnscaleFloat(TrackedRoundedRectComponent.BorderThickness, applied.RoundedRectBorderThickness, RoundedRectBorderThickness, scalarScale);
             }
 
             if (TrackedTextComponent != null) {
                 double textFontScale = TrackedTextComponent.NativeFontPixels != TextNativePixelMode.Disabled ? 1d : scalarScale;
                 float2 liveShadow = TrackedTextComponent.ShadowOffset;
-                float2 appliedShadow = hasApplied ? applied.TextShadowOffset : new float2(0f, 0f);
-                TrackedTextComponent.Size = UnscaleInt2(TrackedTextComponent.Size, hasApplied ? applied.TextSize : new int2(0, 0), hasApplied, TextSize, widthScale, heightScale);
-                TrackedTextComponent.FontScale = UnscaleFloat(TrackedTextComponent.FontScale, hasApplied ? applied.TextFontScale : 0f, hasApplied, TextFontScale, textFontScale);
-                TrackedTextComponent.OutlineScale = UnscaleFloat(TrackedTextComponent.OutlineScale, hasApplied ? applied.TextOutlineScale : 0f, hasApplied, TextOutlineScale, scalarScale);
+                TrackedTextComponent.Size = AuthoredLayoutScaleUtils.UnscaleInt2(TrackedTextComponent.Size, applied.TextSize, TextSize, widthScale, heightScale);
+                TrackedTextComponent.FontScale = AuthoredLayoutScaleUtils.UnscaleFloat(TrackedTextComponent.FontScale, applied.TextFontScale, TextFontScale, textFontScale);
+                TrackedTextComponent.OutlineScale = AuthoredLayoutScaleUtils.UnscaleFloat(TrackedTextComponent.OutlineScale, applied.TextOutlineScale, TextOutlineScale, scalarScale);
                 TrackedTextComponent.ShadowOffset = new float2(
-                    UnscaleFloat(liveShadow.X, appliedShadow.X, hasApplied, TextShadowOffset.X, scalarScale),
-                    UnscaleFloat(liveShadow.Y, appliedShadow.Y, hasApplied, TextShadowOffset.Y, scalarScale));
+                    AuthoredLayoutScaleUtils.UnscaleFloat(liveShadow.X, applied.TextShadowOffset.X, TextShadowOffset.X, scalarScale),
+                    AuthoredLayoutScaleUtils.UnscaleFloat(liveShadow.Y, applied.TextShadowOffset.Y, TextShadowOffset.Y, scalarScale));
             }
 
             if (TrackedSpriteComponent != null) {
-                TrackedSpriteComponent.Size = UnscaleInt2(TrackedSpriteComponent.Size, hasApplied ? applied.SpriteSize : new int2(0, 0), hasApplied, SpriteSize, widthScale, heightScale);
+                TrackedSpriteComponent.Size = AuthoredLayoutScaleUtils.UnscaleInt2(TrackedSpriteComponent.Size, applied.SpriteSize, SpriteSize, widthScale, heightScale);
             }
 
             if (TrackedClipRectComponent != null) {
-                TrackedClipRectComponent.Size = UnscaleInt2(TrackedClipRectComponent.Size, hasApplied ? applied.ClipRectSize : new int2(0, 0), hasApplied, ClipRectSize, widthScale, heightScale);
+                TrackedClipRectComponent.Size = AuthoredLayoutScaleUtils.UnscaleInt2(TrackedClipRectComponent.Size, applied.ClipRectSize, ClipRectSize, widthScale, heightScale);
             }
 
             if (TrackedInteractableComponent != null) {
-                TrackedInteractableComponent.Size = UnscaleInt2(TrackedInteractableComponent.Size, hasApplied ? applied.InteractableSize : new int2(0, 0), hasApplied, InteractableSize, widthScale, heightScale);
+                TrackedInteractableComponent.Size = AuthoredLayoutScaleUtils.UnscaleInt2(TrackedInteractableComponent.Size, applied.InteractableSize, InteractableSize, widthScale, heightScale);
             }
 
             if (TrackedScrollComponent != null) {
-                TrackedScrollComponent.Size = UnscaleInt2(TrackedScrollComponent.Size, hasApplied ? applied.ScrollSize : new int2(0, 0), hasApplied, ScrollSize, widthScale, heightScale);
-                TrackedScrollComponent.ItemExtent = UnscaleInt(TrackedScrollComponent.ItemExtent, hasApplied ? applied.ScrollItemExtent : 0, hasApplied, ScrollItemExtent, scalarScale);
+                TrackedScrollComponent.Size = AuthoredLayoutScaleUtils.UnscaleInt2(TrackedScrollComponent.Size, applied.ScrollSize, ScrollSize, widthScale, heightScale);
+                TrackedScrollComponent.ItemExtent = AuthoredLayoutScaleUtils.UnscaleInt(TrackedScrollComponent.ItemExtent, applied.ScrollItemExtent, ScrollItemExtent, scalarScale);
             }
         }
 
         /// <summary>
-        /// Writes the authored local position back onto the tracked entity, mapping a position edited in the scaled preview back into authored space.
+        /// Writes the authored local position back onto the tracked entity; a position that differs from what the last scale
+        /// pass wrote counts as a user edit in the scaled preview and is mapped back into authored space.
         /// </summary>
-        /// <param name="applied">Live values recorded right after the last scale pass, or null when no edits should be detected.</param>
+        /// <param name="applied">Live values recorded right after the last scale pass.</param>
         /// <param name="canvasOrigin">Root displacement added by the last scale pass.</param>
         /// <param name="widthScale">Horizontal pixels per authored pixel used by the last scale pass.</param>
         /// <param name="heightScale">Vertical pixels per authored pixel used by the last scale pass.</param>
         public void RestoreAuthoredPosition(ViewportLayoutSnapshot applied, float2 canvasOrigin, double widthScale, double heightScale) {
-            bool hasApplied = applied != null;
+            if (applied == null) {
+                throw new ArgumentNullException(nameof(applied));
+            }
+
             float3 live = Entity.LocalPosition;
-            float3 appliedPosition = hasApplied ? applied.LocalPosition : new float3(0f, 0f, 0f);
-            float originX = IsRootEntity ? canvasOrigin.X : 0f;
-            float originY = IsRootEntity ? canvasOrigin.Y : 0f;
-            float positionX = hasApplied && live.X != appliedPosition.X ? (float)((live.X - originX) / widthScale) : LocalPosition.X;
-            float positionY = hasApplied && live.Y != appliedPosition.Y ? (float)((live.Y - originY) / heightScale) : LocalPosition.Y;
-            float positionZ = hasApplied && live.Z != appliedPosition.Z ? live.Z : LocalPosition.Z;
-            Entity.LocalPosition = new float3(positionX, positionY, positionZ);
+            Entity.LocalPosition = new float3(
+                AuthoredLayoutScaleUtils.UnscalePosition(live.X, applied.LocalPosition.X, LocalPosition.X, IsRootEntity ? canvasOrigin.X : 0f, widthScale),
+                AuthoredLayoutScaleUtils.UnscalePosition(live.Y, applied.LocalPosition.Y, LocalPosition.Y, IsRootEntity ? canvasOrigin.Y : 0f, heightScale),
+                live.Z == applied.LocalPosition.Z ? LocalPosition.Z : live.Z);
         }
 
         /// <summary>
@@ -556,57 +559,6 @@ namespace helengine {
         /// <returns>Scaled float value.</returns>
         static float ScaleFloat(float value, double scale) {
             return (float)(value * scale);
-        }
-
-        /// <summary>
-        /// Resolves the authored value for one float field: the captured authored value while the live value still matches the
-        /// last scale pass, otherwise the live edit divided back into authored space.
-        /// </summary>
-        /// <param name="live">Current live value.</param>
-        /// <param name="applied">Value written by the last scale pass.</param>
-        /// <param name="hasApplied">True when a last scale pass was recorded and edits can be detected.</param>
-        /// <param name="authored">Captured authored value.</param>
-        /// <param name="scale">Scale used by the last scale pass.</param>
-        /// <returns>Authored value that should be persisted and scaled next.</returns>
-        static float UnscaleFloat(float live, float applied, bool hasApplied, float authored, double scale) {
-            if (!hasApplied || live == applied || !(scale > 0d)) {
-                return authored;
-            }
-
-            return (float)(live / scale);
-        }
-
-        /// <summary>
-        /// Resolves the authored value for one integer field, mapping a live edit back through the last scale pass.
-        /// </summary>
-        /// <param name="live">Current live value.</param>
-        /// <param name="applied">Value written by the last scale pass.</param>
-        /// <param name="hasApplied">True when a last scale pass was recorded and edits can be detected.</param>
-        /// <param name="authored">Captured authored value.</param>
-        /// <param name="scale">Scale used by the last scale pass.</param>
-        /// <returns>Authored value that should be persisted and scaled next.</returns>
-        static int UnscaleInt(int live, int applied, bool hasApplied, int authored, double scale) {
-            if (!hasApplied || live == applied || !(scale > 0d)) {
-                return authored;
-            }
-
-            return ScaleInt(live, 1d / scale);
-        }
-
-        /// <summary>
-        /// Resolves the authored value for one integer vector, mapping each edited axis back through the last scale pass.
-        /// </summary>
-        /// <param name="live">Current live value.</param>
-        /// <param name="applied">Value written by the last scale pass.</param>
-        /// <param name="hasApplied">True when a last scale pass was recorded and edits can be detected.</param>
-        /// <param name="authored">Captured authored value.</param>
-        /// <param name="widthScale">Horizontal scale used by the last scale pass.</param>
-        /// <param name="heightScale">Vertical scale used by the last scale pass.</param>
-        /// <returns>Authored vector that should be persisted and scaled next.</returns>
-        static int2 UnscaleInt2(int2 live, int2 applied, bool hasApplied, int2 authored, double widthScale, double heightScale) {
-            return new int2(
-                UnscaleInt(live.X, applied.X, hasApplied, authored.X, widthScale),
-                UnscaleInt(live.Y, applied.Y, hasApplied, authored.Y, heightScale));
         }
     }
 }

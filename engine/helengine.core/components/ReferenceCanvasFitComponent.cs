@@ -5,7 +5,7 @@ namespace helengine {
 #if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
     [RunInEditor]
 #endif
-    public class ReferenceCanvasFitComponent : UpdateComponent, IAnchorBoundsProvider {
+    public class ReferenceCanvasFitComponent : UpdateComponent, IAnchorBoundsProvider, IAuthoredLayoutOwner {
         /// <summary>
         /// Backing field for the authored reference canvas width.
         /// </summary>
@@ -20,6 +20,32 @@ namespace helengine {
         /// Captured authored snapshots for the current entity subtree.
         /// </summary>
         readonly List<ReferenceCanvasFitSnapshot> SnapshotsValue;
+
+        /// <summary>
+        /// Stores, in editor authoring only, the live layout values written by the last fit pass so edits made in the scaled
+        /// preview can be told apart from fit output and mapped back into authored space.
+        /// </summary>
+        readonly List<ReferenceCanvasFitSnapshot> AppliedSnapshotsValue;
+
+        /// <summary>
+        /// Stores the root displacement used by the last recorded editor fit pass.
+        /// </summary>
+        float2 AppliedCanvasOriginValue;
+
+        /// <summary>
+        /// Stores the horizontal scale used by the last recorded editor fit pass.
+        /// </summary>
+        double AppliedWidthScaleValue;
+
+        /// <summary>
+        /// Stores the vertical scale used by the last recorded editor fit pass.
+        /// </summary>
+        double AppliedHeightScaleValue;
+
+        /// <summary>
+        /// Stores the uniform glyph and decoration scale used by the last recorded editor fit pass.
+        /// </summary>
+        double AppliedScalarScaleValue;
 
         /// <summary>
         /// Tracks whether the component is currently subscribed to layout-window size events.
@@ -64,6 +90,7 @@ namespace helengine {
             ReferenceWidthValue = SceneCanvasProfile.DefaultWidth;
             ReferenceHeightValue = SceneCanvasProfile.DefaultHeight;
             SnapshotsValue = new List<ReferenceCanvasFitSnapshot>();
+            AppliedSnapshotsValue = new List<ReferenceCanvasFitSnapshot>();
             CurrentAnchorSpaceValue = new AnchorSpace(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
             CurrentCanvasOriginValue = new float2(0f, 0f);
         }
@@ -204,17 +231,174 @@ namespace helengine {
                 return;
             }
 
-            int currentEntityCount = CountEntitiesRecursive(Parent);
-            if (currentEntityCount != SnapshotEntityCountValue) {
+            bool tracksAuthoredEdits = IsEditorAuthoring();
+            bool subtreeChanged = tracksAuthoredEdits
+                ? MatchSnapshotsRecursive(Parent, 0) != SnapshotsValue.Count
+                : CountEntitiesRecursive(Parent) != SnapshotEntityCountValue;
+            if (tracksAuthoredEdits && subtreeChanged) {
+                RestoreAuthoredLayout();
+            }
+
+            if (subtreeChanged) {
                 RebuildSnapshots();
                 PendingApplyValue = true;
             }
 
             RefreshLayoutProviders();
             if (PendingApplyValue) {
+                if (tracksAuthoredEdits && !subtreeChanged) {
+                    RestoreAuthoredLayout();
+                }
+
                 ApplyCurrentScale();
                 PendingApplyValue = false;
             }
+        }
+
+        /// <summary>
+        /// Writes the authored, unscaled layout back onto the fitted subtree so it can be serialized as authored data, and
+        /// re-captures the authored snapshots from it. Contract: any tracked live value that differs from what the last
+        /// recorded fit pass wrote ("live != last applied") counts as a user edit made in the scaled editor preview and is
+        /// mapped back into authored space; unchanged values resolve to the captured authored values. Anchored descendants are
+        /// then re-anchored against the reference canvas so their derived positions do not depend on the editor window.
+        /// Entities that no recorded fit pass has touched already hold authored values and are only re-captured. Runtime hosts
+        /// never record a fit pass, so outside the editor this does nothing. Call <see cref="ReapplyLayout"/> afterwards.
+        /// </summary>
+        public void RestoreAuthoredLayout() {
+            if (!IsEditorAuthoring() || Parent == null || SnapshotsValue.Count == 0) {
+                return;
+            }
+
+            for (int snapshotIndex = 0; snapshotIndex < SnapshotsValue.Count; snapshotIndex++) {
+                ReferenceCanvasFitSnapshot snapshot = SnapshotsValue[snapshotIndex];
+                ReferenceCanvasFitSnapshot applied = FindAppliedSnapshot(snapshot.Entity);
+                if (applied != null && IsInFittedSubtree(snapshot.Entity)) {
+                    snapshot.RestoreAuthoredComponents(applied, AppliedWidthScaleValue, AppliedHeightScaleValue, AppliedScalarScaleValue);
+                }
+            }
+
+            for (int snapshotIndex = 0; snapshotIndex < SnapshotsValue.Count; snapshotIndex++) {
+                ReferenceCanvasFitSnapshot snapshot = SnapshotsValue[snapshotIndex];
+                ReferenceCanvasFitSnapshot applied = FindAppliedSnapshot(snapshot.Entity);
+                if (applied != null && IsInFittedSubtree(snapshot.Entity)) {
+                    snapshot.RestoreAuthoredPosition(applied, AppliedCanvasOriginValue, AppliedWidthScaleValue, AppliedHeightScaleValue);
+                }
+            }
+
+            // Anchored axes are derived from the anchor space; re-anchor against the authored reference canvas so persisted
+            // positions and stretched sizes never depend on the editor window or a load-time fallback provider.
+            CurrentAnchorSpaceValue.Update(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
+            for (int snapshotIndex = 0; snapshotIndex < SnapshotsValue.Count; snapshotIndex++) {
+                ReferenceCanvasFitSnapshot snapshot = SnapshotsValue[snapshotIndex];
+                if (!snapshot.IsRootEntity && IsInFittedSubtree(snapshot.Entity)) {
+                    snapshot.RefreshAnchoring();
+                }
+            }
+
+            for (int snapshotIndex = 0; snapshotIndex < SnapshotsValue.Count; snapshotIndex++) {
+                ReferenceCanvasFitSnapshot snapshot = SnapshotsValue[snapshotIndex];
+                if (IsInFittedSubtree(snapshot.Entity)) {
+                    SnapshotsValue[snapshotIndex] = new ReferenceCanvasFitSnapshot(snapshot.Entity, snapshot.IsRootEntity);
+                }
+            }
+
+            AppliedSnapshotsValue.Clear();
+            PendingApplyValue = true;
+        }
+
+        /// <summary>
+        /// Re-applies the fit scale to the subtree, typically after <see cref="RestoreAuthoredLayout"/> exposed the authored values for serialization.
+        /// </summary>
+        public void ReapplyLayout() {
+            PendingApplyValue = true;
+            ApplyPendingSceneLayout();
+        }
+
+        /// <summary>
+        /// Returns whether this component runs inside the editor, where the fitted subtree is authored data that must stay
+        /// recoverable in authored space. Runtime hosts never record or absorb preview edits.
+        /// </summary>
+        /// <returns>True when the owning core authors scenes in the editor.</returns>
+        bool IsEditorAuthoring() {
+            return OwnerCore != null && OwnerCore.ExecutionMode == ComponentExecutionMode.Editor;
+        }
+
+        /// <summary>
+        /// Records the live values and scales written by the fit pass that just ran, so later preview edits can be detected and
+        /// unscaled. The scales mirror the ones <see cref="ReferenceCanvasFitSnapshot.Apply"/> derives from the same anchor space.
+        /// </summary>
+        void RecordAppliedLayout() {
+            AppliedSnapshotsValue.Clear();
+            for (int snapshotIndex = 0; snapshotIndex < SnapshotsValue.Count; snapshotIndex++) {
+                ReferenceCanvasFitSnapshot snapshot = SnapshotsValue[snapshotIndex];
+                AppliedSnapshotsValue.Add(new ReferenceCanvasFitSnapshot(snapshot.Entity, snapshot.IsRootEntity));
+            }
+
+            AppliedCanvasOriginValue = CurrentCanvasOriginValue;
+            AppliedWidthScaleValue = (double)CurrentAnchorSpaceValue.Size.X / ReferenceWidthValue;
+            AppliedHeightScaleValue = (double)CurrentAnchorSpaceValue.Size.Y / ReferenceHeightValue;
+            AppliedScalarScaleValue = Math.Min(AppliedWidthScaleValue, AppliedHeightScaleValue);
+        }
+
+        /// <summary>
+        /// Finds the live values recorded for one entity by the last editor fit pass.
+        /// </summary>
+        /// <param name="entity">Entity whose recorded values are requested.</param>
+        /// <returns>The recorded values owned by this component, or null when the entity was not part of the last recorded pass.</returns>
+        [NativeBorrowedReturn]
+        ReferenceCanvasFitSnapshot FindAppliedSnapshot(Entity entity) {
+            for (int index = 0; index < AppliedSnapshotsValue.Count; index++) {
+                if (ReferenceEquals(AppliedSnapshotsValue[index].Entity, entity)) {
+                    return AppliedSnapshotsValue[index];
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Returns whether one snapshotted entity is still attached below this component's owner, so removed or replaced entities are never written.
+        /// </summary>
+        /// <param name="entity">Entity captured by a snapshot.</param>
+        /// <returns>True when the entity is the owner or one of its current descendants.</returns>
+        bool IsInFittedSubtree(Entity entity) {
+            Entity current = entity;
+            while (current != null) {
+                if (ReferenceEquals(current, Parent)) {
+                    return true;
+                }
+
+                current = current.Parent;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Walks the captured subtree in snapshot order and checks that every entity still matches its snapshot, so the editor
+        /// notices replaced entities (for example after undo) even when the entity count did not change.
+        /// </summary>
+        /// <param name="entity">Current entity to match.</param>
+        /// <param name="snapshotIndex">Snapshot index expected for the entity.</param>
+        /// <returns>The next snapshot index after the matched subtree, or -1 when the subtree differs from the snapshots.</returns>
+        int MatchSnapshotsRecursive(Entity entity, int snapshotIndex) {
+            if (snapshotIndex >= SnapshotsValue.Count || !ReferenceEquals(SnapshotsValue[snapshotIndex].Entity, entity)) {
+                return -1;
+            }
+
+            int nextIndex = snapshotIndex + 1;
+            if (entity.Children == null) {
+                return nextIndex;
+            }
+
+            for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
+                nextIndex = MatchSnapshotsRecursive(entity.Children[childIndex], nextIndex);
+                if (nextIndex < 0) {
+                    return -1;
+                }
+            }
+
+            return nextIndex;
         }
 
         /// <summary>
@@ -340,6 +524,7 @@ namespace helengine {
         /// </summary>
         void ReleaseSnapshotItems() {
             SnapshotsValue.Clear();
+            AppliedSnapshotsValue.Clear();
         }
 
         /// <summary>
@@ -348,6 +533,7 @@ namespace helengine {
         void ReleaseSnapshots() {
             ReleaseSnapshotItems();
             NativeOwnership.Delete(SnapshotsValue);
+            NativeOwnership.Delete(AppliedSnapshotsValue);
         }
 
         /// <summary>
@@ -376,6 +562,10 @@ namespace helengine {
 
             if (anchorSpaceChanged) {
                 RaiseAnchorBoundsChanged();
+            }
+
+            if (IsEditorAuthoring()) {
+                RecordAppliedLayout();
             }
         }
 

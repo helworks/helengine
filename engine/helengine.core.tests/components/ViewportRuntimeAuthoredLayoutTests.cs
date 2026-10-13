@@ -53,6 +53,47 @@ namespace helengine.core.tests.components {
         }
 
         /// <summary>
+        /// At runtime a reference-canvas fit subtree rescales from the captured authored values; live writes between passes are
+        /// replaced on the next resize, and restoring the authored layout outside the editor changes nothing.
+        /// </summary>
+        [Fact]
+        public void RuntimeReferenceCanvasFit_WhenLiveValuesChangeBetweenPasses_RescalesFromTheCapturedAuthoredLayout() {
+            using MultiWindowTestRenderManager meshes = new MultiWindowTestRenderManager();
+            using Batch2DTestRenderManager overlay = new Batch2DTestRenderManager();
+            using Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+            });
+            core.Initialize(meshes, overlay, null, new PlatformInfo("test", "test-version"));
+            meshes.AddWindow(IntPtr.Zero, 1280, 720);
+
+            Entity root = new Entity(core);
+            root.InitComponents();
+            root.InitChildren();
+            ReferenceCanvasFitComponent fit = new ReferenceCanvasFitComponent { ReferenceWidth = 1280, ReferenceHeight = 720 };
+            root.AddComponent(fit);
+            Entity panel = new Entity(core) { LocalPosition = new float3(384f, 90f, 0f) };
+            panel.InitComponents();
+            panel.InitChildren();
+            RoundedRectComponent rect = new RoundedRectComponent { Size = new int2(512, 96) };
+            panel.AddComponent(rect);
+            root.AddChild(panel);
+            fit.Update();
+            meshes.OnWindowResize(IntPtr.Zero, 1920, 1080);
+            fit.Update();
+            Assert.Equal(new int2(768, 144), rect.Size);
+
+            rect.Size = new int2(900, 139);
+            panel.LocalPosition = new float3(10f, 10f, 0f);
+            fit.RestoreAuthoredLayout();
+            Assert.Equal(new int2(900, 139), rect.Size);
+            meshes.OnWindowResize(IntPtr.Zero, 640, 360);
+            fit.Update();
+
+            Assert.Equal(new int2(256, 48), rect.Size);
+            Assert.Equal(new float3(192f, 45f, 0f), panel.LocalPosition);
+        }
+
+        /// <summary>
         /// Restoring the authored layout outside the editor has no recorded preview pass to undo, so it leaves live runtime values untouched.
         /// </summary>
         [Fact]

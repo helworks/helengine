@@ -252,6 +252,85 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Writes the authored component values back onto the tracked components so the subtree holds unscaled layout data.
+        /// Contract: a live value that differs from <paramref name="applied"/> (what the last fit pass wrote) counts as a user
+        /// edit made in the scaled preview and is mapped back into authored space; an unchanged value resolves to the captured
+        /// authored value. Entity positions are restored separately by <see cref="RestoreAuthoredPosition"/>.
+        /// </summary>
+        /// <param name="applied">Live values recorded right after the last fit pass.</param>
+        /// <param name="widthScale">Horizontal pixels per authored pixel used by the last fit pass.</param>
+        /// <param name="heightScale">Vertical pixels per authored pixel used by the last fit pass.</param>
+        /// <param name="scalarScale">Uniform glyph and decoration scale used by the last fit pass.</param>
+        public void RestoreAuthoredComponents(ReferenceCanvasFitSnapshot applied, double widthScale, double heightScale, double scalarScale) {
+            if (applied == null) {
+                throw new ArgumentNullException(nameof(applied));
+            }
+
+            if (TrackedLayoutComponent != null) {
+                float4 live = TrackedLayoutComponent.AnchorDistances;
+                TrackedLayoutComponent.AnchorDistances = new float4(
+                    AuthoredLayoutScaleUtils.UnscaleFloat(live.X, applied.AnchorDistances.X, AnchorDistances.X, widthScale),
+                    AuthoredLayoutScaleUtils.UnscaleFloat(live.Y, applied.AnchorDistances.Y, AnchorDistances.Y, widthScale),
+                    AuthoredLayoutScaleUtils.UnscaleFloat(live.Z, applied.AnchorDistances.Z, AnchorDistances.Z, heightScale),
+                    AuthoredLayoutScaleUtils.UnscaleFloat(live.W, applied.AnchorDistances.W, AnchorDistances.W, heightScale));
+            }
+
+            if (TrackedRoundedRectComponent != null) {
+                TrackedRoundedRectComponent.Size = AuthoredLayoutScaleUtils.UnscaleInt2(TrackedRoundedRectComponent.Size, applied.RoundedRectSize, RoundedRectSize, widthScale, heightScale);
+                TrackedRoundedRectComponent.Radius = AuthoredLayoutScaleUtils.UnscaleFloat(TrackedRoundedRectComponent.Radius, applied.RoundedRectRadius, RoundedRectRadius, scalarScale);
+                TrackedRoundedRectComponent.BorderThickness = AuthoredLayoutScaleUtils.UnscaleFloat(TrackedRoundedRectComponent.BorderThickness, applied.RoundedRectBorderThickness, RoundedRectBorderThickness, scalarScale);
+            }
+
+            if (TrackedTextComponent != null) {
+                double textFontScale = TrackedTextComponent.NativeFontPixels != TextNativePixelMode.Disabled ? 1d : scalarScale;
+                float2 liveShadow = TrackedTextComponent.ShadowOffset;
+                TrackedTextComponent.Size = AuthoredLayoutScaleUtils.UnscaleInt2(TrackedTextComponent.Size, applied.TextSize, TextSize, widthScale, heightScale);
+                TrackedTextComponent.FontScale = AuthoredLayoutScaleUtils.UnscaleFloat(TrackedTextComponent.FontScale, applied.TextFontScale, TextFontScale, textFontScale);
+                TrackedTextComponent.OutlineScale = AuthoredLayoutScaleUtils.UnscaleFloat(TrackedTextComponent.OutlineScale, applied.TextOutlineScale, TextOutlineScale, scalarScale);
+                TrackedTextComponent.ShadowOffset = new float2(
+                    AuthoredLayoutScaleUtils.UnscaleFloat(liveShadow.X, applied.TextShadowOffset.X, TextShadowOffset.X, scalarScale),
+                    AuthoredLayoutScaleUtils.UnscaleFloat(liveShadow.Y, applied.TextShadowOffset.Y, TextShadowOffset.Y, scalarScale));
+            }
+
+            if (TrackedSpriteComponent != null) {
+                TrackedSpriteComponent.Size = AuthoredLayoutScaleUtils.UnscaleInt2(TrackedSpriteComponent.Size, applied.SpriteSize, SpriteSize, widthScale, heightScale);
+            }
+
+            if (TrackedClipRectComponent != null) {
+                TrackedClipRectComponent.Size = AuthoredLayoutScaleUtils.UnscaleInt2(TrackedClipRectComponent.Size, applied.ClipRectSize, ClipRectSize, widthScale, heightScale);
+            }
+
+            if (TrackedInteractableComponent != null) {
+                TrackedInteractableComponent.Size = AuthoredLayoutScaleUtils.UnscaleInt2(TrackedInteractableComponent.Size, applied.InteractableSize, InteractableSize, widthScale, heightScale);
+            }
+
+            if (TrackedScrollComponent != null) {
+                TrackedScrollComponent.Size = AuthoredLayoutScaleUtils.UnscaleInt2(TrackedScrollComponent.Size, applied.ScrollSize, ScrollSize, widthScale, heightScale);
+                TrackedScrollComponent.ItemExtent = AuthoredLayoutScaleUtils.UnscaleInt(TrackedScrollComponent.ItemExtent, applied.ScrollItemExtent, ScrollItemExtent, scalarScale);
+            }
+        }
+
+        /// <summary>
+        /// Writes the authored local position back onto the tracked entity; a position that differs from what the last fit
+        /// pass wrote counts as a user edit in the scaled preview and is mapped back into authored space.
+        /// </summary>
+        /// <param name="applied">Live values recorded right after the last fit pass.</param>
+        /// <param name="canvasOrigin">Root displacement added by the last fit pass.</param>
+        /// <param name="widthScale">Horizontal pixels per authored pixel used by the last fit pass.</param>
+        /// <param name="heightScale">Vertical pixels per authored pixel used by the last fit pass.</param>
+        public void RestoreAuthoredPosition(ReferenceCanvasFitSnapshot applied, float2 canvasOrigin, double widthScale, double heightScale) {
+            if (applied == null) {
+                throw new ArgumentNullException(nameof(applied));
+            }
+
+            float3 live = Entity.LocalPosition;
+            Entity.LocalPosition = new float3(
+                AuthoredLayoutScaleUtils.UnscalePosition(live.X, applied.LocalPosition.X, LocalPosition.X, IsRootEntity ? canvasOrigin.X : 0f, widthScale),
+                AuthoredLayoutScaleUtils.UnscalePosition(live.Y, applied.LocalPosition.Y, LocalPosition.Y, IsRootEntity ? canvasOrigin.Y : 0f, heightScale),
+                live.Z == applied.LocalPosition.Z ? LocalPosition.Z : live.Z);
+        }
+
+        /// <summary>
         /// Finds the first attached layout component.
         /// </summary>
         /// <param name="entity">Entity to inspect.</param>
