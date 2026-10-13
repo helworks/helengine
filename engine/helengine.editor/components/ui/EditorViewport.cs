@@ -55,6 +55,11 @@ namespace helengine.editor {
         /// Width of the snap value display box.
         /// </summary>
         const int SnapValueWidth = 52;
+        /// <summary>
+        /// Width of the Play platform selector between the Play and Stop buttons; wide enough for names such as
+        /// "PlayStation 2" plus the drop-down arrow.
+        /// </summary>
+        const int PlayPlatformSelectorWidth = 120;
 
         /// <summary>
         /// Owner key used to register the toolbar input blocker.
@@ -269,9 +274,25 @@ namespace helengine.editor {
         /// </summary>
         EditorPlaySessionState PresentedPlayState;
         /// <summary>
-        /// Whether the active platform supports Play; when false the Play button is dimmed and inert.
+        /// Whether the selected Play platform supports Play; when false the Play button is dimmed and inert.
         /// </summary>
         bool PresentedPlayAvailable;
+        /// <summary>
+        /// Toolbar entity hosting the Play platform selector between the Play and Stop buttons.
+        /// </summary>
+        EditorEntity PlayPlatformComboHost;
+        /// <summary>
+        /// Drop-down that shows the selected Play platform's display name and lets the user pick another one.
+        /// </summary>
+        ComboBoxComponent PlayPlatformComboBox;
+        /// <summary>
+        /// Platform ids of the presented selector items, index-aligned with the combo-box display names.
+        /// </summary>
+        readonly List<string> PresentedPlayPlatformIds = new List<string>();
+        /// <summary>
+        /// Platform id the session last presented as selected; empty when no platform is playable.
+        /// </summary>
+        string PresentedPlayPlatformId = string.Empty;
         /// <summary>
         /// Overlay component that owns viewport-local world-space gizmo labels.
         /// </summary>
@@ -399,7 +420,7 @@ namespace helengine.editor {
         public event Action<EditorViewport, bool> ViewportContentFocusedChanged;
 
         /// <summary>
-        /// Raised when the user activates the Play button while the active platform supports Play. The argument is true
+        /// Raised when the user activates the Play button while the selected Play platform supports Play. The argument is true
         /// when Shift was held during the activation, asking for the player to wait for a debugger before it starts.
         /// </summary>
         public event Action<bool> PlayRequested;
@@ -408,6 +429,12 @@ namespace helengine.editor {
         /// Raised when the user activates the Stop button while a Play session is preparing or running.
         /// </summary>
         public event Action StopRequested;
+
+        /// <summary>
+        /// Raised when the user picks a different platform in the Play platform selector. The argument is the picked
+        /// platform id; selections presented by the session through <see cref="SetPlayPlatformOptions"/> do not raise it.
+        /// </summary>
+        public event Action<string> PlayPlatformSelected;
 
         /// <summary>
         /// Initializes a new dockable viewport and binds it to the provided camera.
@@ -988,12 +1015,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Presents the Play session phase on the Play and Stop buttons. Play is dimmed and inert while the active
+        /// Presents the Play session phase on the Play and Stop buttons. Play is dimmed and inert while the selected Play
         /// platform cannot be played; Stop is highlighted while a session is preparing or running and dimmed otherwise.
         /// The toolbar has no tooltip system, so availability is conveyed by dimming alone.
         /// </summary>
         /// <param name="state">Current Play session phase.</param>
-        /// <param name="playAvailable">Whether the active platform supports Play.</param>
+        /// <param name="playAvailable">Whether the platform chosen in the Play platform selector supports Play.</param>
         public void SetPlayState(EditorPlaySessionState state, bool playAvailable) {
             PresentedPlayState = state;
             PresentedPlayAvailable = playAvailable;
@@ -1051,6 +1078,8 @@ namespace helengine.editor {
                 key => ActivatePlayButton());
             EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterTarget(PlayButtonFocusTarget);
 
+            InitializePlayPlatformSelector(firstTabIndex + 1);
+
             StopButtonRoot = CreateToolbarActionButton(
                 ToolbarIcons.StopIcon,
                 HandleStopButtonCursor,
@@ -1063,7 +1092,7 @@ namespace helengine.editor {
             EditorEntity stopButtonRoot = StopButtonRoot;
             StopButtonFocusTarget = new EditorFocusTarget(
                 ToolbarFocusGroup,
-                firstTabIndex + 1,
+                firstTabIndex + 2,
                 false,
                 () => Enabled && stopButtonRoot.Enabled,
                 point => ContainsToolbarActionButtonPoint(StopButtonRoot, StopButtonInteractable, point),
@@ -1142,6 +1171,84 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates the Play platform selector that sits between the Play and Stop buttons. It starts empty and inert
+        /// until the session presents the playable platforms through <see cref="SetPlayPlatformOptions"/>.
+        /// </summary>
+        /// <param name="tabIndex">Keyboard traversal order of the selector inside the toolbar focus group.</param>
+        void InitializePlayPlatformSelector(int tabIndex) {
+            PlayPlatformComboHost = new EditorEntity(OwnerCore, InteractionServices) {
+                LayerMask = LayerMask,
+                Position = float3.Zero
+            };
+            ToolbarRoot.AddChild(PlayPlatformComboHost);
+
+            PlayPlatformComboBox = new ComboBoxComponent(
+                new int2(PlayPlatformSelectorWidth, ToolButtonHeight),
+                Font,
+                Array.Empty<string>(),
+                -1) {
+                FocusGroup = ToolbarFocusGroup,
+                TabIndex = tabIndex
+            };
+            PlayPlatformComboBox.SelectionChanged += HandlePlayPlatformComboSelectionChanged;
+            PlayPlatformComboHost.AddComponent(PlayPlatformComboBox);
+            EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterTarget(PlayPlatformComboBox);
+        }
+
+        /// <summary>
+        /// Presents the platforms the Play platform selector offers and the one currently selected. Presenting a
+        /// selection never raises <see cref="PlayPlatformSelected"/>; only a user pick does. With no platforms the
+        /// selector is empty and cannot open.
+        /// </summary>
+        /// <param name="platformIds">Ids of the offered platforms, in display order.</param>
+        /// <param name="displayNames">Display names index-aligned with <paramref name="platformIds"/>.</param>
+        /// <param name="selectedPlatformId">Id of the selected platform; empty when no platform is offered.</param>
+        /// <exception cref="ArgumentNullException">Thrown when any argument is null.</exception>
+        /// <exception cref="ArgumentException">Thrown when the lists differ in length or the selection is not offered.</exception>
+        public void SetPlayPlatformOptions(IReadOnlyList<string> platformIds, IReadOnlyList<string> displayNames, string selectedPlatformId) {
+            if (platformIds == null) {
+                throw new ArgumentNullException(nameof(platformIds));
+            } else if (displayNames == null) {
+                throw new ArgumentNullException(nameof(displayNames));
+            } else if (selectedPlatformId == null) {
+                throw new ArgumentNullException(nameof(selectedPlatformId));
+            } else if (platformIds.Count != displayNames.Count) {
+                throw new ArgumentException("Every Play platform id needs exactly one display name.", nameof(displayNames));
+            }
+
+            int selectedIndex = -1;
+            for (int index = 0; index < platformIds.Count; index++) {
+                if (string.Equals(platformIds[index], selectedPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                    selectedIndex = index;
+                }
+            }
+            if (selectedIndex < 0 && (platformIds.Count > 0 || selectedPlatformId.Length > 0)) {
+                throw new ArgumentException($"Selected Play platform '{selectedPlatformId}' is not among the offered platforms.", nameof(selectedPlatformId));
+            }
+
+            PresentedPlayPlatformIds.Clear();
+            PresentedPlayPlatformIds.AddRange(platformIds);
+            PresentedPlayPlatformId = selectedPlatformId;
+            PlayPlatformComboBox.SetItems(displayNames, selectedIndex);
+        }
+
+        /// <summary>
+        /// Raises <see cref="PlayPlatformSelected"/> when the selector's item changes to a platform other than the one
+        /// already presented, which filters out the change events caused by <see cref="SetPlayPlatformOptions"/>.
+        /// </summary>
+        /// <param name="selectedIndex">Index of the newly selected item.</param>
+        /// <param name="selectedDisplayName">Display name of the newly selected item.</param>
+        void HandlePlayPlatformComboSelectionChanged(int selectedIndex, string selectedDisplayName) {
+            string platformId = PresentedPlayPlatformIds[selectedIndex];
+            if (string.Equals(platformId, PresentedPlayPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+
+            PresentedPlayPlatformId = platformId;
+            PlayPlatformSelected?.Invoke(platformId);
+        }
+
+        /// <summary>
         /// Handles pointer interaction state updates for the Play button; a completed click requests Play.
         /// </summary>
         /// <param name="interaction">Pointer interaction state.</param>
@@ -1206,7 +1313,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Raises <see cref="PlayRequested"/> when the active platform supports Play; otherwise the click does nothing.
+        /// Raises <see cref="PlayRequested"/> when the selected Play platform supports Play; otherwise the click does nothing.
         /// Holding either Shift key during the activation requests a launch that waits for a debugger.
         /// </summary>
         void ActivatePlayButton() {
@@ -1317,18 +1424,21 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Lays out the Play and Stop buttons to the left of the stats button, separated from it by a group gap.
+        /// Lays out the Play button, the Play platform selector and the Stop button, in that order, to the left of the
+        /// stats button and separated from it by a group gap.
         /// </summary>
         /// <param name="statsButtonX">Left edge of the stats button inside the toolbar.</param>
         /// <param name="buttonY">Top offset shared by every toolbar button.</param>
         void LayoutPlayButtons(float statsButtonX, float buttonY) {
-            if (PlayButtonRoot == null || StopButtonRoot == null) {
+            if (PlayButtonRoot == null || StopButtonRoot == null || PlayPlatformComboHost == null) {
                 return;
             }
 
             float stopButtonX = Math.Max(ToolbarPadding, statsButtonX - SnapGroupSpacing - ToolButtonWidth);
-            float playButtonX = Math.Max(ToolbarPadding, stopButtonX - ToolbarButtonSpacing - ToolButtonWidth);
+            float selectorX = Math.Max(ToolbarPadding, stopButtonX - ToolbarButtonSpacing - PlayPlatformSelectorWidth);
+            float playButtonX = Math.Max(ToolbarPadding, selectorX - ToolbarButtonSpacing - ToolButtonWidth);
             LayoutToolbarActionButton(PlayButtonRoot, PlayButtonBackground, PlayButtonIcon, PlayButtonInteractable, playButtonX, buttonY);
+            PlayPlatformComboHost.Position = new float3(selectorX, buttonY, 0.1f);
             LayoutToolbarActionButton(StopButtonRoot, StopButtonBackground, StopButtonIcon, StopButtonInteractable, stopButtonX, buttonY);
         }
 
@@ -1510,6 +1620,10 @@ namespace helengine.editor {
                 if (valueTextBox != null) {
                     valueTextBox.Font = Font;
                 }
+            }
+
+            if (PlayPlatformComboBox != null) {
+                PlayPlatformComboBox.Font = Font;
             }
         }
 

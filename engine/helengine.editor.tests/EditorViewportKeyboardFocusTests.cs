@@ -371,6 +371,50 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the Play platform selector shows the presented options and raises the selection event with the picked
+        /// platform id, but not when the session itself presents a selection.
+        /// </summary>
+        [Fact]
+        public void PlayPlatformSelector_WhenAnOptionIsPicked_RaisesSelectionWithPlatformId() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            List<string> selections = new List<string>();
+            viewport.PlayPlatformSelected += selections.Add;
+
+            viewport.SetPlayPlatformOptions(new[] { "ps2", "n64" }, new[] { "PlayStation 2", "Nintendo 64" }, "ps2");
+            ComboBoxComponent selector = GetPrivateField<ComboBoxComponent>(viewport, "PlayPlatformComboBox");
+            Assert.Equal(new[] { "PlayStation 2", "Nintendo 64" }, selector.Items);
+            Assert.Equal(0, selector.SelectedIndex);
+            Assert.Empty(selections);
+
+            selector.SelectedIndex = 1;
+            Assert.Equal(new[] { "n64" }, selections);
+
+            viewport.SetPlayPlatformOptions(new[] { "ps2", "n64" }, new[] { "PlayStation 2", "Nintendo 64" }, "ps2");
+            Assert.Equal(0, selector.SelectedIndex);
+            Assert.Equal(new[] { "n64" }, selections);
+        }
+
+        /// <summary>
+        /// Ensures the toolbar reads Play, then the Play platform selector, then Stop, all left of the stats button.
+        /// </summary>
+        [Fact]
+        public void LayoutToolbar_PlacesPlatformSelectorBetweenPlayAndStop() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            viewport.Size = new int2(640, 360);
+
+            InvokePrivateMethod(viewport, "UpdateViewport");
+
+            float playX = GetPrivateField<EditorEntity>(viewport, "PlayButtonRoot").Position.X;
+            ComboBoxComponent selector = GetPrivateField<ComboBoxComponent>(viewport, "PlayPlatformComboBox");
+            float selectorX = selector.Parent.Position.X;
+            float stopX = GetPrivateField<EditorEntity>(viewport, "StopButtonRoot").Position.X;
+            Assert.True(playX + 22f <= selectorX, "Expected the selector to start after the Play button ends.");
+            Assert.True(selectorX + selector.Size.X <= stopX, "Expected the selector to end before Stop begins.");
+        }
+
+        /// <summary>
         /// Ensures clicking the viewport content activates the viewport dock and focuses the content shortcut target.
         /// </summary>
         [Fact]
