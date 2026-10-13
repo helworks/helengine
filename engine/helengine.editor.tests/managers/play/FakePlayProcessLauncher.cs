@@ -15,7 +15,18 @@ public sealed class FakePlayProcessLauncher : IEditorPlayProcessLauncher {
     public readonly List<FakePlayProcess> StartedProcesses = new List<FakePlayProcess>();
 
     /// <summary>
-    /// Records the launch request and returns a new fake process with an increasing process identifier.
+    /// When true, every started process has already exited before the session service can subscribe to it.
+    /// </summary>
+    public bool StartAlreadyExited;
+
+    /// <summary>
+    /// Exit code used for processes started while <see cref="StartAlreadyExited"/> is true.
+    /// </summary>
+    public int AlreadyExitedCode;
+
+    /// <summary>
+    /// Records the launch request and returns a new fake process with an increasing process identifier, exiting it
+    /// immediately when <see cref="StartAlreadyExited"/> is set.
     /// </summary>
     /// <param name="request">Launch request built by the session service.</param>
     /// <returns>The new fake process.</returns>
@@ -23,6 +34,10 @@ public sealed class FakePlayProcessLauncher : IEditorPlayProcessLauncher {
         Requests.Add(request);
         FakePlayProcess process = new FakePlayProcess(1000 + StartedProcesses.Count);
         StartedProcesses.Add(process);
+        if (StartAlreadyExited) {
+            process.RaiseExit(AlreadyExitedCode);
+        }
+
         return process;
     }
 }

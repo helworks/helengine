@@ -69,9 +69,10 @@ namespace helengine.editor {
         readonly string PlayerExecutablePath;
 
         /// <summary>
-        /// Player process started by the latest successful Play, or null when none is attached.
+        /// Binding to the player process started by the latest successful Play, or null when none is attached.
+        /// Events from any other binding are stale and ignored.
         /// </summary>
-        IEditorPlayProcess CurrentProcess;
+        EditorPlayProcessBinding CurrentBinding;
 
         /// <summary>
         /// Initializes the Play session service.
@@ -216,11 +217,17 @@ namespace helengine.editor {
                 throw new InvalidOperationException("The Play process launcher returned no process.");
             }
 
-            CurrentProcess = process;
-            SetState(EditorPlaySessionState.Running);
-            process.OutputLine += HandlePlayerOutputLine;
-            process.ErrorLine += HandlePlayerErrorLine;
-            process.Exited += HandlePlayerExited;
+            EditorPlayProcessBinding binding = new EditorPlayProcessBinding(this, process);
+            CurrentBinding = binding;
+            binding.Attach();
+            if (CurrentBinding == binding) {
+                SetState(EditorPlaySessionState.Running);
+            }
+
+            if (process.HasExited) {
+                HandlePlayerExited(binding);
+            }
+
             return EditorBuildExecutionResult.Success($"Player started (pid {process.ProcessId}).");
         }
 
@@ -264,49 +271,64 @@ namespace helengine.editor {
         /// longer change this session.
         /// </summary>
         void KillCurrentProcess() {
-            if (CurrentProcess == null) {
+            if (CurrentBinding == null) {
                 return;
             }
 
-            IEditorPlayProcess process = CurrentProcess;
-            DetachCurrentProcess();
-            if (!process.HasExited) {
-                process.Kill();
+            EditorPlayProcessBinding binding = CurrentBinding;
+            DetachCurrentBinding();
+            if (!binding.Process.HasExited) {
+                binding.Process.Kill();
             }
         }
 
         /// <summary>
-        /// Unsubscribes from the current player's events and forgets it.
+        /// Unsubscribes from the current player's events and forgets it, so any event it still delivers is stale.
         /// </summary>
-        void DetachCurrentProcess() {
-            CurrentProcess.OutputLine -= HandlePlayerOutputLine;
-            CurrentProcess.ErrorLine -= HandlePlayerErrorLine;
-            CurrentProcess.Exited -= HandlePlayerExited;
-            CurrentProcess = null;
+        void DetachCurrentBinding() {
+            EditorPlayProcessBinding binding = CurrentBinding;
+            CurrentBinding = null;
+            binding.Detach();
         }
 
         /// <summary>
-        /// Forwards one player standard-output line to the editor log.
+        /// Forwards one player standard-output line to the editor log when it comes from the current player.
         /// </summary>
+        /// <param name="binding">Binding of the process that wrote the line.</param>
         /// <param name="line">Line the player wrote.</param>
-        void HandlePlayerOutputLine(string line) {
+        internal void HandlePlayerOutputLine(EditorPlayProcessBinding binding, string line) {
+            if (binding != CurrentBinding) {
+                return;
+            }
+
             Logger.WriteLine(PlayerLogPrefix + line);
         }
 
         /// <summary>
-        /// Forwards one player standard-error line to the editor error log.
+        /// Forwards one player standard-error line to the editor error log when it comes from the current player.
         /// </summary>
+        /// <param name="binding">Binding of the process that wrote the line.</param>
         /// <param name="line">Line the player wrote.</param>
-        void HandlePlayerErrorLine(string line) {
+        internal void HandlePlayerErrorLine(EditorPlayProcessBinding binding, string line) {
+            if (binding != CurrentBinding) {
+                return;
+            }
+
             Logger.WriteError(PlayerLogPrefix + line);
         }
 
         /// <summary>
-        /// Handles the current player exiting on its own: logs a non-zero exit code and returns the session to stopped.
+        /// Handles the current player exiting on its own: logs a non-zero exit code read from that player and returns
+        /// the session to stopped. Exits from replaced or already-handled players are ignored.
         /// </summary>
-        void HandlePlayerExited() {
-            int exitCode = CurrentProcess.ExitCode;
-            DetachCurrentProcess();
+        /// <param name="binding">Binding of the process that exited.</param>
+        internal void HandlePlayerExited(EditorPlayProcessBinding binding) {
+            if (binding != CurrentBinding) {
+                return;
+            }
+
+            int exitCode = binding.Process.ExitCode;
+            DetachCurrentBinding();
             if (exitCode != 0) {
                 Logger.WriteError($"{PlayerLogPrefix}exited with code {exitCode}");
             }

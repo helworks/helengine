@@ -6,7 +6,6 @@ namespace helengine.editor.tests.managers.play;
 /// <summary>
 /// Verifies the editor Play session orchestration: save, cook, script build, player launch, output forwarding and stop.
 /// </summary>
-[Collection(EditorPlayLoggerCollection.Name)]
 public sealed class EditorPlaySessionServiceTests {
     /// <summary>
     /// Player executable path handed to the service under test.
@@ -180,6 +179,65 @@ public sealed class EditorPlaySessionServiceTests {
         Assert.Equal(2, launcher.StartedProcesses.Count);
         Assert.Equal(0, launcher.StartedProcesses[1].KillCount);
         Assert.Equal(EditorPlaySessionState.Running, service.State);
+    }
+
+    /// <summary>
+    /// Ensures late events from a replaced player, delivered through delegates captured before the service
+    /// unsubscribed, neither stop the new session nor log anything.
+    /// </summary>
+    [Fact]
+    public void ProcessExit_FromReplacedPlayerAfterRelaunch_IsIgnored() {
+        FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
+        EditorPlaySessionService service = new EditorPlaySessionService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath);
+        service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, false);
+        service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, false);
+        FakePlayProcess oldProcess = launcher.StartedProcesses[0];
+        List<EditorPlaySessionState> states = new List<EditorPlaySessionState>();
+        service.StateChanged += states.Add;
+        List<string> loggedPlayerLines = new List<string>();
+        Action<LogEntry> captureEntry = entry => {
+            if (entry.Message.StartsWith("[player]", StringComparison.Ordinal)) {
+                loggedPlayerLines.Add(entry.Message);
+            }
+        };
+
+        Logger.MessageLogged += captureEntry;
+        Logger.ErrorLogged += captureEntry;
+        try {
+            oldProcess.RaiseStaleEventsToEverySubscriber("stale line", 7);
+        } finally {
+            Logger.MessageLogged -= captureEntry;
+            Logger.ErrorLogged -= captureEntry;
+        }
+
+        Assert.Equal(EditorPlaySessionState.Running, service.State);
+        Assert.Empty(states);
+        Assert.Empty(loggedPlayerLines);
+        Assert.Equal(0, launcher.StartedProcesses[1].KillCount);
+    }
+
+    /// <summary>
+    /// Ensures a player that exits before the service subscribes to it is still handled: the exit code is logged and
+    /// the session ends stopped.
+    /// </summary>
+    [Fact]
+    public void Play_WhenPlayerExitsBeforeEventsAreHooked_ReturnsToStoppedAndLogsError() {
+        FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
+        launcher.StartAlreadyExited = true;
+        launcher.AlreadyExitedCode = 4;
+        EditorPlaySessionService service = new EditorPlaySessionService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath);
+        List<string> errors = new List<string>();
+        Action<LogEntry> captureError = entry => errors.Add(entry.Message);
+
+        Logger.ErrorLogged += captureError;
+        try {
+            service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, false);
+        } finally {
+            Logger.ErrorLogged -= captureError;
+        }
+
+        Assert.Equal(EditorPlaySessionState.Stopped, service.State);
+        Assert.Contains("[player] exited with code 4", errors);
     }
 
     /// <summary>
