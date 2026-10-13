@@ -18,6 +18,9 @@ namespace helengine.player.tests {
         /// <summary>Platform adapter type name passed through to the player.</summary>
         const string AdapterTypeName = "helengine.ps2.builder.Ps2PlayerAdapter";
 
+        /// <summary>Target frame rate passed through to the player; fractional so the invariant formatting round-trip is exercised.</summary>
+        const double TargetFrameRate = 59.94d;
+
         /// <summary>
         /// The arguments the editor launches the player with parse back into exactly the values the editor prepared,
         /// with and without the debugger wait.
@@ -34,7 +37,7 @@ namespace helengine.player.tests {
                 launcher,
                 @"C:\editor\player\helengine.player.exe");
 
-            EditorBuildExecutionResult result = service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, waitForDebugger);
+            EditorBuildExecutionResult result = service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, waitForDebugger);
             PlayerLaunchOptions options = PlayerLaunchOptions.Parse(launcher.LastRequest.Arguments.ToArray());
 
             Assert.True(result.Succeeded, result.Message);
@@ -44,6 +47,7 @@ namespace helengine.player.tests {
             Assert.Equal(AdapterAssemblyPath, options.AdapterAssemblyPath);
             Assert.Equal(AdapterTypeName, options.AdapterTypeName);
             Assert.Equal(ContractPlayScriptBuilder.RuntimeModulesRootPath, options.ScriptModulesRootPath);
+            Assert.Equal(TargetFrameRate, options.TargetFrameRate);
             Assert.Equal(waitForDebugger, options.WaitForDebugger);
         }
     }

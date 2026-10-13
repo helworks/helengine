@@ -51,7 +51,8 @@ namespace helengine.player {
                 shaders = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
 
                 renderer3D = new PlayerRenderManager3D(adapter, shaders);
-                // The player has no frame limiter of its own; vsync paces it to the display refresh rate.
+                // Vsync only prevents tearing; PlayerFramePacer limits the loop to the platform's target frame rate,
+                // which is below the refresh rate of the high-refresh monitors the editor runs on.
                 renderer3D.PresentSyncInterval = 1;
                 window = new PlayerWindow(options.SceneId);
                 window.Show();
@@ -76,7 +77,7 @@ namespace helengine.player {
                 renderer3D.AddWindow(window.Handle, PlayerWindow.ClientWidth, PlayerWindow.ClientHeight);
                 core.SceneManager.LoadScene(options.SceneId, SceneLoadMode.Single);
 
-                RunFrameLoop(core, window);
+                RunFrameLoop(core, window, options.TargetFrameRate);
             } finally {
                 if (core != null) {
                     core.Dispose();
@@ -97,18 +98,23 @@ namespace helengine.player {
         }
 
         /// <summary>
-        /// Pumps window messages and advances the core one frame at a time, using the measured wall-clock delta,
-        /// until the player window is closed.
+        /// Pumps window messages and advances the core one frame at a time, using the measured wall-clock delta, until
+        /// the player window is closed. Each frame is paced to <paramref name="targetFrameRate"/>, so the measured
+        /// delta handed to <c>Core.Update</c> is the real time between frames at that rate.
         /// </summary>
         /// <param name="core">Initialized core with the scene loaded.</param>
         /// <param name="window">Player window whose closing ends the loop.</param>
-        static void RunFrameLoop(Core core, PlayerWindow window) {
-            Stopwatch frameStopwatch = Stopwatch.StartNew();
+        /// <param name="targetFrameRate">Frames per second the selected platform runs at.</param>
+        static void RunFrameLoop(Core core, PlayerWindow window, double targetFrameRate) {
+            Console.WriteLine("[player] frame loop target: " + targetFrameRate.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + " FPS");
+            using StopwatchPlayerFrameClock clock = new StopwatchPlayerFrameClock();
+            PlayerFramePacer pacer = new PlayerFramePacer(targetFrameRate, clock);
             double previousElapsedSeconds = 0d;
             bool isFirstFrame = true;
             Application.DoEvents();
+            pacer.Start();
             while (!window.IsClosed) {
-                double currentElapsedSeconds = frameStopwatch.Elapsed.TotalSeconds;
+                double currentElapsedSeconds = clock.ElapsedSeconds;
                 double frameDeltaSeconds = isFirstFrame
                     ? core.InitializationOptions.DefaultUpdateDeltaSeconds
                     : currentElapsedSeconds - previousElapsedSeconds;
@@ -118,6 +124,7 @@ namespace helengine.player {
                 core.Update(frameDeltaSeconds);
                 core.Draw();
                 Application.DoEvents();
+                pacer.WaitForNextFrame();
             }
         }
     }

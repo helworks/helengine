@@ -3613,6 +3613,7 @@ namespace helengine.editor {
                     SaveCurrentSceneForPlay,
                     playPlatform.BuilderAssemblyPath,
                     playPlatform.PlayerCapability.AdapterTypeName,
+                    playPlatform.PlayerCapability.TargetFrameRate,
                     waitForDebugger);
                 if (result.Succeeded) {
                     Logger.WriteLine(result.Message);

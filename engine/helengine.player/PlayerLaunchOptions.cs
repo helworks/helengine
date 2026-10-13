@@ -2,7 +2,8 @@ namespace helengine.player {
     /// <summary>
     /// Holds the validated command line the editor passes to the Play player:
     /// <c>--content-root &lt;dir&gt; --scene-id &lt;id&gt; --scene-path &lt;cooked/relative.hasset&gt;
-    /// --adapter-assembly &lt;dll&gt; --adapter-type &lt;full type name&gt; --script-modules &lt;dir&gt; [--wait-for-debugger]</c>.
+    /// --adapter-assembly &lt;dll&gt; --adapter-type &lt;full type name&gt; --script-modules &lt;dir&gt;
+    /// --target-fps &lt;frames per second&gt; [--wait-for-debugger]</c>.
     /// Every value option is required; unknown, repeated or value-less options are rejected so a
     /// mismatch between the editor and the player fails loudly instead of being ignored.
     /// </summary>
@@ -25,6 +26,9 @@ namespace helengine.player {
         /// <summary>Option naming the root folder that holds one sub-folder per compiled script module.</summary>
         public const string ScriptModulesOption = "--script-modules";
 
+        /// <summary>Option naming the frames per second the player paces its frame loop to, written with the invariant culture.</summary>
+        public const string TargetFpsOption = "--target-fps";
+
         /// <summary>Switch that makes the player block at startup until a debugger attaches.</summary>
         public const string WaitForDebuggerOption = "--wait-for-debugger";
 
@@ -37,6 +41,7 @@ namespace helengine.player {
         /// <param name="adapterAssemblyPath">Path to the platform builder assembly containing the adapter.</param>
         /// <param name="adapterTypeName">Full type name of the player adapter.</param>
         /// <param name="scriptModulesRootPath">Root folder holding compiled script modules.</param>
+        /// <param name="targetFrameRate">Positive frames per second the player paces its frame loop to.</param>
         /// <param name="waitForDebugger">Whether the player waits for a debugger before starting.</param>
         PlayerLaunchOptions(
             string contentRootPath,
@@ -45,6 +50,7 @@ namespace helengine.player {
             string adapterAssemblyPath,
             string adapterTypeName,
             string scriptModulesRootPath,
+            double targetFrameRate,
             bool waitForDebugger) {
             ContentRootPath = contentRootPath;
             SceneId = sceneId;
@@ -52,6 +58,7 @@ namespace helengine.player {
             AdapterAssemblyPath = adapterAssemblyPath;
             AdapterTypeName = adapterTypeName;
             ScriptModulesRootPath = scriptModulesRootPath;
+            TargetFrameRate = targetFrameRate;
             WaitForDebugger = waitForDebugger;
         }
 
@@ -73,6 +80,9 @@ namespace helengine.player {
         /// <summary>Gets the root folder laid out as <c>&lt;root&gt;/&lt;moduleId&gt;/&lt;moduleId&gt;.dll</c>.</summary>
         public string ScriptModulesRootPath { get; }
 
+        /// <summary>Gets the frames per second the player paces its frame loop to (the selected platform's frame rate).</summary>
+        public double TargetFrameRate { get; }
+
         /// <summary>Gets whether the player blocks at startup until a debugger is attached.</summary>
         public bool WaitForDebugger { get; }
 
@@ -93,6 +103,7 @@ namespace helengine.player {
             string adapterAssemblyPath = null;
             string adapterTypeName = null;
             string scriptModulesRootPath = null;
+            string targetFrameRateText = null;
             bool waitForDebugger = false;
 
             for (int i = 0; i < args.Length; i++) {
@@ -117,6 +128,8 @@ namespace helengine.player {
                     adapterTypeName = ReadValue(args, i, adapterTypeName);
                 } else if (string.Equals(option, ScriptModulesOption, StringComparison.Ordinal)) {
                     scriptModulesRootPath = ReadValue(args, i, scriptModulesRootPath);
+                } else if (string.Equals(option, TargetFpsOption, StringComparison.Ordinal)) {
+                    targetFrameRateText = ReadValue(args, i, targetFrameRateText);
                 } else {
                     throw new ArgumentException($"Unknown player option '{option}'.", nameof(args));
                 }
@@ -130,6 +143,8 @@ namespace helengine.player {
             RequireOption(AdapterAssemblyOption, adapterAssemblyPath);
             RequireOption(AdapterTypeOption, adapterTypeName);
             RequireOption(ScriptModulesOption, scriptModulesRootPath);
+            RequireOption(TargetFpsOption, targetFrameRateText);
+            double targetFrameRate = ParseTargetFrameRate(targetFrameRateText);
 
             return new PlayerLaunchOptions(
                 contentRootPath,
@@ -138,6 +153,7 @@ namespace helengine.player {
                 adapterAssemblyPath,
                 adapterTypeName,
                 scriptModulesRootPath,
+                targetFrameRate,
                 waitForDebugger);
         }
 
@@ -166,6 +182,22 @@ namespace helengine.player {
             }
 
             return value;
+        }
+
+        /// <summary>
+        /// Parses the <c>--target-fps</c> value as an invariant-culture number that must be positive and finite.
+        /// </summary>
+        /// <param name="text">Raw option value.</param>
+        /// <returns>Frames per second the player paces its frame loop to.</returns>
+        /// <exception cref="ArgumentException">The value is not an invariant number, or is not positive and finite.</exception>
+        static double ParseTargetFrameRate(string text) {
+            if (!double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double targetFrameRate)) {
+                throw new ArgumentException($"Option '{TargetFpsOption}' requires an invariant-culture number but received '{text}'.", TargetFpsOption);
+            } else if (!(targetFrameRate > 0d && double.IsFinite(targetFrameRate))) {
+                throw new ArgumentException($"Option '{TargetFpsOption}' requires a positive, finite frame rate but received '{text}'.", TargetFpsOption);
+            }
+
+            return targetFrameRate;
         }
 
         /// <summary>
