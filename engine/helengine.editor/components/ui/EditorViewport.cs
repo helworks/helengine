@@ -56,10 +56,21 @@ namespace helengine.editor {
         /// </summary>
         const int SnapValueWidth = 52;
         /// <summary>
-        /// Width of the Play platform selector between the Play and Stop buttons; wide enough for names such as
-        /// "PlayStation 2" plus the drop-down arrow.
+        /// Smallest width of the Play platform selector, so a very short platform name still reads as a drop-down.
         /// </summary>
-        const int PlayPlatformSelectorWidth = 120;
+        const int PlayPlatformSelectorMinimumWidth = 40;
+        /// <summary>
+        /// Horizontal padding the combo box draws left of its label and right of its arrow glyph.
+        /// </summary>
+        const int PlayPlatformSelectorEdgePadding = 8;
+        /// <summary>
+        /// Gap kept between the longest platform name and the drop-down arrow glyph.
+        /// </summary>
+        const int PlayPlatformSelectorArrowGap = 6;
+        /// <summary>
+        /// Arrow glyph the combo box draws at its right edge, measured to size the selector.
+        /// </summary>
+        const string PlayPlatformSelectorArrowGlyph = "v";
 
         /// <summary>
         /// Owner key used to register the toolbar input blocker.
@@ -293,6 +304,10 @@ namespace helengine.editor {
         /// Platform id the session last presented as selected; empty when no platform is playable.
         /// </summary>
         string PresentedPlayPlatformId = string.Empty;
+        /// <summary>
+        /// Current width of the Play platform selector, fitted to the longest offered platform name in the toolbar font.
+        /// </summary>
+        int PlayPlatformSelectorWidth = PlayPlatformSelectorMinimumWidth;
         /// <summary>
         /// Overlay component that owns viewport-local world-space gizmo labels.
         /// </summary>
@@ -1193,12 +1208,44 @@ namespace helengine.editor {
             PlayPlatformComboBox.SelectionChanged += HandlePlayPlatformComboSelectionChanged;
             PlayPlatformComboHost.AddComponent(PlayPlatformComboBox);
             EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterTarget(PlayPlatformComboBox);
+            PlayPlatformComboHost.Enabled = false;
+        }
+
+        /// <summary>
+        /// Measures the selector width that fits the longest display name and the arrow glyph in the toolbar font,
+        /// never narrower than <see cref="PlayPlatformSelectorMinimumWidth"/>.
+        /// </summary>
+        /// <param name="displayNames">Display names the selector offers.</param>
+        /// <returns>Selector width in pixels.</returns>
+        int MeasurePlayPlatformSelectorWidth(IReadOnlyList<string> displayNames) {
+            double longestNameWidth = 0.0;
+            for (int index = 0; index < displayNames.Count; index++) {
+                longestNameWidth = Math.Max(longestNameWidth, Font.MeasureTight(displayNames[index]).Width);
+            }
+
+            double arrowWidth = Font.MeasureTight(PlayPlatformSelectorArrowGlyph).Width;
+            double width = PlayPlatformSelectorEdgePadding + longestNameWidth + PlayPlatformSelectorArrowGap + arrowWidth + PlayPlatformSelectorEdgePadding;
+            return Math.Max(PlayPlatformSelectorMinimumWidth, (int)Math.Ceiling(width));
+        }
+
+        /// <summary>
+        /// Refits the selector to its current items and relays the toolbar when the width changed.
+        /// </summary>
+        void UpdatePlayPlatformSelectorWidth() {
+            int width = MeasurePlayPlatformSelectorWidth(PlayPlatformComboBox.Items);
+            if (width == PlayPlatformSelectorWidth) {
+                return;
+            }
+
+            PlayPlatformSelectorWidth = width;
+            PlayPlatformComboBox.Size = new int2(width, ToolButtonHeight);
+            LayoutToolbar();
         }
 
         /// <summary>
         /// Presents the platforms the Play platform selector offers and the one currently selected. Presenting a
-        /// selection never raises <see cref="PlayPlatformSelected"/>; only a user pick does. With no platforms the
-        /// selector is empty and cannot open.
+        /// selection never raises <see cref="PlayPlatformSelected"/>; only a user pick does. The selector is sized to the
+        /// longest name; with no platforms it is disabled, which hides it and removes it from keyboard traversal.
         /// </summary>
         /// <param name="platformIds">Ids of the offered platforms, in display order.</param>
         /// <param name="displayNames">Display names index-aligned with <paramref name="platformIds"/>.</param>
@@ -1230,6 +1277,8 @@ namespace helengine.editor {
             PresentedPlayPlatformIds.AddRange(platformIds);
             PresentedPlayPlatformId = selectedPlatformId;
             PlayPlatformComboBox.SetItems(displayNames, selectedIndex);
+            PlayPlatformComboHost.Enabled = platformIds.Count > 0;
+            UpdatePlayPlatformSelectorWidth();
         }
 
         /// <summary>
@@ -1624,6 +1673,7 @@ namespace helengine.editor {
 
             if (PlayPlatformComboBox != null) {
                 PlayPlatformComboBox.Font = Font;
+                UpdatePlayPlatformSelectorWidth();
             }
         }
 

@@ -396,6 +396,63 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures an empty selector (nothing playable) is disabled, so it is hidden and cannot take keyboard focus, and
+        /// that it comes back once platforms are offered.
+        /// </summary>
+        [Fact]
+        public void PlayPlatformSelector_WhenNothingIsPlayable_IsDisabledAndOutOfTabOrder() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            ComboBoxComponent selector = GetPrivateField<ComboBoxComponent>(viewport, "PlayPlatformComboBox");
+
+            viewport.SetPlayPlatformOptions(Array.Empty<string>(), Array.Empty<string>(), string.Empty);
+            Assert.False(selector.Parent.Enabled);
+            Assert.False(selector.CanReceiveFocus);
+
+            viewport.SetPlayPlatformOptions(new[] { "ps2" }, new[] { "PlayStation 2" }, "ps2");
+            Assert.True(selector.Parent.Enabled);
+            Assert.True(selector.CanReceiveFocus);
+        }
+
+        /// <summary>
+        /// Ensures the selector is fitted to the longest offered name in the toolbar font rather than a fixed width.
+        /// </summary>
+        [Fact]
+        public void PlayPlatformSelector_FitsTheLongestDisplayName() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            ComboBoxComponent selector = GetPrivateField<ComboBoxComponent>(viewport, "PlayPlatformComboBox");
+
+            viewport.SetPlayPlatformOptions(new[] { "n64" }, new[] { "N64" }, "n64");
+            int shortWidth = selector.Size.X;
+            viewport.SetPlayPlatformOptions(new[] { "n64", "ps2" }, new[] { "N64", "PlayStation 2" }, "n64");
+            int longWidth = selector.Size.X;
+
+            Assert.True(longWidth > shortWidth, "Expected a longer name to widen the selector.");
+            Assert.True(longWidth >= selector.Font.MeasureTight("PlayStation 2").Width + selector.Font.MeasureTight("v").Width + 16f,
+                "Expected the selector to fit the longest name, the arrow and both edge paddings.");
+        }
+
+        /// <summary>
+        /// Ensures the Play group (Play, selector, Stop) does not overlap the snap group at a 640px toolbar with the
+        /// PlayStation 2 name presented. Positions are compared in toolbar-local space.
+        /// </summary>
+        [Fact]
+        public void LayoutToolbar_PlayGroupDoesNotOverlapSnapGroupAt640() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            viewport.Size = new int2(640, 360);
+            viewport.SetPlayPlatformOptions(new[] { "ps2" }, new[] { "PlayStation 2" }, "ps2");
+
+            InvokePrivateMethod(viewport, "UpdateViewport");
+
+            EditorEntity[] decreaseButtons = GetPrivateField<EditorEntity[]>(viewport, "SnapDecreaseButtonRoots");
+            float snapGroupRight = decreaseButtons[decreaseButtons.Length - 1].Position.X + 22f;
+            float playX = GetPrivateField<EditorEntity>(viewport, "PlayButtonRoot").Position.X;
+            Assert.True(playX >= snapGroupRight, $"Expected Play ({playX}) to start after the snap group ends ({snapGroupRight}).");
+        }
+
+        /// <summary>
         /// Ensures the toolbar reads Play, then the Play platform selector, then Stop, all left of the stats button.
         /// </summary>
         [Fact]
