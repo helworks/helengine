@@ -123,9 +123,11 @@ namespace helengine.directx11 {
         /// </summary>
         readonly DirectX11MaterialBinder MaterialBinder;
         /// <summary>
-        /// World-space camera position for the active 3D camera pass.
+        /// Gets the world-space camera position for the active 3D camera pass, which the standard mesh shader
+        /// receives as its eye position for view-dependent lighting. Every camera pass (main and custom) sets it
+        /// before issuing draws so no pass inherits another camera's position.
         /// </summary>
-        float3 CurrentCameraPosition;
+        protected float3 CurrentCameraPosition { get; private set; }
         /// <summary>
         /// Stores the fallback material used when a drawable has no material.
         /// </summary>
@@ -899,6 +901,7 @@ namespace helengine.directx11 {
 
             float4x4 view;
             float3 cameraPos = camera.Parent.Position;
+            CurrentCameraPosition = cameraPos;
             float4 cameraOrientation = camera.Parent.Orientation;
             float3 cameraForward = float4.RotateVector(DefaultForward, cameraOrientation);
             float3 cameraUp = float4.RotateVector(DefaultUp, cameraOrientation);

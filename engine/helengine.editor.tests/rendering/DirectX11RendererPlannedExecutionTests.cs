@@ -279,6 +279,48 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures the main camera path (no custom pass queued) hands each rendering camera's world position to the
+        /// standard-mesh draws, so view-dependent lighting uses the real eye instead of the origin or a camera
+        /// position left behind by an earlier pass.
+        /// </summary>
+        [Fact]
+        public void RenderCamera_WithoutCustomPass_StandardMeshDrawsReceiveRenderingCameraPosition() {
+            using CameraPositionRecordingRenderer renderer = new CameraPositionRecordingRenderer();
+            InitializeCore(renderer);
+            float3 firstCameraPosition = new float3(3f, 4f, -5f);
+            float3 secondCameraPosition = new float3(-7f, 2f, 9f);
+            CameraComponent firstCamera = CreatePositionedCamera(renderer, firstCameraPosition);
+            CameraComponent secondCamera = CreatePositionedCamera(renderer, secondCameraPosition);
+
+            renderer.RenderPlannedCamera(new DirectX11SwapChainSurface(), firstCamera);
+            renderer.RenderPlannedCamera(new DirectX11SwapChainSurface(), secondCamera);
+
+            Assert.Equal(new[] { firstCameraPosition, secondCameraPosition }, renderer.VisitedCameraPositions);
+        }
+
+        /// <summary>
+        /// Creates one camera owned by an entity at the requested world position, rendering one opaque drawable into an offscreen DirectX11 target.
+        /// </summary>
+        /// <param name="renderer">Device-backed renderer that creates the camera render target.</param>
+        /// <param name="position">World position assigned to the camera entity.</param>
+        /// <returns>Camera ready to be rendered through the main camera path.</returns>
+        static CameraComponent CreatePositionedCamera(DirectX11Renderer3D renderer, float3 position) {
+            if (renderer == null) {
+                throw new ArgumentNullException(nameof(renderer));
+            }
+
+            Entity cameraEntity = new Entity(Core.Instance);
+            cameraEntity.InitComponents();
+            cameraEntity.Position = position;
+            CameraComponent camera = new CameraComponent();
+            cameraEntity.AddComponent(camera);
+            camera.RenderSettings.PostProcessTier = PostProcessTier.Disabled;
+            camera.RenderTarget = renderer.CreateRenderTarget(16, 16);
+            camera.RenderQueue3D.Add(new TestDrawable3D(MaterialBlendMode.Opaque));
+            return camera;
+        }
+
+        /// <summary>
         /// Initializes a core instance so camera render queues can be allocated during the test.
         /// </summary>
         void InitializeCore(RenderManager3D renderManager3D) {
@@ -774,6 +816,48 @@ namespace helengine.editor.tests.rendering {
 
             /// <summary>
             /// Suppresses present execution because the test only inspects geometry-submission routing.
+            /// </summary>
+            /// <param name="context">Execution context for the pass.</param>
+            public override void ExecutePresentPass(DirectX11RenderPassExecutionContext context) {
+                if (context == null) {
+                    throw new ArgumentNullException(nameof(context));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Device-backed DirectX11 renderer that runs the real camera-frame preparation and records the camera
+        /// position the standard-mesh draw path would upload for each geometry submission.
+        /// </summary>
+        sealed class CameraPositionRecordingRenderer : DirectX11Renderer3D {
+            /// <summary>
+            /// Gets the camera positions observed by each geometry submission, in visit order.
+            /// </summary>
+            public List<float3> VisitedCameraPositions { get; } = new List<float3>();
+
+            /// <summary>
+            /// Exposes the protected main camera path for the test surface and camera.
+            /// </summary>
+            /// <param name="surface">Placeholder output surface; the camera renders into its own offscreen target.</param>
+            /// <param name="camera">Camera whose render queue should be extracted and executed.</param>
+            public void RenderPlannedCamera(DirectX11SwapChainSurface surface, CameraComponent camera) {
+                RenderCamera(surface, camera);
+            }
+
+            /// <summary>
+            /// Records the camera position the standard-mesh shader data would receive instead of issuing GPU draws for the placeholder drawable.
+            /// </summary>
+            /// <param name="submission">Drawable submission reaching the live geometry execution path.</param>
+            protected override void Visit(RenderFrameDrawableSubmission submission) {
+                if (submission == null) {
+                    throw new ArgumentNullException(nameof(submission));
+                }
+
+                VisitedCameraPositions.Add(CurrentCameraPosition);
+            }
+
+            /// <summary>
+            /// Suppresses present execution because no 2D renderer is attached to this test renderer.
             /// </summary>
             /// <param name="context">Execution context for the pass.</param>
             public override void ExecutePresentPass(DirectX11RenderPassExecutionContext context) {

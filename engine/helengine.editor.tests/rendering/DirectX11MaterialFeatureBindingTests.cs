@@ -277,7 +277,6 @@ namespace helengine.editor.tests.rendering {
                 new RenderFrameBatchingMetadata(false, false, false));
 
             SetPrivateFieldValue(renderer, "CurrentViewProjection", float4x4.Identity);
-            SetPrivateFieldValue(renderer, "CurrentCameraPosition", float3.Zero);
 
             Exception exception = Record.Exception(() => renderer.VisitSubmission(submission));
 
