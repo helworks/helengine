@@ -147,7 +147,10 @@ namespace helengine.editor {
             EntityComponentSaveState componentSaveState = saveComponent.GetOrCreateComponentState(commonComponent);
             EntityComponentSaveState effectiveOverrideSaveState = BuildEffectiveOverrideSaveState(componentSaveState, scope);
             IComponentPersistenceDescriptor descriptor = PersistenceRegistry.GetDescriptor(overrideComponent);
-            SceneComponentAssetRecord record = descriptor.SerializeComponent(overrideComponent, 0, effectiveOverrideSaveState);
+            SceneComponentAssetRecord record = overrideComponent.Parent == null
+                ? descriptor.SerializeComponent(overrideComponent, 0, effectiveOverrideSaveState)
+                : SceneViewportAuthoredLayoutScope.ForEntity(overrideComponent.Parent).Serialize(
+                    () => descriptor.SerializeComponent(overrideComponent, 0, effectiveOverrideSaveState));
             EntityComponentPlatformOverrideState overrideState = componentSaveState.GetOrCreateScopedPlatformOverride(scope);
             overrideState.Payload = record.Payload;
             ReplaceOverrideAssetReferences(overrideState, effectiveOverrideSaveState);
@@ -769,7 +772,9 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Creates a detached component clone by copying its public readable and writable properties.
+        /// Creates a detached component clone by copying its public readable and writable properties. A live component inside
+        /// a viewport-scaled subtree holds editor-window-scaled values, so it is cloned from its authored layout instead;
+        /// override payloads are shipped as complete component payloads and must never carry the editor preview scale.
         /// </summary>
         /// <param name="sourceComponent">Component instance that should be cloned.</param>
         /// <returns>Detached component clone populated with the same public property values.</returns>
@@ -777,7 +782,19 @@ namespace helengine.editor {
             if (sourceComponent == null) {
                 throw new ArgumentNullException(nameof(sourceComponent));
             }
+            if (sourceComponent.Parent != null) {
+                return SceneViewportAuthoredLayoutScope.ForEntity(sourceComponent.Parent).Serialize(() => CopyComponentProperties(sourceComponent));
+            }
 
+            return CopyComponentProperties(sourceComponent);
+        }
+
+        /// <summary>
+        /// Copies the public readable and writable properties of one component into a new detached instance.
+        /// </summary>
+        /// <param name="sourceComponent">Component instance whose current property values are copied.</param>
+        /// <returns>Detached component clone populated with the same public property values.</returns>
+        Component CopyComponentProperties(Component sourceComponent) {
             Component clonedComponent = Activator.CreateInstance(sourceComponent.GetType()) as Component;
             if (clonedComponent == null) {
                 throw new InvalidOperationException($"Component type '{sourceComponent.GetType().FullName}' could not be instantiated for platform override editing.");

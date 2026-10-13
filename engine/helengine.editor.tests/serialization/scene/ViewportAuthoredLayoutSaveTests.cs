@@ -69,7 +69,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void SaveReloadSave_WhenViewportStretchesToEditorWindow_PersistsAuthoredLayoutWithoutDrift() {
-            EditorEntity root = CreateMenu();
+            EditorEntity root = CreateMenu(CreateStretchViewport());
             ViewportComponent viewport = GetComponent<ViewportComponent>(root);
             viewport.Update();
             Assert.Equal(new int2(762, 139), GetComponent<RoundedRectComponent>(FindChild(root, "Panel")).Size);
@@ -93,10 +93,98 @@ namespace helengine.editor.tests.serialization.scene {
             savedFooterY.Add(ReadSavedChildPosition(scenePath, "Footer").Y);
             root.Dispose();
             AssertAuthoredLayout(LoadSingleRoot(scenePath));
-            Assert.Equal(678f, savedFooterY[0]);
-            for (int index = 1; index < savedFooterY.Count; index++) {
-                Assert.Equal(savedFooterY[1], savedFooterY[index]);
+            Assert.All(savedFooterY, footerY => Assert.Equal(678f, footerY));
+        }
+
+        /// <summary>
+        /// The saved scene does not depend on the editor window: saving the same scene at 1904x1041, at 1600x900 and after a
+        /// reload at 1600x900 produces byte-identical files, including the anchor-derived footer position.
+        /// </summary>
+        [Fact]
+        public void Save_WhenEditorWindowSizeDiffers_WritesIdenticalScene() {
+            EditorEntity root = CreateMenu(CreateStretchViewport());
+            GetComponent<ViewportComponent>(root).Update();
+            using SceneSaveService saveService = CreateSceneSaveService();
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "WindowInvariant.helen");
+            saveService.Save(scenePath);
+            byte[] savedAtEditorSize = File.ReadAllBytes(scenePath);
+
+            ((TestRenderManager3D)CoreValue.RenderManager3D).OnWindowResize(IntPtr.Zero, 1600, 900);
+            GetComponent<ViewportComponent>(root).Update();
+            Assert.Equal(new int2(640, 120), GetComponent<RoundedRectComponent>(FindChild(root, "Panel")).Size);
+            saveService.Save(scenePath);
+            byte[] savedAtSmallerSize = File.ReadAllBytes(scenePath);
+
+            root.Dispose();
+            root = LoadSingleRoot(scenePath);
+            GetComponent<ViewportComponent>(root).Update();
+            saveService.Save(scenePath);
+            byte[] savedAfterReload = File.ReadAllBytes(scenePath);
+
+            Assert.Equal(678f, ReadSavedChildPosition(scenePath, "Footer").Y);
+            Assert.Equal(savedAtEditorSize, savedAtSmallerSize);
+            Assert.Equal(savedAtEditorSize, savedAfterReload);
+        }
+
+        /// <summary>
+        /// A reference-canvas fit subtree, which also scales in the editor, is saved at its authored values across repeated
+        /// save/reload cycles at the editor window size.
+        /// </summary>
+        [Fact]
+        public void SaveReloadSave_WhenReferenceCanvasFitScalesToEditorWindow_PersistsAuthoredLayoutWithoutDrift() {
+            EditorEntity root = CreateMenu(new ReferenceCanvasFitComponent { ReferenceWidth = 1280, ReferenceHeight = 720 });
+            GetComponent<ReferenceCanvasFitComponent>(root).Update();
+            Assert.Equal(new int2(740, 139), GetComponent<RoundedRectComponent>(FindChild(root, "Panel")).Size);
+
+            using SceneSaveService saveService = CreateSceneSaveService();
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "FitMenu.helen");
+            List<float> savedFooterY = new List<float>();
+            for (int cycle = 0; cycle < 3; cycle++) {
+                saveService.Save(scenePath);
+                savedFooterY.Add(ReadSavedChildPosition(scenePath, "Footer").Y);
+                Assert.Equal(new int2(740, 139), GetComponent<RoundedRectComponent>(FindChild(root, "Panel")).Size);
+                root.Dispose();
+
+                root = LoadSingleRoot(scenePath);
+                AssertAuthoredLayout(root);
+                GetComponent<ReferenceCanvasFitComponent>(root).Update();
+                Assert.Equal(new int2(740, 139), GetComponent<RoundedRectComponent>(FindChild(root, "Panel")).Size);
             }
+
+            saveService.Save(scenePath);
+            savedFooterY.Add(ReadSavedChildPosition(scenePath, "Footer").Y);
+            root.Dispose();
+            AssertAuthoredLayout(LoadSingleRoot(scenePath));
+            Assert.All(savedFooterY, footerY => Assert.Equal(678f, footerY));
+        }
+
+        /// <summary>
+        /// Platform override payloads are shipped as complete component payloads, so an override created while the subtree is
+        /// scaled must be seeded from the authored values, and persisting the live common component must not leak the preview scale.
+        /// </summary>
+        [Fact]
+        public void PlatformOverride_WhenComponentIsInsideScaledViewport_PersistsAuthoredValues() {
+            EditorEntity root = CreateMenu(CreateStretchViewport());
+            GetComponent<ViewportComponent>(root).Update();
+            EditorEntity panel = FindChild(root, "Panel");
+            RoundedRectComponent commonRect = GetComponent<RoundedRectComponent>(panel);
+            EntitySaveComponent save = Assert.IsType<EntitySaveComponent>(Assert.Single(panel.Components, component => component is EntitySaveComponent));
+            ComponentPlatformEditingService platformEditing = new ComponentPlatformEditingService();
+            EditorOverrideScope scope = EditorOverrideScope.ForPlatform("dc");
+
+            RoundedRectComponent editable = Assert.IsType<RoundedRectComponent>(platformEditing.EnsureScopeOverrideComponent(commonRect, save, scope));
+            Assert.Equal(new int2(512, 96), editable.Size);
+            Assert.Equal(new int2(762, 139), commonRect.Size);
+            editable.Radius = 20f;
+            platformEditing.MarkScopePropertyOverride(commonRect, save, scope, nameof(RoundedRectComponent.Radius));
+            platformEditing.PersistScopeOverride(commonRect, editable, save, scope);
+            RoundedRectComponent payload = ReadOverridePayload(commonRect, save, scope);
+            Assert.Equal(new int2(512, 96), payload.Size);
+            Assert.Equal(20f, payload.Radius);
+
+            platformEditing.PersistScopeOverride(commonRect, commonRect, save, scope);
+            Assert.Equal(new int2(512, 96), ReadOverridePayload(commonRect, save, scope).Size);
+            AssertScaledPreview(root);
         }
 
         /// <summary>
@@ -104,7 +192,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void Save_WhenChildIsEditedInScaledPreview_PersistsTheEditInAuthoredSpace() {
-            EditorEntity root = CreateMenu();
+            EditorEntity root = CreateMenu(CreateStretchViewport());
             GetComponent<ViewportComponent>(root).Update();
             EditorEntity panel = FindChild(root, "Panel");
             RoundedRectComponent panelRect = GetComponent<RoundedRectComponent>(panel);
@@ -130,7 +218,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void CaptureEntityState_WhenEntityIsInsideScaledViewport_CapturesAuthoredValuesAndKeepsPreview() {
-            EditorEntity root = CreateMenu();
+            EditorEntity root = CreateMenu(CreateStretchViewport());
             GetComponent<ViewportComponent>(root).Update();
             EditorEntity panel = FindChild(root, "Panel");
             using SceneSaveService saveService = CreateSceneSaveService();
@@ -146,7 +234,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void Save_WhenSerializationThrows_ReappliesTheScaledPreview() {
-            EditorEntity root = CreateMenu();
+            EditorEntity root = CreateMenu(CreateStretchViewport());
             GetComponent<ViewportComponent>(root).Update();
             FindChild(root, "Panel").AddComponent(new UnsupportedScriptComponent());
             using SceneSaveService saveService = CreateSceneSaveService();
@@ -158,17 +246,26 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Builds the authored menu: a screen-bound stretch viewport (1280x720 reference) with a panel, a nested label and a bottom-anchored footer.
+        /// Creates the screen-bound stretch viewport used by the DemoDisc main menu (1280x720 reference).
         /// </summary>
-        /// <returns>The menu root entity.</returns>
-        EditorEntity CreateMenu() {
-            EditorEntity root = CreateEntity("MenuRoot", new float3(0f, 0f, 0f));
-            root.AddComponent(new ViewportComponent {
+        /// <returns>A detached viewport component.</returns>
+        static ViewportComponent CreateStretchViewport() {
+            return new ViewportComponent {
                 BindingMode = ViewportComponent.ScreenBindingMode,
                 ScalingMode = ViewportComponent.ReferenceCanvasStretchScalingMode,
                 ReferenceWidth = 1280,
                 ReferenceHeight = 720
-            });
+            };
+        }
+
+        /// <summary>
+        /// Builds the authored menu below one scaling layout owner: a panel, a nested label and a bottom-anchored footer.
+        /// </summary>
+        /// <param name="layoutOwner">Viewport or reference-canvas fit component attached to the menu root.</param>
+        /// <returns>The menu root entity.</returns>
+        EditorEntity CreateMenu(Component layoutOwner) {
+            EditorEntity root = CreateEntity("MenuRoot", new float3(0f, 0f, 0f));
+            root.AddComponent(layoutOwner);
 
             EditorEntity panel = CreateEntity("Panel", new float3(384f, 90f, 0f));
             panel.AddComponent(new RoundedRectComponent { Size = new int2(512, 96), Radius = 12f, BorderThickness = 2f });
@@ -235,6 +332,26 @@ namespace helengine.editor.tests.serialization.scene {
 
             SceneLoadService loader = new SceneLoadService(Registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             return Assert.Single(loader.Load(asset));
+        }
+
+        /// <summary>
+        /// Deserializes the stored platform override payload of one component as a detached component.
+        /// </summary>
+        /// <param name="commonComponent">Common component that owns the override.</param>
+        /// <param name="save">Hidden save component holding the override state.</param>
+        /// <param name="scope">Override scope to read.</param>
+        /// <returns>The detached component decoded from the stored payload.</returns>
+        RoundedRectComponent ReadOverridePayload(RoundedRectComponent commonComponent, EntitySaveComponent save, EditorOverrideScope scope) {
+            Assert.True(save.GetOrCreateComponentState(commonComponent).TryGetScopedPlatformOverride(scope, out EntityComponentPlatformOverrideState overrideState));
+            IComponentPersistenceDescriptor descriptor = Registry.GetDescriptor(commonComponent);
+            SceneComponentAssetRecord record = new SceneComponentAssetRecord {
+                ComponentTypeId = descriptor is AutomaticScriptComponentPersistenceDescriptor
+                    ? AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(commonComponent.GetType())
+                    : descriptor.ComponentTypeId,
+                ComponentIndex = 0,
+                Payload = overrideState.Payload
+            };
+            return Assert.IsType<RoundedRectComponent>(descriptor.DeserializeComponent(record, new EntitySaveComponent(), new TestSceneAssetReferenceResolver()));
         }
 
         /// <summary>

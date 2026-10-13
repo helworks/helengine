@@ -194,14 +194,8 @@ namespace helengine.editor {
                 : 0u;
             List<SceneAssetReference> assetReferences = new List<SceneAssetReference>();
             HashSet<string> assetReferenceKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            SceneEntityAsset entityAsset;
-            SceneViewportAuthoredLayoutScope authoredLayout = SceneViewportAuthoredLayoutScope.ForEntity(entity);
-            try {
-                authoredLayout.Restore();
-                entityAsset = SerializeEntity(entity, assetReferences, assetReferenceKeys, null);
-            } finally {
-                authoredLayout.Reapply();
-            }
+            SceneEntityAsset entityAsset = SceneViewportAuthoredLayoutScope.ForEntity(entity).Serialize(
+                () => SerializeEntity(entity, assetReferences, assetReferenceKeys, null));
 
             return new SerializedEditorEntityState {
                 EntityId = entityId,
@@ -256,15 +250,13 @@ namespace helengine.editor {
                 serializedRoots.Add(editorEntity);
             }
 
-            SceneViewportAuthoredLayoutScope authoredLayout = SceneViewportAuthoredLayoutScope.ForRoots(serializedRoots);
-            try {
-                authoredLayout.Restore();
+            SceneViewportAuthoredLayoutScope.ForRoots(serializedRoots).Serialize(() => {
                 for (int i = 0; i < serializedRoots.Count; i++) {
                     rootEntities.Add(SerializeEntity(serializedRoots[i], assetReferences, assetReferenceKeys, sceneId));
                 }
-            } finally {
-                authoredLayout.Reapply();
-            }
+
+                return rootEntities.Count;
+            });
 
             return new SceneAsset {
                 Id = sceneId,
