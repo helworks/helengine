@@ -94,6 +94,27 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Builds one solution into an invocation-specific output root while defining extra preprocessor symbols for
+        /// every generated module project, such as a platform's gameplay symbols for an editor Play build.
+        /// </summary>
+        /// <param name="solutionPath">Absolute path to the generated solution file.</param>
+        /// <param name="executionOutputRootPath">Unique generated-output root for this invocation, or empty to use project metadata defaults.</param>
+        /// <param name="additionalDefineConstants">Symbols appended to the projects' define constants; an empty list builds exactly like <see cref="Build(string, string)"/>.</param>
+        /// <returns>Structured execution result describing the process outcome.</returns>
+        public EditorBuildExecutionResult Build(
+            string solutionPath,
+            string executionOutputRootPath,
+            IReadOnlyList<string> additionalDefineConstants) {
+            if (additionalDefineConstants == null) {
+                throw new ArgumentNullException(nameof(additionalDefineConstants));
+            }
+
+            string workingDirectory = ResolveWorkingDirectory(solutionPath);
+            using EditorGeneratedCodeWorkspaceLease workspaceLease = EditorGeneratedCodeWorkspaceLease.Acquire(workingDirectory);
+            return Build(solutionPath, executionOutputRootPath, workspaceLease, additionalDefineConstants);
+        }
+
+        /// <summary>
         /// Builds one solution while retaining a caller-owned generated-workspace lease through evaluation and publication.
         /// </summary>
         /// <param name="solutionPath">Absolute path to the generated solution file.</param>
@@ -104,6 +125,24 @@ namespace helengine.editor {
             string solutionPath,
             string executionOutputRootPath,
             EditorGeneratedCodeWorkspaceLease workspaceLease) {
+            return Build(solutionPath, executionOutputRootPath, workspaceLease, Array.Empty<string>());
+        }
+
+        /// <summary>
+        /// Builds one solution under a caller-owned generated-workspace lease while defining extra preprocessor symbols
+        /// for every generated module project.
+        /// </summary>
+        /// <param name="solutionPath">Absolute path to the generated solution file.</param>
+        /// <param name="executionOutputRootPath">Unique generated-output root for this invocation, or empty for fallback output.</param>
+        /// <param name="workspaceLease">Lease acquired for the generated solution workspace.</param>
+        /// <param name="additionalDefineConstants">Symbols appended to the projects' define constants. They travel in the
+        /// invocation property file, so a non-empty list requires an execution output root.</param>
+        /// <returns>Structured execution result describing the process outcome.</returns>
+        public EditorBuildExecutionResult Build(
+            string solutionPath,
+            string executionOutputRootPath,
+            EditorGeneratedCodeWorkspaceLease workspaceLease,
+            IReadOnlyList<string> additionalDefineConstants) {
             if (string.IsNullOrWhiteSpace(solutionPath)) {
                 throw new ArgumentException("Solution path must be provided.", nameof(solutionPath));
             }
@@ -112,6 +151,14 @@ namespace helengine.editor {
             }
             if (workspaceLease == null) {
                 throw new ArgumentNullException(nameof(workspaceLease));
+            }
+            if (additionalDefineConstants == null) {
+                throw new ArgumentNullException(nameof(additionalDefineConstants));
+            }
+            if (additionalDefineConstants.Count > 0 && string.IsNullOrWhiteSpace(executionOutputRootPath)) {
+                throw new ArgumentException(
+                    "Additional define constants travel in the invocation property file and require an execution output root.",
+                    nameof(additionalDefineConstants));
             }
 
             string workingDirectory = ResolveWorkingDirectory(solutionPath);
@@ -136,7 +183,7 @@ namespace helengine.editor {
             string msbuildOutputRootPath = string.Empty;
             if (!string.IsNullOrWhiteSpace(executionOutputRootPath)) {
                 msbuildOutputRootPath = ResolveMsBuildOutputRootPath(executionOutputRootPath);
-                outputRootTransportFilePath = CreateOutputRootTransportFile(msbuildOutputRootPath);
+                outputRootTransportFilePath = CreateOutputRootTransportFile(msbuildOutputRootPath, additionalDefineConstants);
                 // Environment properties are imported before SDK project evaluation. Keeping this out of
                 // ArgumentList is essential: filesystem paths are not a safe MSBuild -p transport.
                 startInfo.Environment["HelengineExecutionOutputRootFile"] = outputRootTransportFilePath;
@@ -202,24 +249,57 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Creates one temporary MSBuild property file carrying the exact invocation output root.
+        /// Creates one temporary MSBuild property file carrying the exact invocation output root and any extra define constants.
         /// </summary>
         /// <param name="executionOutputRootPath">Output root to transport to the child process.</param>
+        /// <param name="defineConstants">Extra preprocessor symbols to append to every generated project's define constants.</param>
         /// <returns>Path to the temporary property file.</returns>
-        static string CreateOutputRootTransportFile(string executionOutputRootPath) {
+        static string CreateOutputRootTransportFile(string executionOutputRootPath, IReadOnlyList<string> defineConstants) {
             string fullOutputRootPath = Path.GetFullPath(executionOutputRootPath);
             string transportFilePath = Path.Combine(
                 Path.GetTempPath(),
                 OutputRootTransportFilePrefix + Guid.NewGuid().ToString("N") + ".props");
-            string contents = "<Project>\n"
-                + "  <PropertyGroup>\n"
-                + "    <HelengineExecutionOutputRoot>"
-                + SecurityElement.Escape(fullOutputRootPath)
-                + "</HelengineExecutionOutputRoot>\n"
-                + "  </PropertyGroup>\n"
-                + "</Project>\n";
-            File.WriteAllText(transportFilePath, contents, Encoding.UTF8);
+            File.WriteAllText(transportFilePath, BuildExecutionOutputPropsXml(fullOutputRootPath, defineConstants), Encoding.UTF8);
             return transportFilePath;
+        }
+
+        /// <summary>
+        /// Builds the MSBuild property file imported early by generated module projects. It always carries the
+        /// invocation output root; when symbols are supplied it also appends them to the inherited define constants,
+        /// which is how Play builds compile authored scripts with a platform's gameplay symbols.
+        /// </summary>
+        /// <param name="outputRootPath">Output root written verbatim into <c>HelengineExecutionOutputRoot</c>.</param>
+        /// <param name="defineConstants">Symbols to append; an empty list emits no <c>DefineConstants</c> element.</param>
+        /// <returns>Complete MSBuild project XML text.</returns>
+        internal static string BuildExecutionOutputPropsXml(string outputRootPath, IReadOnlyList<string> defineConstants) {
+            if (string.IsNullOrWhiteSpace(outputRootPath)) {
+                throw new ArgumentException("Output root path must be provided.", nameof(outputRootPath));
+            } else if (defineConstants == null) {
+                throw new ArgumentNullException(nameof(defineConstants));
+            }
+
+            StringBuilder builder = new StringBuilder();
+            builder.Append("<Project>\n");
+            builder.Append("  <PropertyGroup>\n");
+            builder.Append("    <HelengineExecutionOutputRoot>");
+            builder.Append(SecurityElement.Escape(outputRootPath));
+            builder.Append("</HelengineExecutionOutputRoot>\n");
+            if (defineConstants.Count > 0) {
+                builder.Append("    <DefineConstants>$(DefineConstants)");
+                for (int index = 0; index < defineConstants.Count; index++) {
+                    string symbol = defineConstants[index];
+                    if (string.IsNullOrWhiteSpace(symbol) || symbol.Contains(';')) {
+                        throw new ArgumentException("Define constants must be non-empty single symbols.", nameof(defineConstants));
+                    }
+
+                    builder.Append(';');
+                    builder.Append(SecurityElement.Escape(symbol));
+                }
+                builder.Append("</DefineConstants>\n");
+            }
+            builder.Append("  </PropertyGroup>\n");
+            builder.Append("</Project>\n");
+            return builder.ToString();
         }
 
         /// <summary>
