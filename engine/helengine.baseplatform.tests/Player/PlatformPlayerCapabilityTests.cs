@@ -8,13 +8,13 @@ namespace helengine.baseplatform.tests.Player {
         /// <summary>A supported capability must name its adapter type.</summary>
         [Fact]
         public void Ctor_WhenSupportedWithoutAdapterType_Throws() {
-            Assert.Throws<ArgumentException>(() => new PlatformPlayerCapability(true, " ", "ps2-staging", 60d));
+            Assert.Throws<ArgumentException>(() => new PlatformPlayerCapability(true, " ", "ps2-staging", 60d, PlayerInputDevices.Gamepad));
         }
 
         /// <summary>A supported capability must name its content root.</summary>
         [Fact]
         public void Ctor_WhenSupportedWithoutContentRoot_Throws() {
-            Assert.Throws<ArgumentException>(() => new PlatformPlayerCapability(true, "a.B", "", 60d));
+            Assert.Throws<ArgumentException>(() => new PlatformPlayerCapability(true, "a.B", "", 60d, PlayerInputDevices.Gamepad));
         }
 
         /// <summary>A supported capability must declare a positive, finite target frame rate.</summary>
@@ -26,14 +26,14 @@ namespace helengine.baseplatform.tests.Player {
         [InlineData(double.PositiveInfinity)]
         public void Ctor_WhenSupportedWithoutPositiveTargetFrameRate_Throws(double targetFrameRate) {
             ArgumentException exception = Assert.Throws<ArgumentOutOfRangeException>(
-                () => new PlatformPlayerCapability(true, "a.B", "staging", targetFrameRate));
+                () => new PlatformPlayerCapability(true, "a.B", "staging", targetFrameRate, PlayerInputDevices.Gamepad));
             Assert.Equal("targetFrameRate", exception.ParamName);
         }
 
         /// <summary>A supported capability exposes the target frame rate it was given.</summary>
         [Fact]
         public void Ctor_WhenSupported_ExposesTargetFrameRate() {
-            Assert.Equal(59.94d, new PlatformPlayerCapability(true, "a.B", "staging", 59.94d).TargetFrameRate);
+            Assert.Equal(59.94d, new PlatformPlayerCapability(true, "a.B", "staging", 59.94d, PlayerInputDevices.Gamepad).TargetFrameRate);
         }
 
         /// <summary>The unsupported capability does not support Play.</summary>
@@ -46,6 +46,35 @@ namespace helengine.baseplatform.tests.Player {
         [Fact]
         public void CreateUnsupported_DeclaresZeroTargetFrameRate() {
             Assert.Equal(0d, PlatformPlayerCapability.CreateUnsupported().TargetFrameRate);
+        }
+
+        /// <summary>A supported capability must declare at least one input device the platform has.</summary>
+        [Fact]
+        public void Ctor_WhenSupportedWithoutInputDevices_Throws() {
+            ArgumentException exception = Assert.Throws<ArgumentException>(
+                () => new PlatformPlayerCapability(true, "a.B", "staging", 60d, PlayerInputDevices.None));
+            Assert.Equal("inputDevices", exception.ParamName);
+        }
+
+        /// <summary>A supported capability rejects device bits that name no known device.</summary>
+        [Fact]
+        public void Ctor_WhenSupportedWithUndefinedInputDeviceBits_Throws() {
+            ArgumentException exception = Assert.Throws<ArgumentOutOfRangeException>(
+                () => new PlatformPlayerCapability(true, "a.B", "staging", 60d, PlayerInputDevices.Gamepad | (PlayerInputDevices)64));
+            Assert.Equal("inputDevices", exception.ParamName);
+        }
+
+        /// <summary>A supported capability exposes exactly the device set it was given.</summary>
+        [Fact]
+        public void Ctor_WhenSupported_ExposesInputDevices() {
+            PlayerInputDevices devices = PlayerInputDevices.Keyboard | PlayerInputDevices.Gamepad;
+            Assert.Equal(devices, new PlatformPlayerCapability(true, "a.B", "staging", 60d, devices).InputDevices);
+        }
+
+        /// <summary>The unsupported capability declares no input devices, because no player ever runs for it.</summary>
+        [Fact]
+        public void CreateUnsupported_DeclaresNoInputDevices() {
+            Assert.Equal(PlayerInputDevices.None, PlatformPlayerCapability.CreateUnsupported().InputDevices);
         }
     }
 }

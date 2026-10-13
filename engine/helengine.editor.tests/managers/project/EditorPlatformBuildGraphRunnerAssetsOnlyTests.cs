@@ -96,7 +96,7 @@ public sealed class EditorPlatformBuildGraphRunnerAssetsOnlyTests : IDisposable 
     /// </summary>
     [Fact]
     public void ExecuteAssetsOnly_PassesAssetsOnlyScopeAndReturnsStagingContentRoot() {
-        RecordingPlayPlatformAssetBuilder builder = new(new PlatformPlayerCapability(true, "x.Adapter", "staging", 60d));
+        RecordingPlayPlatformAssetBuilder builder = new(new PlatformPlayerCapability(true, "x.Adapter", "staging", 60d, PlayerInputDevices.Gamepad));
         EditorPlatformBuildGraphRunner runner = CreateRunner(builder);
 
         EditorPlayCookResult result = runner.ExecuteAssetsOnly(CreateQueueItem());
@@ -117,7 +117,7 @@ public sealed class EditorPlatformBuildGraphRunnerAssetsOnlyTests : IDisposable 
     /// </summary>
     [Fact]
     public void ExecuteAssetsOnly_WhenRunTwice_ReusesWorkspaceAndPreservesBuilderWorkingRoot() {
-        RecordingPlayPlatformAssetBuilder builder = new(new PlatformPlayerCapability(true, "x.Adapter", "staging", 60d));
+        RecordingPlayPlatformAssetBuilder builder = new(new PlatformPlayerCapability(true, "x.Adapter", "staging", 60d, PlayerInputDevices.Gamepad));
         EditorPlatformBuildGraphRunner runner = CreateRunner(builder);
 
         EditorPlayCookResult firstResult = runner.ExecuteAssetsOnly(CreateQueueItem());

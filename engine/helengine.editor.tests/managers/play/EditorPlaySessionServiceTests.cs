@@ -172,7 +172,7 @@ public sealed class EditorPlaySessionServiceTests {
     public void Play_PassesCapabilityTargetFrameRateAsInvariantTargetFpsArgument() {
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
         EditorPlaySessionService service = new EditorPlaySessionService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath);
-        PlatformPlayerCapability capability = new PlatformPlayerCapability(true, AdapterTypeName, "ps2-staging", 59.94d);
+        PlatformPlayerCapability capability = new PlatformPlayerCapability(true, AdapterTypeName, "ps2-staging", 59.94d, PlayerInputDevices.Gamepad);
         System.Globalization.CultureInfo previousCulture = System.Globalization.CultureInfo.CurrentCulture;
         System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("de-DE");
         try {
@@ -389,7 +389,7 @@ public sealed class EditorPlaySessionServiceTests {
     public void IsPlayAvailable_FollowsCapability() {
         EditorPlaySessionService service = new EditorPlaySessionService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), new FakePlayProcessLauncher(), PlayerExecutablePath);
 
-        Assert.True(service.IsPlayAvailable(new PlatformPlayerCapability(true, AdapterTypeName, "ps2-staging", TargetFrameRate)));
+        Assert.True(service.IsPlayAvailable(new PlatformPlayerCapability(true, AdapterTypeName, "ps2-staging", TargetFrameRate, PlayerInputDevices.Gamepad)));
         Assert.False(service.IsPlayAvailable(PlatformPlayerCapability.CreateUnsupported()));
     }
 

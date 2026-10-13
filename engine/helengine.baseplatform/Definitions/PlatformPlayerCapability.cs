@@ -15,9 +15,16 @@ namespace helengine.baseplatform.Definitions {
         /// Frames per second the desktop player paces its frame loop to, matching the frame rate the platform's native
         /// host runs at (PS2: 60). Must be positive and finite when Play is supported.
         /// </param>
-        /// <exception cref="ArgumentException">Thrown when Play is supported but the adapter type name or content root is blank.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown when Play is supported but the target frame rate is not a positive, finite number.</exception>
-        public PlatformPlayerCapability(bool supportsPlay, string adapterTypeName, string contentRootRelativePath, double targetFrameRate) {
+        /// <param name="inputDevices">
+        /// Input devices the platform's real hardware offers (PS2: <see cref="PlayerInputDevices.Gamepad"/> only). The player
+        /// forwards only these devices to the game. Must name at least one known device when Play is supported.
+        /// </param>
+        /// <exception cref="ArgumentException">Thrown when Play is supported but the adapter type name or content root is blank, or no input device is declared.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// Thrown when Play is supported but the target frame rate is not a positive, finite number, or the device set contains
+        /// bits that name no known device.
+        /// </exception>
+        public PlatformPlayerCapability(bool supportsPlay, string adapterTypeName, string contentRootRelativePath, double targetFrameRate, PlayerInputDevices inputDevices) {
             if (supportsPlay && string.IsNullOrWhiteSpace(adapterTypeName)) {
                 throw new ArgumentException("A platform that supports Play must name its player adapter type.", nameof(adapterTypeName));
             } else if (supportsPlay && string.IsNullOrWhiteSpace(contentRootRelativePath)) {
@@ -27,12 +34,20 @@ namespace helengine.baseplatform.Definitions {
                     nameof(targetFrameRate),
                     targetFrameRate,
                     "A platform that supports Play must declare a positive, finite player target frame rate.");
+            } else if (supportsPlay && inputDevices == PlayerInputDevices.None) {
+                throw new ArgumentException("A platform that supports Play must declare at least one player input device.", nameof(inputDevices));
+            } else if (supportsPlay && (inputDevices & ~PlayerInputDevicesText.AllDevices) != PlayerInputDevices.None) {
+                throw new ArgumentOutOfRangeException(
+                    nameof(inputDevices),
+                    inputDevices,
+                    "A platform's player input devices contain bits that name no known device.");
             }
 
             SupportsPlay = supportsPlay;
             AdapterTypeName = adapterTypeName;
             ContentRootRelativePath = contentRootRelativePath;
             TargetFrameRate = targetFrameRate;
+            InputDevices = inputDevices;
         }
 
         /// <summary>
@@ -57,12 +72,20 @@ namespace helengine.baseplatform.Definitions {
         public double TargetFrameRate { get; }
 
         /// <summary>
+        /// Gets the input devices the platform's real hardware offers. The desktop player reports every other device as
+        /// idle, so a game cannot react to desktop input its platform does not have; <see cref="PlayerInputDevices.None"/>
+        /// when Play is unsupported.
+        /// </summary>
+        public PlayerInputDevices InputDevices { get; }
+
+        /// <summary>
         /// Creates the capability for platforms that do not opt in to editor Play. The adapter and content root are
-        /// <c>none</c> and the target frame rate is <c>0</c>, because no player is ever launched for such a platform.
+        /// <c>none</c>, the target frame rate is <c>0</c> and no input device is declared, because no player is ever
+        /// launched for such a platform.
         /// </summary>
         /// <returns>Unsupported Play capability.</returns>
         public static PlatformPlayerCapability CreateUnsupported() {
-            return new PlatformPlayerCapability(false, "none", "none", 0d);
+            return new PlatformPlayerCapability(false, "none", "none", 0d, PlayerInputDevices.None);
         }
     }
 }
