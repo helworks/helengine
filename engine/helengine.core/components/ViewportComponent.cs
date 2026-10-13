@@ -94,6 +94,32 @@ namespace helengine {
         readonly List<ViewportLayoutSnapshot> LayoutSnapshotsValue;
 
         /// <summary>
+        /// Stores, in editor authoring only, the live layout values written by the last scale pass so edits made in the scaled
+        /// preview can be told apart from viewport output and mapped back into authored space.
+        /// </summary>
+        readonly List<ViewportLayoutSnapshot> AppliedLayoutSnapshotsValue;
+
+        /// <summary>
+        /// Stores the root displacement used by the last recorded editor scale pass.
+        /// </summary>
+        float2 AppliedCanvasOriginValue;
+
+        /// <summary>
+        /// Stores the horizontal scale used by the last recorded editor scale pass.
+        /// </summary>
+        double AppliedWidthScaleValue;
+
+        /// <summary>
+        /// Stores the vertical scale used by the last recorded editor scale pass.
+        /// </summary>
+        double AppliedHeightScaleValue;
+
+        /// <summary>
+        /// Stores the uniform glyph and decoration scale used by the last recorded editor scale pass.
+        /// </summary>
+        double AppliedScalarScaleValue;
+
+        /// <summary>
         /// Tracks whether the component is subscribed to screen resize events.
         /// </summary>
         bool IsSubscribedToWindowResizeValue;
@@ -137,6 +163,7 @@ namespace helengine {
             ReferenceWidthValue = SceneCanvasProfile.DefaultWidth;
             ReferenceHeightValue = SceneCanvasProfile.DefaultHeight;
             LayoutSnapshotsValue = new List<ViewportLayoutSnapshot>();
+            AppliedLayoutSnapshotsValue = new List<ViewportLayoutSnapshot>();
             CurrentAnchorSpaceValue = new AnchorSpace(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
             CurrentViewportAnchorSpaceValue = new AnchorSpace(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
             CurrentCanvasOriginValue = new float2(0f, 0f);
@@ -406,8 +433,19 @@ namespace helengine {
                 return;
             }
 
-            int currentEntityCount = CountEntitiesRecursive(Parent);
-            if (currentEntityCount != SnapshotEntityCountValue) {
+            bool tracksAuthoredEdits = IsEditorAuthoring();
+            bool subtreeChanged = tracksAuthoredEdits
+                ? MatchSnapshotsRecursive(Parent, 0) != LayoutSnapshotsValue.Count
+                : CountEntitiesRecursive(Parent) != SnapshotEntityCountValue;
+            if (!subtreeChanged && !PendingScaleApplyValue) {
+                return;
+            }
+
+            if (tracksAuthoredEdits) {
+                RestoreAuthoredLayout();
+            }
+
+            if (subtreeChanged) {
                 RebuildSnapshots();
                 PendingScaleApplyValue = true;
             }
@@ -415,7 +453,165 @@ namespace helengine {
             if (PendingScaleApplyValue) {
                 ApplyCurrentScale();
                 PendingScaleApplyValue = false;
+                if (tracksAuthoredEdits) {
+                    RecordAppliedLayout();
+                }
             }
+        }
+
+        /// <summary>
+        /// Writes the authored, unscaled layout back onto the scaled subtree so it can be serialized as authored data, and
+        /// re-captures the authored snapshots from it. Values edited in the scaled editor preview since the last scale pass are
+        /// mapped back into authored space first. Entities that no recorded scale pass has touched already hold authored values
+        /// and are only re-captured. Runtime hosts never record a preview pass, so outside the editor this does nothing.
+        /// Call <see cref="ReapplyLayout"/> afterwards to restore the scaled preview.
+        /// </summary>
+        public void RestoreAuthoredLayout() {
+            if (!IsEditorAuthoring() || Parent == null || !IsReferenceCanvasScalingActive() || LayoutSnapshotsValue.Count == 0) {
+                return;
+            }
+
+            for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
+                ViewportLayoutSnapshot snapshot = LayoutSnapshotsValue[snapshotIndex];
+                ViewportLayoutSnapshot applied = FindAppliedSnapshot(snapshot.Entity);
+                if (applied != null && IsInScaledSubtree(snapshot.Entity)) {
+                    snapshot.RestoreAuthoredComponents(
+                        applied,
+                        AppliedWidthScaleValue,
+                        AppliedHeightScaleValue,
+                        AppliedScalarScaleValue);
+                }
+            }
+
+            for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
+                ViewportLayoutSnapshot snapshot = LayoutSnapshotsValue[snapshotIndex];
+                ViewportLayoutSnapshot applied = FindAppliedSnapshot(snapshot.Entity);
+                if (applied != null && IsInScaledSubtree(snapshot.Entity)) {
+                    snapshot.RestoreAuthoredPosition(
+                        applied,
+                        AppliedCanvasOriginValue,
+                        AppliedWidthScaleValue,
+                        AppliedHeightScaleValue);
+                }
+            }
+
+            for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
+                ViewportLayoutSnapshot snapshot = LayoutSnapshotsValue[snapshotIndex];
+                if (IsInScaledSubtree(snapshot.Entity)) {
+                    LayoutSnapshotsValue[snapshotIndex] = new ViewportLayoutSnapshot(snapshot.Entity, snapshot.IsRootEntity);
+                }
+            }
+
+            AppliedLayoutSnapshotsValue.Clear();
+            PendingScaleApplyValue = true;
+        }
+
+        /// <summary>
+        /// Re-applies the viewport scale to the subtree, typically after <see cref="RestoreAuthoredLayout"/> exposed the authored values for serialization.
+        /// </summary>
+        public void ReapplyLayout() {
+            PendingScaleApplyValue = true;
+            ApplyPendingSceneLayout();
+        }
+
+        /// <summary>
+        /// Returns whether this viewport runs inside the editor, where the scaled subtree is authored data that must stay
+        /// recoverable in authored space. Runtime hosts never record or absorb preview edits.
+        /// </summary>
+        /// <returns>True when the owning core authors scenes in the editor.</returns>
+        bool IsEditorAuthoring() {
+            return OwnerCore != null && OwnerCore.ExecutionMode == ComponentExecutionMode.Editor;
+        }
+
+        /// <summary>
+        /// Records the live values and scales written by the scale pass that just ran, so later preview edits can be detected and unscaled.
+        /// The scales mirror the ones <see cref="ViewportLayoutSnapshot"/> derives from the same anchor space and reference canvas.
+        /// </summary>
+        void RecordAppliedLayout() {
+            AppliedLayoutSnapshotsValue.Clear();
+            for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
+                ViewportLayoutSnapshot snapshot = LayoutSnapshotsValue[snapshotIndex];
+                AppliedLayoutSnapshotsValue.Add(new ViewportLayoutSnapshot(snapshot.Entity, snapshot.IsRootEntity));
+            }
+
+            if (ScalingModeValue == DensityScalingMode) {
+                double densityScale = DensityScale;
+                AppliedCanvasOriginValue = new float2(0f, 0f);
+                AppliedWidthScaleValue = densityScale;
+                AppliedHeightScaleValue = densityScale;
+                AppliedScalarScaleValue = densityScale;
+                return;
+            }
+
+            AppliedCanvasOriginValue = CurrentCanvasOriginValue;
+            AppliedWidthScaleValue = (double)CurrentAnchorSpaceValue.Size.X / ReferenceWidthValue;
+            AppliedHeightScaleValue = (double)CurrentAnchorSpaceValue.Size.Y / ReferenceHeightValue;
+            AppliedScalarScaleValue = ScalingModeValue == ReferenceCanvasStretchScalingMode
+                ? AppliedHeightScaleValue
+                : Math.Min(AppliedWidthScaleValue, AppliedHeightScaleValue);
+        }
+
+        /// <summary>
+        /// Finds the live values recorded for one entity by the last editor scale pass.
+        /// </summary>
+        /// <param name="entity">Entity whose recorded values are requested.</param>
+        /// <returns>The recorded values owned by this viewport, or null when the entity was not part of the last recorded pass.</returns>
+        [NativeBorrowedReturn]
+        ViewportLayoutSnapshot FindAppliedSnapshot(Entity entity) {
+            for (int index = 0; index < AppliedLayoutSnapshotsValue.Count; index++) {
+                if (ReferenceEquals(AppliedLayoutSnapshotsValue[index].Entity, entity)) {
+                    return AppliedLayoutSnapshotsValue[index];
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Returns whether one snapshotted entity is still attached below this viewport's owner, so removed or replaced entities are never written.
+        /// </summary>
+        /// <param name="entity">Entity captured by a snapshot.</param>
+        /// <returns>True when the entity is the owner or one of its current descendants.</returns>
+        bool IsInScaledSubtree(Entity entity) {
+            Entity current = entity;
+            while (current != null) {
+                if (ReferenceEquals(current, Parent)) {
+                    return true;
+                }
+
+                current = current.Parent;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Walks the captured subtree in snapshot order and checks that every entity still matches its snapshot, so the editor
+        /// notices replaced entities (for example after undo) even when the entity count did not change.
+        /// </summary>
+        /// <param name="entity">Current entity to match.</param>
+        /// <param name="snapshotIndex">Snapshot index expected for the entity.</param>
+        /// <returns>The next snapshot index after the matched subtree, or -1 when the subtree differs from the snapshots.</returns>
+        int MatchSnapshotsRecursive(Entity entity, int snapshotIndex) {
+            if (snapshotIndex >= LayoutSnapshotsValue.Count || !ReferenceEquals(LayoutSnapshotsValue[snapshotIndex].Entity, entity)) {
+                return -1;
+            }
+
+            int nextIndex = snapshotIndex + 1;
+            if (entity.Children == null) {
+                return nextIndex;
+            }
+
+            for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
+                if (ShouldCaptureChild(entity.Children[childIndex])) {
+                    nextIndex = MatchSnapshotsRecursive(entity.Children[childIndex], nextIndex);
+                    if (nextIndex < 0) {
+                        return -1;
+                    }
+                }
+            }
+
+            return nextIndex;
         }
 
         /// <summary>
@@ -721,14 +917,16 @@ namespace helengine {
         /// </summary>
         void ReleaseLayoutSnapshotItems() {
             LayoutSnapshotsValue.Clear();
+            AppliedLayoutSnapshotsValue.Clear();
         }
 
         /// <summary>
-        /// Deletes all snapshot records and the native list wrapper owned by this viewport component.
+        /// Deletes all snapshot records and the native list wrappers owned by this viewport component.
         /// </summary>
         void ReleaseLayoutSnapshots() {
             ReleaseLayoutSnapshotItems();
             NativeOwnership.Delete(LayoutSnapshotsValue);
+            NativeOwnership.Delete(AppliedLayoutSnapshotsValue);
         }
 
         /// <summary>
