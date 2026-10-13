@@ -633,7 +633,7 @@ namespace helengine {
             ContentManager contentManager = GetContentManager();
             options.AssetContentManagerConfigurator?.Configure(contentManager, RenderManager2D);
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, RenderManager2D);
-            SceneAssetReferenceResolver = new RuntimeSceneAssetReferenceResolver(this, contentManager);
+            SceneAssetReferenceResolver = new RuntimeSceneAssetReferenceResolver(this, contentManager, options.PackagedAssetPathPolicy);
             SceneRuntimeComponentRegistry = RuntimeComponentRegistry.CreateDefault();
             if (options.CodeModuleProvider != null) {
                 SceneModuleManager = new SceneModuleManager(this, options.CodeModuleManifest, options.CodeModuleProvider, SceneRuntimeComponentRegistry, options.SceneCatalog);

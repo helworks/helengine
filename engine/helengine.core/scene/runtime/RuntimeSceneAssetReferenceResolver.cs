@@ -20,6 +20,11 @@ namespace helengine {
         readonly ContentManager AssetContentManager;
 
         /// <summary>
+        /// Optional host policy that maps packaged asset paths to content-source paths; null keeps the built-in packaged path rules.
+        /// </summary>
+        readonly IPackagedAssetPathPolicy PackagedPathPolicy;
+
+        /// <summary>
         /// Tracks scene-owned runtime textures resolved during the active scene materialization scope.
         /// </summary>
         [NativeOwnedMember]
@@ -104,7 +109,17 @@ namespace helengine {
         /// Initializes a new packaged scene asset resolver.
         /// </summary>
         /// <param name="assetContentManager">Content manager used to load packaged assets.</param>
-        public RuntimeSceneAssetReferenceResolver(Core ownerCore, ContentManager assetContentManager) {
+        public RuntimeSceneAssetReferenceResolver(Core ownerCore, ContentManager assetContentManager)
+            : this(ownerCore, assetContentManager, null) {
+        }
+
+        /// <summary>
+        /// Initializes a new packaged scene asset resolver that maps packaged asset paths through one host policy.
+        /// </summary>
+        /// <param name="ownerCore">Core that owns every runtime asset materialized through this resolver.</param>
+        /// <param name="assetContentManager">Content manager used to load packaged assets.</param>
+        /// <param name="packagedPathPolicy">Host policy that maps packaged asset paths to content-source paths; null keeps the built-in packaged path rules.</param>
+        public RuntimeSceneAssetReferenceResolver(Core ownerCore, ContentManager assetContentManager, IPackagedAssetPathPolicy packagedPathPolicy) {
             OwnerCore = ownerCore ?? throw new ArgumentNullException(nameof(ownerCore));
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
@@ -115,6 +130,7 @@ namespace helengine {
             RenderManager2D = ownerCore.RenderManager2D;
 
             AssetContentManager = assetContentManager;
+            PackagedPathPolicy = packagedPathPolicy;
             ActiveGeneratedModelsByKey = new Dictionary<string, RuntimeModel>(StringComparer.Ordinal);
             ActiveGeneratedMaterialsByKey = new Dictionary<string, RuntimeMaterial>(StringComparer.Ordinal);
         }
@@ -551,6 +567,9 @@ namespace helengine {
             if (string.IsNullOrWhiteSpace(reference.RelativePath)) {
                 throw new InvalidOperationException("Packaged scene asset references must include a relative path.");
             }
+            if (PackagedPathPolicy != null) {
+                return PackagedPathPolicy.ResolvePackagedPath(reference.RelativePath);
+            }
 
 #if HELENGINE_RUNTIME_ALLOW_ROOTED_PACKAGED_PATHS
             if (Path.IsPathRooted(reference.RelativePath)) {
@@ -601,6 +620,9 @@ namespace helengine {
         string ResolvePackagedContentPath(string relativePath) {
             if (string.IsNullOrWhiteSpace(relativePath)) {
                 throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            }
+            if (PackagedPathPolicy != null) {
+                return PackagedPathPolicy.ResolvePackagedPath(relativePath);
             }
 
 #if HELENGINE_RUNTIME_ALLOW_ROOTED_PACKAGED_PATHS

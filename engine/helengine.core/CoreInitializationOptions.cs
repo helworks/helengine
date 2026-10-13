@@ -15,6 +15,12 @@ namespace helengine {
         public IAssetContentManagerConfigurator AssetContentManagerConfigurator { get; set; }
 
         /// <summary>
+        /// Optional host policy that maps packaged asset paths from cooked scenes and assets to content-source paths;
+        /// null keeps the built-in packaged path rules of the current build.
+        /// </summary>
+        public IPackagedAssetPathPolicy PackagedAssetPathPolicy { get; set; }
+
+        /// <summary>
         /// Gets or sets the number of update order layers available for convenience helpers.
         /// </summary>
         public byte UpdateOrderLayers { get; set; } = 4;
