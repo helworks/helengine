@@ -21,6 +21,7 @@ namespace helengine.baseplatform.Definitions {
         /// <param name="hostDebugCapability">Cross-platform host-debug capability metadata exposed by the platform.</param>
         /// <param name="assetCookCapabilities">Generic asset-kind cook capabilities exposed by the platform.</param>
         /// <param name="componentMemberDefinitions">Platform-specific synthetic component members exposed to editor and runtime packaging flows.</param>
+        /// <param name="playerCapability">Editor Play capability exposed by the platform; null means the platform does not support Play.</param>
         public PlatformDefinition(
             string platformId,
             string displayName,
@@ -35,7 +36,8 @@ namespace helengine.baseplatform.Definitions {
             RuntimeGenerationContract runtimeGenerationContract = null,
             PlatformHostDebugCapability hostDebugCapability = null,
             PlatformAssetCookCapabilityDefinition[] assetCookCapabilities = null,
-            PlatformComponentMemberDefinition[] componentMemberDefinitions = null) {
+            PlatformComponentMemberDefinition[] componentMemberDefinitions = null,
+            PlatformPlayerCapability playerCapability = null) {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id is required.", nameof(platformId));
             } else if (string.IsNullOrWhiteSpace(displayName)) {
@@ -94,6 +96,7 @@ namespace helengine.baseplatform.Definitions {
             HostDebugCapability = hostDebugCapability ?? PlatformHostDebugCapability.CreateDefault();
             AssetCookCapabilities = assetCookCapabilities == null ? Array.Empty<PlatformAssetCookCapabilityDefinition>() : [.. assetCookCapabilities];
             ComponentMemberDefinitions = componentMemberDefinitions == null ? Array.Empty<PlatformComponentMemberDefinition>() : [.. componentMemberDefinitions];
+            PlayerCapability = playerCapability ?? PlatformPlayerCapability.CreateUnsupported();
         }
 
         /// <summary>
@@ -441,6 +444,11 @@ namespace helengine.baseplatform.Definitions {
         /// Gets the platform-specific synthetic component members exposed to editor and runtime packaging flows.
         /// </summary>
         public PlatformComponentMemberDefinition[] ComponentMemberDefinitions { get; }
+
+        /// <summary>
+        /// Gets the editor Play capability exposed by the platform; unsupported unless the platform opts in.
+        /// </summary>
+        public PlatformPlayerCapability PlayerCapability { get; }
     }
 
 
