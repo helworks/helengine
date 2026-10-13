@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Player;
 using helengine.directx11;
 using helengine.editor;
@@ -57,7 +58,8 @@ namespace helengine.player {
                 window = new PlayerWindow(options.SceneId);
                 window.Show();
                 Application.DoEvents();
-                InputBackendWindows input = new InputBackendWindows(window.Handle);
+                InputBackendWindows desktopInput = new InputBackendWindows(window.Handle);
+                PlayerPlatformInputBackend input = CreatePlatformInput(desktopInput, options.InputDevices);
 
                 IContentStreamSource source = new AliasedContentStreamSource(
                     new HostFileSystemContentStreamSource(options.ContentRootPath),
@@ -95,6 +97,31 @@ namespace helengine.player {
                 }
                 logForwarder.Dispose();
             }
+        }
+
+        /// <summary>
+        /// Wraps the desktop input backend so the game sees only the platform's declared devices, and writes the active
+        /// devices, the desktop controller availability and the keyboard pad layout to stdout, where the editor shows
+        /// them as <c>[player]</c> lines (the editor adds that prefix).
+        /// </summary>
+        /// <param name="desktopInput">Desktop backend bound to the player window.</param>
+        /// <param name="devices">Devices the selected platform declares.</param>
+        /// <returns>The filtering backend handed to the core.</returns>
+        static PlayerPlatformInputBackend CreatePlatformInput(InputBackendWindows desktopInput, PlayerInputDevices devices) {
+            XInputPlayerGamepadReader controller = new XInputPlayerGamepadReader();
+            PlayerKeyboardGamepadMap keyboardGamepad = PlayerKeyboardGamepadMap.CreateDefault();
+            Console.WriteLine("input devices: " + PlayerInputDevicesText.Format(devices));
+            if ((devices & PlayerInputDevices.Gamepad) != PlayerInputDevices.None) {
+                Console.WriteLine(controller.IsAvailable
+                    ? "gamepad: first connected XInput controller merged with the keyboard pad"
+                    : "gamepad: " + XInputPlayerGamepadReader.XInputLibraryName + " not available, keyboard pad only");
+                IReadOnlyList<string> bindings = keyboardGamepad.Describe();
+                for (int i = 0; i < bindings.Count; i++) {
+                    Console.WriteLine("keyboard pad: " + bindings[i]);
+                }
+            }
+
+            return new PlayerPlatformInputBackend(desktopInput, desktopInput, devices, controller, keyboardGamepad);
         }
 
         /// <summary>
