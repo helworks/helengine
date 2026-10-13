@@ -120,6 +120,12 @@ namespace helengine {
         double AppliedScalarScaleValue;
 
         /// <summary>
+        /// True while <see cref="RestoreAuthoredLayout"/> re-anchors descendants; the full-viewport anchor space then resolves
+        /// to the authored reference canvas instead of the live editor window.
+        /// </summary>
+        bool RestoringAuthoredLayoutValue;
+
+        /// <summary>
         /// Tracks whether the component is subscribed to screen resize events.
         /// </summary>
         bool IsSubscribedToWindowResizeValue;
@@ -501,12 +507,19 @@ namespace helengine {
                 // Anchored axes are derived from the anchor space, and whatever the editor window or a load-time fallback
                 // provider produced must not be persisted: re-anchor against the authored reference canvas so the saved
                 // positions and stretched sizes are identical for every editor window size.
+                // Anchors answering to the full viewport rect resolve through ViewportAnchorSpace, which follows the same
+                // reference canvas while RestoringAuthoredLayoutValue is set.
                 CurrentAnchorSpaceValue.Update(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
-                for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
-                    ViewportLayoutSnapshot snapshot = LayoutSnapshotsValue[snapshotIndex];
-                    if (!snapshot.IsRootEntity && IsInScaledSubtree(snapshot.Entity)) {
-                        snapshot.RefreshAnchoring();
+                RestoringAuthoredLayoutValue = true;
+                try {
+                    for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
+                        ViewportLayoutSnapshot snapshot = LayoutSnapshotsValue[snapshotIndex];
+                        if (!snapshot.IsRootEntity && IsInScaledSubtree(snapshot.Entity)) {
+                            snapshot.RefreshAnchoring();
+                        }
                     }
+                } finally {
+                    RestoringAuthoredLayoutValue = false;
                 }
             }
 
@@ -766,6 +779,10 @@ namespace helengine {
         /// </summary>
         /// <returns>Resolved viewport bounds in local pixels.</returns>
         int2 ResolveAnchorBounds() {
+            if (RestoringAuthoredLayoutValue) {
+                return new int2(ReferenceWidthValue, ReferenceHeightValue);
+            }
+
             float4 viewport = ResolveViewportBounds();
             return new int2(
                 Math.Max(1, (int)Math.Round(viewport.Z)),
@@ -905,13 +922,22 @@ namespace helengine {
             }
         }
 
-        /// <summary>Leaves independently owned viewport and generated performance-overlay subtrees to their respective layout owners.</summary>
+        /// <summary>
+        /// Leaves independently owned viewport and generated performance-overlay subtrees to their respective layout owners.
+        /// In the editor, any nested <see cref="IAuthoredLayoutOwner"/> (for example a reference-canvas fit) also owns its
+        /// subtree exclusively, so this viewport never writes values that the nested owner would then mistake for preview
+        /// edits, and each owner restores only what it wrote. Runtime hosts keep the original shared behavior.
+        /// </summary>
         /// <param name="child">Child whose layout ownership is inspected.</param>
         /// <returns>Whether the current viewport should capture this child's layout.</returns>
         bool ShouldCaptureChild(Entity child) {
             if (child.Components != null) {
+                bool editorAuthoring = IsEditorAuthoring();
                 for (int index = 0; index < child.Components.Count; index++) {
                     if (child.Components[index] is ViewportComponent) {
+                        return false;
+                    }
+                    if (editorAuthoring && child.Components[index] is IAuthoredLayoutOwner) {
                         return false;
                     }
                 }
@@ -1070,6 +1096,10 @@ namespace helengine {
         /// </summary>
         /// <returns>Viewport-space origin correction expressed in local pixels.</returns>
         float2 ResolveViewportAnchorOrigin() {
+            if (RestoringAuthoredLayoutValue) {
+                return new float2(0f, 0f);
+            }
+
             if (IsReferenceCanvasScalingActive()) {
                 return new float2(-CurrentCanvasOriginValue.X, -CurrentCanvasOriginValue.Y);
             }

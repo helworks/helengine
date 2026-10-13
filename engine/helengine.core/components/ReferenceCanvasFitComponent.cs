@@ -375,6 +375,27 @@ namespace helengine {
         }
 
         /// <summary>
+        /// In the editor, leaves a child subtree that carries its own <see cref="IAuthoredLayoutOwner"/> to that owner, so this
+        /// component never writes values the nested owner would mistake for preview edits and each owner restores only what it
+        /// wrote. Runtime hosts capture every child, exactly as before.
+        /// </summary>
+        /// <param name="child">Child whose layout ownership is inspected.</param>
+        /// <returns>Whether this component should capture the child's layout.</returns>
+        bool ShouldCaptureChild(Entity child) {
+            if (!IsEditorAuthoring() || child.Components == null) {
+                return true;
+            }
+
+            for (int index = 0; index < child.Components.Count; index++) {
+                if (child.Components[index] is IAuthoredLayoutOwner) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
         /// Walks the captured subtree in snapshot order and checks that every entity still matches its snapshot, so the editor
         /// notices replaced entities (for example after undo) even when the entity count did not change.
         /// </summary>
@@ -392,6 +413,10 @@ namespace helengine {
             }
 
             for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
+                if (!ShouldCaptureChild(entity.Children[childIndex])) {
+                    continue;
+                }
+
                 nextIndex = MatchSnapshotsRecursive(entity.Children[childIndex], nextIndex);
                 if (nextIndex < 0) {
                     return -1;
@@ -515,7 +540,9 @@ namespace helengine {
             }
 
             for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
-                CaptureSnapshotsRecursive(entity.Children[childIndex], false);
+                if (ShouldCaptureChild(entity.Children[childIndex])) {
+                    CaptureSnapshotsRecursive(entity.Children[childIndex], false);
+                }
             }
         }
 
@@ -672,7 +699,9 @@ namespace helengine {
             }
 
             for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
-                count += CountEntitiesRecursive(entity.Children[childIndex]);
+                if (ShouldCaptureChild(entity.Children[childIndex])) {
+                    count += CountEntitiesRecursive(entity.Children[childIndex]);
+                }
             }
 
             return count;
