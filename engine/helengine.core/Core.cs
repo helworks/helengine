@@ -631,6 +631,7 @@ namespace helengine {
             }
 
             ContentManager contentManager = GetContentManager();
+            options.AssetContentManagerConfigurator?.Configure(contentManager, RenderManager2D);
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, RenderManager2D);
             SceneAssetReferenceResolver = new RuntimeSceneAssetReferenceResolver(this, contentManager);
             SceneRuntimeComponentRegistry = RuntimeComponentRegistry.CreateDefault();

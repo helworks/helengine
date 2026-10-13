@@ -10,6 +10,11 @@ namespace helengine {
         public IContentStreamSource ContentStreamSource { get; set; }
 
         /// <summary>
+        /// Optional host hook that registers content processors before the shared runtime processors; null keeps the default registration only.
+        /// </summary>
+        public IAssetContentManagerConfigurator AssetContentManagerConfigurator { get; set; }
+
+        /// <summary>
         /// Gets or sets the number of update order layers available for convenience helpers.
         /// </summary>
         public byte UpdateOrderLayers { get; set; } = 4;
