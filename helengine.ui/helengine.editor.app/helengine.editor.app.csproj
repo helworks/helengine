@@ -69,6 +69,27 @@
 		<ProjectReference Include="..\..\engine\helengine.projectfile\helengine.projectfile.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.shader.compilation\helengine.shader.compilation.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.vulkan\helengine.vulkan.csproj" SkipGetTargetFrameworkProperties="true" />
+		<!-- Built for editor Play but never referenced as an assembly; CopyHelenginePlayer places its output beside the editor. -->
+		<ProjectReference Include="..\..\engine\helengine.player\helengine.player.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
 	</ItemGroup>
+
+	<!--
+		Copies the desktop player's complete build output into a "player" folder beside the editor executable, the same
+		"published tool in a folder beside the editor" layout the codegen tool uses. The player keeps its own deps.json,
+		runtimeconfig.json and shader folders there instead of mixing them into the editor's output.
+	-->
+	<Target Name="CopyHelenginePlayer" AfterTargets="Build">
+		<MSBuild Projects="..\..\engine\helengine.player\helengine.player.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+			<Output TaskParameter="TargetOutputs" ItemName="HelenginePlayerTargetPath" />
+		</MSBuild>
+		<PropertyGroup>
+			<HelenginePlayerOutputDirectory>@(HelenginePlayerTargetPath->'%(RootDir)%(Directory)')</HelenginePlayerOutputDirectory>
+		</PropertyGroup>
+		<ItemGroup>
+			<HelenginePlayerOutputFile Include="$(HelenginePlayerOutputDirectory)**\*" />
+		</ItemGroup>
+		<Error Condition="!Exists('$(HelenginePlayerOutputDirectory)helengine.player.exe')" Text="The desktop player was not built at '$(HelenginePlayerOutputDirectory)helengine.player.exe'." />
+		<Copy SourceFiles="@(HelenginePlayerOutputFile)" DestinationFiles="@(HelenginePlayerOutputFile->'$(OutDir)player\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+	</Target>
 
 </Project>

@@ -440,6 +440,27 @@ namespace helengine.editor {
         readonly EditorGameScriptHotReloadService scriptHotReloadService;
 
         /// <summary>
+        /// Folder beside the editor executable that holds the copied desktop player build.
+        /// </summary>
+        const string PlayerDirectoryName = "player";
+
+        /// <summary>
+        /// File name of the desktop player executable launched by Play.
+        /// </summary>
+        const string PlayerExecutableFileName = "helengine.player.exe";
+
+        /// <summary>
+        /// Queue drained once per frame that delivers background work, such as player console output and exit, on the
+        /// editor frame thread.
+        /// </summary>
+        readonly EditorMainThreadActionQueue MainThreadActions;
+
+        /// <summary>
+        /// Runs the editor Play sequence (save, cook, script build, launch) and owns the running desktop player.
+        /// </summary>
+        readonly EditorPlaySessionService PlaySession;
+
+        /// <summary>
         /// Last script bootstrap or manual rebuild result; failed compilation blocks scene loading before type resolution.
         /// </summary>
         EditorBuildExecutionResult ProjectScriptLoadResult;
@@ -900,6 +921,25 @@ namespace helengine.editor {
             buildQueueService = new EditorBuildQueueService(
                 buildConfigService,
                 BuildMenuCoordinator.CreateBuildExecutorRouter());
+            MainThreadActions = new EditorMainThreadActionQueue();
+            EditorPlayCookRunner playCookRunner = new EditorPlayCookRunner(
+                this.projectPath,
+                sceneCatalogService,
+                ResolvePlayPlatformConfig,
+                ResolvePlayPlatformSelectionModel,
+                CreatePlayPlatformBuildExecutor,
+                () => CurrentScenePath);
+            PlaySession = new EditorPlaySessionService(
+                playCookRunner,
+                new EditorPlayScriptBuilder(
+                    this.projectPath,
+                    new EditorPlayScriptBuildService(this.projectPath, ProjectName),
+                    playCookRunner.ResolveEnvironmentId),
+                new EditorPlayProcessLauncher(MainThreadActions),
+                Path.Combine(AppContext.BaseDirectory, PlayerDirectoryName, PlayerExecutableFileName));
+            constructionLedger.Register(() => PlaySession.Stop(), EditorSessionCleanupPhase.Dispose);
+            RegisterDetacher(constructionLedger, () => PlaySession.StateChanged -= HandlePlaySessionStateChanged);
+            PlaySession.StateChanged += HandlePlaySessionStateChanged;
             saveFileDialog = new SaveFileDialog(core, interactionServices, uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, saveFileDialog.Dispose, saveFileDialog.DisposeAuthoringResources, saveFileDialog.Hide);
             openFileDialog = new OpenFileDialog(core, interactionServices, uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
@@ -1512,6 +1552,7 @@ namespace helengine.editor {
                 EditorBootTimeline.Mark("startup scene restore (first frame)");
             }
             ProcessPendingShaderBuildNotifications();
+            ProcessPendingMainThreadActions();
             Update();
             // The title bar's close button runs inside Update and can dispose this session through the host window.
             // Nothing after that point may touch the disposed services.
@@ -1559,6 +1600,7 @@ namespace helengine.editor {
             assetImportManager.CurrentPlatformId = platformId;
             ApplyPlatformExistenceSuppression();
             RefreshWindowTitle();
+            RefreshPlayButtons();
         }
 
         /// <summary>
@@ -2440,6 +2482,10 @@ namespace helengine.editor {
             }
             if (string.Equals(instance.PanelTypeId, PreviewPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
                 UpdatePreviewPanelState((PreviewPanel)instance.Dockable);
+                return;
+            }
+            if (string.Equals(instance.PanelTypeId, ViewportPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
+                ApplyPlayState((EditorViewport)instance.Dockable);
             }
         }
 
@@ -2468,8 +2514,13 @@ namespace helengine.editor {
                 return;
             }
             if (string.Equals(instance.PanelTypeId, ViewportPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
-                RegisterDetacher(ConstructionLedger, () => ((EditorViewport)instance.Dockable).ViewportContentFocusedChanged -= HandleViewportContentFocusedChanged);
-                ((EditorViewport)instance.Dockable).ViewportContentFocusedChanged += HandleViewportContentFocusedChanged;
+                EditorViewport viewport = (EditorViewport)instance.Dockable;
+                RegisterDetacher(ConstructionLedger, () => viewport.ViewportContentFocusedChanged -= HandleViewportContentFocusedChanged);
+                viewport.ViewportContentFocusedChanged += HandleViewportContentFocusedChanged;
+                RegisterDetacher(ConstructionLedger, () => viewport.PlayRequested -= HandlePlayRequested);
+                viewport.PlayRequested += HandlePlayRequested;
+                RegisterDetacher(ConstructionLedger, () => viewport.StopRequested -= HandleStopRequested);
+                viewport.StopRequested += HandleStopRequested;
                 return;
             }
             if (string.Equals(instance.PanelTypeId, PropertiesPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
@@ -2499,7 +2550,10 @@ namespace helengine.editor {
                 return;
             }
             if (string.Equals(instance.PanelTypeId, ViewportPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
-                ((EditorViewport)instance.Dockable).ViewportContentFocusedChanged -= HandleViewportContentFocusedChanged;
+                EditorViewport viewport = (EditorViewport)instance.Dockable;
+                viewport.ViewportContentFocusedChanged -= HandleViewportContentFocusedChanged;
+                viewport.PlayRequested -= HandlePlayRequested;
+                viewport.StopRequested -= HandleStopRequested;
                 return;
             }
             if (string.Equals(instance.PanelTypeId, PropertiesPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
@@ -3517,6 +3571,160 @@ namespace helengine.editor {
             } catch (Exception ex) {
                 Logger.WriteError($"Open in IDE failed: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Handles the viewport Play button: plays the open scene on the active platform through the desktop player,
+        /// using the platform definition the catalog already loaded, and logs the outcome.
+        /// </summary>
+        void HandlePlayRequested() {
+            try {
+                EditorLoadedPlatformBuilder platformBuilder = platformCatalogService.Resolve(ActiveProjectPlatform);
+                PlatformPlayerCapability capability = platformBuilder.Definition.PlayerCapability;
+                if (!PlaySession.IsPlayAvailable(capability)) {
+                    Logger.WriteError($"Platform '{ActiveProjectPlatform}' does not support Play.");
+                    return;
+                }
+
+                EditorBuildExecutionResult result = PlaySession.Play(
+                    ActiveProjectPlatform,
+                    CurrentScenePath,
+                    SaveCurrentSceneForPlay,
+                    platformBuilder.PlatformDescriptor.BuilderAssemblyPath,
+                    capability.AdapterTypeName,
+                    waitForDebugger: false);
+                if (result.Succeeded) {
+                    Logger.WriteLine(result.Message);
+                } else {
+                    Logger.WriteError(result.Message);
+                }
+            } catch (Exception ex) {
+                Logger.WriteError($"Play failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles the viewport Stop button by terminating the running player.
+        /// </summary>
+        void HandleStopRequested() {
+            try {
+                PlaySession.Stop();
+            } catch (Exception ex) {
+                Logger.WriteError($"Stop failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Saves the open scene in place before Play cooks it. The save flow reports its own failures to the log and
+        /// keeps the scene dirty, so the save counts as successful only when the scene is clean afterwards.
+        /// </summary>
+        /// <returns>False when the scene was never saved or still has unsaved changes after the save attempt.</returns>
+        bool SaveCurrentSceneForPlay() {
+            if (string.IsNullOrWhiteSpace(CurrentScenePath)) {
+                return false;
+            }
+
+            HandleSceneSaveRequested(CurrentScenePath);
+            return !IsSceneDirty;
+        }
+
+        /// <summary>
+        /// Presents a Play session phase change on every viewport toolbar.
+        /// </summary>
+        /// <param name="state">New Play session phase.</param>
+        void HandlePlaySessionStateChanged(EditorPlaySessionState state) {
+            RefreshPlayButtons();
+        }
+
+        /// <summary>
+        /// Presents the current Play session phase and the active platform's Play availability on every viewport.
+        /// </summary>
+        void RefreshPlayButtons() {
+            // Lightweight fixtures that bypass the public constructor own no Play session and no Play buttons to update.
+            if (PlaySession == null) {
+                return;
+            }
+
+            IReadOnlyList<EditorViewport> viewports = GetViewportPanels();
+            for (int index = 0; index < viewports.Count; index++) {
+                ApplyPlayState(viewports[index]);
+            }
+        }
+
+        /// <summary>
+        /// Presents the current Play session phase and the active platform's Play availability on one viewport.
+        /// </summary>
+        /// <param name="viewport">Viewport whose Play and Stop buttons are updated.</param>
+        void ApplyPlayState(EditorViewport viewport) {
+            if (viewport == null) {
+                throw new ArgumentNullException(nameof(viewport));
+            }
+            // Lightweight fixtures that bypass the public constructor own no Play session.
+            if (PlaySession == null) {
+                return;
+            }
+
+            viewport.SetPlayState(PlaySession.State, IsActivePlatformPlayable());
+        }
+
+        /// <summary>
+        /// Reports whether the active platform supports Play, reading the definition the platform catalog already
+        /// loaded so no builder is reloaded per query.
+        /// </summary>
+        /// <returns>True when the active platform's builder declares Play support.</returns>
+        bool IsActivePlatformPlayable() {
+            EditorPlatformBuildSelectionModel selectionModel = ResolvePlatformSelectionModel(ActiveProjectPlatform);
+            if (selectionModel == null || selectionModel.Definition == null) {
+                return false;
+            }
+
+            return PlaySession.IsPlayAvailable(selectionModel.Definition.PlayerCapability);
+        }
+
+        /// <summary>
+        /// Delivers queued background work, such as player console output and exit, on the editor frame thread.
+        /// </summary>
+        void ProcessPendingMainThreadActions() {
+            // Lightweight fixtures that bypass the public constructor own no frame-thread queue.
+            if (MainThreadActions == null) {
+                return;
+            }
+
+            MainThreadActions.ProcessPending();
+        }
+
+        /// <summary>
+        /// Resolves the persisted build settings the Play cook snapshots for one platform.
+        /// </summary>
+        /// <param name="platformId">Platform whose build settings are resolved.</param>
+        /// <returns>The platform's build settings, or null when the build configuration has none for it.</returns>
+        EditorBuildPlatformConfigDocument ResolvePlayPlatformConfig(string platformId) {
+            EditorBuildConfigDocument buildConfig = ResolveCurrentBuildConfig();
+            for (int index = 0; index < buildConfig.Platforms.Count; index++) {
+                if (string.Equals(buildConfig.Platforms[index].PlatformId, platformId, StringComparison.OrdinalIgnoreCase)) {
+                    return buildConfig.Platforms[index];
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Resolves the builder selection model of one platform from the platform catalog.
+        /// </summary>
+        /// <param name="platformId">Platform whose selection model is resolved.</param>
+        /// <returns>Selection model of the loaded platform builder.</returns>
+        EditorPlatformBuildSelectionModel ResolvePlayPlatformSelectionModel(string platformId) {
+            return platformCatalogService.Resolve(platformId).SelectionModel;
+        }
+
+        /// <summary>
+        /// Creates the platform build executor the Play cook runs through, for the platform the catalog already loaded.
+        /// </summary>
+        /// <param name="platformId">Platform whose executor is created.</param>
+        /// <returns>New platform build executor.</returns>
+        EditorPlatformBuildExecutor CreatePlayPlatformBuildExecutor(string platformId) {
+            return BuildMenuCoordinator.CreatePlatformBuildExecutor(platformCatalogService.Resolve(platformId).PlatformDescriptor);
         }
 
         /// <summary>
