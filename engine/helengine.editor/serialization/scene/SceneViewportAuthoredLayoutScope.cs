@@ -120,7 +120,11 @@ namespace helengine.editor {
 
         /// <summary>
         /// Orders the collected owners by the depth of their entities, deepest first, so restore runs innermost-first and
-        /// re-apply (which walks the list backwards) runs outermost-first. Owners at the same depth own disjoint subtrees.
+        /// re-apply (which walks the list backwards) runs outermost-first. Owners at the same depth keep discovery order: they
+        /// are either on sibling entities with disjoint subtrees, or on the same entity and therefore share one subtree. The
+        /// same-entity case is supported when only one of them rescales (for example a fit next to a non-scaling Screen
+        /// viewport, as the Tilt Trial HUD uses), because the other one's restore and re-apply are no-ops. Two rescaling owners
+        /// on one entity fight over the same values at runtime as well and have no defined order here.
         /// </summary>
         void OrderInnermostFirst() {
             List<IAuthoredLayoutOwner> ordered = new List<IAuthoredLayoutOwner>();

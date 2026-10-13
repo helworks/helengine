@@ -379,6 +379,73 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Tilt Trial HUD shape: a reference-canvas fit next to a non-scaling Screen viewport on one root, with bottom-anchored
+        /// CameraViewportLayoutSpace children. Their viewport rect follows the live window and the fit's canvas origin in the
+        /// preview, but saves at 1904x1041, at 1600x900 and after a reload must be byte-identical and authored. A non-scaling
+        /// viewport nested under the fit keeps being scaled by the fit in the preview, as at runtime.
+        /// </summary>
+        [Fact]
+        public void Save_WhenFitSubtreeUsesViewportRectAnchors_WritesIdenticalScene() {
+            EditorEntity root = CreateEntity("HudRoot", new float3(0f, 0f, 0f));
+            root.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                ScalingMode = ViewportComponent.NoScalingMode
+            });
+            root.AddComponent(new ReferenceCanvasFitComponent { ReferenceWidth = 1280, ReferenceHeight = 720 });
+            EditorEntity speed = CreateEntity("Speed", new float3(40f, 650f, 0f));
+            speed.AddComponent(new RoundedRectComponent { Size = new int2(300, 40) });
+            LayoutComponent speedLayout = new LayoutComponent { LayoutSpace = LayoutComponent.CameraViewportLayoutSpace };
+            speed.AddComponent(speedLayout);
+            root.AddChild(speed);
+            speedLayout.SetAnchorDistances(left: 40f, bottom: 30f);
+            EditorEntity status = CreateEntity("Status", new float3(1020f, 670f, 0f));
+            status.AddComponent(new RoundedRectComponent { Size = new int2(240, 30) });
+            LayoutComponent statusLayout = new LayoutComponent { LayoutSpace = LayoutComponent.CameraViewportLayoutSpace };
+            status.AddComponent(statusLayout);
+            root.AddChild(status);
+            statusLayout.SetAnchorDistances(right: 20f, bottom: 20f);
+            EditorEntity inner = CreateEntity("Inner", new float3(384f, 90f, 0f));
+            inner.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                ScalingMode = ViewportComponent.NoScalingMode
+            });
+            inner.AddComponent(new RoundedRectComponent { Size = new int2(512, 96) });
+            root.AddChild(inner);
+            UpdateHud(root);
+            Assert.Equal(new int2(740, 139), GetComponent<RoundedRectComponent>(FindChild(root, "Inner")).Size);
+
+            using SceneSaveService saveService = CreateSceneSaveService();
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "Hud.helen");
+            saveService.Save(scenePath);
+            byte[] savedAtEditorSize = File.ReadAllBytes(scenePath);
+            ((TestRenderManager3D)CoreValue.RenderManager3D).OnWindowResize(IntPtr.Zero, 1600, 900);
+            UpdateHud(root);
+            saveService.Save(scenePath);
+            byte[] savedAtSmallerSize = File.ReadAllBytes(scenePath);
+            root.Dispose();
+            root = LoadSingleRoot(scenePath);
+            UpdateHud(root);
+            saveService.Save(scenePath);
+            byte[] savedAfterReload = File.ReadAllBytes(scenePath);
+
+            Assert.Equal(new float3(40f, 650f, 0f), ReadSavedChildPosition(scenePath, "Speed"));
+            Assert.Equal(new float3(1020f, 670f, 0f), ReadSavedChildPosition(scenePath, "Status"));
+            Assert.Equal(new float3(384f, 90f, 0f), ReadSavedChildPosition(scenePath, "Inner"));
+            Assert.Equal(savedAtEditorSize, savedAtSmallerSize);
+            Assert.Equal(savedAtEditorSize, savedAfterReload);
+            Assert.Equal(new int2(640, 120), GetComponent<RoundedRectComponent>(FindChild(root, "Inner")).Size);
+        }
+
+        /// <summary>
+        /// Runs one editor frame for the HUD root's layout owners in component order.
+        /// </summary>
+        /// <param name="root">HUD root carrying the non-scaling viewport and the fit component.</param>
+        static void UpdateHud(EditorEntity root) {
+            GetComponent<ViewportComponent>(root).Update();
+            GetComponent<ReferenceCanvasFitComponent>(root).Update();
+        }
+
+        /// <summary>
         /// Runs one editor frame for the nested owners in hierarchy order: the outer viewport first, then the inner fit component.
         /// </summary>
         /// <param name="root">Menu root carrying the viewport; its "Card" child carries the fit component.</param>
