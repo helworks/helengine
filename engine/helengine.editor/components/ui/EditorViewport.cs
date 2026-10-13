@@ -399,9 +399,10 @@ namespace helengine.editor {
         public event Action<EditorViewport, bool> ViewportContentFocusedChanged;
 
         /// <summary>
-        /// Raised when the user activates the Play button while the active platform supports Play.
+        /// Raised when the user activates the Play button while the active platform supports Play. The argument is true
+        /// when Shift was held during the activation, asking for the player to wait for a debugger before it starts.
         /// </summary>
-        public event Action PlayRequested;
+        public event Action<bool> PlayRequested;
 
         /// <summary>
         /// Raised when the user activates the Stop button while a Play session is preparing or running.
@@ -1206,13 +1207,16 @@ namespace helengine.editor {
 
         /// <summary>
         /// Raises <see cref="PlayRequested"/> when the active platform supports Play; otherwise the click does nothing.
+        /// Holding either Shift key during the activation requests a launch that waits for a debugger.
         /// </summary>
         void ActivatePlayButton() {
             if (!PresentedPlayAvailable) {
                 return;
             }
 
-            PlayRequested?.Invoke();
+            InputSystem input = RendererResources.Input;
+            bool waitForDebugger = input.IsKeyDown(Keys.LeftShift) || input.IsKeyDown(Keys.RightShift);
+            PlayRequested?.Invoke(waitForDebugger);
         }
 
         /// <summary>

@@ -3575,9 +3575,11 @@ namespace helengine.editor {
 
         /// <summary>
         /// Handles the viewport Play button: plays the open scene on the active platform through the desktop player,
-        /// using the platform definition the catalog already loaded, and logs the outcome.
+        /// using the platform definition the catalog already loaded, and logs the outcome. A Shift+click launches the
+        /// player waiting for a debugger to attach before it starts the scene.
         /// </summary>
-        void HandlePlayRequested() {
+        /// <param name="waitForDebugger">True when Shift was held on the Play button.</param>
+        void HandlePlayRequested(bool waitForDebugger) {
             try {
                 EditorLoadedPlatformBuilder platformBuilder = platformCatalogService.Resolve(ActiveProjectPlatform);
                 PlatformPlayerCapability capability = platformBuilder.Definition.PlayerCapability;
@@ -3592,9 +3594,12 @@ namespace helengine.editor {
                     SaveCurrentSceneForPlay,
                     platformBuilder.PlatformDescriptor.BuilderAssemblyPath,
                     capability.AdapterTypeName,
-                    waitForDebugger: false);
+                    waitForDebugger);
                 if (result.Succeeded) {
                     Logger.WriteLine(result.Message);
+                    if (waitForDebugger) {
+                        Logger.WriteLine("Player is waiting for a debugger to attach before it starts the scene; attach to the pid above.");
+                    }
                 } else {
                     Logger.WriteError(result.Message);
                 }
@@ -3615,17 +3620,23 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Saves the open scene in place before Play cooks it. The save flow reports its own failures to the log and
-        /// keeps the scene dirty, so the save counts as successful only when the scene is clean afterwards.
+        /// Saves the open scene in place before Play cooks it, with the same bookkeeping as a normal save but without
+        /// the save dialog's export mode or any pending scene transition. A save failure propagates to the Play handler,
+        /// which logs it.
         /// </summary>
-        /// <returns>False when the scene was never saved or still has unsaved changes after the save attempt.</returns>
+        /// <returns>False when the scene was never saved; true once the scene was written to its current path.</returns>
         bool SaveCurrentSceneForPlay() {
             if (string.IsNullOrWhiteSpace(CurrentScenePath)) {
                 return false;
             }
 
-            HandleSceneSaveRequested(CurrentScenePath);
-            return !IsSceneDirty;
+            try {
+                SaveSceneAndRecordPath(CurrentScenePath);
+            } finally {
+                LogAuthoringRepairReport();
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -4166,14 +4177,7 @@ namespace helengine.editor {
             }
 
             try {
-                SceneSaveService.Save(fullPath, CurrentSceneSettings);
-                CurrentScenePath = Path.GetFullPath(fullPath);
-                sessionStateService?.SetLastScenePath(CurrentScenePath);
-                MarkSceneClean();
-                IReadOnlyList<AssetBrowserPanel> assetBrowserPanels = GetAssetBrowserPanels();
-                for (int index = 0; index < assetBrowserPanels.Count; index++) {
-                    assetBrowserPanels[index].RefreshEntries();
-                }
+                SaveSceneAndRecordPath(fullPath);
                 saveFileDialog.Hide();
                 if (PendingSceneTransition != SceneTransitionKind.None) {
                     ContinuePendingSceneTransition();
@@ -4183,6 +4187,23 @@ namespace helengine.editor {
                 saveFileDialog.ShowError(ex.Message);
             } finally {
                 LogAuthoringRepairReport();
+            }
+        }
+
+        /// <summary>
+        /// Writes the current editor scene to the provided path and records it as the open, clean scene: updates the
+        /// current scene path and the session's last scene, clears the dirty flag and refreshes the asset browsers.
+        /// Shared by the save dialog and Play; dialog and scene-transition handling stay with the callers.
+        /// </summary>
+        /// <param name="fullPath">Path the scene is written to.</param>
+        void SaveSceneAndRecordPath(string fullPath) {
+            SceneSaveService.Save(fullPath, CurrentSceneSettings);
+            CurrentScenePath = Path.GetFullPath(fullPath);
+            sessionStateService?.SetLastScenePath(CurrentScenePath);
+            MarkSceneClean();
+            IReadOnlyList<AssetBrowserPanel> assetBrowserPanels = GetAssetBrowserPanels();
+            for (int index = 0; index < assetBrowserPanels.Count; index++) {
+                assetBrowserPanels[index].RefreshEntries();
             }
         }
 

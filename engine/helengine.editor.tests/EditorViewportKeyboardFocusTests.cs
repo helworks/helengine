@@ -302,7 +302,7 @@ namespace helengine.editor.tests {
             EditorFocusTarget stopTarget = GetPrivateField<EditorFocusTarget>(viewport, "StopButtonFocusTarget");
             int playRequestCount = 0;
             int stopRequestCount = 0;
-            viewport.PlayRequested += () => playRequestCount++;
+            viewport.PlayRequested += waitForDebugger => playRequestCount++;
             viewport.StopRequested += () => stopRequestCount++;
 
             viewport.SetPlayState(EditorPlaySessionState.Stopped, false);
@@ -321,6 +321,35 @@ namespace helengine.editor.tests {
             stopTarget.ActivateFromKey(Keys.Enter);
             Assert.Equal(EditorPlaySessionState.Running, viewport.PresentedPlaySessionState);
             Assert.Equal(1, stopRequestCount);
+        }
+
+        /// <summary>
+        /// Ensures a Play activation requests a debugger-waiting launch exactly when a Shift key is held.
+        /// </summary>
+        [Fact]
+        public void PlayButton_WhenShiftIsHeld_RequestsDebuggerWait() {
+            TestInputBackend inputManager = InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            EditorFocusTarget playTarget = GetPrivateField<EditorFocusTarget>(viewport, "PlayButtonFocusTarget");
+            List<bool> requests = new List<bool>();
+            viewport.PlayRequested += requests.Add;
+            viewport.SetPlayState(EditorPlaySessionState.Stopped, true);
+
+            inputManager.SetKeyboardState(new KeyboardState());
+            Core.Instance.InputSystem.EarlyUpdate();
+            playTarget.ActivateFromKey(Keys.Enter);
+            Core.Instance.InputSystem.Update();
+
+            inputManager.SetKeyboardState(new KeyboardState(Keys.LeftShift));
+            Core.Instance.InputSystem.EarlyUpdate();
+            playTarget.ActivateFromKey(Keys.Enter);
+            Core.Instance.InputSystem.Update();
+
+            inputManager.SetKeyboardState(new KeyboardState(Keys.RightShift));
+            Core.Instance.InputSystem.EarlyUpdate();
+            playTarget.ActivateFromKey(Keys.Enter);
+
+            Assert.Equal(new[] { false, true, true }, requests);
         }
 
         /// <summary>
