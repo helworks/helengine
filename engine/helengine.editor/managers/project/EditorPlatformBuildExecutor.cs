@@ -100,6 +100,23 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Cooks one queued build item's scenes for editor Play through the platform build graph: assets only, staged
+        /// in the stable Play workspace, with no code generation or native build.
+        /// </summary>
+        /// <param name="queueItem">Queued build item naming the platform, profiles and the scenes to cook.</param>
+        /// <returns>The staged content root and startup scene, or the failure reported by the build graph.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when the queue item is null.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the queue item targets another platform, selects no scene or names no output directory.</exception>
+        public EditorPlayCookResult ExecuteAssetsOnly(EditorBuildQueueItemDocument queueItem) {
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            }
+
+            ValidateQueueItem(queueItem);
+            return BuildGraphRunner.ExecuteAssetsOnly(queueItem);
+        }
+
+        /// <summary>
         /// Validates one queued build item before any filesystem or builder work starts.
         /// </summary>
         /// <param name="queueItem">Queued build item to validate.</param>

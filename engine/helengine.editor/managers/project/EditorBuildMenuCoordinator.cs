@@ -254,20 +254,35 @@ namespace helengine.editor {
                     continue;
                 }
 
-                executorsByPlatformId[platform.Id] = new EditorPlatformBuildExecutor(
-                    ProjectRootPath,
-                    RequiredEngineVersion,
-                    ProjectName,
-                    ProjectVersion,
-                    Importers,
-                    platform,
-                    DefaultFontAsset,
-                    null,
-                    ScriptHotReloadService.ScriptTypeResolver,
-                    BuiltInShaderAssetLibrary);
+                executorsByPlatformId[platform.Id] = CreatePlatformBuildExecutor(platform);
             }
 
             return new EditorBuildExecutorRouter(executorsByPlatformId);
+        }
+
+        /// <summary>
+        /// Creates the platform build executor for one installed platform with the open project's identity, importers,
+        /// default font, live script types and built-in shaders, exactly as the build menu's executors are created.
+        /// </summary>
+        /// <param name="platform">Installed platform descriptor that carries the builder assembly path.</param>
+        /// <returns>New executor for the platform.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when the platform descriptor is null.</exception>
+        public EditorPlatformBuildExecutor CreatePlatformBuildExecutor(AvailablePlatformDescriptor platform) {
+            if (platform == null) {
+                throw new ArgumentNullException(nameof(platform));
+            }
+
+            return new EditorPlatformBuildExecutor(
+                ProjectRootPath,
+                RequiredEngineVersion,
+                ProjectName,
+                ProjectVersion,
+                Importers,
+                platform,
+                DefaultFontAsset,
+                null,
+                ScriptHotReloadService.ScriptTypeResolver,
+                BuiltInShaderAssetLibrary);
         }
 
         /// <summary>

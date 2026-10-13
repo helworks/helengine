@@ -1059,14 +1059,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(moduleProject));
             }
 
-            List<KeyValuePair<string, string>> references = new List<KeyValuePair<string, string>> {
-                new KeyValuePair<string, string>("helengine.core", typeof(Core).Assembly.Location),
-                new KeyValuePair<string, string>("helengine.shader", typeof(ShaderRuntimeMaterial).Assembly.Location),
-                new KeyValuePair<string, string>("helengine.shader.compilation", typeof(ShaderCompileService).Assembly.Location),
-                new KeyValuePair<string, string>("helengine.input", typeof(InputSystem).Assembly.Location),
-                new KeyValuePair<string, string>("helengine.nativeownership", typeof(NativeBorrowedReturnAttribute).Assembly.Location),
-                new KeyValuePair<string, string>("helengine.physics", typeof(RigidBody3DComponent).Assembly.Location)
-            };
+            List<KeyValuePair<string, string>> references = CreateRuntimeAssemblyReferences();
             if (moduleProject.ModuleKind == EditorCodeModuleKind.Editor) {
                 references.Add(new KeyValuePair<string, string>("helengine.editor", typeof(EditorGameSolutionService).Assembly.Location));
                 string editorAssemblyDirectoryPath = Path.GetDirectoryName(typeof(EditorGameSolutionService).Assembly.Location);
@@ -1081,6 +1074,37 @@ namespace helengine.editor {
             }
 
             return references;
+        }
+
+        /// <summary>
+        /// Resolves the absolute paths of the engine assemblies every runtime module project references. Callers that
+        /// fingerprint runtime script builds use them to detect an engine rebuild.
+        /// </summary>
+        /// <returns>Absolute engine assembly paths referenced by runtime modules, in reference order.</returns>
+        internal static IReadOnlyList<string> ResolveRuntimeEngineAssemblyPaths() {
+            List<KeyValuePair<string, string>> references = CreateRuntimeAssemblyReferences();
+            List<string> assemblyPaths = new List<string>(references.Count);
+            for (int index = 0; index < references.Count; index++) {
+                assemblyPaths.Add(references[index].Value);
+            }
+
+            return assemblyPaths;
+        }
+
+        /// <summary>
+        /// Creates the engine assembly references shared by every generated module project, as assembly name and
+        /// absolute path pairs.
+        /// </summary>
+        /// <returns>New list of the runtime engine references, which editor modules extend.</returns>
+        static List<KeyValuePair<string, string>> CreateRuntimeAssemblyReferences() {
+            return new List<KeyValuePair<string, string>> {
+                new KeyValuePair<string, string>("helengine.core", typeof(Core).Assembly.Location),
+                new KeyValuePair<string, string>("helengine.shader", typeof(ShaderRuntimeMaterial).Assembly.Location),
+                new KeyValuePair<string, string>("helengine.shader.compilation", typeof(ShaderCompileService).Assembly.Location),
+                new KeyValuePair<string, string>("helengine.input", typeof(InputSystem).Assembly.Location),
+                new KeyValuePair<string, string>("helengine.nativeownership", typeof(NativeBorrowedReturnAttribute).Assembly.Location),
+                new KeyValuePair<string, string>("helengine.physics", typeof(RigidBody3DComponent).Assembly.Location)
+            };
         }
 
         /// <summary>

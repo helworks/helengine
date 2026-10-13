@@ -5,7 +5,7 @@ namespace helengine.editor {
     /// per-platform output under <c>cache/generated_code/play/&lt;platformId&gt;</c> that never touches the editor's
     /// hot-reload output. The engine itself is never recompiled.
     /// </summary>
-    public sealed class EditorPlayScriptBuildService {
+    public sealed class EditorPlayScriptBuildService : IEditorPlayScriptCompiler {
         /// <summary>
         /// Folder beneath the generated-code workspace that holds per-platform Play compiler outputs.
         /// </summary>
@@ -62,6 +62,16 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves the runtime module root the player loads from: <c>&lt;play output root&gt;/generated_code/bin</c>,
+        /// laid out as one <c>&lt;ModuleId&gt;</c> folder per runtime module.
+        /// </summary>
+        /// <param name="platformId">Stable platform identifier selected for Play.</param>
+        /// <returns>Absolute runtime module root for the platform.</returns>
+        public string ResolveRuntimeModulesRootPath(string platformId) {
+            return Path.Combine(ResolvePlayOutputRootPath(platformId), EditorGeneratedCodePaths.GeneratedCodeFolderName, "bin");
+        }
+
+        /// <summary>
         /// Regenerates the Play solution and compiles the project's runtime modules with the platform's gameplay symbols.
         /// </summary>
         /// <param name="platformId">Stable platform identifier whose gameplay symbols are defined.</param>
@@ -88,7 +98,7 @@ namespace helengine.editor {
                 EditorScriptCompilationMode.RuntimeOnly,
                 isolationPathResolver.ResolveGeneratedCodeProjectOutputRootPath(routeId, EditorScriptCompilationMode.RuntimeOnly));
             string playOutputRootPath = solutionService.GeneratedExecutionOutputRootPath;
-            runtimeModulesRootPath = Path.Combine(playOutputRootPath, EditorGeneratedCodePaths.GeneratedCodeFolderName, "bin");
+            runtimeModulesRootPath = ResolveRuntimeModulesRootPath(platformId);
             if (!solutionService.HasCodeModules) {
                 return EditorBuildExecutionResult.Success("Play script build skipped: the project declares no code modules.");
             }
