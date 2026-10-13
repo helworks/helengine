@@ -118,6 +118,16 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Reports whether the supplied platform is currently offered, so callers can reject stale picks before
+        /// <see cref="Select"/>.
+        /// </summary>
+        /// <param name="platformId">Platform id to check; blank ids are never offered.</param>
+        /// <returns>True when the platform is among <see cref="Options"/>.</returns>
+        public bool Offers(string platformId) {
+            return FindOption(platformId) != null;
+        }
+
+        /// <summary>
         /// Selects one offered platform for Play and persists it as `lastPlayPlatform`.
         /// </summary>
         /// <param name="platformId">Id of an offered platform.</param>

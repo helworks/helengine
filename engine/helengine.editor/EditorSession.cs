@@ -3668,14 +3668,15 @@ namespace helengine.editor {
 
         /// <summary>
         /// Persists a platform picked in a viewport's Play platform selector and presents the new choice on every
-        /// viewport. The editor preview platform is left unchanged.
+        /// viewport. The editor preview platform is left unchanged. A stale pick of a platform that is no longer offered
+        /// is logged and the current selection is presented again.
         /// </summary>
         /// <param name="platformId">Picked Play platform id.</param>
         void HandlePlayPlatformSelected(string platformId) {
-            try {
+            if (PlayPlatformSelection.Offers(platformId)) {
                 PlayPlatformSelection.Select(platformId);
-            } catch (Exception ex) {
-                Logger.WriteError($"Selecting Play platform '{platformId}' failed: {ex.Message}");
+            } else {
+                Logger.WriteWarning($"Play platform '{platformId}' is no longer available for Play; keeping the current selection.");
             }
 
             RefreshPlayButtons();
@@ -3683,21 +3684,14 @@ namespace helengine.editor {
 
         /// <summary>
         /// Creates the Play platform selection over the current local settings and resolves its options and selection
-        /// from the builders of the installed, project-supported platforms, which the platform catalog loads once and
-        /// caches.
+        /// from every installed builder. The catalog loads each installed builder once and caches it, exactly as the
+        /// editor host already does for shader backends before the session exists, so a builder that cannot load fails
+        /// loudly here too instead of being silently dropped from the Play options.
         /// </summary>
         /// <returns>Resolved Play platform selection.</returns>
         EditorPlayPlatformSelectionService CreatePlayPlatformSelection() {
             EditorPlayPlatformSelectionService selection = new EditorPlayPlatformSelectionService(ProjectLocalSettingsService, Logger.WriteWarning);
-            List<EditorLoadedPlatformBuilder> loadedBuilders = new List<EditorLoadedPlatformBuilder>();
-            for (int index = 0; index < SupportedPlatforms.Count; index++) {
-                string platformId = SupportedPlatforms[index];
-                if (ResolvePlatformSelectionModel(platformId) != null) {
-                    loadedBuilders.Add(platformCatalogService.Resolve(platformId));
-                }
-            }
-
-            selection.Refresh(SupportedPlatforms, loadedBuilders);
+            selection.Refresh(SupportedPlatforms, platformCatalogService.LoadBuilders());
             return selection;
         }
 

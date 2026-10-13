@@ -181,6 +181,8 @@ public sealed class EditorPlayPlatformSelectionServiceTests : IDisposable {
         EditorPlayPlatformSelectionService service = CreateService(supported);
         service.Refresh(supported, CreatePlayableBuilders("ps2"));
 
+        Assert.False(service.Offers("windows"));
+        Assert.True(service.Offers("PS2"));
         Assert.Throws<InvalidOperationException>(() => service.Select("windows"));
         Assert.Equal("ps2", service.SelectedOption.PlatformId);
     }
