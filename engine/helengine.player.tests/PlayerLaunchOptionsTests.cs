@@ -1,3 +1,5 @@
+using helengine.baseplatform.Definitions;
+
 namespace helengine.player.tests {
     /// <summary>
     /// Verifies command-line parsing for the Play player.
@@ -9,7 +11,7 @@ namespace helengine.player.tests {
         static readonly string[] ValidArgs = {
             "--content-root", "C:/c", "--scene-id", "cube_test", "--scene-path", "cooked/scenes/cube_test.hasset",
             "--adapter-assembly", "C:/p/helengine.ps2.builder.dll", "--adapter-type", "helengine.ps2.builder.Ps2PlayerAdapter",
-            "--script-modules", "C:/s", "--target-fps", "60" };
+            "--script-modules", "C:/s", "--target-fps", "60", "--input-devices", "gamepad" };
 
         /// <summary>All required options are read.</summary>
         [Fact]
@@ -20,6 +22,7 @@ namespace helengine.player.tests {
             Assert.Equal("cooked/scenes/cube_test.hasset", options.SceneCookedRelativePath);
             Assert.Equal("helengine.ps2.builder.Ps2PlayerAdapter", options.AdapterTypeName);
             Assert.Equal(60d, options.TargetFrameRate);
+            Assert.Equal(PlayerInputDevices.Gamepad, options.InputDevices);
             Assert.False(options.WaitForDebugger);
         }
 
@@ -38,6 +41,7 @@ namespace helengine.player.tests {
         [InlineData("--adapter-type")]
         [InlineData("--script-modules")]
         [InlineData("--target-fps")]
+        [InlineData("--input-devices")]
         public void Parse_WhenRequiredMissing_Throws(string option) {
             List<string> args = ValidArgs.ToList();
             int index = args.IndexOf(option);
@@ -72,6 +76,27 @@ namespace helengine.player.tests {
             Assert.Contains("--target-fps", exception.Message);
         }
 
+        /// <summary>A comma list of several devices is read into the matching flags.</summary>
+        [Fact]
+        public void Parse_WhenInputDevicesList_ReadsAllDevices() {
+            PlayerLaunchOptions options = PlayerLaunchOptions.Parse(WithInputDevices("keyboard,mouse,pointer,gamepad"));
+            Assert.Equal(
+                PlayerInputDevices.Keyboard | PlayerInputDevices.Mouse | PlayerInputDevices.Pointer | PlayerInputDevices.Gamepad,
+                options.InputDevices);
+        }
+
+        /// <summary>An unknown, repeated or mis-cased device name throws and names the option.</summary>
+        /// <param name="value">Invalid <c>--input-devices</c> value.</param>
+        [Theory]
+        [InlineData("joystick")]
+        [InlineData("gamepad,gamepad")]
+        [InlineData("Gamepad")]
+        [InlineData("gamepad,")]
+        public void Parse_WhenInputDevicesInvalid_Throws(string value) {
+            ArgumentException exception = Assert.Throws<ArgumentException>(() => PlayerLaunchOptions.Parse(WithInputDevices(value)));
+            Assert.Contains("--input-devices", exception.Message);
+        }
+
         /// <summary>Unknown options are rejected instead of ignored.</summary>
         [Fact]
         public void Parse_WhenUnknownOption_Throws() {
@@ -86,6 +111,17 @@ namespace helengine.player.tests {
         static string[] WithTargetFps(string value) {
             string[] args = ValidArgs.ToArray();
             args[Array.IndexOf(args, "--target-fps") + 1] = value;
+            return args;
+        }
+
+        /// <summary>
+        /// Builds the baseline argument list with the <c>--input-devices</c> value replaced.
+        /// </summary>
+        /// <param name="value">Replacement input device list text.</param>
+        /// <returns>Arguments identical to <see cref="ValidArgs"/> except for the input device list.</returns>
+        static string[] WithInputDevices(string value) {
+            string[] args = ValidArgs.ToArray();
+            args[Array.IndexOf(args, "--input-devices") + 1] = value;
             return args;
         }
     }

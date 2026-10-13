@@ -3614,6 +3614,7 @@ namespace helengine.editor {
                     playPlatform.BuilderAssemblyPath,
                     playPlatform.PlayerCapability.AdapterTypeName,
                     playPlatform.PlayerCapability.TargetFrameRate,
+                    playPlatform.PlayerCapability.InputDevices,
                     waitForDebugger);
                 if (result.Succeeded) {
                     Logger.WriteLine(result.Message);

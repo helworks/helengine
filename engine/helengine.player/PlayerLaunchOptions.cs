@@ -1,9 +1,11 @@
+using helengine.baseplatform.Definitions;
+
 namespace helengine.player {
     /// <summary>
     /// Holds the validated command line the editor passes to the Play player:
     /// <c>--content-root &lt;dir&gt; --scene-id &lt;id&gt; --scene-path &lt;cooked/relative.hasset&gt;
     /// --adapter-assembly &lt;dll&gt; --adapter-type &lt;full type name&gt; --script-modules &lt;dir&gt;
-    /// --target-fps &lt;frames per second&gt; [--wait-for-debugger]</c>.
+    /// --target-fps &lt;frames per second&gt; --input-devices &lt;comma list&gt; [--wait-for-debugger]</c>.
     /// Every value option is required; unknown, repeated or value-less options are rejected so a
     /// mismatch between the editor and the player fails loudly instead of being ignored.
     /// </summary>
@@ -29,6 +31,12 @@ namespace helengine.player {
         /// <summary>Option naming the frames per second the player paces its frame loop to, written with the invariant culture.</summary>
         public const string TargetFpsOption = "--target-fps";
 
+        /// <summary>
+        /// Option naming the input devices the platform's hardware offers, as the lowercase comma list of
+        /// <see cref="PlayerInputDevicesText"/> (for example <c>gamepad</c>).
+        /// </summary>
+        public const string InputDevicesOption = "--input-devices";
+
         /// <summary>Switch that makes the player block at startup until a debugger attaches.</summary>
         public const string WaitForDebuggerOption = "--wait-for-debugger";
 
@@ -42,6 +50,7 @@ namespace helengine.player {
         /// <param name="adapterTypeName">Full type name of the player adapter.</param>
         /// <param name="scriptModulesRootPath">Root folder holding compiled script modules.</param>
         /// <param name="targetFrameRate">Positive frames per second the player paces its frame loop to.</param>
+        /// <param name="inputDevices">Non-empty set of input devices the player forwards to the game.</param>
         /// <param name="waitForDebugger">Whether the player waits for a debugger before starting.</param>
         PlayerLaunchOptions(
             string contentRootPath,
@@ -51,6 +60,7 @@ namespace helengine.player {
             string adapterTypeName,
             string scriptModulesRootPath,
             double targetFrameRate,
+            PlayerInputDevices inputDevices,
             bool waitForDebugger) {
             ContentRootPath = contentRootPath;
             SceneId = sceneId;
@@ -59,6 +69,7 @@ namespace helengine.player {
             AdapterTypeName = adapterTypeName;
             ScriptModulesRootPath = scriptModulesRootPath;
             TargetFrameRate = targetFrameRate;
+            InputDevices = inputDevices;
             WaitForDebugger = waitForDebugger;
         }
 
@@ -83,6 +94,12 @@ namespace helengine.player {
         /// <summary>Gets the frames per second the player paces its frame loop to (the selected platform's frame rate).</summary>
         public double TargetFrameRate { get; }
 
+        /// <summary>
+        /// Gets the input devices the selected platform's hardware offers; every other desktop device is reported idle to
+        /// the game.
+        /// </summary>
+        public PlayerInputDevices InputDevices { get; }
+
         /// <summary>Gets whether the player blocks at startup until a debugger is attached.</summary>
         public bool WaitForDebugger { get; }
 
@@ -104,6 +121,7 @@ namespace helengine.player {
             string adapterTypeName = null;
             string scriptModulesRootPath = null;
             string targetFrameRateText = null;
+            string inputDevicesText = null;
             bool waitForDebugger = false;
 
             for (int i = 0; i < args.Length; i++) {
@@ -130,6 +148,8 @@ namespace helengine.player {
                     scriptModulesRootPath = ReadValue(args, i, scriptModulesRootPath);
                 } else if (string.Equals(option, TargetFpsOption, StringComparison.Ordinal)) {
                     targetFrameRateText = ReadValue(args, i, targetFrameRateText);
+                } else if (string.Equals(option, InputDevicesOption, StringComparison.Ordinal)) {
+                    inputDevicesText = ReadValue(args, i, inputDevicesText);
                 } else {
                     throw new ArgumentException($"Unknown player option '{option}'.", nameof(args));
                 }
@@ -144,7 +164,9 @@ namespace helengine.player {
             RequireOption(AdapterTypeOption, adapterTypeName);
             RequireOption(ScriptModulesOption, scriptModulesRootPath);
             RequireOption(TargetFpsOption, targetFrameRateText);
+            RequireOption(InputDevicesOption, inputDevicesText);
             double targetFrameRate = ParseTargetFrameRate(targetFrameRateText);
+            PlayerInputDevices inputDevices = PlayerInputDevicesText.Parse(inputDevicesText, InputDevicesOption);
 
             return new PlayerLaunchOptions(
                 contentRootPath,
@@ -154,6 +176,7 @@ namespace helengine.player {
                 adapterTypeName,
                 scriptModulesRootPath,
                 targetFrameRate,
+                inputDevices,
                 waitForDebugger);
         }
 

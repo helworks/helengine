@@ -1,3 +1,4 @@
+using helengine.baseplatform.Definitions;
 using helengine.editor;
 
 namespace helengine.player.tests {
@@ -21,6 +22,9 @@ namespace helengine.player.tests {
         /// <summary>Target frame rate passed through to the player; fractional so the invariant formatting round-trip is exercised.</summary>
         const double TargetFrameRate = 59.94d;
 
+        /// <summary>Input devices passed through to the player; more than one so the comma list round-trip is exercised.</summary>
+        const PlayerInputDevices InputDevices = PlayerInputDevices.Mouse | PlayerInputDevices.Gamepad;
+
         /// <summary>
         /// The arguments the editor launches the player with parse back into exactly the values the editor prepared,
         /// with and without the debugger wait.
@@ -37,7 +41,7 @@ namespace helengine.player.tests {
                 launcher,
                 @"C:\editor\player\helengine.player.exe");
 
-            EditorBuildExecutionResult result = service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, waitForDebugger);
+            EditorBuildExecutionResult result = service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, waitForDebugger);
             PlayerLaunchOptions options = PlayerLaunchOptions.Parse(launcher.LastRequest.Arguments.ToArray());
 
             Assert.True(result.Succeeded, result.Message);
@@ -48,6 +52,7 @@ namespace helengine.player.tests {
             Assert.Equal(AdapterTypeName, options.AdapterTypeName);
             Assert.Equal(ContractPlayScriptBuilder.RuntimeModulesRootPath, options.ScriptModulesRootPath);
             Assert.Equal(TargetFrameRate, options.TargetFrameRate);
+            Assert.Equal(InputDevices, options.InputDevices);
             Assert.Equal(waitForDebugger, options.WaitForDebugger);
         }
     }
