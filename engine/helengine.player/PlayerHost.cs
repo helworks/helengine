@@ -19,7 +19,8 @@ namespace helengine.player {
         public const int DebuggerPollMilliseconds = 100;
 
         /// <summary>
-        /// Runs the player until its window is closed.
+        /// Runs the player until its window is closed. Engine log entries written while it runs are forwarded to the
+        /// player's console streams, which the editor reads into its console.
         /// </summary>
         /// <param name="options">Validated launch options from the editor.</param>
         public static void Run(PlayerLaunchOptions options) {
@@ -27,23 +28,24 @@ namespace helengine.player {
                 throw new ArgumentNullException(nameof(options));
             }
 
-            if (options.WaitForDebugger) {
-                Console.WriteLine("[player] waiting for debugger, pid " + Environment.ProcessId);
-                while (!Debugger.IsAttached) {
-                    Thread.Sleep(DebuggerPollMilliseconds);
-                }
-            }
-
-            IPlatformPlayerAdapter adapter = PlayerPlatformAdapterLoader.Load(options.AdapterAssemblyPath, options.AdapterTypeName);
-            adapter.Initialize(options.ContentRootPath);
-            PlayerScriptModuleLoader.LoadAll(options.ScriptModulesRootPath);
-
+            PlayerConsoleLogForwarder logForwarder = new PlayerConsoleLogForwarder(Console.Out, Console.Error);
             EditorBuiltInShaderAssetLibrary shaders = null;
             PlayerRenderManager3D renderer3D = null;
             PlayerWindow window = null;
             RuntimeSceneCatalog sceneCatalog = null;
             Core core = null;
             try {
+                if (options.WaitForDebugger) {
+                    Console.WriteLine("[player] waiting for debugger, pid " + Environment.ProcessId);
+                    while (!Debugger.IsAttached) {
+                        Thread.Sleep(DebuggerPollMilliseconds);
+                    }
+                }
+
+                IPlatformPlayerAdapter adapter = PlayerPlatformAdapterLoader.Load(options.AdapterAssemblyPath, options.AdapterTypeName);
+                adapter.Initialize(options.ContentRootPath);
+                PlayerScriptModuleLoader.LoadAll(options.ScriptModulesRootPath);
+
                 ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
                 shaderBackendRegistry.Register(new DirectX11ShaderBackend());
                 shaders = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
@@ -87,6 +89,7 @@ namespace helengine.player {
                 if (window != null) {
                     window.Dispose();
                 }
+                logForwarder.Dispose();
             }
         }
 
