@@ -461,6 +461,12 @@ namespace helengine.editor {
         readonly EditorPlaySessionService PlaySession;
 
         /// <summary>
+        /// Owns the viewport Play platform selector's options and persisted choice; Play launches on its selection, never
+        /// on the editor preview platform. Rebuilt whenever the project's supported platforms change.
+        /// </summary>
+        EditorPlayPlatformSelectionService PlayPlatformSelection;
+
+        /// <summary>
         /// Last script bootstrap or manual rebuild result; failed compilation blocks scene loading before type resolution.
         /// </summary>
         EditorBuildExecutionResult ProjectScriptLoadResult;
@@ -940,6 +946,7 @@ namespace helengine.editor {
             constructionLedger.Register(() => PlaySession.Stop(), EditorSessionCleanupPhase.Dispose);
             RegisterDetacher(constructionLedger, () => PlaySession.StateChanged -= HandlePlaySessionStateChanged);
             PlaySession.StateChanged += HandlePlaySessionStateChanged;
+            PlayPlatformSelection = CreatePlayPlatformSelection();
             saveFileDialog = new SaveFileDialog(core, interactionServices, uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, saveFileDialog.Dispose, saveFileDialog.DisposeAuthoringResources, saveFileDialog.Hide);
             openFileDialog = new OpenFileDialog(core, interactionServices, uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
@@ -2521,6 +2528,8 @@ namespace helengine.editor {
                 viewport.PlayRequested += HandlePlayRequested;
                 RegisterDetacher(ConstructionLedger, () => viewport.StopRequested -= HandleStopRequested);
                 viewport.StopRequested += HandleStopRequested;
+                RegisterDetacher(ConstructionLedger, () => viewport.PlayPlatformSelected -= HandlePlayPlatformSelected);
+                viewport.PlayPlatformSelected += HandlePlayPlatformSelected;
                 return;
             }
             if (string.Equals(instance.PanelTypeId, PropertiesPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
@@ -2554,6 +2563,7 @@ namespace helengine.editor {
                 viewport.ViewportContentFocusedChanged -= HandleViewportContentFocusedChanged;
                 viewport.PlayRequested -= HandlePlayRequested;
                 viewport.StopRequested -= HandleStopRequested;
+                viewport.PlayPlatformSelected -= HandlePlayPlatformSelected;
                 return;
             }
             if (string.Equals(instance.PanelTypeId, PropertiesPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
@@ -3458,6 +3468,10 @@ namespace helengine.editor {
             });
             ProjectSupportedPlatforms = selection.SupportedPlatformIds.ToArray();
             ProjectLocalSettingsService = new EditorProjectLocalSettingsService(projectPath, ProjectSupportedPlatforms);
+            // Lightweight fixtures that bypass the public constructor own no Play platform selector to rebuild.
+            if (PlayPlatformSelection != null) {
+                PlayPlatformSelection = CreatePlayPlatformSelection();
+            }
             SetActiveProjectPlatform(selection.ActivePlatformId);
             platformsDialog.Hide();
         }
@@ -3574,26 +3588,31 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Handles the viewport Play button: plays the open scene on the active platform through the desktop player,
-        /// using the platform definition the catalog already loaded, and logs the outcome. A Shift+click launches the
-        /// player waiting for a debugger to attach before it starts the scene.
+        /// Handles the viewport Play button: plays the open scene through the desktop player on the platform chosen in
+        /// the viewport Play platform selector (not the editor preview platform), using the builder assembly and player
+        /// adapter the catalog already loaded, and logs the outcome. A Shift+click launches the player waiting for a
+        /// debugger to attach before it starts the scene.
         /// </summary>
         /// <param name="waitForDebugger">True when Shift was held on the Play button.</param>
         void HandlePlayRequested(bool waitForDebugger) {
             try {
-                EditorLoadedPlatformBuilder platformBuilder = platformCatalogService.Resolve(ActiveProjectPlatform);
-                PlatformPlayerCapability capability = platformBuilder.Definition.PlayerCapability;
-                if (!PlaySession.IsPlayAvailable(capability)) {
-                    Logger.WriteError($"Platform '{ActiveProjectPlatform}' does not support Play.");
+                if (!PlayPlatformSelection.HasSelection) {
+                    Logger.WriteError("No installed project platform supports Play.");
+                    return;
+                }
+
+                EditorPlayPlatformOption playPlatform = PlayPlatformSelection.SelectedOption;
+                if (!PlaySession.IsPlayAvailable(playPlatform.PlayerCapability)) {
+                    Logger.WriteError($"Platform '{playPlatform.PlatformId}' does not support Play.");
                     return;
                 }
 
                 EditorBuildExecutionResult result = PlaySession.Play(
-                    ActiveProjectPlatform,
+                    playPlatform.PlatformId,
                     CurrentScenePath,
                     SaveCurrentSceneForPlay,
-                    platformBuilder.PlatformDescriptor.BuilderAssemblyPath,
-                    capability.AdapterTypeName,
+                    playPlatform.BuilderAssemblyPath,
+                    playPlatform.PlayerCapability.AdapterTypeName,
                     waitForDebugger);
                 if (result.Succeeded) {
                     Logger.WriteLine(result.Message);
@@ -3648,7 +3667,43 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Presents the current Play session phase and the active platform's Play availability on every viewport.
+        /// Persists a platform picked in a viewport's Play platform selector and presents the new choice on every
+        /// viewport. The editor preview platform is left unchanged.
+        /// </summary>
+        /// <param name="platformId">Picked Play platform id.</param>
+        void HandlePlayPlatformSelected(string platformId) {
+            try {
+                PlayPlatformSelection.Select(platformId);
+            } catch (Exception ex) {
+                Logger.WriteError($"Selecting Play platform '{platformId}' failed: {ex.Message}");
+            }
+
+            RefreshPlayButtons();
+        }
+
+        /// <summary>
+        /// Creates the Play platform selection over the current local settings and resolves its options and selection
+        /// from the builders of the installed, project-supported platforms, which the platform catalog loads once and
+        /// caches.
+        /// </summary>
+        /// <returns>Resolved Play platform selection.</returns>
+        EditorPlayPlatformSelectionService CreatePlayPlatformSelection() {
+            EditorPlayPlatformSelectionService selection = new EditorPlayPlatformSelectionService(ProjectLocalSettingsService, Logger.WriteWarning);
+            List<EditorLoadedPlatformBuilder> loadedBuilders = new List<EditorLoadedPlatformBuilder>();
+            for (int index = 0; index < SupportedPlatforms.Count; index++) {
+                string platformId = SupportedPlatforms[index];
+                if (ResolvePlatformSelectionModel(platformId) != null) {
+                    loadedBuilders.Add(platformCatalogService.Resolve(platformId));
+                }
+            }
+
+            selection.Refresh(SupportedPlatforms, loadedBuilders);
+            return selection;
+        }
+
+        /// <summary>
+        /// Presents the current Play session phase, the Play platform selector and the selected platform's Play
+        /// availability on every viewport.
         /// </summary>
         void RefreshPlayButtons() {
             // Lightweight fixtures that bypass the public constructor own no Play session and no Play buttons to update.
@@ -3663,9 +3718,10 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Presents the current Play session phase and the active platform's Play availability on one viewport.
+        /// Presents the current Play session phase, the Play platform selector and the selected platform's Play
+        /// availability on one viewport.
         /// </summary>
-        /// <param name="viewport">Viewport whose Play and Stop buttons are updated.</param>
+        /// <param name="viewport">Viewport whose Play controls are updated.</param>
         void ApplyPlayState(EditorViewport viewport) {
             if (viewport == null) {
                 throw new ArgumentNullException(nameof(viewport));
@@ -3675,21 +3731,19 @@ namespace helengine.editor {
                 return;
             }
 
-            viewport.SetPlayState(PlaySession.State, IsActivePlatformPlayable());
-        }
-
-        /// <summary>
-        /// Reports whether the active platform supports Play, reading the definition the platform catalog already
-        /// loaded so no builder is reloaded per query.
-        /// </summary>
-        /// <returns>True when the active platform's builder declares Play support.</returns>
-        bool IsActivePlatformPlayable() {
-            EditorPlatformBuildSelectionModel selectionModel = ResolvePlatformSelectionModel(ActiveProjectPlatform);
-            if (selectionModel == null || selectionModel.Definition == null) {
-                return false;
+            IReadOnlyList<EditorPlayPlatformOption> options = PlayPlatformSelection.Options;
+            string[] platformIds = new string[options.Count];
+            string[] displayNames = new string[options.Count];
+            for (int index = 0; index < options.Count; index++) {
+                platformIds[index] = options[index].PlatformId;
+                displayNames[index] = options[index].DisplayName;
             }
 
-            return PlaySession.IsPlayAvailable(selectionModel.Definition.PlayerCapability);
+            bool hasSelection = PlayPlatformSelection.HasSelection;
+            string selectedPlatformId = hasSelection ? PlayPlatformSelection.SelectedOption.PlatformId : string.Empty;
+            viewport.SetPlayPlatformOptions(platformIds, displayNames, selectedPlatformId);
+            bool playAvailable = hasSelection && PlaySession.IsPlayAvailable(PlayPlatformSelection.SelectedOption.PlayerCapability);
+            viewport.SetPlayState(PlaySession.State, playAvailable);
         }
 
         /// <summary>
