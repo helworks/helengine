@@ -182,6 +182,45 @@ public sealed class EditorPlaySessionServiceTests {
     }
 
     /// <summary>
+    /// Ensures a previous player that cannot be terminated fails the new Play with that error, ends the session
+    /// stopped instead of leaving it running without a player, and launches nothing.
+    /// </summary>
+    [Fact]
+    public void Play_WhenKillingPreviousPlayerThrows_EndsStoppedAndRethrows() {
+        FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
+        EditorPlaySessionService service = new EditorPlaySessionService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath);
+        service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, false);
+        InvalidOperationException killFailure = new InvalidOperationException("Player refused to die.");
+        launcher.StartedProcesses[0].KillFailure = killFailure;
+        int saveCount = 0;
+
+        InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(
+            () => service.Play(PlatformId, ScenePath, () => { saveCount++; return true; }, AdapterAssemblyPath, AdapterTypeName, false));
+
+        Assert.Same(killFailure, thrown);
+        Assert.Equal(EditorPlaySessionState.Stopped, service.State);
+        Assert.Equal(0, saveCount);
+        Assert.Single(launcher.StartedProcesses);
+    }
+
+    /// <summary>
+    /// Ensures Stop ends the session stopped even when terminating the player throws, and rethrows that failure.
+    /// </summary>
+    [Fact]
+    public void Stop_WhenKillThrows_EndsStoppedAndRethrows() {
+        FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
+        EditorPlaySessionService service = new EditorPlaySessionService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath);
+        service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, false);
+        InvalidOperationException killFailure = new InvalidOperationException("Player refused to die.");
+        launcher.StartedProcesses[0].KillFailure = killFailure;
+
+        InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(() => service.Stop());
+
+        Assert.Same(killFailure, thrown);
+        Assert.Equal(EditorPlaySessionState.Stopped, service.State);
+    }
+
+    /// <summary>
     /// Ensures late events from a replaced player, delivered through delegates captured before the service
     /// unsubscribed, neither stop the new session nor log anything.
     /// </summary>

@@ -16,6 +16,11 @@ namespace helengine.editor {
         static readonly TimeSpan ConsoleCloseTimeout = TimeSpan.FromSeconds(3);
 
         /// <summary>
+        /// Longest time <see cref="Kill"/> waits for the operating system to finish terminating the player.
+        /// </summary>
+        static readonly TimeSpan KillExitTimeout = TimeSpan.FromSeconds(5);
+
+        /// <summary>
         /// Underlying operating-system process; disposed once the exit has been delivered.
         /// </summary>
         readonly Process Process;
@@ -107,14 +112,23 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Terminates the player and every process it started. Does nothing when the player has already exited.
+        /// Terminates the player and every process it started, then waits, bounded by <see cref="KillExitTimeout"/>,
+        /// until the operating system reports the player gone. Termination is asynchronous; waiting here guarantees the
+        /// player's files, such as its loaded script modules, are released before the next Play rebuilds them. The wait
+        /// only observes the process handle and never the editor frame-thread queue, so it cannot deadlock with event
+        /// delivery. Does nothing when the player has already exited.
         /// </summary>
+        /// <exception cref="InvalidOperationException">Thrown when the player is still running after the bounded wait.</exception>
         public void Kill() {
             if (ExitDelivered || Process.HasExited) {
                 return;
             }
 
             Process.Kill(entireProcessTree: true);
+            if (!Process.WaitForExit(KillExitTimeout)) {
+                throw new InvalidOperationException(
+                    $"The player (pid {Process.Id}) was still running {KillExitTimeout.TotalSeconds:0} seconds after it was killed.");
+            }
         }
 
         /// <summary>

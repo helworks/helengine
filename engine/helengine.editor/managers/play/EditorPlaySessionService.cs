@@ -125,7 +125,8 @@ namespace helengine.editor {
 
         /// <summary>
         /// Runs the full Play sequence: kill any running player, save the scene, cook, build scripts and launch the player.
-        /// Every failure returns the session to <see cref="EditorPlaySessionState.Stopped"/>.
+        /// Every failure, including a failure to terminate the previous player, returns the session to
+        /// <see cref="EditorPlaySessionState.Stopped"/>.
         /// </summary>
         /// <param name="platformId">Identifier of the platform whose content and scripts are prepared.</param>
         /// <param name="currentScenePath">Saved path of the scene open in the editor; blank when it was never saved.</param>
@@ -157,9 +158,9 @@ namespace helengine.editor {
                 return EditorBuildExecutionResult.Failure("Save the scene before pressing Play.");
             }
 
-            KillCurrentProcess();
             SetState(EditorPlaySessionState.Preparing);
             try {
+                KillCurrentProcess();
                 return PrepareAndLaunch(platformId, saveScene, adapterAssemblyPath, adapterTypeName, waitForDebugger);
             } catch {
                 SetState(EditorPlaySessionState.Stopped);
@@ -169,10 +170,14 @@ namespace helengine.editor {
 
         /// <summary>
         /// Terminates the running player, if any, and returns the session to <see cref="EditorPlaySessionState.Stopped"/>.
+        /// The session ends stopped even when terminating the player fails; that failure is still rethrown.
         /// </summary>
         public void Stop() {
-            KillCurrentProcess();
-            SetState(EditorPlaySessionState.Stopped);
+            try {
+                KillCurrentProcess();
+            } finally {
+                SetState(EditorPlaySessionState.Stopped);
+            }
         }
 
         /// <summary>

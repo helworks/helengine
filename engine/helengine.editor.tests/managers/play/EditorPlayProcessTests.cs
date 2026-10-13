@@ -68,16 +68,18 @@ public sealed class EditorPlayProcessTests {
     }
 
     /// <summary>
-    /// Ensures Kill terminates a running process and is a no-op once the process is gone.
+    /// Ensures Kill terminates a running process, returns only once the operating system reports it gone, and is a
+    /// no-op once the process is gone.
     /// </summary>
     [Fact]
     public void Kill_TerminatesRunningProcessAndIgnoresRepeatCalls() {
         EditorMainThreadActionQueue queue = new EditorMainThreadActionQueue();
         EditorPlayProcessLauncher launcher = new EditorPlayProcessLauncher(queue);
         IEditorPlayProcess process = launcher.Start(CreateCommandRequest("ping -n 30 127.0.0.1 >nul"));
+        using Process observer = Process.GetProcessById(process.ProcessId);
 
         process.Kill();
-        WaitForRealExit(process.ProcessId);
+        Assert.True(observer.WaitForExit(0));
         process.Kill();
 
         Stopwatch stopwatch = Stopwatch.StartNew();

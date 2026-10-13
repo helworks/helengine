@@ -104,10 +104,21 @@ public sealed class FakePlayProcess : IEditorPlayProcess {
     public int KillCount { get; private set; }
 
     /// <summary>
-    /// Records the kill request and marks the simulated process as exited without raising <see cref="Exited"/>.
+    /// Gets or sets the exception <see cref="Kill"/> throws instead of terminating, simulating a player the operating
+    /// system refuses to terminate; null terminates normally.
+    /// </summary>
+    public Exception KillFailure { get; set; }
+
+    /// <summary>
+    /// Records the kill request and marks the simulated process as exited without raising <see cref="Exited"/>, or
+    /// throws <see cref="KillFailure"/> when one is set.
     /// </summary>
     public void Kill() {
         KillCount++;
+        if (KillFailure != null) {
+            throw KillFailure;
+        }
+
         HasExited = true;
     }
 

@@ -35,7 +35,7 @@ namespace helengine.editor {
         int ExitCode { get; }
 
         /// <summary>
-        /// Terminates the player process.
+        /// Terminates the player process and returns only once it is gone, so files it held are released.
         /// </summary>
         void Kill();
     }
