@@ -104,6 +104,26 @@ namespace helengine.video.tests {
         }
 
         /// <summary>
+        /// Cues end where a clause ends instead of every N words, so a punchline after a comma stands alone and no cue
+        /// is left with a one- or two-word tail.
+        /// </summary>
+        [Theory]
+        [InlineData("Em 2026 eu esperava remake de filme dos anos 30, não de movimento histórico.",
+            "Em 2026 eu esperava remake de filme dos anos 30,|não de movimento histórico.")]
+        [InlineData("Porque quando começam a cortar direitos, os meus são os primeiros a ir embora.",
+            "Porque quando começam a cortar direitos,|os meus são os primeiros a ir embora.")]
+        [InlineData("E nem é só sobre direitos no papel. É o que acontece quando o ódio começa a parecer autorizado.",
+            "E nem é só sobre direitos no papel.|É o que acontece quando|o ódio começa a parecer autorizado.")]
+        public void Compile_CaptionCuesBreakAtClauses(string speech, string expected) {
+            VideoEdit edit = VideoEditSamples.TwoScenes();
+            edit.Scenes[0].Speech = speech;
+            edit.Tracks.Captions.WordsPerCue = 10;
+
+            List<VisualLayer> cues = Compile(edit).Composition.Layers.Where(layer => layer.Id.StartsWith("caption-hook-", StringComparison.Ordinal)).ToList();
+            Assert.Equal(expected.Split('|'), cues.Select(layer => layer.Text.Cues[0].Text));
+        }
+
+        /// <summary>
         /// The music track starts half a second into the second scene and runs to the end of the video.
         /// </summary>
         [Fact]

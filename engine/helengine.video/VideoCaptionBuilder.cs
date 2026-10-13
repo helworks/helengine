@@ -69,7 +69,7 @@ namespace helengine.video {
                     Start = span.Start + MediaTime.FromSeconds(word.StartSec - take.InSec),
                     End = span.Start + MediaTime.FromSeconds(Math.Min(word.EndSec, take.OutSec) - take.InSec)
                 }).ToList();
-            return words.Count == 0 ? null : words.Chunk(captions.WordsPerCue).Select(chunk => chunk.ToList()).ToList();
+            return words.Count == 0 ? null : BalancedCues(words, word => word.Text, captions.WordsPerCue);
         }
 
         /// <summary>
@@ -80,7 +80,7 @@ namespace helengine.video {
         /// <returns>Estimated cues, each holding one pseudo-word with the cue text and start; never used as word timings.</returns>
         static List<List<CompositionTextWord>> EstimatedCues(VideoSceneSpan span, VideoCaptionTrack captions) {
             string[] words = span.Scene.Speech.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
-            List<string> texts = words.Chunk(captions.WordsPerCue).Select(chunk => string.Join(" ", chunk)).ToList();
+            List<string> texts = BalancedCues(words, word => word, captions.WordsPerCue).Select(chunk => string.Join(" ", chunk)).ToList();
             double total = texts.Sum(text => text.Length), cursor = 0, duration = span.Duration.ToSeconds();
             List<List<CompositionTextWord>> cues = new List<List<CompositionTextWord>>();
             foreach (string text in texts) {
@@ -89,6 +89,62 @@ namespace helengine.video {
                 cursor += duration * text.Length / total;
             }
             return cues;
+        }
+
+        /// <summary>
+        /// Splits the words into cues of at most <paramref name="max"/> words, preferring to end cues where a sentence or
+        /// clause ends and avoiding one- or two-word leftovers, so a punchline after a comma gets its own cue.
+        /// </summary>
+        /// <typeparam name="T">Word type.</typeparam>
+        /// <param name="words">Words in spoken order.</param>
+        /// <param name="text">Text of a word, punctuation included.</param>
+        /// <param name="max">Maximum words per cue.</param>
+        /// <returns>Cues covering every word once, in order.</returns>
+        internal static List<List<T>> BalancedCues<T>(IReadOnlyList<T> words, Func<T, string> text, int max) {
+            int count = words.Count;
+            max = Math.Max(1, max);
+            double[] best = new double[count + 1];
+            int[] from = new int[count + 1];
+            for (int end = 1; end <= count; end++) {
+                best[end] = double.MaxValue;
+                for (int start = Math.Max(0, end - max); start < end; start++) {
+                    int length = end - start;
+                    // Fewer cues first, then clean breaks, then no tiny cues, then even lengths.
+                    double cost = best[start] + 10 + BreakCost(text(words[end - 1]), end == count) + 0.01 * length * length;
+                    if (length < 3 && !(start == 0 && end == count)) {
+                        cost += (3 - length) * 6;
+                    }
+                    // A cue that finishes one sentence and starts the next reads badly, worst with a dangling word or two.
+                    for (int index = start; index < end - 1; index++) {
+                        if (BreakCost(text(words[index]), false) == 0) {
+                            cost += end - 1 - index <= 2 ? 12 : 4;
+                        }
+                    }
+                    if (cost < best[end]) {
+                        best[end] = cost;
+                        from[end] = start;
+                    }
+                }
+            }
+            List<List<T>> cues = new List<List<T>>();
+            for (int end = count; end > 0; end = from[end]) {
+                cues.Insert(0, words.Skip(from[end]).Take(end - from[end]).ToList());
+            }
+            return cues;
+        }
+
+        /// <summary>
+        /// Cost of ending a cue after a word: free after a sentence end, cheap after a clause mark, expensive mid-phrase.
+        /// </summary>
+        /// <param name="word">Word text.</param>
+        /// <param name="last">Whether the word ends the scene.</param>
+        /// <returns>Break cost.</returns>
+        static double BreakCost(string word, bool last) {
+            string trimmed = word.TrimEnd('"', '\'', '”', '’', ')', ']');
+            if (last || trimmed.EndsWith('.') || trimmed.EndsWith('?') || trimmed.EndsWith('!') || trimmed.EndsWith('…')) {
+                return 0;
+            }
+            return trimmed.EndsWith(',') || trimmed.EndsWith(';') || trimmed.EndsWith(':') || trimmed.EndsWith('—') ? 2 : 8;
         }
     }
 }
