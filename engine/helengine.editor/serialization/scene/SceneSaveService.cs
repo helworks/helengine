@@ -194,7 +194,15 @@ namespace helengine.editor {
                 : 0u;
             List<SceneAssetReference> assetReferences = new List<SceneAssetReference>();
             HashSet<string> assetReferenceKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            SceneEntityAsset entityAsset = SerializeEntity(entity, assetReferences, assetReferenceKeys, null);
+            SceneEntityAsset entityAsset;
+            SceneViewportAuthoredLayoutScope authoredLayout = SceneViewportAuthoredLayoutScope.ForEntity(entity);
+            try {
+                authoredLayout.Restore();
+                entityAsset = SerializeEntity(entity, assetReferences, assetReferenceKeys, null);
+            } finally {
+                authoredLayout.Reapply();
+            }
+
             return new SerializedEditorEntityState {
                 EntityId = entityId,
                 ParentEntityId = parentEntityId,
@@ -230,6 +238,7 @@ namespace helengine.editor {
             List<Entity> entities = roots == null
                 ? ObjectManager.Entities
                 : new List<Entity>(roots);
+            List<EditorEntity> serializedRoots = new List<EditorEntity>();
             for (int i = 0; i < entities.Count; i++) {
                 if (entities[i] is not EditorEntity editorEntity) {
                     continue;
@@ -244,7 +253,17 @@ namespace helengine.editor {
                     continue;
                 }
 
-                rootEntities.Add(SerializeEntity(editorEntity, assetReferences, assetReferenceKeys, sceneId));
+                serializedRoots.Add(editorEntity);
+            }
+
+            SceneViewportAuthoredLayoutScope authoredLayout = SceneViewportAuthoredLayoutScope.ForRoots(serializedRoots);
+            try {
+                authoredLayout.Restore();
+                for (int i = 0; i < serializedRoots.Count; i++) {
+                    rootEntities.Add(SerializeEntity(serializedRoots[i], assetReferences, assetReferenceKeys, sceneId));
+                }
+            } finally {
+                authoredLayout.Reapply();
             }
 
             return new SceneAsset {
