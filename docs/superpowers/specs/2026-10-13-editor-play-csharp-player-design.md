@@ -1,7 +1,7 @@
 # Editor Play button with a separate C# player — design
 
 Date: 2026-10-13
-Status: approved in brainstorming, pending spec review
+Status: approved in brainstorming (revision 2 — desktop C# core, content-processor decoding)
 
 ## Goal
 
@@ -11,117 +11,103 @@ Add a **Play** button to the editor that runs the game in a **separate C# proces
 - resetting is trivial: Play kills the previous player process and starts a fresh one; editor state is never touched by gameplay;
 - the player loads **content cooked for the selected console platform** — the same cooked assets the platform build ships — decoded on PC and rendered with DX11.
 
-The first platform is **PS2**. Other platforms migrate one at a time by shipping their own decoder; the engine-side player stays platform-agnostic.
+The first platform is **PS2**. Other platforms migrate one at a time by shipping their own adapter; the engine-side player stays platform-agnostic.
 
 ## Decisions taken
 
 | Question | Decision |
 |---|---|
-| Player process | New engine-owned WinExe `helengine.player` (net9, DX11 from `helengine.directx11`), separate from the editor. |
+| Player process | New engine-owned WinExe `helengine.player` (net9.0-windows, DX11 from `helengine.directx11`), built once alongside the editor. |
+| Engine build | The **desktop** `helengine.core` the editor uses. The engine is **never recompiled per platform**; the player uses the core's raw (non-`*_COOKED_PLATFORM_OWNED`) resolution paths. |
 | Content source | Cooked files on disk, produced by the **same cook as the platform build**. No IPC/streaming of content. |
-| Which cook | The **platform selected in the editor** (option "2"), starting with PS2. |
-| Cook cost | New **assets-only** build mode that stops after staging (no ELF, no ISO). Already-cooked, unchanged assets are **not re-cooked**. |
-| Platform knowledge | Lives in the platform repo. The decoder ships **inside the platform builder plugin** (`helengine.ps2.builder`). |
-| Decoder output | Neutral CPU data (RGBA32 pixels, mesh arrays, material description). The player owns all GPU/DX11 work. |
+| Which cook | The **platform selected in the editor**, starting with PS2. |
+| Cook cost | New **assets-only** build mode that stops after staging (no native build, no ISO). Unchanged assets are **not re-cooked**. |
+| Platform-only C# | Game script modules are compiled for Play with the platform's **gameplay symbols** (`EditorPlatformPreprocessorSymbolService.ResolveGameplaySymbols(platformId, environmentId)`) into a per-platform output folder, so `#if`-gated platform code is included. Only script DLLs are rebuilt, never the engine. |
+| Platform knowledge | Lives in the platform repo. The **player adapter** ships **inside the platform builder plugin** (`helengine.ps2.builder`). |
+| How cooked assets are decoded | The adapter supplies **content processors** that turn platform-cooked texture/model files into the engine's generic `TextureAsset` / `ModelAsset`, plus a material decoder and a content alias map. The DX11 raw paths (`BuildTextureFromRaw`, `BuildModelFromRaw`) do the GPU work unchanged. |
+| Materials | First cut: every platform material maps to **one standard DX11 built-in material** (base color + diffuse texture, alpha-test/transparent, double-sided). Platform-specific DX11 materials (e.g. a PS2 VU-style material) come later. |
 | Unsaved scene | Play saves the open scene first; save failure aborts Play. |
-| Script assemblies | Loaded from disk (`<project>/cache/generated_code/bin/<moduleId>`), runtime modules only, so the debugger finds `.pdb` files. |
 
 ## Architecture
 
 ```
-Editor (helengine.editor)                         helengine.player.exe (separate process)
-┌───────────────────────────────┐                 ┌──────────────────────────────────────┐
-│ EditorViewport toolbar        │                 │ PlayerLaunchOptions (args)           │
-│   Play / Stop buttons         │                 │ PlayerScriptModuleLoader (ALC)       │
-│        │                      │                 │ platform decoder (from builder dll)  │
-│ EditorPlaySessionService      │  Process.Start  │ PlayerRenderManager2D/3D             │
-│   1. save scene               │ ──────────────► │   Build*FromCooked → decoder → DX11  │
-│   2. assets-only cook         │  stdout/stderr  │ Core + HostFileSystemContentStream-  │
-│   3. resolve decoder + launch │ ◄────────────── │   Source(<staging>/cooked)           │
-│   4. track / kill process     │                 │ loads startup scene                  │
-└───────────────────────────────┘                 └──────────────────────────────────────┘
+Editor (helengine.editor)                         helengine.player.exe (separate process, desktop core)
+┌───────────────────────────────┐                 ┌───────────────────────────────────────────┐
+│ EditorViewport toolbar        │                 │ PlayerLaunchOptions (args)                │
+│   Play / Stop buttons         │                 │ PlayerScriptModuleLoader (ALC + resolver) │
+│        │                      │                 │ platform adapter (from builder dll)       │
+│ EditorPlaySessionService      │  Process.Start  │   → content processors (tex/model)        │
+│   1. save scene               │ ──────────────► │   → material decoder, alias map           │
+│   2. assets-only cook         │  stdout/stderr  │ PlayerRenderManager3D (DX11)              │
+│   3. build scripts w/ platform│ ◄────────────── │   BuildMaterialFromRawAsset → standard    │
+│      gameplay symbols         │                 │ Core + AliasedContentStreamSource(        │
+│   4. launch / track / kill    │                 │   HostFileSystemContentStreamSource)      │
+└───────────────────────────────┘                 └───────────────────────────────────────────┘
           │ assets-only build mode                          ▲ reads
           ▼                                                 │
- Platform builder plugin (helengine-ps2/builder) ──► <working root>/ps2-staging/cooked/...
-   Ps2PlatformAssetBuilder (stops after staging)
-   Ps2PlayerAssetDecoder : IPlatformPlayerAssetDecoder
+ Platform builder plugin (helengine-ps2/builder) ──► <working root>/ps2-staging/...
+   Ps2PlatformAssetBuilder (stops after staging, skips unchanged)
+   Ps2PlayerAdapter : IPlatformPlayerAdapter
 ```
 
 ## Components
 
 ### Engine (`helengine`)
 
-**`IPlatformPlayerAssetDecoder`** — `helengine.baseplatform`. Contract a platform implements to turn its cooked assets into neutral CPU data. It never touches GPU APIs.
+**`IAssetContentManagerConfigurator`** + **`CoreInitializationOptions.AssetContentManagerConfigurator`** — `helengine.core`. Optional hook invoked by `Core.Initialize` immediately **before** `RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager`, so a host can register its own processors for the shared processor ids (`RegisterProcessorIfMissing` then keeps them). Null means no change in behavior.
 
-- `DecodeTexture(string cookedAssetPath, IContentStreamSource source)` → RGBA32 pixels + width + height.
-- `DecodeModel(string cookedAssetPath, IContentStreamSource source)` → positions, normals, texcoords, indices.
-- `DecodeMaterial(string cookedAssetPath, IContentStreamSource source)` → base color, texture path, render class (opaque / alpha-test / transparent), double-sided, lighting mode.
+**`IPlatformPlayerAdapter`** — `helengine.baseplatform`. Contract a platform builder plugin implements for Play:
 
-The exact result types are named classes (no tuples), defined next to the interface.
+- `void RegisterContentProcessors(ContentManager contentManager)` — registers processors for `RuntimeContentProcessorIds.TextureAsset` and `RuntimeContentProcessorIds.ModelAsset` that read the platform's cooked files and return generic `TextureAsset` (RGBA32) / `ModelAsset`.
+- `PlayerMaterialDescription DecodeMaterial(Stream cookedMaterial)` — neutral material description (base color RGBA, logical diffuse texture path, render class, double-sided).
+- `IReadOnlyDictionary<string, string> BuildContentAliases(string contentRootPath)` — logical path → staged path aliases (e.g. a model referenced as `.hasset` but staged as `.phm`).
 
-**`PlatformPlayerCapability`** — `helengine.baseplatform`, declared on `PlatformDefinition`. Names the decoder type inside the platform builder assembly. Separate from `PlatformHostDebugCapability`, which keeps describing the native `ps2-host-debugger` runner.
+**`PlatformPlayerCapability`** — `helengine.baseplatform`, declared on `PlatformDefinition`. Names the adapter type inside the builder assembly. Separate from `PlatformHostDebugCapability`.
 
-**Assets-only build mode** — new `EditorBuildExecutionMode` value (working name `CookAssetsOnly`) passed to the builder. The builder runs cook/staging and returns before native code build, packaging and ISO. The result reports the staging cooked root (logical asset names, not the 8.3 `disc/` tree).
+**Assets-only build mode** — new `EditorBuildExecutionMode.CookAssetsOnly`, carried to the builder on `PlatformBuildRequest`. The builder runs cook/staging and returns before native build, packaging and ISO.
 
-**`helengine.player`** — new WinExe project.
+**Play script build** — compiles the project's runtime script modules with `ResolveGameplaySymbols(platformId, environmentId)` into `<project>/cache/generated_code/play/<platformId>/bin/<moduleId>/`, separate from the editor's hot-reload output.
 
-- `PlayerLaunchOptions` — parses `--content-root <dir>`, `--scene <logical path>`, `--platform-decoder <assembly path>` + `--platform-decoder-type <type name>`, `--script-modules <dir>`, `--wait-for-debugger`. Missing required options throw; no defaults are invented.
-- `PlayerScriptModuleLoader` — loads the runtime script module assemblies into an `AssemblyLoadContext` and provides the `ScriptTypeResolver`.
-- `PlayerRenderManager2D` / `PlayerRenderManager3D` — derive from the DX11 render managers and override `BuildTextureFromCooked`, `BuildModelFromCooked`, `BuildMaterialFromCooked` to call the decoder and build DX11 resources from its output.
-- `PlayerHost` — creates the window, boots `Core` with `HostFileSystemContentStreamSource(contentRoot)`, the player render managers and an explicitly silent audio backend, then loads the requested scene.
-- `--wait-for-debugger` blocks startup until a debugger is attached.
+**`helengine.player`** — new WinExe project in `helengine.ui/helengine.sln`.
 
-**`EditorPlaySessionService`** — `helengine.editor`, logic only (MVC).
+- `PlayerLaunchOptions` — `--content-root`, `--scene`, `--platform-adapter-assembly`, `--platform-adapter-type`, `--script-modules`, `--wait-for-debugger`. Missing required options throw.
+- `PlayerScriptModuleLoader` — loads runtime module assemblies and registers them on a `ScriptTypeResolver`.
+- `PlayerRenderManager3D : DirectX11Renderer3D` — overrides `BuildMaterialFromRawAsset` to decode the platform material through the adapter and build the standard built-in material.
+- `PlayerHost` — window, `Core` with `AliasedContentStreamSource(HostFileSystemContentStreamSource(contentRoot), adapterAliases)`, the adapter's processors through the configurator, no audio backend (Core tolerates a null `AudioManager`), loads the requested scene.
 
-1. Resolves the selected platform; Play is unavailable when it has no `PlatformPlayerCapability`.
-2. Saves the open scene.
-3. Runs the assets-only cook for that platform.
-4. Resolves the decoder assembly path from the already-loaded platform builder plugin.
-5. Kills a still-running previous player, launches the new one, redirects stdout/stderr into the editor console.
-6. Stop kills the process; editor shutdown kills the process; an exited player returns the session to "stopped" and reports the exit code.
+**`EditorPlaySessionService`** — `helengine.editor`, logic only (MVC): availability by `PlatformPlayerCapability`, save → assets-only cook → Play script build → resolve adapter from the loaded builder plugin → kill previous / launch / redirect output → Stop / editor shutdown kill → exit reporting. Launcher, cook and script build sit behind small interfaces for tests.
 
-Process launching and the cook call sit behind small interfaces so the service is testable with fakes.
-
-**Viewport toolbar** — Play and Stop buttons on `EditorViewport` (icons in `helengine.editor.app/content/icons/toolbar/`). The buttons only wire input to `EditorPlaySessionService` and reflect its state.
+**Viewport toolbar** — Play and Stop buttons on `EditorViewport` wired to `EditorPlaySessionService`.
 
 ### PS2 (`helengine-ps2`)
 
-**`Ps2PlayerAssetDecoder : IPlatformPlayerAssetDecoder`** — in `helengine.ps2.builder`.
+**`Ps2PlayerAdapter : IPlatformPlayerAdapter`** in `helengine.ps2.builder`:
 
-- Texture: deserialize `Ps2TextureAsset` (`.ps2tex`) with `Ps2AssetSerializer`, decode with `Ps2NativeTextureCodec.Decode` (→ `Ps2GsTexturePixelCodec.DecodeToRgba32`). Supports the formats the PS2 cook emits: CT32, CT24, CT16(S), T8, T4 with CLUT16/CLUT16S palettes (and the T8H/T4HL/T4HH variants the codec handles). Depth formats throw.
-- Model: deserialize `Ps2ModelAsset` (`.phm`) and return its indexed arrays (positions, normals, texcoords, 16-bit indices). The VU `PackedMeshBytes` blob is ignored.
-- Material: deserialize `Ps2MaterialAsset` and map to the neutral description.
+- Texture processor: `Ps2AssetSerializer.Deserialize` → `Ps2TextureAsset` → `Ps2NativeTextureCodec.Decode` → `TextureAsset { Colors, Width, Height, ColorFormat = Rgba32 }` (GS alpha 0..128 rescaled to 0..255 if the codec does not already).
+- Model processor: `Ps2ModelAsset` indexed arrays → `ModelAsset` (Positions, Normals, TexCoords, Indices16, bounds, one submesh). `PackedMeshBytes` ignored.
+- Material: `Ps2MaterialAsset` → `PlayerMaterialDescription`; the 8.3 disc texture path written by `Ps2MaterialCooker` is mapped back to the logical staged path.
+- Aliases: `.hasset` model references → staged `.phm`.
 
-**`Ps2PlatformDefinitionFactory`** declares `PlatformPlayerCapability` pointing at `Ps2PlayerAssetDecoder`.
-
-**`Ps2PlatformAssetBuilder.BuildAsync`** honors the assets-only mode by returning after texture/model/material staging (before workspace, native build and ISO steps).
-
-**Incremental cook** — a second assets-only cook with no source changes must not re-cook or re-publish anything. If the existing `Ps2PlatformCookWorkItemExecutor` Prepare/Publish flow does not already skip unchanged work, add a content-hash skip there (verify first during implementation).
+**`Ps2PlatformDefinitionFactory`** declares `PlatformPlayerCapability`. **`Ps2PlatformAssetBuilder.BuildAsync`** honors assets-only mode and skips re-cooking unchanged items (the PS2 cook currently re-cooks everything; a fingerprint store under the staging root is added).
 
 ## Error handling
 
-No silent fallbacks (no placeholder textures, no swallowed exceptions).
+No silent fallbacks.
 
-- Platform without `PlatformPlayerCapability`: Play button disabled with a tooltip naming the platform. Normal state, no exception.
-- Scene save failure: Play aborts and reports it.
-- Assets-only cook failure: reported in the console like any build failure; the player is not launched.
-- Decoder meets an unsupported format: throws naming the asset path and format; the player exits non-zero; the editor shows exit code and stderr.
-- Audio: explicitly silent backend in the first cut (PS2 audio cook format is still unknown).
+- Platform without `PlatformPlayerCapability`: Play disabled with a tooltip naming the platform.
+- Scene save, cook or script build failure: reported in the console; player not launched.
+- Unsupported cooked format: adapter throws naming asset path and format; player exits non-zero; editor shows exit code and stderr.
+- Audio: none in the first cut.
 
 ## Testing
 
-Host-runnable logic only; no assertions on source-file text.
+Host-runnable logic only; no assertions on source text.
 
-- `helengine-ps2/builder.tests`: cook a T4, T8 and CT32 texture, a model and a material with the real cookers, decode through `Ps2PlayerAssetDecoder`, compare against the source data (RGBA pixels after quantization, mesh arrays, material fields). Unsupported-format case throws.
-- `helengine-ps2/builder.tests`: assets-only mode returns before the native step; a second unchanged cook publishes nothing.
-- Engine: `PlayerLaunchOptions` parsing (including missing-option failures).
-- Editor: `EditorPlaySessionService` with fake launcher and cook — Play launches; Play while running kills then relaunches; Stop kills; non-zero exit is reported; platform without capability is unavailable; save/cook failures do not launch.
-- Manual: Play on the demodisc `cube_test` scene with PS2 selected. Ask Helena before launching the editor or the player.
+- PS2 builder tests: cook → adapter decode round-trips for T4, T8, CT32 textures, a model, a material; unsupported format throws; assets-only mode stops before native; unchanged second cook re-cooks nothing.
+- Engine: configurator runs before shared registration and its processors win; `PlayerLaunchOptions` parsing.
+- Editor: `EditorPlaySessionService` with fakes (launch, relaunch kills previous, Stop, non-zero exit, unavailable platform, failures don't launch); Play script build passes the platform gameplay symbols and per-platform output path.
+- Manual: Play on demodisc `cube_test` with PS2 selected — ask Helena before launching the editor or the player.
 
 ## Out of scope (first cut)
 
-- PS2 audio decoding.
-- Material fidelity beyond the neutral description (GS blending modes, VU lighting).
-- Embedding the player window inside the editor viewport.
-- Editor↔player IPC (live scene reload, remote commands).
-- Platforms other than PS2.
+- Platform-specific DX11 materials (PS2 VU-style), audio, embedding the player window in the viewport, editor↔player IPC, platforms other than PS2.
