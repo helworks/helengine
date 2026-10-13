@@ -51,6 +51,8 @@ namespace helengine.player {
                 shaders = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
 
                 renderer3D = new PlayerRenderManager3D(adapter, shaders);
+                // The player has no frame limiter of its own; vsync paces it to the display refresh rate.
+                renderer3D.PresentSyncInterval = 1;
                 window = new PlayerWindow(options.SceneId);
                 window.Show();
                 Application.DoEvents();

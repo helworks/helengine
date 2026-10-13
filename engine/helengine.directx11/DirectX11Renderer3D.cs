@@ -25,6 +25,11 @@ namespace helengine.directx11 {
         /// </summary>
         const int SwapChainBufferCount = 2;
         /// <summary>
+        /// Vertical-blank interval passed to every swap-chain present: 0 presents immediately (the editor paces its own loop),
+        /// 1 waits for one vertical blank (vsync), 2-4 wait for that many blanks.
+        /// </summary>
+        int PresentSyncIntervalValue;
+        /// <summary>
         /// Default forward axis for cameras before rotation.
         /// </summary>
         static readonly float3 DefaultForward = new float3(0f, 0f, -1f);
@@ -283,6 +288,21 @@ namespace helengine.directx11 {
         /// Gets the 2D renderer used for overlay/UI rendering.
         /// </summary>
         public RenderManager2D Render2D => Renderer2D;
+
+        /// <summary>
+        /// Gets or sets the vertical-blank interval used when presenting each swap chain: 0 presents immediately
+        /// (default, used by the editor which paces its own loop), 1 enables vsync, and 2-4 present every Nth blank.
+        /// </summary>
+        public int PresentSyncInterval {
+            get => PresentSyncIntervalValue;
+            set {
+                if (value < 0 || value > 4) {
+                    throw new ArgumentOutOfRangeException(nameof(value), value, "DXGI present sync interval must be between 0 and 4.");
+                }
+
+                PresentSyncIntervalValue = value;
+            }
+        }
 
         /// <summary>
         /// Enables Direct3D11 immediate-context multithread protection so cross-thread renderer access is serialized by the runtime.
@@ -1764,7 +1784,7 @@ namespace helengine.directx11 {
                         RenderCamera(surface, cameraComponent);
                     }
 
-                    surface.SwapChain.Present(0, PresentFlags.None);
+                    surface.SwapChain.Present(PresentSyncIntervalValue, PresentFlags.None);
                 }
             } finally {
                 FrameActive = false;
