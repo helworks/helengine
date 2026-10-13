@@ -14,6 +14,7 @@ namespace helengine.player {
         public static int Main(string[] args) {
             try {
                 PlayerLaunchOptions options = PlayerLaunchOptions.Parse(args);
+                PlayerHost.Run(options);
                 return 0;
             } catch (Exception exception) {
                 Console.Error.WriteLine(exception.ToString());
