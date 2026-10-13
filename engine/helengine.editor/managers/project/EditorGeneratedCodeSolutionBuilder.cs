@@ -22,6 +22,11 @@ namespace helengine.editor {
         const string EditorTargetFrameworkValue = "net9.0";
 
         /// <summary>
+        /// Build configuration the editor compiles generated projects with; part of the SDK default output layout.
+        /// </summary>
+        const string BuildConfigurationValue = "Debug";
+
+        /// <summary>
         /// Builds the generated code solution description for the supplied authored modules.
         /// </summary>
         /// <param name="projectRootPath">Absolute game project root path.</param>
@@ -91,6 +96,33 @@ namespace helengine.editor {
             string generatedOutputRootPath,
             string generatedWorkspaceRootPath,
             EditorScriptCompilationMode compilationMode) {
+            return Build(
+                projectRootPath,
+                manifestDocument,
+                generatedOutputRootPath,
+                generatedWorkspaceRootPath,
+                compilationMode,
+                EditorGeneratedCodeOutputLayout.ConfigurationAndTargetFramework);
+        }
+
+        /// <summary>
+        /// Builds the generated code solution with independent roots, an explicit script-compilation mode and an explicit
+        /// assembly output layout that every reported module output directory follows.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute game project root path.</param>
+        /// <param name="manifestDocument">Discovered authored code-module manifest document.</param>
+        /// <param name="generatedOutputRootPath">Absolute output root used by generated module projects.</param>
+        /// <param name="generatedWorkspaceRootPath">Absolute workspace root used for generated solution, project, and global-using files.</param>
+        /// <param name="compilationMode">Authored script surfaces included in the generated solution.</param>
+        /// <param name="outputLayout">Where each generated project writes its assembly beneath its base output path.</param>
+        /// <returns>Generated code solution description.</returns>
+        public EditorGeneratedCodeSolution Build(
+            string projectRootPath,
+            EditorCodeModuleManifestDocument manifestDocument,
+            string generatedOutputRootPath,
+            string generatedWorkspaceRootPath,
+            EditorScriptCompilationMode compilationMode,
+            EditorGeneratedCodeOutputLayout outputLayout) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -125,7 +157,7 @@ namespace helengine.editor {
                 string targetFramework = module.ModuleKind == EditorCodeModuleKind.Editor
                     ? EditorTargetFrameworkValue
                     : RuntimeTargetFrameworkValue;
-                string outputDirectoryPath = Path.Combine(baseOutputPath, "Debug", targetFramework);
+                string outputDirectoryPath = ResolveOutputDirectoryPath(baseOutputPath, targetFramework, outputLayout);
                 Guid projectGuid = CreateStableGuid(fullProjectRootPath + "|" + module.ModuleId);
                 moduleProjects.Add(new EditorGeneratedCodeModuleProject(
                     module.ModuleId,
@@ -151,11 +183,36 @@ namespace helengine.editor {
                     fullProjectRootPath,
                     fullGeneratedOutputRootPath,
                     fullGeneratedWorkspaceRootPath,
-                    moduleProjects);
+                    moduleProjects,
+                    outputLayout);
                 filteredModuleProjects = ApplyTestFolderExclusions(moduleProjects, testProjects);
             }
 
             return new EditorGeneratedCodeSolution(filteredModuleProjects, testProjects);
+        }
+
+        /// <summary>
+        /// Resolves the directory a generated project writes its assembly to. The generated project file emits the
+        /// matching MSBuild output properties for the same layout, so this path is where the assembly really lands.
+        /// </summary>
+        /// <param name="baseOutputPath">Absolute base output path of the generated project.</param>
+        /// <param name="targetFramework">Target framework moniker of the generated project.</param>
+        /// <param name="outputLayout">Assembly output layout of the generated solution.</param>
+        /// <returns>Absolute final output directory of the project's assembly.</returns>
+        internal static string ResolveOutputDirectoryPath(string baseOutputPath, string targetFramework, EditorGeneratedCodeOutputLayout outputLayout) {
+            if (string.IsNullOrWhiteSpace(baseOutputPath)) {
+                throw new ArgumentException("Base output path must be provided.", nameof(baseOutputPath));
+            } else if (string.IsNullOrWhiteSpace(targetFramework)) {
+                throw new ArgumentException("Target framework must be provided.", nameof(targetFramework));
+            }
+
+            if (outputLayout == EditorGeneratedCodeOutputLayout.ConfigurationAndTargetFramework) {
+                return Path.Combine(baseOutputPath, BuildConfigurationValue, targetFramework);
+            } else if (outputLayout == EditorGeneratedCodeOutputLayout.ModuleFolder) {
+                return baseOutputPath;
+            }
+
+            throw new ArgumentOutOfRangeException(nameof(outputLayout), outputLayout, "The generated code output layout is not supported.");
         }
 
         /// <summary>

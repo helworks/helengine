@@ -15,9 +15,11 @@ namespace helengine.editor {
         public const string FingerprintFileName = "play-script-build.fingerprint";
 
         /// <summary>
-        /// Version token mixed into every fingerprint; bump it when the fingerprint inputs change meaning.
+        /// Version token mixed into every fingerprint; bump it when the fingerprint inputs or the published module layout
+        /// change meaning. Version 2: modules publish flat as <c>&lt;moduleId&gt;/&lt;moduleId&gt;.dll</c> instead of
+        /// below <c>Debug/net9.0</c>, so outputs fingerprinted under version 1 are always rebuilt.
         /// </summary>
-        const string FingerprintVersionToken = "play-script-fingerprint=1";
+        const string FingerprintVersionToken = "play-script-fingerprint=2";
 
         /// <summary>
         /// Project-relative folder that holds every authored script and code module manifest.

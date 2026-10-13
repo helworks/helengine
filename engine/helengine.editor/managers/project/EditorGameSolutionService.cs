@@ -150,6 +150,12 @@ namespace helengine.editor {
         readonly EditorScriptCompilationMode CompilationMode;
 
         /// <summary>
+        /// Where every generated project writes its assembly; drives both the emitted MSBuild output properties and the
+        /// reported module output directories so the two cannot disagree.
+        /// </summary>
+        readonly EditorGeneratedCodeOutputLayout OutputLayout;
+
+        /// <summary>
         /// Initializes one solution generator for the supplied game project root.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative game project root path.</param>
@@ -207,6 +213,7 @@ namespace helengine.editor {
             GeneratedProjectOutputRootPath = ResolveDefaultGeneratedOutputRootPath(ProjectRootPath);
             UsesInvocationOutputOverrideValue = false;
             CompilationMode = EditorScriptCompilationMode.EditorFull;
+            OutputLayout = EditorGeneratedCodeOutputLayout.ConfigurationAndTargetFramework;
         }
 
         /// <summary>
@@ -256,6 +263,7 @@ namespace helengine.editor {
                 : GeneratedOutputRootPath;
             UsesInvocationOutputOverrideValue = false;
             CompilationMode = EditorScriptCompilationMode.EditorFull;
+            OutputLayout = EditorGeneratedCodeOutputLayout.ConfigurationAndTargetFramework;
         }
 
         /// <summary>
@@ -386,6 +394,7 @@ namespace helengine.editor {
             UsesInvocationOutputOverrideValue = false;
             SolutionFilePath = Path.Combine(GeneratedWorkspaceRootPath, ProjectIdentifier + SolutionFileExtension);
             CompilationMode = compilationMode;
+            OutputLayout = EditorGeneratedCodeOutputLayout.ConfigurationAndTargetFramework;
         }
 
         /// <summary>
@@ -405,7 +414,40 @@ namespace helengine.editor {
             string generatedOutputRootPath,
             string generatedWorkspaceRootPath,
             EditorScriptCompilationMode compilationMode,
-            string generatedProjectOutputRootPath) {
+            string generatedProjectOutputRootPath)
+            : this(
+                projectRootPath,
+                projectName,
+                ideLauncher,
+                generatedOutputRootPath,
+                generatedWorkspaceRootPath,
+                compilationMode,
+                generatedProjectOutputRootPath,
+                EditorGeneratedCodeOutputLayout.ConfigurationAndTargetFramework) {
+        }
+
+        /// <summary>
+        /// Initializes one solution generator with stable authored project files, isolated compiler outputs and an
+        /// explicit assembly output layout. The layout decides both where the generated projects write their assemblies
+        /// and the <see cref="EditorGeneratedCodeModuleProject.OutputDirectoryPath"/> they report.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative game project root path.</param>
+        /// <param name="projectName">Display name of the game project.</param>
+        /// <param name="ideLauncher">Launcher used to open the generated solution.</param>
+        /// <param name="generatedOutputRootPath">Unique compiler-output root reserved for this invocation.</param>
+        /// <param name="generatedWorkspaceRootPath">Stable project-scoped workspace root used for generated solution and project files.</param>
+        /// <param name="compilationMode">Authored script surfaces included in the generated solution.</param>
+        /// <param name="generatedProjectOutputRootPath">Stable fallback output root embedded in generated project metadata.</param>
+        /// <param name="outputLayout">Where every generated project writes its assembly beneath its base output path.</param>
+        public EditorGameSolutionService(
+            string projectRootPath,
+            string projectName,
+            IEditorIdeLauncher ideLauncher,
+            string generatedOutputRootPath,
+            string generatedWorkspaceRootPath,
+            EditorScriptCompilationMode compilationMode,
+            string generatedProjectOutputRootPath,
+            EditorGeneratedCodeOutputLayout outputLayout) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -441,6 +483,7 @@ namespace helengine.editor {
             UsesInvocationOutputOverrideValue = true;
             SolutionFilePath = Path.Combine(GeneratedWorkspaceRootPath, ProjectIdentifier + SolutionFileExtension);
             CompilationMode = compilationMode;
+            OutputLayout = outputLayout;
         }
 
         /// <summary>
@@ -842,6 +885,13 @@ namespace helengine.editor {
                 builder.AppendLine("    <BaseIntermediateOutputPath>" + EscapeXml(moduleProject.BaseIntermediateOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</BaseIntermediateOutputPath>");
                 builder.AppendLine("    <BaseOutputPath>" + EscapeXml(moduleProject.BaseOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</BaseOutputPath>");
             }
+            if (OutputLayout == EditorGeneratedCodeOutputLayout.ModuleFolder) {
+                // The SDK appends <Configuration>\<TargetFramework>\ below BaseOutputPath by default; this layout writes the
+                // assembly straight into the module folder, which is what EditorGeneratedCodeModuleProject.OutputDirectoryPath reports.
+                builder.AppendLine("    <OutputPath>$(BaseOutputPath)</OutputPath>");
+                builder.AppendLine("    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>");
+                builder.AppendLine("    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>");
+            }
             builder.AppendLine("    <AssemblyName>" + EscapeXml(moduleProject.ModuleId) + "</AssemblyName>");
             builder.AppendLine("    <RootNamespace>" + EscapeXml(moduleProject.ModuleId) + "</RootNamespace>");
             builder.AppendLine("  </PropertyGroup>");
@@ -1161,7 +1211,8 @@ namespace helengine.editor {
                 manifestDocument,
                 GeneratedOutputRootPath,
                 GeneratedWorkspaceRootPath,
-                CompilationMode);
+                CompilationMode,
+                OutputLayout);
         }
 
         /// <summary>

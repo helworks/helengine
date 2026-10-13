@@ -42,6 +42,30 @@ namespace helengine.editor {
             string generatedOutputRootPath,
             string generatedWorkspaceRootPath,
             IReadOnlyList<EditorGeneratedCodeModuleProject> productionProjects) {
+            return Discover(
+                projectRootPath,
+                generatedOutputRootPath,
+                generatedWorkspaceRootPath,
+                productionProjects,
+                EditorGeneratedCodeOutputLayout.ConfigurationAndTargetFramework);
+        }
+
+        /// <summary>
+        /// Discovers generated test projects beneath one explicit generated metadata workspace, reporting their output
+        /// directories in the supplied assembly output layout.
+        /// </summary>
+        /// <param name="projectRootPath">Authored project root.</param>
+        /// <param name="generatedOutputRootPath">Compiler output root.</param>
+        /// <param name="generatedWorkspaceRootPath">Generated solution metadata root.</param>
+        /// <param name="productionProjects">Ordered generated production projects.</param>
+        /// <param name="outputLayout">Where each generated project writes its assembly beneath its base output path.</param>
+        /// <returns>Ordered inferred generated test projects.</returns>
+        public IReadOnlyList<EditorGeneratedCodeModuleProject> Discover(
+            string projectRootPath,
+            string generatedOutputRootPath,
+            string generatedWorkspaceRootPath,
+            IReadOnlyList<EditorGeneratedCodeModuleProject> productionProjects,
+            EditorGeneratedCodeOutputLayout outputLayout) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -82,7 +106,8 @@ namespace helengine.editor {
                     fullGeneratedWorkspaceRootPath,
                     productionProject,
                     testSurfaceId,
-                    relativeSourceFolderPath));
+                    relativeSourceFolderPath,
+                    outputLayout));
             }
 
             discoveredProjects.Sort(static (left, right) => string.Compare(left.ModuleId, right.ModuleId, StringComparison.OrdinalIgnoreCase));
@@ -97,6 +122,7 @@ namespace helengine.editor {
         /// <param name="productionProject">Matching generated production project.</param>
         /// <param name="testSurfaceId">Stable generated test surface id.</param>
         /// <param name="relativeSourceFolderPath">Project-relative discovered test folder path.</param>
+        /// <param name="outputLayout">Where the generated test project writes its assembly beneath its base output path.</param>
         /// <returns>Generated project description for the test surface.</returns>
         static EditorGeneratedCodeModuleProject CreateTestProject(
             string projectRootPath,
@@ -104,14 +130,15 @@ namespace helengine.editor {
             string generatedWorkspaceRootPath,
             EditorGeneratedCodeModuleProject productionProject,
             string testSurfaceId,
-            string relativeSourceFolderPath) {
+            string relativeSourceFolderPath,
+            EditorGeneratedCodeOutputLayout outputLayout) {
             string projectDirectoryPath = Path.Combine(generatedWorkspaceRootPath, "projects", testSurfaceId);
             string projectFilePath = Path.Combine(projectDirectoryPath, testSurfaceId + ".csproj");
             string generatedGlobalUsingsFilePath = Path.Combine(projectDirectoryPath, "GlobalUsings.g.cs");
             string baseIntermediateOutputPath = Path.Combine(generatedOutputRootPath, "generated_code", "obj", testSurfaceId);
             string baseOutputPath = Path.Combine(generatedOutputRootPath, "generated_code", "bin", testSurfaceId);
             string targetFramework = productionProject.TargetFramework;
-            string outputDirectoryPath = Path.Combine(baseOutputPath, "Debug", targetFramework);
+            string outputDirectoryPath = EditorGeneratedCodeSolutionBuilder.ResolveOutputDirectoryPath(baseOutputPath, targetFramework, outputLayout);
             Guid projectGuid = CreateStableGuid(projectRootPath + "|" + testSurfaceId);
             return new EditorGeneratedCodeModuleProject(
                 testSurfaceId,
