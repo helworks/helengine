@@ -201,6 +201,78 @@ namespace helengine.editor {
         /// </summary>
         EditorViewportStatsOverlayComponent StatsOverlayComponent;
         /// <summary>
+        /// Root entity for the Play button that launches the desktop player.
+        /// </summary>
+        EditorEntity PlayButtonRoot;
+        /// <summary>
+        /// Background sprite for the Play button.
+        /// </summary>
+        SpriteComponent PlayButtonBackground;
+        /// <summary>
+        /// Icon sprite rendered inside the Play button, or null when no Play glyph was loaded.
+        /// </summary>
+        SpriteComponent PlayButtonIcon;
+        /// <summary>
+        /// Interactable region for the Play button.
+        /// </summary>
+        InteractableComponent PlayButtonInteractable;
+        /// <summary>
+        /// Focus target bound to the Play button.
+        /// </summary>
+        EditorFocusTarget PlayButtonFocusTarget;
+        /// <summary>
+        /// Tracks pointer hover over the Play button.
+        /// </summary>
+        bool PlayButtonHoverState;
+        /// <summary>
+        /// Tracks pointer press on the Play button.
+        /// </summary>
+        bool PlayButtonPressedState;
+        /// <summary>
+        /// Tracks keyboard focus on the Play button.
+        /// </summary>
+        bool PlayButtonKeyboardFocusState;
+        /// <summary>
+        /// Root entity for the Stop button that terminates the running player.
+        /// </summary>
+        EditorEntity StopButtonRoot;
+        /// <summary>
+        /// Background sprite for the Stop button.
+        /// </summary>
+        SpriteComponent StopButtonBackground;
+        /// <summary>
+        /// Icon sprite rendered inside the Stop button, or null when no Stop glyph was loaded.
+        /// </summary>
+        SpriteComponent StopButtonIcon;
+        /// <summary>
+        /// Interactable region for the Stop button.
+        /// </summary>
+        InteractableComponent StopButtonInteractable;
+        /// <summary>
+        /// Focus target bound to the Stop button.
+        /// </summary>
+        EditorFocusTarget StopButtonFocusTarget;
+        /// <summary>
+        /// Tracks pointer hover over the Stop button.
+        /// </summary>
+        bool StopButtonHoverState;
+        /// <summary>
+        /// Tracks pointer press on the Stop button.
+        /// </summary>
+        bool StopButtonPressedState;
+        /// <summary>
+        /// Tracks keyboard focus on the Stop button.
+        /// </summary>
+        bool StopButtonKeyboardFocusState;
+        /// <summary>
+        /// Play session phase last presented by the Play and Stop buttons.
+        /// </summary>
+        EditorPlaySessionState PresentedPlayState;
+        /// <summary>
+        /// Whether the active platform supports Play; when false the Play button is dimmed and inert.
+        /// </summary>
+        bool PresentedPlayAvailable;
+        /// <summary>
         /// Overlay component that owns viewport-local world-space gizmo labels.
         /// </summary>
         EditorViewportCameraAngleOverlayComponent CameraAngleOverlayComponentValue;
@@ -327,6 +399,16 @@ namespace helengine.editor {
         public event Action<EditorViewport, bool> ViewportContentFocusedChanged;
 
         /// <summary>
+        /// Raised when the user activates the Play button while the active platform supports Play.
+        /// </summary>
+        public event Action PlayRequested;
+
+        /// <summary>
+        /// Raised when the user activates the Stop button while a Play session is preparing or running.
+        /// </summary>
+        public event Action StopRequested;
+
+        /// <summary>
         /// Initializes a new dockable viewport and binds it to the provided camera.
         /// </summary>
         /// <param name="camera">Camera rendering into the viewport.</param>
@@ -430,6 +512,7 @@ namespace helengine.editor {
             InitializeSettingsOverlay();
             InitializeStatsButton();
             InitializeStatsOverlay();
+            InitializePlayButtons();
             InitializeSnapControls();
             CameraAngleOverlayComponentValue = new EditorViewportCameraAngleOverlayComponent(Camera, Font, ToolbarHeight, false, BuiltInShaderLibrary, RendererResources);
             AddComponent(CameraAngleOverlayComponentValue);
@@ -901,6 +984,366 @@ namespace helengine.editor {
                    point.X < left + width &&
                    point.Y >= top &&
                    point.Y < top + height;
+        }
+
+        /// <summary>
+        /// Presents the Play session phase on the Play and Stop buttons. Play is dimmed and inert while the active
+        /// platform cannot be played; Stop is highlighted while a session is preparing or running and dimmed otherwise.
+        /// The toolbar has no tooltip system, so availability is conveyed by dimming alone.
+        /// </summary>
+        /// <param name="state">Current Play session phase.</param>
+        /// <param name="playAvailable">Whether the active platform supports Play.</param>
+        public void SetPlayState(EditorPlaySessionState state, bool playAvailable) {
+            PresentedPlayState = state;
+            PresentedPlayAvailable = playAvailable;
+            if (!playAvailable) {
+                PlayButtonPressedState = false;
+            }
+            if (state == EditorPlaySessionState.Stopped) {
+                StopButtonPressedState = false;
+            }
+
+            UpdatePlayButtonVisuals();
+            UpdateStopButtonVisuals();
+        }
+
+        /// <summary>
+        /// Gets the Play session phase currently presented by the Play and Stop buttons.
+        /// </summary>
+        public EditorPlaySessionState PresentedPlaySessionState => PresentedPlayState;
+
+        /// <summary>
+        /// Gets whether the Play button currently presents the active platform as playable.
+        /// </summary>
+        public bool IsPlayButtonAvailable => PresentedPlayAvailable;
+
+        /// <summary>
+        /// Initializes the Play and Stop buttons. Both start in the stopped, unavailable presentation until the session
+        /// reports the active platform's Play capability through <see cref="SetPlayState"/>.
+        /// </summary>
+        void InitializePlayButtons() {
+            PresentedPlayState = EditorPlaySessionState.Stopped;
+            PresentedPlayAvailable = false;
+            int firstTabIndex = ToolModes.Length + 1 + (SnapSlots.Length * 2);
+
+            PlayButtonRoot = CreateToolbarActionButton(
+                ToolbarIcons.PlayIcon,
+                HandlePlayButtonCursor,
+                out SpriteComponent playBackground,
+                out SpriteComponent playIcon,
+                out InteractableComponent playInteractable);
+            PlayButtonBackground = playBackground;
+            PlayButtonIcon = playIcon;
+            PlayButtonInteractable = playInteractable;
+            EditorEntity playButtonRoot = PlayButtonRoot;
+            PlayButtonFocusTarget = new EditorFocusTarget(
+                ToolbarFocusGroup,
+                firstTabIndex,
+                false,
+                () => Enabled && playButtonRoot.Enabled,
+                point => ContainsToolbarActionButtonPoint(PlayButtonRoot, PlayButtonInteractable, point),
+                isFocused => {
+                    PlayButtonKeyboardFocusState = isFocused;
+                    UpdatePlayButtonVisuals();
+                },
+                key => key == Keys.Enter || key == Keys.Space,
+                key => ActivatePlayButton());
+            EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterTarget(PlayButtonFocusTarget);
+
+            StopButtonRoot = CreateToolbarActionButton(
+                ToolbarIcons.StopIcon,
+                HandleStopButtonCursor,
+                out SpriteComponent stopBackground,
+                out SpriteComponent stopIcon,
+                out InteractableComponent stopInteractable);
+            StopButtonBackground = stopBackground;
+            StopButtonIcon = stopIcon;
+            StopButtonInteractable = stopInteractable;
+            EditorEntity stopButtonRoot = StopButtonRoot;
+            StopButtonFocusTarget = new EditorFocusTarget(
+                ToolbarFocusGroup,
+                firstTabIndex + 1,
+                false,
+                () => Enabled && stopButtonRoot.Enabled,
+                point => ContainsToolbarActionButtonPoint(StopButtonRoot, StopButtonInteractable, point),
+                isFocused => {
+                    StopButtonKeyboardFocusState = isFocused;
+                    UpdateStopButtonVisuals();
+                },
+                key => key == Keys.Enter || key == Keys.Space,
+                key => ActivateStopButton());
+            EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterTarget(StopButtonFocusTarget);
+
+            PlayButtonHoverState = false;
+            PlayButtonPressedState = false;
+            PlayButtonKeyboardFocusState = false;
+            StopButtonHoverState = false;
+            StopButtonPressedState = false;
+            StopButtonKeyboardFocusState = false;
+            UpdatePlayButtonVisuals();
+            UpdateStopButtonVisuals();
+        }
+
+        /// <summary>
+        /// Creates one toolbar button that runs an action instead of selecting a tool mode, using the same background,
+        /// icon and interactable layering as the tool buttons.
+        /// </summary>
+        /// <param name="iconTexture">Glyph drawn inside the button; when null the button has no icon sprite.</param>
+        /// <param name="cursorHandler">Receives the button's pointer interaction states.</param>
+        /// <param name="buttonBackground">Receives the background sprite.</param>
+        /// <param name="buttonIcon">Receives the icon sprite, or null when no glyph texture was supplied.</param>
+        /// <param name="buttonInteractable">Receives the interactable region.</param>
+        /// <returns>Root entity of the new button, parented to the toolbar.</returns>
+        EditorEntity CreateToolbarActionButton(
+            RuntimeTexture iconTexture,
+            Action<PointerInteraction> cursorHandler,
+            out SpriteComponent buttonBackground,
+            out SpriteComponent buttonIcon,
+            out InteractableComponent buttonInteractable) {
+            if (cursorHandler == null) {
+                throw new ArgumentNullException(nameof(cursorHandler));
+            }
+
+            EditorEntity buttonRoot = new EditorEntity(OwnerCore, InteractionServices) {
+                LayerMask = LayerMask,
+                Position = float3.Zero
+            };
+            ToolbarRoot.AddChild(buttonRoot);
+
+            buttonBackground = new SpriteComponent {
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
+                Color = ThemeManager.Colors.SurfaceInput,
+            };
+            buttonRoot.AddComponent(buttonBackground);
+
+            if (iconTexture == null) {
+                buttonIcon = null;
+            } else {
+                EditorEntity iconHost = new EditorEntity(OwnerCore, InteractionServices) {
+                    LayerMask = LayerMask,
+                    Position = new float3(0f, 0f, 0.1f)
+                };
+                buttonRoot.AddChild(iconHost);
+                buttonIcon = new SpriteComponent {
+                    Texture = iconTexture,
+                    Color = new byte4(255, 255, 255, 224),
+                    Size = new int2(ToolButtonIconSize, ToolButtonIconSize),
+                };
+                iconHost.AddComponent(buttonIcon);
+            }
+
+            buttonInteractable = new InteractableComponent {
+                Size = new int2(ToolButtonWidth, ToolButtonHeight)
+            };
+            buttonInteractable.CursorEvent += (pos, delta, state) => cursorHandler(state);
+            buttonRoot.AddComponent(buttonInteractable);
+            return buttonRoot;
+        }
+
+        /// <summary>
+        /// Handles pointer interaction state updates for the Play button; a completed click requests Play.
+        /// </summary>
+        /// <param name="interaction">Pointer interaction state.</param>
+        void HandlePlayButtonCursor(PointerInteraction interaction) {
+            switch (interaction) {
+                case PointerInteraction.Hover:
+                    PlayButtonHoverState = true;
+                    break;
+                case PointerInteraction.Press:
+                    PlayButtonPressedState = PresentedPlayAvailable;
+                    break;
+                case PointerInteraction.Release:
+                    bool shouldActivate = PlayButtonPressedState && PlayButtonHoverState;
+                    PlayButtonPressedState = false;
+                    if (shouldActivate) {
+                        ActivatePlayButton();
+                    }
+                    break;
+                case PointerInteraction.Leave:
+                    PlayButtonHoverState = false;
+                    PlayButtonPressedState = false;
+                    break;
+                case PointerInteraction.None:
+                    break;
+                default:
+                    throw new InvalidOperationException("Pointer interaction state is not supported.");
+            }
+
+            UpdatePlayButtonVisuals();
+        }
+
+        /// <summary>
+        /// Handles pointer interaction state updates for the Stop button; a completed click requests Stop.
+        /// </summary>
+        /// <param name="interaction">Pointer interaction state.</param>
+        void HandleStopButtonCursor(PointerInteraction interaction) {
+            switch (interaction) {
+                case PointerInteraction.Hover:
+                    StopButtonHoverState = true;
+                    break;
+                case PointerInteraction.Press:
+                    StopButtonPressedState = PresentedPlayState != EditorPlaySessionState.Stopped;
+                    break;
+                case PointerInteraction.Release:
+                    bool shouldActivate = StopButtonPressedState && StopButtonHoverState;
+                    StopButtonPressedState = false;
+                    if (shouldActivate) {
+                        ActivateStopButton();
+                    }
+                    break;
+                case PointerInteraction.Leave:
+                    StopButtonHoverState = false;
+                    StopButtonPressedState = false;
+                    break;
+                case PointerInteraction.None:
+                    break;
+                default:
+                    throw new InvalidOperationException("Pointer interaction state is not supported.");
+            }
+
+            UpdateStopButtonVisuals();
+        }
+
+        /// <summary>
+        /// Raises <see cref="PlayRequested"/> when the active platform supports Play; otherwise the click does nothing.
+        /// </summary>
+        void ActivatePlayButton() {
+            if (!PresentedPlayAvailable) {
+                return;
+            }
+
+            PlayRequested?.Invoke();
+        }
+
+        /// <summary>
+        /// Raises <see cref="StopRequested"/> while a Play session is preparing or running; otherwise does nothing.
+        /// </summary>
+        void ActivateStopButton() {
+            if (PresentedPlayState == EditorPlaySessionState.Stopped) {
+                return;
+            }
+
+            StopRequested?.Invoke();
+        }
+
+        /// <summary>
+        /// Applies the Play button colors: dimmed when unavailable, accented while a session is active, and the usual
+        /// hover, focus and press feedback otherwise.
+        /// </summary>
+        void UpdatePlayButtonVisuals() {
+            if (PlayButtonBackground == null) {
+                return;
+            }
+
+            bool sessionActive = PresentedPlayState != EditorPlaySessionState.Stopped;
+            bool highlighted = PlayButtonHoverState || PlayButtonKeyboardFocusState;
+            if (!PresentedPlayAvailable) {
+                PlayButtonBackground.Color = ThemeManager.Colors.SurfaceInput;
+            } else if (PlayButtonPressedState) {
+                PlayButtonBackground.Color = ThemeManager.Colors.AccentTertiary;
+            } else if (sessionActive) {
+                PlayButtonBackground.Color = ThemeManager.Colors.AccentPrimary;
+            } else if (highlighted) {
+                PlayButtonBackground.Color = ThemeManager.Colors.AccentSecondary;
+            } else {
+                PlayButtonBackground.Color = ThemeManager.Colors.SurfaceInput;
+            }
+
+            if (PlayButtonIcon == null) {
+                return;
+            }
+
+            if (!PresentedPlayAvailable) {
+                PlayButtonIcon.Color = new byte4(255, 255, 255, 72);
+            } else if (sessionActive || highlighted || PlayButtonPressedState) {
+                PlayButtonIcon.Color = new byte4(255, 255, 255, 255);
+            } else {
+                PlayButtonIcon.Color = new byte4(255, 255, 255, 224);
+            }
+        }
+
+        /// <summary>
+        /// Applies the Stop button colors: highlighted while a session is preparing or running, dimmed when stopped.
+        /// </summary>
+        void UpdateStopButtonVisuals() {
+            if (StopButtonBackground == null) {
+                return;
+            }
+
+            bool sessionActive = PresentedPlayState != EditorPlaySessionState.Stopped;
+            if (!sessionActive) {
+                StopButtonBackground.Color = ThemeManager.Colors.SurfaceInput;
+            } else if (StopButtonPressedState) {
+                StopButtonBackground.Color = ThemeManager.Colors.AccentTertiary;
+            } else if (StopButtonHoverState || StopButtonKeyboardFocusState) {
+                StopButtonBackground.Color = ThemeManager.Colors.AccentSecondary;
+            } else {
+                StopButtonBackground.Color = ThemeManager.Colors.AccentPrimary;
+            }
+
+            if (StopButtonIcon == null) {
+                return;
+            }
+
+            if (sessionActive) {
+                StopButtonIcon.Color = new byte4(255, 255, 255, 255);
+            } else {
+                StopButtonIcon.Color = new byte4(255, 255, 255, 72);
+            }
+        }
+
+        /// <summary>
+        /// Returns true when the provided screen point lies inside one toolbar action button.
+        /// </summary>
+        /// <param name="buttonRoot">Root entity of the button.</param>
+        /// <param name="buttonInteractable">Interactable region of the button.</param>
+        /// <param name="point">Screen point to evaluate.</param>
+        /// <returns>True when the point lies inside the button bounds.</returns>
+        static bool ContainsToolbarActionButtonPoint(EditorEntity buttonRoot, InteractableComponent buttonInteractable, int2 point) {
+            if (buttonRoot == null || buttonInteractable == null) {
+                return false;
+            }
+
+            int left = (int)Math.Round(buttonRoot.Position.X);
+            int top = (int)Math.Round(buttonRoot.Position.Y);
+            return point.X >= left &&
+                   point.X < left + buttonInteractable.Size.X &&
+                   point.Y >= top &&
+                   point.Y < top + buttonInteractable.Size.Y;
+        }
+
+        /// <summary>
+        /// Lays out the Play and Stop buttons to the left of the stats button, separated from it by a group gap.
+        /// </summary>
+        /// <param name="statsButtonX">Left edge of the stats button inside the toolbar.</param>
+        /// <param name="buttonY">Top offset shared by every toolbar button.</param>
+        void LayoutPlayButtons(float statsButtonX, float buttonY) {
+            if (PlayButtonRoot == null || StopButtonRoot == null) {
+                return;
+            }
+
+            float stopButtonX = Math.Max(ToolbarPadding, statsButtonX - SnapGroupSpacing - ToolButtonWidth);
+            float playButtonX = Math.Max(ToolbarPadding, stopButtonX - ToolbarButtonSpacing - ToolButtonWidth);
+            LayoutToolbarActionButton(PlayButtonRoot, PlayButtonBackground, PlayButtonIcon, PlayButtonInteractable, playButtonX, buttonY);
+            LayoutToolbarActionButton(StopButtonRoot, StopButtonBackground, StopButtonIcon, StopButtonInteractable, stopButtonX, buttonY);
+        }
+
+        /// <summary>
+        /// Positions and sizes one toolbar action button and centers its glyph.
+        /// </summary>
+        /// <param name="buttonRoot">Root entity of the button.</param>
+        /// <param name="buttonBackground">Background sprite of the button.</param>
+        /// <param name="buttonIcon">Icon sprite of the button, or null when it has no glyph.</param>
+        /// <param name="buttonInteractable">Interactable region of the button.</param>
+        /// <param name="buttonX">Left edge inside the toolbar.</param>
+        /// <param name="buttonY">Top edge inside the toolbar.</param>
+        void LayoutToolbarActionButton(EditorEntity buttonRoot, SpriteComponent buttonBackground, SpriteComponent buttonIcon, InteractableComponent buttonInteractable, float buttonX, float buttonY) {
+            buttonRoot.Position = new float3(buttonX, buttonY, 0.1f);
+            buttonBackground.Size = new int2(ToolButtonWidth, ToolButtonHeight);
+            buttonInteractable.Size = new int2(ToolButtonWidth, ToolButtonHeight);
+            if (buttonIcon != null) {
+                LayoutToolButtonIcon(buttonIcon, ToolButtonWidth, ToolButtonHeight, ToolButtonIconSize, ToolButtonIconSize);
+            }
         }
 
         /// <summary>
@@ -1755,6 +2198,7 @@ namespace helengine.editor {
                     StatsButtonBackground.Size = new int2(ToolButtonWidth, ToolButtonHeight);
                     StatsButtonInteractable.Size = new int2(ToolButtonWidth, ToolButtonHeight);
                     LayoutToolButtonIcon(StatsButtonIcon, ToolButtonWidth, ToolButtonHeight, ToolButtonIconSize, ToolButtonIconSize);
+                    LayoutPlayButtons(statsButtonX, buttonY);
                 }
             }
 

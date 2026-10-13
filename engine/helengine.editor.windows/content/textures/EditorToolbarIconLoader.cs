@@ -49,6 +49,10 @@ namespace helengine.editor {
         static readonly string HierarchyVisibleIconPath = Path.Combine("content", "icons", "toolbar", "hierarchy-visible.png");
         /// <summary>Root-relative path for the hidden scene-hierarchy eye.</summary>
         static readonly string HierarchyHiddenIconPath = Path.Combine("content", "icons", "toolbar", "hierarchy-hidden.png");
+        /// <summary>Root-relative path for the viewport Play button glyph.</summary>
+        static readonly string PlayIconPath = Path.Combine("content", "icons", "toolbar", "play.png");
+        /// <summary>Root-relative path for the viewport Stop button glyph.</summary>
+        static readonly string StopIconPath = Path.Combine("content", "icons", "toolbar", "stop.png");
         /// <summary>
         /// Root-relative path for the editor title-bar icon.
         /// </summary>
@@ -86,6 +90,8 @@ namespace helengine.editor {
             RuntimeTexture hierarchyDisclosureIcon = LoadTexture(content, applicationRootPath, HierarchyDisclosureIconPath, renderManager2D);
             RuntimeTexture hierarchyVisibleIcon = LoadTexture(content, applicationRootPath, HierarchyVisibleIconPath, renderManager2D);
             RuntimeTexture hierarchyHiddenIcon = LoadTexture(content, applicationRootPath, HierarchyHiddenIconPath, renderManager2D);
+            RuntimeTexture playIcon = LoadTexture(content, applicationRootPath, PlayIconPath, renderManager2D);
+            RuntimeTexture stopIcon = LoadTexture(content, applicationRootPath, StopIconPath, renderManager2D);
             return new EditorViewportToolbarIconSet(
                 translateIcon,
                 rotateIcon,
@@ -100,7 +106,9 @@ namespace helengine.editor {
                 statsIcon,
                 hierarchyDisclosureIcon,
                 hierarchyVisibleIcon,
-                hierarchyHiddenIcon);
+                hierarchyHiddenIcon,
+                playIcon,
+                stopIcon);
         }
 
         /// <summary>

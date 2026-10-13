@@ -291,6 +291,57 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the Play button is inert while the active platform cannot be played, requests Play once it can, and
+        /// that Stop only requests a stop while a Play session is active.
+        /// </summary>
+        [Fact]
+        public void PlayAndStopButtons_RequestOnlyWhenTheirActionApplies() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            EditorFocusTarget playTarget = GetPrivateField<EditorFocusTarget>(viewport, "PlayButtonFocusTarget");
+            EditorFocusTarget stopTarget = GetPrivateField<EditorFocusTarget>(viewport, "StopButtonFocusTarget");
+            int playRequestCount = 0;
+            int stopRequestCount = 0;
+            viewport.PlayRequested += () => playRequestCount++;
+            viewport.StopRequested += () => stopRequestCount++;
+
+            viewport.SetPlayState(EditorPlaySessionState.Stopped, false);
+            playTarget.ActivateFromKey(Keys.Enter);
+            stopTarget.ActivateFromKey(Keys.Enter);
+
+            Assert.False(viewport.IsPlayButtonAvailable);
+            Assert.Equal(0, playRequestCount);
+            Assert.Equal(0, stopRequestCount);
+
+            viewport.SetPlayState(EditorPlaySessionState.Stopped, true);
+            playTarget.ActivateFromKey(Keys.Space);
+            Assert.Equal(1, playRequestCount);
+
+            viewport.SetPlayState(EditorPlaySessionState.Running, true);
+            stopTarget.ActivateFromKey(Keys.Enter);
+            Assert.Equal(EditorPlaySessionState.Running, viewport.PresentedPlaySessionState);
+            Assert.Equal(1, stopRequestCount);
+        }
+
+        /// <summary>
+        /// Ensures the Play and Stop buttons sit, in that order, to the left of the stats button without overlapping it.
+        /// </summary>
+        [Fact]
+        public void LayoutToolbar_PlacesPlayAndStopLeftOfStatsButton() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            viewport.Size = new int2(640, 360);
+
+            InvokePrivateMethod(viewport, "UpdateViewport");
+
+            float playX = GetPrivateField<EditorEntity>(viewport, "PlayButtonRoot").Position.X;
+            float stopX = GetPrivateField<EditorEntity>(viewport, "StopButtonRoot").Position.X;
+            float statsX = GetPrivateField<EditorEntity>(viewport, "StatsButtonRoot").Position.X;
+            Assert.True(playX < stopX, "Expected Play to sit left of Stop.");
+            Assert.True(stopX + 22f <= statsX, "Expected Stop to end before the stats button begins.");
+        }
+
+        /// <summary>
         /// Ensures clicking the viewport content activates the viewport dock and focuses the content shortcut target.
         /// </summary>
         [Fact]

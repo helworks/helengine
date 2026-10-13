@@ -17,6 +17,11 @@ namespace helengine.editor {
         /// <param name="ctrlKeyIcon">Texture used by the first snap-slot label.</param>
         /// <param name="shiftKeyIcon">Texture used by the second snap-slot label.</param>
         /// <param name="statsIcon">Texture used by the viewport stats toggle button.</param>
+        /// <param name="hierarchyDisclosureIcon">Optional texture shown by Scene Hierarchy disclosure buttons.</param>
+        /// <param name="hierarchyVisibleIcon">Optional open-eye texture shown for visible scene entities.</param>
+        /// <param name="hierarchyHiddenIcon">Optional crossed-eye texture shown for hidden scene entities.</param>
+        /// <param name="playIcon">Optional texture used by the viewport Play button; the button shows no glyph without it.</param>
+        /// <param name="stopIcon">Optional texture used by the viewport Stop button; the button shows no glyph without it.</param>
         public EditorViewportToolbarIconSet(
             RuntimeTexture translateIcon,
             RuntimeTexture rotateIcon,
@@ -31,7 +36,9 @@ namespace helengine.editor {
             RuntimeTexture statsIcon,
             RuntimeTexture hierarchyDisclosureIcon = null,
             RuntimeTexture hierarchyVisibleIcon = null,
-            RuntimeTexture hierarchyHiddenIcon = null) {
+            RuntimeTexture hierarchyHiddenIcon = null,
+            RuntimeTexture playIcon = null,
+            RuntimeTexture stopIcon = null) {
             TranslateIcon = translateIcon ?? throw new ArgumentNullException(nameof(translateIcon));
             RotateIcon = rotateIcon ?? throw new ArgumentNullException(nameof(rotateIcon));
             ScaleIcon = scaleIcon ?? throw new ArgumentNullException(nameof(scaleIcon));
@@ -46,6 +53,8 @@ namespace helengine.editor {
             HierarchyDisclosureIcon = hierarchyDisclosureIcon;
             HierarchyVisibleIcon = hierarchyVisibleIcon;
             HierarchyHiddenIcon = hierarchyHiddenIcon;
+            PlayIcon = playIcon;
+            StopIcon = stopIcon;
         }
 
         /// <summary>
@@ -101,6 +110,12 @@ namespace helengine.editor {
 
         /// <summary>Gets the SVG-derived crossed-eye texture shown for hidden scene entities.</summary>
         public RuntimeTexture HierarchyHiddenIcon { get; }
+
+        /// <summary>Gets the right-pointing triangle texture shown by the viewport Play button, or null when none was loaded.</summary>
+        public RuntimeTexture PlayIcon { get; }
+
+        /// <summary>Gets the square texture shown by the viewport Stop button, or null when none was loaded.</summary>
+        public RuntimeTexture StopIcon { get; }
 
 
         /// <summary>
