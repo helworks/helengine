@@ -188,6 +188,62 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// DemoDisc's Cube Test was once saved with every viewport subtree at about 2.09x plus a 64.8 px letterbox offset,
+        /// after its viewports gained an Android override. This replays that path: a letterboxing reference-canvas viewport
+        /// previewed in a 2805x1505 editor window gets Android density overrides through the inspector's edit controller,
+        /// runs another editor frame and is saved. The scene must hold the authored 1280x720 layout with the root at the
+        /// origin, and the override payload must carry the edited values on top of the authored component.
+        /// </summary>
+        [Fact]
+        public void Save_AfterPlatformOverrideEditOnLetterboxedViewport_WritesAuthoredLayout() {
+            ((TestRenderManager3D)CoreValue.RenderManager3D).OnWindowResize(IntPtr.Zero, 2805, 1505);
+            EditorEntity root = CreateMenu(new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                ScalingMode = ViewportComponent.ReferenceCanvasScalingMode,
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            });
+            ViewportComponent viewport = GetComponent<ViewportComponent>(root);
+            viewport.Update();
+            RoundedRectComponent panelRect = GetComponent<RoundedRectComponent>(FindChild(root, "Panel"));
+            int2 previewPanelSize = panelRect.Size;
+            Assert.NotEqual(new int2(512, 96), previewPanelSize);
+
+            EntitySaveComponent save = Assert.IsType<EntitySaveComponent>(Assert.Single(root.Components, component => component is EntitySaveComponent));
+            ComponentPlatformEditingService platformEditing = new ComponentPlatformEditingService();
+            EditorOverrideScope android = EditorOverrideScope.ForPlatform("android");
+            ComponentPropertyEditController controller = new ComponentPropertyEditController(platformEditing, () => null, () => { }, (_) => { });
+            ViewportComponent editable = Assert.IsType<ViewportComponent>(platformEditing.EnsureScopeOverrideComponent(viewport, save, android));
+            ApplyViewportEdit(controller, root, viewport, editable, save, android, nameof(ViewportComponent.ScalingMode), ViewportComponent.DensityScalingMode);
+            ApplyViewportEdit(controller, root, viewport, editable, save, android, nameof(ViewportComponent.UiScale), 0.5625f);
+            viewport.Update();
+            Assert.Equal(previewPanelSize, panelRect.Size);
+
+            using SceneSaveService saveService = CreateSceneSaveService();
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "LetterboxedOverride.helen");
+            saveService.Save(scenePath);
+
+            Assert.Equal(previewPanelSize, panelRect.Size);
+            Assert.Equal(new float3(384f, 90f, 0f), ReadSavedChildPosition(scenePath, "Panel"));
+            Assert.Equal(678f, ReadSavedChildPosition(scenePath, "Footer").Y);
+            Assert.True(save.GetOrCreateComponentState(viewport).TryGetScopedPlatformOverride(android, out EntityComponentPlatformOverrideState overrideState));
+            IComponentPersistenceDescriptor descriptor = Registry.GetDescriptor(viewport);
+            ViewportComponent payload = Assert.IsType<ViewportComponent>(descriptor.DeserializeComponent(new SceneComponentAssetRecord {
+                ComponentTypeId = descriptor is AutomaticScriptComponentPersistenceDescriptor
+                    ? AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(ViewportComponent))
+                    : descriptor.ComponentTypeId,
+                ComponentIndex = 0,
+                Payload = overrideState.Payload
+            }, new EntitySaveComponent(), new TestSceneAssetReferenceResolver()));
+            Assert.Equal(ViewportComponent.DensityScalingMode, payload.ScalingMode);
+            Assert.Equal(0.5625f, payload.UiScale);
+            Assert.Equal(1280, payload.ReferenceWidth);
+            Assert.Equal(720, payload.ReferenceHeight);
+            root.Dispose();
+            AssertAuthoredLayout(LoadSingleRoot(scenePath));
+        }
+
+        /// <summary>
         /// A value edited in the stretched preview is mapped back into authored space on save, and the preview keeps showing the edit.
         /// </summary>
         [Fact]
@@ -434,6 +490,39 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(savedAtEditorSize, savedAtSmallerSize);
             Assert.Equal(savedAtEditorSize, savedAfterReload);
             Assert.Equal(new int2(640, 120), GetComponent<RoundedRectComponent>(FindChild(root, "Inner")).Size);
+        }
+
+        /// <summary>
+        /// Applies one scoped viewport property edit through the inspector's edit controller, as a platform-tab edit does.
+        /// </summary>
+        /// <param name="controller">Inspector edit controller.</param>
+        /// <param name="owner">Entity that owns the viewport.</param>
+        /// <param name="common">Common live viewport attached to the entity.</param>
+        /// <param name="editable">Detached scoped copy the inspector rows edit.</param>
+        /// <param name="save">Entity save metadata receiving the override.</param>
+        /// <param name="scope">Override scope being edited.</param>
+        /// <param name="propertyName">Viewport property being edited.</param>
+        /// <param name="value">New property value.</param>
+        static void ApplyViewportEdit(
+            ComponentPropertyEditController controller,
+            EditorEntity owner,
+            ViewportComponent common,
+            ViewportComponent editable,
+            EntitySaveComponent save,
+            EditorOverrideScope scope,
+            string propertyName,
+            object value) {
+            controller.Apply(new ComponentPropertyEditRequest(
+                owner,
+                common,
+                editable,
+                save,
+                typeof(ViewportComponent).GetProperty(propertyName),
+                propertyName,
+                value,
+                scope,
+                propertyName,
+                false));
         }
 
         /// <summary>
