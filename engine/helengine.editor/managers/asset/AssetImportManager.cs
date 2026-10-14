@@ -1151,7 +1151,9 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves one imported texture asset id by recomputing asset ids for every authored texture source file.
+        /// Resolves one imported texture asset id by recomputing the processed ids every authored texture source can
+        /// produce. Processed ids are never persisted in the import-settings sidecars, so each candidate source is
+        /// matched against the ids its authored settings produce in every processing context the project can cook.
         /// </summary>
         /// <param name="assetId">Imported texture asset identifier stored in serialized material data.</param>
         /// <param name="sourcePath">Resolved authored source texture file path when the asset can be found on disk.</param>
@@ -1164,15 +1166,10 @@ namespace helengine.editor {
             ValidateRelativeImportAssetId(assetId);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(assetsRootPath, projectRootPath);
 
+            IReadOnlyList<string> projectPlatformIds = ReadProjectProcessingPlatformIds();
             foreach (string candidatePath in EnumerateAssetSourceFiles()) {
                 if (!IsTextureExtension(Path.GetExtension(candidatePath))) {
                     continue;
-                }
-
-                if (TryLoadStoredTextureImportAssetId(candidatePath, out string storedAssetId) &&
-                    string.Equals(storedAssetId, assetId, StringComparison.OrdinalIgnoreCase)) {
-                    sourcePath = candidatePath;
-                    return true;
                 }
 
                 TextureAssetImportSettings settings;
@@ -1180,7 +1177,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                if (!MatchesComputedTextureAssetId(candidatePath, settings, assetId)) {
+                if (!MatchesComputedTextureAssetId(candidatePath, settings, assetId, projectPlatformIds)) {
                     continue;
                 }
 
@@ -1193,41 +1190,30 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Attempts to read the imported texture asset id stored directly on one texture sidecar without normalizing or recomputing it.
-        /// </summary>
-        /// <param name="sourcePath">Absolute authored source texture path.</param>
-        /// <param name="assetId">Stored imported texture asset id when the sidecar could be read.</param>
-        /// <returns>True when a non-empty imported texture asset id was read from the sidecar.</returns>
-        bool TryLoadStoredTextureImportAssetId(string sourcePath, out string assetId) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
-
-            assetId = string.Empty;
-            string settingsPath = GetSettingsPath(sourcePath);
-            TextureAssetImportSettings settings;
-            if (!TryLoadTextureImportSettings(settingsPath, out settings) || settings == null || settings.Importer == null || string.IsNullOrWhiteSpace(settings.Importer.ProcessedAssetId)) {
-                return false;
-            }
-
-            assetId = settings.Importer.ProcessedAssetId;
-            return true;
-        }
-
-        /// <summary>
-        /// Returns whether one authored texture source can produce the supplied imported texture asset id under any relevant platform texture settings.
+        /// Returns whether one authored texture source can produce the supplied imported texture asset id in any
+        /// processing context: the current one, the importer-qualified form, or any candidate platform (see
+        /// <see cref="BuildProcessedAssetIdCandidatePlatformIds"/>) with its base settings or one of its environment
+        /// overrides.
         /// </summary>
         /// <param name="sourcePath">Absolute source texture path being evaluated.</param>
-        /// <param name="settings">Resolved texture import settings for the source file.</param>
+        /// <param name="settings">Resolved texture import settings for the source file, with the current processed id
+        /// already computed.</param>
         /// <param name="assetId">Imported texture asset identifier being matched.</param>
+        /// <param name="projectPlatformIds">Platforms the project declares, from <see cref="ReadProjectProcessingPlatformIds"/>.</param>
         /// <returns>True when the source/settings combination can produce the supplied imported texture asset id.</returns>
-        bool MatchesComputedTextureAssetId(string sourcePath, TextureAssetImportSettings settings, string assetId) {
+        bool MatchesComputedTextureAssetId(
+            string sourcePath,
+            TextureAssetImportSettings settings,
+            string assetId,
+            IReadOnlyList<string> projectPlatformIds) {
             if (string.IsNullOrWhiteSpace(sourcePath)) {
                 throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
             } else if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             } else if (string.IsNullOrWhiteSpace(assetId)) {
                 throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
+            } else if (projectPlatformIds == null) {
+                throw new ArgumentNullException(nameof(projectPlatformIds));
             }
 
             string sourceChecksum = settings.Importer?.SourceChecksum;
@@ -1247,11 +1233,23 @@ namespace helengine.editor {
                 return true;
             }
 
-            List<string> candidatePlatformIds = BuildTextureAssetIdCandidatePlatformIds(settings);
+            List<string> candidatePlatformIds = BuildProcessedAssetIdCandidatePlatformIds(settings.Processor?.Platforms?.Keys, projectPlatformIds);
             for (int index = 0; index < candidatePlatformIds.Count; index++) {
-                string candidateAssetId = BuildTextureAssetId(sourcePath, settings, sourceChecksum, candidatePlatformIds[index]);
-                if (string.Equals(candidateAssetId, assetId, StringComparison.OrdinalIgnoreCase)) {
+                string platformId = candidatePlatformIds[index];
+                if (string.Equals(BuildTextureAssetId(sourcePath, settings, sourceChecksum, platformId, string.Empty), assetId, StringComparison.OrdinalIgnoreCase)) {
                     return true;
+                }
+
+                if (settings.Processor?.Environments == null
+                    || !settings.Processor.Environments.TryGetValue(platformId, out Dictionary<string, TextureAssetProcessorSettings> environments)
+                    || environments == null) {
+                    continue;
+                }
+
+                foreach (string environmentId in environments.Keys) {
+                    if (string.Equals(BuildTextureAssetId(sourcePath, settings, sourceChecksum, platformId, environmentId), assetId, StringComparison.OrdinalIgnoreCase)) {
+                        return true;
+                    }
                 }
             }
 
@@ -1259,34 +1257,101 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the platform ids whose texture processor settings should be considered when matching one imported texture asset id back to its authored source file.
+        /// Builds every processed model id the authored model sources can produce, mapped to their source paths, so a
+        /// runtime model id can be traced back to its source without trusting any persisted id. Each model source is
+        /// matched in every processing context the project can cook: the current one plus every candidate platform
+        /// (see <see cref="BuildProcessedAssetIdCandidatePlatformIds"/>) with its base settings and each of its
+        /// environment overrides. When identical sources produce the same id, the first enumerated source wins.
         /// </summary>
-        /// <param name="settings">Resolved texture import settings for the candidate source file.</param>
-        /// <returns>Ordered platform ids that can produce texture cache identifiers for the candidate source.</returns>
-        List<string> BuildTextureAssetIdCandidatePlatformIds(TextureAssetImportSettings settings) {
-            if (settings == null) {
-                throw new ArgumentNullException(nameof(settings));
+        /// <returns>Absolute authored model source paths keyed by processed model asset id (case-sensitive).</returns>
+        public Dictionary<string, string> BuildImportedModelSourcePathsByProcessedAssetId() {
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(assetsRootPath, projectRootPath);
+            Dictionary<string, string> sourcePathsByProcessedAssetId = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (!Directory.Exists(assetsRootPath)) {
+                return sourcePathsByProcessedAssetId;
+            }
+
+            IReadOnlyList<string> projectPlatformIds = ReadProjectProcessingPlatformIds();
+            using EditorAuthoringReadBatch readBatch = EditorAuthoringReadBatch.Begin(projectRootPath);
+            foreach (string sourcePath in EnumerateAssetSourceFiles()) {
+                if (!IsModelExtension(Path.GetExtension(sourcePath))) {
+                    continue;
+                }
+
+                ModelAssetImportSettings settings;
+                if (!TryLoadOrCreateModelImportSettings(sourcePath, out settings) || settings == null) {
+                    continue;
+                }
+
+                sourcePathsByProcessedAssetId.TryAdd(settings.Importer.ProcessedAssetId, sourcePath);
+                List<string> candidatePlatformIds = BuildProcessedAssetIdCandidatePlatformIds(settings.Processor?.Platforms?.Keys, projectPlatformIds);
+                for (int index = 0; index < candidatePlatformIds.Count; index++) {
+                    string platformId = candidatePlatformIds[index];
+                    sourcePathsByProcessedAssetId.TryAdd(
+                        BuildModelAssetId(settings, settings.Importer.SourceChecksum, platformId, string.Empty),
+                        sourcePath);
+                    if (settings.Processor?.Environments == null
+                        || !settings.Processor.Environments.TryGetValue(platformId, out Dictionary<string, ModelAssetProcessorSettings> environments)
+                        || environments == null) {
+                        continue;
+                    }
+
+                    foreach (string environmentId in environments.Keys) {
+                        sourcePathsByProcessedAssetId.TryAdd(
+                            BuildModelAssetId(settings, settings.Importer.SourceChecksum, platformId, environmentId),
+                            sourcePath);
+                    }
+                }
+            }
+
+            return sourcePathsByProcessedAssetId;
+        }
+
+        /// <summary>
+        /// Reads the platforms the project declares in <c>settings/platforms.json</c> without writing anything, so a
+        /// reverse lookup can recompute processed ids for every platform the project can cook.
+        /// </summary>
+        /// <returns>Declared project platform ids.</returns>
+        IReadOnlyList<string> ReadProjectProcessingPlatformIds() {
+            return new EditorProjectPlatformsService(projectRootPath).Read().SupportedPlatforms;
+        }
+
+        /// <summary>
+        /// Builds the platform ids whose processor settings can produce a processed asset id for one source: the
+        /// platform-less context, the current platform, every platform the sidecar configures and every platform the
+        /// project declares. A platform without configured settings still produces its own id, because the platform
+        /// id is part of the hash.
+        /// </summary>
+        /// <param name="sidecarPlatformIds">Platform ids configured in the source's import settings, or null.</param>
+        /// <param name="projectPlatformIds">Platform ids the project declares.</param>
+        /// <returns>Distinct candidate platform ids, compared without case.</returns>
+        List<string> BuildProcessedAssetIdCandidatePlatformIds(IEnumerable<string> sidecarPlatformIds, IReadOnlyList<string> projectPlatformIds) {
+            if (projectPlatformIds == null) {
+                throw new ArgumentNullException(nameof(projectPlatformIds));
             }
 
             List<string> platformIds = new List<string>();
-            AddTextureAssetIdCandidatePlatformId(platformIds, string.Empty);
-            AddTextureAssetIdCandidatePlatformId(platformIds, CurrentPlatformId);
-
-            if (settings.Processor != null && settings.Processor.Platforms != null) {
-                foreach (string platformId in settings.Processor.Platforms.Keys) {
-                    AddTextureAssetIdCandidatePlatformId(platformIds, platformId);
+            AddProcessedAssetIdCandidatePlatformId(platformIds, string.Empty);
+            AddProcessedAssetIdCandidatePlatformId(platformIds, CurrentPlatformId);
+            if (sidecarPlatformIds != null) {
+                foreach (string platformId in sidecarPlatformIds) {
+                    AddProcessedAssetIdCandidatePlatformId(platformIds, platformId);
                 }
+            }
+
+            for (int index = 0; index < projectPlatformIds.Count; index++) {
+                AddProcessedAssetIdCandidatePlatformId(platformIds, projectPlatformIds[index]);
             }
 
             return platformIds;
         }
 
         /// <summary>
-        /// Adds one candidate platform id to the imported-texture source-resolution probe set when it has not been recorded already.
+        /// Adds one candidate platform id to a processed-id probe set when it has not been recorded already.
         /// </summary>
         /// <param name="platformIds">Mutable candidate platform id collection.</param>
         /// <param name="platformId">Platform id to record.</param>
-        void AddTextureAssetIdCandidatePlatformId(List<string> platformIds, string platformId) {
+        void AddProcessedAssetIdCandidatePlatformId(List<string> platformIds, string platformId) {
             if (platformIds == null) {
                 throw new ArgumentNullException(nameof(platformIds));
             }
@@ -2172,35 +2237,9 @@ namespace helengine.editor {
             using MemoryStream sourceStream = new MemoryStream(sourceBytes, writable: false);
             string sourceChecksum = fileHasher.ComputeHash(sourceStream);
             settings.Importer.SourceChecksum = sourceChecksum;
-            string computedAssetId = BuildTextureAssetId(sourcePath, settings, sourceChecksum);
-            bool existingIdentityMatchesCurrentSemantics = false;
-            if (existingSettings != null
-                && !string.IsNullOrWhiteSpace(existingSettings.Importer?.ProcessedAssetId)
-                && string.Equals(existingSettings.Importer?.SourceChecksum, sourceChecksum, StringComparison.Ordinal)) {
-                string existingComputedAssetId = BuildTextureAssetId(
-                    sourcePath,
-                    existingSettings,
-                    sourceChecksum);
-                existingIdentityMatchesCurrentSemantics = string.Equals(
-                    existingSettings.Importer.ProcessedAssetId,
-                    existingComputedAssetId,
-                    StringComparison.Ordinal)
-                    && string.Equals(
-                        computedAssetId,
-                        existingComputedAssetId,
-                        StringComparison.Ordinal);
-            }
-
-            // A valid published sidecar owns the processed identity while its
-            // source and processing semantics remain unchanged. A proposed
-            // catalog id is therefore only honored for a new destination;
-            // changed or semantically reconfigured sources receive the id
-            // computed from the staged bytes/settings.
-            if (existingIdentityMatchesCurrentSemantics) {
-                settings.Importer.ProcessedAssetId = existingSettings.Importer.ProcessedAssetId;
-            } else if (existingSettings != null || string.IsNullOrWhiteSpace(settings.Importer.ProcessedAssetId)) {
-                settings.Importer.ProcessedAssetId = computedAssetId;
-            }
+            // The processed id is derived from the staged bytes and settings, exactly as a load of the published
+            // pair would recompute it; it is never persisted, so no published sidecar can own a different one.
+            settings.Importer.ProcessedAssetId = BuildTextureAssetId(sourcePath, settings, sourceChecksum);
             return settings;
         }
 
@@ -2626,7 +2665,8 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the processed texture asset identifier for one explicit platform texture-settings context.
+        /// Builds the processed texture asset identifier for one explicit platform texture-settings context under the
+        /// current environment.
         /// </summary>
         /// <param name="sourcePath">Absolute path to the source file.</param>
         /// <param name="settings">Resolved typed texture import settings for the source file.</param>
@@ -2634,6 +2674,20 @@ namespace helengine.editor {
         /// <param name="platformId">Platform texture-settings key that should drive identity generation.</param>
         /// <returns>Processed asset identifier for the supplied platform texture-settings context.</returns>
         string BuildTextureAssetId(string sourcePath, TextureAssetImportSettings settings, string sourceChecksum, string platformId) {
+            return BuildTextureAssetId(sourcePath, settings, sourceChecksum, platformId, CurrentEnvironmentId);
+        }
+
+        /// <summary>
+        /// Builds the processed texture asset identifier for one explicit platform and environment context.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Resolved typed texture import settings for the source file.</param>
+        /// <param name="sourceChecksum">Checksum of the source file contents.</param>
+        /// <param name="platformId">Platform texture-settings key that should drive identity generation.</param>
+        /// <param name="environmentId">Environment whose override applies when the sidecar has one for the platform;
+        /// empty for the platform's base settings.</param>
+        /// <returns>Processed asset identifier for the supplied platform and environment context.</returns>
+        string BuildTextureAssetId(string sourcePath, TextureAssetImportSettings settings, string sourceChecksum, string platformId, string environmentId) {
             if (string.IsNullOrWhiteSpace(sourcePath)) {
                 throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
             } else if (settings == null) {
@@ -2642,7 +2696,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Source checksum must be provided.", nameof(sourceChecksum));
             }
 
-            TextureAssetProcessorSettings processorSettings = GetTextureProcessorSettings(settings, platformId);
+            TextureAssetProcessorSettings processorSettings = GetTextureProcessorSettings(settings, platformId, environmentId);
             string indexingMethodId = processorSettings.UsesIndexedColorFormat()
                 ? processorSettings.ResolveIndexingMethod().ToString()
                 : string.Empty;
@@ -2889,6 +2943,19 @@ namespace helengine.editor {
         /// <param name="platformId">Platform texture-settings key that should drive the returned processor settings.</param>
         /// <returns>Texture processor settings for the requested platform context.</returns>
         TextureAssetProcessorSettings GetTextureProcessorSettings(TextureAssetImportSettings settings, string platformId) {
+            return GetTextureProcessorSettings(settings, platformId, CurrentEnvironmentId);
+        }
+
+        /// <summary>
+        /// Resolves the texture processor settings for one explicit platform and environment, returning defaults when
+        /// none were saved yet.
+        /// </summary>
+        /// <param name="settings">Resolved typed texture settings for the source file.</param>
+        /// <param name="platformId">Platform texture-settings key that should drive the returned processor settings.</param>
+        /// <param name="environmentId">Environment whose override wins when the sidecar has one for the platform; empty
+        /// for the platform's base settings.</param>
+        /// <returns>Texture processor settings for the requested platform and environment context.</returns>
+        TextureAssetProcessorSettings GetTextureProcessorSettings(TextureAssetImportSettings settings, string platformId, string environmentId) {
             if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             }
@@ -2907,10 +2974,10 @@ namespace helengine.editor {
                 return CreateDefaultTextureProcessorSettings(normalizedPlatformId);
             }
 
-            if (!string.IsNullOrWhiteSpace(CurrentEnvironmentId)
+            if (!string.IsNullOrWhiteSpace(environmentId)
                 && settings.Processor.Environments.TryGetValue(normalizedPlatformId, out Dictionary<string, TextureAssetProcessorSettings> environments)
                 && environments != null
-                && environments.TryGetValue(CurrentEnvironmentId, out TextureAssetProcessorSettings environmentSettings)
+                && environments.TryGetValue(environmentId, out TextureAssetProcessorSettings environmentSettings)
                 && environmentSettings != null) {
                 return environmentSettings;
             }
@@ -2927,12 +2994,30 @@ namespace helengine.editor {
         string BuildModelAssetId(ModelAssetImportSettings settings, string sourceChecksum) {
             if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
+            }
+
+            return BuildModelAssetId(settings, sourceChecksum, ResolveModelProcessorPlatformId(settings), CurrentEnvironmentId);
+        }
+
+        /// <summary>
+        /// Builds the processed model asset identifier for one explicit platform and environment context.
+        /// </summary>
+        /// <param name="settings">Resolved typed model import settings for the source file.</param>
+        /// <param name="sourceChecksum">Checksum of the source file contents.</param>
+        /// <param name="platformId">Platform model-settings key that should drive identity generation; empty for the
+        /// platform-less context.</param>
+        /// <param name="environmentId">Environment whose override applies when the sidecar has one for the platform;
+        /// empty for the platform's base settings.</param>
+        /// <returns>Processed asset identifier for the supplied platform and environment context.</returns>
+        string BuildModelAssetId(ModelAssetImportSettings settings, string sourceChecksum, string platformId, string environmentId) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
             } else if (string.IsNullOrWhiteSpace(sourceChecksum)) {
                 throw new ArgumentException("Source checksum must be provided.", nameof(sourceChecksum));
             }
 
-            ModelAssetProcessorSettings processorSettings = GetCurrentPlatformModelProcessorSettings(settings);
-            string platformId = ResolveModelProcessorPlatformId(settings);
+            platformId = platformId ?? string.Empty;
+            ModelAssetProcessorSettings processorSettings = GetModelProcessorSettings(settings, platformId, environmentId);
             string tessellateFlag = processorSettings.Tessellate ? "1" : "0";
             string tessellationMaxEdgeLength = processorSettings.TessellationMaxEdgeLength.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
             string identity = string.Concat(
@@ -3182,7 +3267,23 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            string platformId = ResolveModelProcessorPlatformId(settings);
+            return GetModelProcessorSettings(settings, ResolveModelProcessorPlatformId(settings), CurrentEnvironmentId);
+        }
+
+        /// <summary>
+        /// Resolves the model processor settings for one explicit platform and environment, returning defaults when
+        /// none were saved yet.
+        /// </summary>
+        /// <param name="settings">Resolved typed model settings for the source file.</param>
+        /// <param name="platformId">Platform model-settings key; empty for the platform-less context.</param>
+        /// <param name="environmentId">Environment whose override wins when the sidecar has one for the platform; empty
+        /// for the platform's base settings.</param>
+        /// <returns>Model processor settings for the requested platform and environment context.</returns>
+        ModelAssetProcessorSettings GetModelProcessorSettings(ModelAssetImportSettings settings, string platformId, string environmentId) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
             if (string.IsNullOrWhiteSpace(platformId)) {
                 return new ModelAssetProcessorSettings();
             }
@@ -3196,10 +3297,10 @@ namespace helengine.editor {
                 return new ModelAssetProcessorSettings();
             }
 
-            if (!string.IsNullOrWhiteSpace(CurrentEnvironmentId)
+            if (!string.IsNullOrWhiteSpace(environmentId)
                 && settings.Processor.Environments.TryGetValue(platformId, out Dictionary<string, ModelAssetProcessorSettings> environments)
                 && environments != null
-                && environments.TryGetValue(CurrentEnvironmentId, out ModelAssetProcessorSettings environmentSettings)
+                && environments.TryGetValue(environmentId, out ModelAssetProcessorSettings environmentSettings)
                 && environmentSettings != null) {
                 return environmentSettings;
             }

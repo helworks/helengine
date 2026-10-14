@@ -782,6 +782,7 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
         public override SceneAssetReference CreateReference(string relativePath, AssetEntryKind expectedKind) => Inner.CreateReference(relativePath, expectedKind);
         public override AssetReferenceResolution ResolveReference(SceneAssetReference reference, AssetEntryKind expectedKind) => Inner.ResolveReference(reference, expectedKind);
         public override RuntimeModel LoadImportedRuntimeModel(string relativePath) => Inner.LoadImportedRuntimeModel(relativePath);
+        public override IReadOnlyDictionary<string, string> BuildImportedModelRelativePathsByProcessedAssetId() => Inner.BuildImportedModelRelativePathsByProcessedAssetId();
         public override EditorAssetWriteResult WriteAsset(string relativePath, Asset asset) => Inner.WriteAsset(relativePath, asset);
         public override EditorAuthoringTransaction BeginTransaction() => Inner.BeginTransaction();
         public override bool OwnsTransaction(EditorAuthoringTransaction transaction) => Inner.OwnsTransaction(transaction);

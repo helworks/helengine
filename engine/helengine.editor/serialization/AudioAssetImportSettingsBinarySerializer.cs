@@ -9,9 +9,11 @@ namespace helengine.editor {
         public const EditorBinaryRecordKind RecordKind = EditorBinaryRecordKind.AssetImportSettings;
 
         /// <summary>
-        /// Serializer version for the current audio asset import settings payload layout.
+        /// Serializer version for the current audio asset import settings payload layout. Version 3 persists only
+        /// authored data (the importer id and the processor settings); the source checksum and the processed asset id
+        /// are recomputed on load and never written.
         /// </summary>
-        public const byte CurrentVersion = 2;
+        public const byte CurrentVersion = 3;
 
         /// <summary>
         /// Payload endianness used by the current audio asset import settings format.
@@ -42,8 +44,6 @@ namespace helengine.editor {
                 (ushort)RecordKind,
                 (ushort)AssetImportSettingsBinaryValueKind.AudioAssetImportSettings);
             writer.WriteString(settings.Importer.ImporterId);
-            writer.WriteString(settings.Importer.SourceChecksum);
-            writer.WriteString(settings.Importer.ProcessedAssetId);
             writer.WriteInt32(settings.Processor.Platforms.Count);
             foreach (KeyValuePair<string, AudioAssetProcessorSettings> entry in settings.Processor.Platforms.OrderBy(entry => entry.Key, StringComparer.Ordinal)) {
                 if (string.IsNullOrWhiteSpace(entry.Key)) {
@@ -93,8 +93,6 @@ namespace helengine.editor {
 
             AudioAssetImportSettings settings = new AudioAssetImportSettings();
             settings.Importer.ImporterId = reader.ReadString();
-            settings.Importer.SourceChecksum = reader.ReadString();
-            settings.Importer.ProcessedAssetId = reader.ReadString();
 
             int platformCount = reader.ReadInt32();
             if (platformCount < 0) {

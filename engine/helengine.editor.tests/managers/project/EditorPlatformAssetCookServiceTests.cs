@@ -582,37 +582,9 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies that when packaging imports a texture and rewrites only the cook-derived fields of its existing
-    /// import-settings sidecar, the entry is also stored under the post-packaging inputs, so the next unchanged cook
-    /// restores it instead of packaging again.
-    /// </summary>
-    [Fact]
-    public void Cook_when_packaging_rewrites_only_cook_derived_import_settings_restores_the_package_on_the_next_cook() {
-        string textureSourcePath = WriteTextureWithImportSettings("Textures/Logo.png", "gamecube");
-        byte[] sidecarBeforeCook = File.ReadAllBytes(textureSourcePath + ".hasset");
-        WriteSceneAsset(
-            "Scenes/MainMenu.helen",
-            [global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemTexture("Textures/Logo.png")]);
-        EditorPlatformAssetCookService service = CreateTextureCookService(new TestTextureImporter());
-        TestPlatformMaterialAssetBuilder builder = new();
-        string sceneCacheRootPath = Path.Combine(ProjectRootPath, "cache", "build", "scene-package", "v1");
-
-        service.Cook(builder.Definition, ["MainMenu"], BuildRootPath, ["windows"], builder);
-        Assert.NotEqual(sidecarBeforeCook, File.ReadAllBytes(textureSourcePath + ".hasset"));
-        int entriesAfterFirstCook = Directory.GetDirectories(sceneCacheRootPath).Length;
-
-        Directory.Delete(Path.Combine(BuildRootPath, "cooked"), true);
-        service.Cook(builder.Definition, ["MainMenu"], BuildRootPath, ["windows"], builder);
-
-        Assert.Equal(2, entriesAfterFirstCook);
-        Assert.Equal(entriesAfterFirstCook, Directory.GetDirectories(sceneCacheRootPath).Length);
-        Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "MainMenu.hasset")));
-    }
-
-    /// <summary>
     /// Verifies that a real import-settings edit made while packaging runs (a processor field that changes how the
-    /// texture cooks) keeps the packaged output only under the pre-packaging inputs, even though the same packaging
-    /// also made an accepted cook-derived rewrite.
+    /// texture cooks) keeps the packaged output only under the pre-packaging inputs, while the import of the cooked
+    /// texture itself leaves its own sidecar untouched.
     /// </summary>
     [Fact]
     public void Cook_when_import_settings_are_edited_during_packaging_does_not_store_the_post_packaging_key() {
@@ -629,7 +601,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
 
         service.Cook(builder.Definition, ["MainMenu"], BuildRootPath, ["windows"], builder);
 
-        Assert.NotEqual(logoSidecarBeforeCook, File.ReadAllBytes(textureSourcePath + ".hasset"));
+        Assert.Equal(logoSidecarBeforeCook, File.ReadAllBytes(textureSourcePath + ".hasset"));
         Assert.NotEqual(otherSidecarBeforeCook, File.ReadAllBytes(otherSourcePath + ".hasset"));
         Assert.Single(Directory.GetDirectories(sceneCacheRootPath));
     }
@@ -653,11 +625,11 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Writes one source texture and saves its import-settings sidecar as the editor would for one platform, so a
-    /// cook for another platform must import it again and rewrites the sidecar's cook-derived asset id.
+    /// Writes one source texture and saves its import-settings sidecar as the editor would while one platform is
+    /// active, so a cook for another platform has no processed cache entry and must import the texture again.
     /// </summary>
     /// <param name="textureRelativePath">Assets-relative source texture path.</param>
-    /// <param name="platformId">Platform whose derived asset id the saved sidecar carries.</param>
+    /// <param name="platformId">Platform active in the editor when the sidecar is saved.</param>
     /// <returns>Absolute source texture path.</returns>
     string WriteTextureWithImportSettings(string textureRelativePath, string platformId) {
         string textureSourcePath = Path.Combine(ProjectRootPath, "assets", textureRelativePath.Replace('/', Path.DirectorySeparatorChar));

@@ -1008,8 +1008,8 @@ namespace helengine.editor.tests {
             Assert.Equal((ushort)SectionedAssetImportSettingsBinarySerializer.ValueKind, header.ValueKind);
             Assert.Equal(SectionedAssetImportSettingsBinarySerializer.CurrentVersion, header.Version);
             Assert.Equal(settings.Importer.ImporterId, deserialized.Importer.ImporterId);
-            Assert.Equal(settings.Importer.SourceChecksum, deserialized.Importer.SourceChecksum);
-            Assert.Equal(settings.Importer.ProcessedAssetId, deserialized.Importer.ProcessedAssetId);
+            Assert.Null(deserialized.Importer.SourceChecksum);
+            Assert.Null(deserialized.Importer.ProcessedAssetId);
             Assert.True(deserialized.Processor.Platforms.ContainsKey("windows"));
             Assert.True(deserialized.Processor.Platforms["windows"].Model.FlipWinding);
             Assert.True(deserialized.Processor.Platforms.ContainsKey("android"));
@@ -1185,8 +1185,8 @@ namespace helengine.editor.tests {
             AssetImportSettings loadedSettings = contentManager.Load<AssetImportSettings>(settingsPath);
 
             Assert.Equal(settings.Importer.ImporterId, loadedSettings.Importer.ImporterId);
-            Assert.Equal(settings.Importer.SourceChecksum, loadedSettings.Importer.SourceChecksum);
-            Assert.Equal(settings.Importer.ProcessedAssetId, loadedSettings.Importer.ProcessedAssetId);
+            Assert.Null(loadedSettings.Importer.SourceChecksum);
+            Assert.Null(loadedSettings.Importer.ProcessedAssetId);
             Assert.True(loadedSettings.Processor.Platforms["windows"].Model.FlipWinding);
         }
 

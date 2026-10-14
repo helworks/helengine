@@ -90,14 +90,6 @@ namespace helengine.editor {
         /// <param name="reader">Reader positioned at the payload body.</param>
         /// <returns>Deserialized font settings payload.</returns>
         public object Deserialize(EngineBinaryReader reader) {
-            return Deserialize(reader, true);
-        }
-
-        /// <summary>Reads a font section under the owning sidecar's explicit extension policy so legacy headers cannot misframe opt-in data.</summary>
-        /// <param name="reader">Reader positioned at the font section body.</param>
-        /// <param name="allowExtendedPolicy">Whether the owning sidecar version allows the tagged horizontal-pixel extension.</param>
-        /// <returns>The validated font settings payload.</returns>
-        public object Deserialize(EngineBinaryReader reader, bool allowExtendedPolicy) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
@@ -105,7 +97,6 @@ namespace helengine.editor {
             int pixelSize = reader.ReadInt32();
             bool snapHorizontalMetrics = false;
             if (pixelSize == ExtendedPayloadMarker) {
-                if (!allowExtendedPolicy) { throw new InvalidOperationException("Extended font settings require the opt-in asset settings version."); }
                 byte version = reader.ReadByte();
                 if (version != ExtendedPayloadVersion) { throw new InvalidOperationException("Unsupported font settings extension version."); }
                 pixelSize = reader.ReadInt32();

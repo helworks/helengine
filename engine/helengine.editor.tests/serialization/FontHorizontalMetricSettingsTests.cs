@@ -30,13 +30,11 @@ namespace helengine.editor.tests.serialization {
             Assert.False(definition.SettingsEqual(original, clone));
         }
 
-        /// <summary>A mixed complete sidecar preserves its texture, platform and environment sections and restores exact old bytes when only the new policy is disabled.</summary>
+        /// <summary>A mixed complete sidecar preserves its texture, platform and environment sections under the one current header, and restores its exact disabled-policy bytes when the policy is turned off again.</summary>
         [Fact]
         public void MultipleSectionsProfilesAndEnvironmentsKeepTheirFraming() {
             AssetImportSettings settings = new AssetImportSettings();
             settings.Importer.ImporterId = "gdi-font";
-            settings.Importer.ProcessedAssetId = "10000000000000000000000000000001";
-            settings.Importer.SourceChecksum = new string('a', 64);
             AssetPlatformProcessorSettings ps2 = new AssetPlatformProcessorSettings();
             ps2.Font.PixelSize = 34;
             ps2.FontAtlasTexture.MaxResolution = 512;
@@ -44,17 +42,17 @@ namespace helengine.editor.tests.serialization {
             ps2.Environments.Add("preview", new AssetPlatformProcessorSettings { Font = new FontAssetProcessorSettings { PixelSize = 20 } });
             settings.Processor.Platforms.Add("ps2", ps2);
             settings.Processor.Platforms.Add("n64", new AssetPlatformProcessorSettings { Font = new FontAssetProcessorSettings { PixelSize = 13 } });
-            byte[] legacy = WriteSidecar(settings);
-            using (MemoryStream headerStream = new MemoryStream(legacy)) { Assert.Equal((byte)12, EngineBinaryHeaderSerializer.Read(headerStream).Version); }
-            using (MemoryStream stream = new MemoryStream(legacy)) {
-                AssetImportSettings old = SectionedAssetImportSettingsBinarySerializer.Deserialize(stream);
-                Assert.False(old.Processor.Platforms["ps2"].Font.SnapHorizontalMetricsToPixels);
+            byte[] disabled = WriteSidecar(settings);
+            using (MemoryStream headerStream = new MemoryStream(disabled)) { Assert.Equal(SectionedAssetImportSettingsBinarySerializer.CurrentVersion, EngineBinaryHeaderSerializer.Read(headerStream).Version); }
+            using (MemoryStream stream = new MemoryStream(disabled)) {
+                AssetImportSettings disabledSettings = SectionedAssetImportSettingsBinarySerializer.Deserialize(stream);
+                Assert.False(disabledSettings.Processor.Platforms["ps2"].Font.SnapHorizontalMetricsToPixels);
                 Assert.Equal(stream.Length, stream.Position);
             }
             ps2.Font.SnapHorizontalMetricsToPixels = true;
             byte[] extended = WriteSidecar(settings);
-            using (MemoryStream headerStream = new MemoryStream(extended)) { Assert.Equal((byte)13, EngineBinaryHeaderSerializer.Read(headerStream).Version); }
-            Assert.Equal(legacy.Length + 6, extended.Length);
+            using (MemoryStream headerStream = new MemoryStream(extended)) { Assert.Equal(SectionedAssetImportSettingsBinarySerializer.CurrentVersion, EngineBinaryHeaderSerializer.Read(headerStream).Version); }
+            Assert.Equal(disabled.Length + 6, extended.Length);
             using MemoryStream updatedStream = new MemoryStream(extended);
             AssetImportSettings restored = SectionedAssetImportSettingsBinarySerializer.Deserialize(updatedStream);
             Assert.Equal(updatedStream.Length, updatedStream.Position);
@@ -64,12 +62,12 @@ namespace helengine.editor.tests.serialization {
             Assert.Equal(512, restored.Processor.Platforms["ps2"].FontAtlasTexture.MaxResolution);
             Assert.Equal(TextureAssetColorFormat.Indexed8, restored.Processor.Platforms["ps2"].FontAtlasTexture.ColorFormat);
             restored.Processor.Platforms["ps2"].Font.SnapHorizontalMetricsToPixels = false;
-            Assert.Equal(legacy, WriteSidecar(restored));
+            Assert.Equal(disabled, WriteSidecar(restored));
         }
 
-        /// <summary>A legacy header rejects opt-in sections instead of treating their extension bytes as subsequent unrelated sections.</summary>
+        /// <summary>A sidecar written under the previous header version is rejected outright, so its sections are never framed by the current reader.</summary>
         [Fact]
-        public void LegacyHeaderRejectsExtendedFontPayload() {
+        public void PreviousHeaderVersionIsRejected() {
             AssetImportSettings settings = new AssetImportSettings();
             settings.Processor.Platforms.Add("ps2", new AssetPlatformProcessorSettings {
                 Font = new FontAssetProcessorSettings { PixelSize = 34, SnapHorizontalMetricsToPixels = true }
@@ -78,7 +76,7 @@ namespace helengine.editor.tests.serialization {
             using MemoryStream stream = new MemoryStream(bytes, true);
             EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
             stream.Position = 0;
-            EngineBinaryHeaderSerializer.Write(stream, new EngineBinaryHeader(header.Endianness, 12, header.FormatId, header.RecordKind, header.ValueKind));
+            EngineBinaryHeaderSerializer.Write(stream, new EngineBinaryHeader(header.Endianness, (byte)(SectionedAssetImportSettingsBinarySerializer.CurrentVersion - 1), header.FormatId, header.RecordKind, header.ValueKind));
             stream.Position = 0;
             Assert.Throws<InvalidOperationException>(() => SectionedAssetImportSettingsBinarySerializer.Deserialize(stream));
         }

@@ -9,9 +9,11 @@ namespace helengine.editor {
         public const EditorBinaryRecordKind RecordKind = EditorBinaryRecordKind.AssetImportSettings;
 
         /// <summary>
-        /// Serializer version for the current model asset import settings payload layout.
+        /// Serializer version for the current model asset import settings payload layout. Version 5 persists only
+        /// authored data (the importer id and the processor settings); the source checksum and the processed asset id
+        /// are recomputed on load and never written.
         /// </summary>
-        public const byte CurrentVersion = 4;
+        public const byte CurrentVersion = 5;
 
         /// <summary>
         /// Payload endianness used by the current model asset import settings format.
@@ -42,8 +44,6 @@ namespace helengine.editor {
                 (ushort)RecordKind,
                 (ushort)AssetImportSettingsBinaryValueKind.ModelAssetImportSettings);
             writer.WriteString(settings.Importer.ImporterId);
-            writer.WriteString(settings.Importer.SourceChecksum);
-            writer.WriteString(settings.Importer.ProcessedAssetId);
             writer.WriteInt32(settings.Processor.Platforms.Count);
             foreach (KeyValuePair<string, ModelAssetProcessorSettings> entry in settings.Processor.Platforms.OrderBy(entry => entry.Key, StringComparer.Ordinal)) {
                 if (string.IsNullOrWhiteSpace(entry.Key)) {
@@ -79,14 +79,12 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(stream));
             }
 
-            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
-            using EngineBinaryReader reader = VersionedBinaryPayload.ValidateHeader(
+            using EngineBinaryReader reader = VersionedBinaryPayload.ReadHeader(
                 stream,
-                header,
                 EditorAssetBinarySerializer.FormatId,
                 (ushort)RecordKind,
                 (ushort)AssetImportSettingsBinaryValueKind.ModelAssetImportSettings,
-                header.Version == 3 ? (byte)3 : CurrentVersion,
+                CurrentVersion,
                 "model asset import settings",
                 "model asset import settings",
                 "model asset import settings",
@@ -95,8 +93,6 @@ namespace helengine.editor {
 
             ModelAssetImportSettings settings = new ModelAssetImportSettings();
             settings.Importer.ImporterId = reader.ReadString();
-            settings.Importer.SourceChecksum = reader.ReadString();
-            settings.Importer.ProcessedAssetId = reader.ReadString();
 
             int platformCount = reader.ReadInt32();
             if (platformCount < 0) {
@@ -109,7 +105,7 @@ namespace helengine.editor {
                     throw new InvalidOperationException("Model asset import settings cannot contain a blank processor platform id.");
                 }
 
-                ModelAssetProcessorSettings platformSettings = ReadModelSettings(reader, header.Version >= 4);
+                ModelAssetProcessorSettings platformSettings = ReadModelSettings(reader);
 
                 settings.Processor.Platforms.Add(platformId, platformSettings);
             }
@@ -123,7 +119,7 @@ namespace helengine.editor {
                 Dictionary<string, ModelAssetProcessorSettings> environments = new Dictionary<string, ModelAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
                 for (int environmentIndex = 0; environmentIndex < environmentCount; environmentIndex++) {
                     string environmentId = reader.ReadString();
-                    environments.Add(environmentId, ReadModelSettings(reader, header.Version >= 4));
+                    environments.Add(environmentId, ReadModelSettings(reader));
                 }
                 settings.Processor.Environments.Add(platformId, environments);
             }
@@ -172,19 +168,17 @@ namespace helengine.editor {
             if (settings.GpuReduction != null) new ModelGpuReductionSectionDefinition().Serialize(writer, settings.GpuReduction);
         }
 
-        /// <summary>Reads current values or migrates a v3 record by retaining an absent inherited GPU policy.</summary>
-        static ModelAssetProcessorSettings ReadModelSettings(EngineBinaryReader reader, bool hasGpuPolicy) {
+        /// <summary>Reads one processor record: the base values plus the optional render-only GPU policy.</summary>
+        static ModelAssetProcessorSettings ReadModelSettings(EngineBinaryReader reader) {
             ModelAssetProcessorSettings settings = new ModelAssetProcessorSettings {
                 FlipWinding = ReadBooleanByte(reader),
                 Tessellate = ReadBooleanByte(reader),
                 TessellationMaxEdgeLength = reader.ReadDouble()
             };
             ValidateTessellationMaxEdgeLength(settings.TessellationMaxEdgeLength);
-            if (hasGpuPolicy) {
-                byte present = reader.ReadByte();
-                if (present > 1) throw new InvalidOperationException("Invalid optional GPU model policy marker.");
-                if (present == 1) settings.GpuReduction = (ModelGpuReductionSettings)new ModelGpuReductionSectionDefinition().Deserialize(reader);
-            }
+            byte present = reader.ReadByte();
+            if (present > 1) throw new InvalidOperationException("Invalid optional GPU model policy marker.");
+            if (present == 1) settings.GpuReduction = (ModelGpuReductionSettings)new ModelGpuReductionSectionDefinition().Deserialize(reader);
             return settings;
         }
     }

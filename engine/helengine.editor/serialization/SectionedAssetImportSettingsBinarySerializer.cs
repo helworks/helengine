@@ -14,12 +14,11 @@ namespace helengine.editor {
         public const AssetImportSettingsBinaryValueKind ValueKind = AssetImportSettingsBinaryValueKind.AssetImportSettings;
 
         /// <summary>
-        /// Latest supported version, emitted only when an opt-in extended font section is present.
+        /// Serializer version for the current sectioned import settings payload layout. Version 14 persists only
+        /// authored data (the importer id and the processor sections); the source checksum and the processed asset id
+        /// are recomputed on load and never written. Font sections may carry the tagged horizontal-pixel extension.
         /// </summary>
-        public const byte CurrentVersion = 13;
-
-        /// <summary>Version retained byte-for-byte for ordinary settings without the horizontal font pixel policy.</summary>
-        public const byte LegacyVersion = 12;
+        public const byte CurrentVersion = 14;
 
         /// <summary>
         /// Payload endianness used by the current asset import settings format.
@@ -41,7 +40,7 @@ namespace helengine.editor {
             using EngineBinaryWriter writer = VersionedBinaryPayload.WriteHeader(
                 stream,
                 PayloadEndianness,
-                HasExtendedFontPolicy(settings) ? CurrentVersion : LegacyVersion,
+                CurrentVersion,
                 EditorAssetBinarySerializer.FormatId,
                 (ushort)RecordKind,
                 (ushort)ValueKind);
@@ -54,8 +53,6 @@ namespace helengine.editor {
             }
 
             writer.WriteString(settings.Importer.ImporterId);
-            writer.WriteString(settings.Importer.SourceChecksum);
-            writer.WriteString(settings.Importer.ProcessedAssetId);
             writer.WriteInt32(settings.Processor.Platforms.Count);
             foreach (KeyValuePair<string, AssetPlatformProcessorSettings> entry in settings.Processor.Platforms.OrderBy(entry => entry.Key, StringComparer.Ordinal)) {
                 if (string.IsNullOrWhiteSpace(entry.Key)) {
@@ -91,14 +88,12 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(stream));
             }
 
-            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
-            using EngineBinaryReader reader = VersionedBinaryPayload.ValidateHeader(
+            using EngineBinaryReader reader = VersionedBinaryPayload.ReadHeader(
                 stream,
-                header,
                 EditorAssetBinarySerializer.FormatId,
                 (ushort)RecordKind,
                 (ushort)ValueKind,
-                header.Version == LegacyVersion ? LegacyVersion : CurrentVersion,
+                CurrentVersion,
                 "asset import settings",
                 "asset import settings",
                 "sectioned asset import settings",
@@ -107,8 +102,6 @@ namespace helengine.editor {
 
             AssetImportSettings settings = new AssetImportSettings();
             settings.Importer.ImporterId = reader.ReadString();
-            settings.Importer.SourceChecksum = reader.ReadString();
-            settings.Importer.ProcessedAssetId = reader.ReadString();
 
             int platformCount = reader.ReadInt32();
             if (platformCount < 0) {
@@ -122,7 +115,7 @@ namespace helengine.editor {
                 }
 
                 AssetPlatformProcessorSettings platformSettings = new AssetPlatformProcessorSettings();
-                DeserializePlatformSettings(reader, platformSettings, $"platform '{platformId}'", header.Version == CurrentVersion);
+                DeserializePlatformSettings(reader, platformSettings, $"platform '{platformId}'");
                 int environmentCount = reader.ReadInt32();
                 if (environmentCount < 0) {
                     throw new InvalidOperationException("Asset import settings environment count cannot be negative.");
@@ -133,7 +126,7 @@ namespace helengine.editor {
                         throw new InvalidOperationException($"Asset import settings cannot contain duplicate or blank environment id for platform '{platformId}'.");
                     }
                     AssetPlatformProcessorSettings environmentSettings = new AssetPlatformProcessorSettings();
-                    DeserializePlatformSettings(reader, environmentSettings, $"environment '{environmentId}' on platform '{platformId}'", header.Version == CurrentVersion);
+                    DeserializePlatformSettings(reader, environmentSettings, $"environment '{environmentId}' on platform '{platformId}'");
                     platformSettings.Environments.Add(environmentId, environmentSettings);
                 }
 
@@ -158,7 +151,7 @@ namespace helengine.editor {
             }
         }
 
-        static void DeserializePlatformSettings(EngineBinaryReader reader, AssetPlatformProcessorSettings settings, string ownerLabel, bool allowExtendedFontPolicy) {
+        static void DeserializePlatformSettings(EngineBinaryReader reader, AssetPlatformProcessorSettings settings, string ownerLabel) {
             int sectionCount = reader.ReadInt32();
             if (sectionCount < 0) {
                 throw new InvalidOperationException($"Asset import settings section count cannot be negative for {ownerLabel}.");
@@ -168,36 +161,9 @@ namespace helengine.editor {
                 if (string.IsNullOrWhiteSpace(sectionId) || settings.Sections.ContainsKey(sectionId)) {
                     throw new InvalidOperationException($"Asset import settings contains a duplicate or blank processor section for {ownerLabel}.");
                 }
-                object sectionSettings = string.Equals(sectionId, FontAssetPlatformSettingsSectionDefinition.SectionIdValue, StringComparison.OrdinalIgnoreCase)
-                    ? new FontAssetPlatformSettingsSectionDefinition().Deserialize(reader, allowExtendedFontPolicy)
-                    : AssetPlatformSettingsSectionRegistry.Shared.DeserializeSection(reader, sectionId);
+                object sectionSettings = AssetPlatformSettingsSectionRegistry.Shared.DeserializeSection(reader, sectionId);
                 settings.Sections.Add(sectionId, new AssetPlatformSettingsSection(sectionId, sectionSettings));
             }
-        }
-
-        /// <summary>Checks only serialized platform and environment font sections to select the new header when the extended policy is actually used.</summary>
-        /// <param name="settings">Import settings about to be serialized.</param>
-        /// <returns>True when a persisted font section requires the opt-in format.</returns>
-        static bool HasExtendedFontPolicy(AssetImportSettings settings) {
-            if (settings.Processor?.Platforms == null) { return false; }
-            foreach (AssetPlatformProcessorSettings platform in settings.Processor.Platforms.Values) {
-                if (HasExtendedFontPolicyInSection(platform)) { return true; }
-                if (platform?.Environments == null) { continue; }
-                foreach (AssetPlatformProcessorSettings environment in platform.Environments.Values) {
-                    if (HasExtendedFontPolicyInSection(environment)) { return true; }
-                }
-            }
-            return false;
-        }
-
-        /// <summary>Checks an existing typed font section without creating missing sections or changing ordinary settings.</summary>
-        /// <param name="settings">One platform or environment section map.</param>
-        /// <returns>True when its font payload explicitly enables whole-pixel advances.</returns>
-        static bool HasExtendedFontPolicyInSection(AssetPlatformProcessorSettings settings) {
-            return settings?.Sections != null
-                && settings.Sections.TryGetValue(FontAssetPlatformSettingsSectionDefinition.SectionIdValue, out AssetPlatformSettingsSection section)
-                && section.Settings is FontAssetProcessorSettings font
-                && font.SnapHorizontalMetricsToPixels;
         }
     }
 }

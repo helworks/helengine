@@ -169,7 +169,8 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
         using MemoryStream stream = new MemoryStream(secondBytes);
         TextureAssetImportSettings restored = TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
         Assert.Equal(TextureAssetImportSettingsBinarySerializer.CurrentVersion, stream.ToArray()[5]);
-        Assert.Equal("sample-texture", restored.Importer.ProcessedAssetId);
+        Assert.Equal("fixture-texture", restored.Importer.ImporterId);
+        Assert.Null(restored.Importer.ProcessedAssetId);
     }
 
     /// <summary>

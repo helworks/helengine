@@ -50,6 +50,14 @@ namespace helengine.editor {
         /// </summary>
         RuntimeModel LoadImportedRuntimeModel(string relativePath, EditorAuthoringTransaction transaction);
 
+        /// <summary>
+        /// Maps every processed model id the project's authored model sources can produce, in every processing
+        /// context the project can cook, back to its source. Processed ids are recomputed from the sources and their
+        /// authored import settings; they are never read from a sidecar.
+        /// </summary>
+        /// <returns>Assets-relative model source paths (forward slashes) keyed by processed model asset id.</returns>
+        IReadOnlyDictionary<string, string> BuildImportedModelRelativePathsByProcessedAssetId();
+
         /// <summary>Loads one built-in shader through the session-owned shader library and renderer.</summary>
         ShaderAsset LoadBuiltInShaderAsset(string shaderFileName);
 

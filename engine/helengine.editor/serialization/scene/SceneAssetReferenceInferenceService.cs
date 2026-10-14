@@ -40,9 +40,9 @@ namespace helengine.editor {
         readonly EditorSessionRendererResources RendererResources;
 
         /// <summary>
-        /// Cached authored model source paths keyed by their stable imported model asset id.
+        /// Cached authored model source paths keyed by every processed model asset id they can produce.
         /// </summary>
-        Dictionary<string, string> ModelRelativePathsByAssetId;
+        IReadOnlyDictionary<string, string> ModelRelativePathsByAssetId;
 
         /// <summary>
         /// Cached authored material paths keyed by their stable material asset id.
@@ -261,7 +261,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            Dictionary<string, string> modelRelativePathsByAssetId = GetModelRelativePathsByAssetId();
+            IReadOnlyDictionary<string, string> modelRelativePathsByAssetId = GetModelRelativePathsByAssetId();
             if (!modelRelativePathsByAssetId.TryGetValue(runtimeModelId, out string relativePath)) {
                 reference = null;
                 return false;
@@ -365,66 +365,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Returns the authored model-source lookup keyed by stable imported model asset id.
+        /// Returns the authored model-source lookup keyed by processed model asset id. A runtime model's id is the
+        /// processed id of the platform and environment it was imported for, which is never persisted; the authoring
+        /// session recomputes every id each model source can produce, so the lookup holds whichever platform loaded
+        /// the model.
         /// </summary>
-        /// <returns>Authored model-source lookup keyed by stable imported model asset id.</returns>
-        Dictionary<string, string> GetModelRelativePathsByAssetId() {
-            if (ModelRelativePathsByAssetId != null) {
-                return ModelRelativePathsByAssetId;
-            }
-
-            ModelRelativePathsByAssetId = new Dictionary<string, string>(StringComparer.Ordinal);
-            if (!Directory.Exists(AssetsRootPath)) {
-                return ModelRelativePathsByAssetId;
-            }
-
-            string[] settingsPaths = Directory.GetFiles(AssetsRootPath, "*.hasset", SearchOption.AllDirectories);
-            for (int settingsIndex = 0; settingsIndex < settingsPaths.Length; settingsIndex++) {
-                string settingsPath = settingsPaths[settingsIndex];
-                if (!TryLoadModelImportSettings(settingsPath, out ModelAssetImportSettings settings) ||
-                    settings == null ||
-                    settings.Importer == null ||
-                    string.IsNullOrWhiteSpace(settings.Importer.ProcessedAssetId)) {
-                    continue;
-                }
-
-                string relativeSourcePath = Path.GetRelativePath(AssetsRootPath, settingsPath).Replace('\\', '/');
-                if (!relativeSourcePath.EndsWith(".hasset", StringComparison.OrdinalIgnoreCase)) {
-                    continue;
-                }
-
-                relativeSourcePath = relativeSourcePath.Substring(0, relativeSourcePath.Length - ".hasset".Length);
-                if (ModelRelativePathsByAssetId.ContainsKey(settings.Importer.ProcessedAssetId)) {
-                    continue;
-                }
-
-                ModelRelativePathsByAssetId.Add(settings.Importer.ProcessedAssetId, relativeSourcePath);
+        /// <returns>Assets-relative model source paths keyed by processed model asset id.</returns>
+        IReadOnlyDictionary<string, string> GetModelRelativePathsByAssetId() {
+            if (ModelRelativePathsByAssetId == null) {
+                ModelRelativePathsByAssetId = AuthoringSession.BuildImportedModelRelativePathsByProcessedAssetId();
             }
 
             return ModelRelativePathsByAssetId;
-        }
-
-        /// <summary>
-        /// Attempts to load one model import-settings document from disk.
-        /// </summary>
-        /// <param name="settingsPath">Absolute path to the candidate model import-settings file.</param>
-        /// <param name="settings">Loaded model import-settings document when deserialization succeeds.</param>
-        /// <returns>True when the file contains a valid model import-settings document.</returns>
-        bool TryLoadModelImportSettings(string settingsPath, out ModelAssetImportSettings settings) {
-            if (string.IsNullOrWhiteSpace(settingsPath)) {
-                throw new ArgumentException("Settings path must be provided.", nameof(settingsPath));
-            }
-
-            settings = null;
-            try {
-                using MemoryStream stream = new MemoryStream(
-                    EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, settingsPath),
-                    writable: false);
-                settings = ModelAssetImportSettingsBinarySerializer.Deserialize(stream);
-                return settings != null;
-            } catch {
-                return false;
-            }
         }
 
         /// <summary>

@@ -176,19 +176,14 @@ namespace helengine.editor.tests.managers.project {
             Assert.False(new AssetPlatformProcessorSettings().GpuModelReduction.Enabled);
         }
 
-        /// <summary>Migrates an actual staged v3 sidecar and round-trips v4 optional policy without changing its base settings.</summary>
+        /// <summary>Round-trips the optional platform and environment GPU policy of a current model sidecar without
+        /// changing its base settings.</summary>
         [Fact]
-        public void ActualV3ModelSettingsMigrateAndV4PreservesOptionalEnvironmentPolicy() {
-            string path = "C:/dev/helworks/builds/helengine-ps1/menu-20261007/style-final/staged-project/assets/models/rendering/axis_test/directional_light_arrow.obj.hasset";
-            byte[] original = File.ReadAllBytes(path);
-            using MemoryStream legacy = new MemoryStream(original, false);
-            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(legacy);
-            Assert.Equal((byte)3, header.Version);
-            legacy.Position = 0;
-            ModelAssetImportSettings settings = ModelAssetImportSettingsBinarySerializer.Deserialize(legacy);
-            Assert.All(settings.Processor.Platforms.Values, value => Assert.Null(value.GpuReduction));
-            string sourceChecksum = settings.Importer.SourceChecksum;
-            settings.Processor.Platforms["ps1"] = new ModelAssetProcessorSettings { GpuReduction = new ModelGpuReductionSettings { Enabled = true } };
+        public void CurrentModelSettingsRoundTripOptionalEnvironmentPolicy() {
+            ModelAssetImportSettings settings = new ModelAssetImportSettings();
+            settings.Importer.ImporterId = "gpu-grid";
+            settings.Processor.Platforms["ps1"] = new ModelAssetProcessorSettings { FlipWinding = true, GpuReduction = new ModelGpuReductionSettings { Enabled = true } };
+            settings.Processor.Platforms["n64"] = new ModelAssetProcessorSettings();
             settings.Processor.Environments["ps1"] = new Dictionary<string, ModelAssetProcessorSettings> {
                 ["retail"] = new ModelAssetProcessorSettings { GpuReduction = new ModelGpuReductionSettings { Enabled = false, MaximumVertices = 96, MaximumIndices = 288 } }
             };
@@ -196,11 +191,12 @@ namespace helengine.editor.tests.managers.project {
             ModelAssetImportSettingsBinarySerializer.Serialize(current, settings);
             current.Position = 0;
             ModelAssetImportSettings restored = ModelAssetImportSettingsBinarySerializer.Deserialize(current);
-            Assert.Equal(sourceChecksum, restored.Importer.SourceChecksum);
+            Assert.Equal("gpu-grid", restored.Importer.ImporterId);
+            Assert.True(restored.Processor.Platforms["ps1"].FlipWinding);
             Assert.True(restored.Processor.Platforms["ps1"].GpuReduction.Enabled);
+            Assert.Null(restored.Processor.Platforms["n64"].GpuReduction);
             Assert.False(restored.Processor.Environments["ps1"]["retail"].GpuReduction.Enabled);
             Assert.Equal(96, restored.Processor.Environments["ps1"]["retail"].GpuReduction.MaximumVertices);
-            Assert.Equal(original, File.ReadAllBytes(path));
         }
 
         /// <summary>Preserves new modifier controls in platform/environment metadata and rejects an invalid discrete profile.</summary>
@@ -237,8 +233,7 @@ namespace helengine.editor.tests.managers.project {
             string[] cpuPaths = ReadDependencies(baseline.Scenes[0]).Where(path => path.StartsWith("cooked/cpu-models/", StringComparison.Ordinal)).ToArray();
             Assert.Equal(2, cpuPaths.Length);
             Dictionary<string, byte[]> cpuBytes = cpuPaths.ToDictionary(path => path, path => File.ReadAllBytes(Path.Combine(root, "baseline", path)));
-            ModelAssetImportSettings baselineSettings = ReadModelSettings(root);
-            string baseImportId = baselineSettings.Importer.ProcessedAssetId;
+            string baseImportId = ResolveProcessedModelId(root);
             byte[] baseImportBytes = File.ReadAllBytes(Path.Combine(root, "cache", baseImportId));
             string sourceHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(root, "assets/models/shared.obj"))));
             WriteProfile(root, true);
@@ -265,7 +260,7 @@ namespace helengine.editor.tests.managers.project {
             Assert.Equal(first.Scenes.SelectMany(ReadDependencies).OrderBy(path => path), replay.Scenes.SelectMany(ReadDependencies).OrderBy(path => path));
             SetAssetGpuPolicy(root, new ModelGpuReductionSettings { Enabled = true, MaximumVertices = 96, MaximumIndices = 288 });
             PlatformBuildManifest changed = service.Cook(platform, ["First", "Second"], Path.Combine(root, "changed-gpu-policy"), ["ps1"]);
-            Assert.Equal(baseImportId, ReadModelSettings(root).Importer.ProcessedAssetId);
+            Assert.Equal(baseImportId, ResolveProcessedModelId(root));
             Assert.Equal(baseImportBytes, File.ReadAllBytes(Path.Combine(root, "cache", baseImportId)));
             foreach (string path in cpuPaths) Assert.Equal(cpuBytes[path], File.ReadAllBytes(Path.Combine(root, "changed-gpu-policy", path)));
             string[] changedVariants = ReadDependencies(changed.Scenes[0]).Where(path => path.StartsWith("cooked/generated/models/", StringComparison.Ordinal)).ToArray();
@@ -273,7 +268,19 @@ namespace helengine.editor.tests.managers.project {
             Assert.Equal(2, changedVariants.Length);
         }
 
-        /// <summary>Reads the actual importer sidecar written by cooking rather than constructing an expected asset identity.</summary>
+        /// <summary>
+        /// Recomputes the processed id the ps1 cook gives the shared model from its source and sidecar; sidecars never
+        /// persist processed ids.
+        /// </summary>
+        static string ResolveProcessedModelId(string root) {
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(root, "assets")));
+            using AssetImportManager manager = new AssetImportManager(root, contentManager);
+            manager.RegisterModelImporter(new ModelImporterRegistration("gpu-grid", new GpuReductionGridImporter(), [".obj"]));
+            manager.CurrentPlatformId = "ps1";
+            return manager.LoadOrCreateModelImportSettings(Path.Combine(root, "assets/models/shared.obj")).Importer.ProcessedAssetId;
+        }
+
+        /// <summary>Reads the authored importer sidecar of the shared fixture model.</summary>
         static ModelAssetImportSettings ReadModelSettings(string root) {
             using FileStream stream = File.OpenRead(Path.Combine(root, "assets/models/shared.obj.hasset"));
             return ModelAssetImportSettingsBinarySerializer.Deserialize(stream);

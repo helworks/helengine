@@ -207,10 +207,13 @@ namespace helengine.editor.tests {
             using (FileStream settingsStream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
                 TextureAssetImportSettings loadedSettings = TextureAssetImportSettingsBinarySerializer.Deserialize(settingsStream);
                 Assert.Equal("test-texture", loadedSettings.Importer.ImporterId);
-                Assert.False(string.IsNullOrWhiteSpace(loadedSettings.Importer.SourceChecksum));
-                Assert.False(string.IsNullOrWhiteSpace(loadedSettings.Importer.ProcessedAssetId));
-                Assert.Equal(Path.Combine(CacheRootPath, loadedSettings.Importer.ProcessedAssetId), importedAssets[0]);
+                Assert.Null(loadedSettings.Importer.SourceChecksum);
+                Assert.Null(loadedSettings.Importer.ProcessedAssetId);
             }
+
+            TextureAssetImportSettings resolvedSettings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            Assert.False(string.IsNullOrWhiteSpace(resolvedSettings.Importer.SourceChecksum));
+            Assert.Equal(Path.Combine(CacheRootPath, resolvedSettings.Importer.ProcessedAssetId), importedAssets[0]);
 
             using (FileStream assetStream = new FileStream(importedAssets[0], FileMode.Open, FileAccess.Read, FileShare.Read)) {
                 TextureAsset asset = (TextureAsset)AssetSerializer.Deserialize(assetStream);
@@ -466,27 +469,82 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures imported texture source resolution honors an explicit current typed sidecar asset id.
+        /// Ensures a processed texture id produced for any platform the project declares resolves back to its source,
+        /// even though the sidecar stores no processed id and the resolving manager runs for another platform.
         /// </summary>
         [Fact]
-        public void TryResolveImportedTextureSourcePath_WhenCurrentTypedSidecarCarriesExplicitAssetId_ResolvesSourcePath() {
-            string sourcePath = WriteSourceTexture("explicit-texture-id.png");
-            AssetImportManager manager = CreateManager();
-            manager.CurrentPlatformId = "gamecube";
+        public void TryResolveImportedTextureSourcePath_ResolvesProcessedIdOfAnyProjectPlatform_WithoutStoredId() {
+            string sourcePath = WriteSourceTexture("project-platform-texture.png");
+            new EditorProjectPlatformsService(ProjectRootPath).Save(new EditorProjectPlatformsDocument {
+                SupportedPlatforms = ["windows", "ps2", "gamecube"]
+            });
+            AssetImportManager ps2Manager = CreateManager();
+            ps2Manager.CurrentPlatformId = "ps2";
+            string ps2ProcessedAssetId = ps2Manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.ProcessedAssetId;
+            AssetImportManager windowsManager = CreateManager();
+            windowsManager.CurrentPlatformId = "windows";
+            Assert.NotEqual(ps2ProcessedAssetId, windowsManager.LoadOrCreateTextureImportSettings(sourcePath).Importer.ProcessedAssetId);
 
+            bool resolved = windowsManager.TryResolveImportedTextureSourcePath(ps2ProcessedAssetId, out string resolvedSourcePath);
+
+            Assert.True(resolved);
+            Assert.Equal(Path.GetFullPath(sourcePath), resolvedSourcePath);
+        }
+
+        /// <summary>
+        /// Ensures a processed texture id produced under an environment override resolves back to its source from a
+        /// manager that has no environment selected.
+        /// </summary>
+        [Fact]
+        public void TryResolveImportedTextureSourcePath_ResolvesProcessedIdOfAnEnvironmentOverride_WithoutStoredId() {
+            string sourcePath = WriteSourceTexture("environment-texture.png");
+            AssetImportManager manager = CreateManager();
             TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
-            settings.Importer.ProcessedAssetId = "current-generated-texture-id";
             settings.Processor.Platforms["gamecube"] = new TextureAssetProcessorSettings {
                 MaxResolution = 256,
                 ColorFormatId = "GxRgb5A3",
                 AlphaPrecision = TextureAssetAlphaPrecision.A8
             };
+            settings.Processor.Environments["gamecube"] = new Dictionary<string, TextureAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase) {
+                ["debug"] = new TextureAssetProcessorSettings {
+                    MaxResolution = 64,
+                    ColorFormatId = "GxRgb5A3",
+                    AlphaPrecision = TextureAssetAlphaPrecision.A8
+                }
+            };
             manager.SaveTextureImportSettings(sourcePath, settings);
+            AssetImportManager debugManager = CreateManager();
+            debugManager.CurrentPlatformId = "gamecube";
+            debugManager.CurrentEnvironmentId = "debug";
+            string debugProcessedAssetId = debugManager.LoadOrCreateTextureImportSettings(sourcePath).Importer.ProcessedAssetId;
+            AssetImportManager resolvingManager = CreateManager();
+            resolvingManager.CurrentPlatformId = "gamecube";
+            Assert.NotEqual(debugProcessedAssetId, resolvingManager.LoadOrCreateTextureImportSettings(sourcePath).Importer.ProcessedAssetId);
 
-            bool resolved = manager.TryResolveImportedTextureSourcePath("current-generated-texture-id", out string resolvedSourcePath);
+            bool resolved = resolvingManager.TryResolveImportedTextureSourcePath(debugProcessedAssetId, out string resolvedSourcePath);
 
             Assert.True(resolved);
             Assert.Equal(Path.GetFullPath(sourcePath), resolvedSourcePath);
+        }
+
+        /// <summary>
+        /// Ensures a texture sidecar written in an earlier format fails with a message that names the file and says to
+        /// regenerate it, instead of being read through a conversion path.
+        /// </summary>
+        [Fact]
+        public void LoadOrCreateTextureImportSettings_WhenSidecarHasThePreviousVersion_FailsNamingTheFile() {
+            string sourcePath = WriteSourceTexture("previous-version.png");
+            string settingsPath = sourcePath + AssetImportManager.SettingsExtension;
+            AssetImportManager manager = CreateManager();
+            manager.SaveTextureImportSettings(sourcePath, manager.LoadOrCreateTextureImportSettings(sourcePath));
+            byte[] bytes = File.ReadAllBytes(settingsPath);
+            bytes[5] = (byte)(TextureAssetImportSettingsBinarySerializer.CurrentVersion - 1);
+            File.WriteAllBytes(settingsPath, bytes);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => manager.LoadOrCreateTextureImportSettings(sourcePath));
+
+            Assert.Contains(settingsPath, exception.Message, StringComparison.Ordinal);
+            Assert.Contains("Regenerate the texture import settings sidecar", exception.Message, StringComparison.Ordinal);
         }
 
         /// <summary>

@@ -438,7 +438,9 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures scene save can infer one file-backed model reference from the live runtime model id without requiring user-authored save metadata.
+        /// Ensures scene save can infer one file-backed model reference from the live runtime model id without requiring
+        /// user-authored save metadata. The runtime id is the processed id of a platform the saving session does not
+        /// process for, and the sidecar stores no processed id, so inference must recompute it.
         /// </summary>
         [Fact]
         public void SaveAndLoad_WhenMeshUsesFileSystemModelWithoutStoredReference_InfersReferenceDuringSave() {
@@ -448,22 +450,27 @@ namespace helengine.editor.tests.serialization.scene {
             File.WriteAllText(modelSourcePath, "# test");
 
             ModelAssetImportSettings importSettings = new ModelAssetImportSettings();
-            importSettings.Importer.ImporterId = "obj";
-            importSettings.Importer.SourceChecksum = "checksum";
-            importSettings.Importer.ProcessedAssetId = "imported-arrow-model";
+            importSettings.Importer.ImporterId = "test-model";
+            importSettings.Processor.Platforms["ps2"] = new ModelAssetProcessorSettings { FlipWinding = true };
             using (FileStream stream = File.Create(modelSourcePath + ".hasset")) {
                 ModelAssetImportSettingsBinarySerializer.Serialize(stream, importSettings);
             }
+            new EditorProjectPlatformsService(TempProjectRootPath).Save(new EditorProjectPlatformsDocument {
+                SupportedPlatforms = ["windows", "ps2", "gamecube"]
+            });
+            string gamecubeProcessedModelId = ResolveProcessedModelId(modelSourcePath, "gamecube");
 
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             SceneSaveService saveService = new SceneSaveService(
-                GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath),
+                GeneratedAssetGraph.CreateAuthoringSession(
+                    TempProjectRootPath,
+                    [new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" })]),
                 registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "FileSystemModelInference.helen");
 
             EditorEntity root = CreateUserEntity("Arrow", float3.Zero, float3.One, float4.Identity);
             TestRuntimeModel runtimeModel = new TestRuntimeModel();
-            runtimeModel.SetId(importSettings.Importer.ProcessedAssetId);
+            runtimeModel.SetId(gamecubeProcessedModelId);
             MeshComponent meshComponent = new MeshComponent {
                 Model = runtimeModel,
                 Materials = new RuntimeMaterial[] { GeneratedAssetGraph.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId) },
@@ -485,6 +492,21 @@ namespace helengine.editor.tests.serialization.scene {
                 reference.SourceKind == SceneAssetReferenceSourceKind.Generated &&
                 reference.RelativePath == EngineGeneratedAssetProvider.StandardMaterialRelativePath &&
                 reference.AssetId == EngineGeneratedMaterialCache.StandardAssetId);
+        }
+
+        /// <summary>
+        /// Recomputes the processed id one platform's import gives a model source, as a runtime model imported for that
+        /// platform would carry it.
+        /// </summary>
+        /// <param name="modelSourcePath">Absolute model source path.</param>
+        /// <param name="platformId">Platform the import processes for.</param>
+        /// <returns>The processed model asset id.</returns>
+        string ResolveProcessedModelId(string modelSourcePath, string platformId) {
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
+            using AssetImportManager manager = new AssetImportManager(TempProjectRootPath, contentManager);
+            manager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
+            manager.CurrentPlatformId = platformId;
+            return manager.LoadOrCreateModelImportSettings(modelSourcePath).Importer.ProcessedAssetId;
         }
 
         /// <summary>
