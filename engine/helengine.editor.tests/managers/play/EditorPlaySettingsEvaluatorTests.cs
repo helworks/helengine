@@ -53,7 +53,7 @@ public sealed class EditorPlaySettingsEvaluatorTests {
         Assert.False(EditorPlaySettingsEvaluator.Evaluate(document, FilePath, "ds", CreateCapability()).IsValid);
     }
 
-    /// <summary>A stored platform id the platform does not declare throws, naming file, platform and id.</summary>
+    /// <summary>A stored platform id the platform does not declare throws, naming file, platform and id, and how to fix it.</summary>
     [Fact]
     public void Evaluate_WhenPlatformIdUnknown_Throws() {
         EditorPlaySettingsDocument document = new EditorPlaySettingsDocument();
@@ -65,6 +65,7 @@ public sealed class EditorPlaySettingsEvaluatorTests {
         Assert.Contains(FilePath, exception.Message);
         Assert.Contains("'ds'", exception.Message);
         Assert.Contains("screen-mode", exception.Message);
+        Assert.Contains("Play Settings... in the Play platform selector and Save to remove it", exception.Message);
     }
 
     /// <summary>Another platform's section is neither validated nor reported.</summary>

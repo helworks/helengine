@@ -34,7 +34,7 @@ namespace helengine.editor {
             }
             foreach (string settingId in storedPlatformValues.Keys) {
                 if (capability.FindPlaySetting(settingId) == null) {
-                    throw new InvalidOperationException($"Play settings file '{filePath}' names setting '{settingId}' for platform '{platformId}', which the platform does not declare.");
+                    throw new InvalidOperationException($"Play settings file '{filePath}' names setting '{settingId}' for platform '{platformId}', which the platform does not declare. Open Play Settings... in the Play platform selector and Save to remove it.");
                 }
             }
 
