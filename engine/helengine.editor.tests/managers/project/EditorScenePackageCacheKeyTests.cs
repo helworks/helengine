@@ -150,125 +150,47 @@ public sealed class EditorScenePackageCacheKeyTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures a post-packaging key is accepted only when packaging rewrote import-settings sidecars whose rewrite the
-    /// caller confirms is cook-derived, or created identity sidecars, all of unchanged sources; any other difference
-    /// is rejected.
+    /// Ensures a post-packaging key is accepted only when packaging created identity sidecars of unchanged sources;
+    /// any rewritten or created import-settings sidecar, and any other difference, is rejected.
     /// </summary>
     [Fact]
-    public void DiffersOnlyByPackagerSidecars_AcceptsOnlyCookDerivedRewritesAndCreatedIdentitySidecars() {
+    public void DiffersOnlyByCreatedIdentitySidecars_AcceptsOnlyCreatedIdentitySidecarsOfUnchangedSources() {
         EditorScenePackageKey before = CreateKey("a", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "3");
         EditorScenePackageKey withoutSidecars = CreateKey("a", "assets/t/logo.png", "1", "assets/m/mat.hasset", "3");
-        Func<string, bool> derivedOnly = path => path == "assets/t/logo.png.hasset";
-        Func<string, bool> edited = path => false;
 
-        // A cook-derived rewrite of an existing import-settings sidecar, with or without a created identity sidecar.
-        Assert.True(before.DiffersOnlyByPackagerSidecars(
-            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "9", "assets/m/mat.hasset", "3"), derivedOnly));
-        Assert.True(before.DiffersOnlyByPackagerSidecars(
-            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hmeta", "5", "assets/t/logo.png.hasset", "9", "assets/m/mat.hasset", "3"), derivedOnly));
+        // An identity sidecar created for an unchanged source.
+        Assert.True(before.DiffersOnlyByCreatedIdentitySidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hmeta", "5", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "3")));
 
-        // The same rewrite when the settings were really edited, or an import-settings sidecar created during packaging.
-        Assert.False(before.DiffersOnlyByPackagerSidecars(
-            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "9", "assets/m/mat.hasset", "3"), edited));
-        Assert.False(withoutSidecars.DiffersOnlyByPackagerSidecars(
-            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "3"), derivedOnly));
+        // A rewritten import-settings sidecar (with or without a created identity sidecar), or one created during packaging.
+        Assert.False(before.DiffersOnlyByCreatedIdentitySidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "9", "assets/m/mat.hasset", "3")));
+        Assert.False(before.DiffersOnlyByCreatedIdentitySidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hmeta", "5", "assets/t/logo.png.hasset", "9", "assets/m/mat.hasset", "3")));
+        Assert.False(withoutSidecars.DiffersOnlyByCreatedIdentitySidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "3")));
 
-        // A rewritten identity sidecar, the source itself, a non-sidecar asset, a removed file, or another input.
+        // A rewritten identity sidecar, the source itself, another asset, a removed file, another input, or an
+        // identity sidecar of a sidecar.
         EditorScenePackageKey withIdentity = CreateKey("a", "assets/t/logo.png", "1", "assets/t/logo.png.hmeta", "5", "assets/m/mat.hasset", "3");
-        Assert.False(withIdentity.DiffersOnlyByPackagerSidecars(
-            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hmeta", "6", "assets/m/mat.hasset", "3"), derivedOnly));
-        Assert.False(before.DiffersOnlyByPackagerSidecars(
-            CreateKey("b", "assets/t/logo.png", "5", "assets/t/logo.png.hasset", "9", "assets/m/mat.hasset", "3"), derivedOnly));
-        Assert.False(before.DiffersOnlyByPackagerSidecars(
-            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "8"), path => true));
-        Assert.False(before.DiffersOnlyByPackagerSidecars(
-            CreateKey("b", "assets/t/logo.png", "1", "assets/m/mat.hasset", "3"), derivedOnly));
-        Assert.False(before.DiffersOnlyByPackagerSidecars(
-            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "9", "assets/m/mat.hasset", "3", "settings/build_config.json", "7"), derivedOnly));
-        Assert.False(before.DiffersOnlyByPackagerSidecars(
-            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "3", "assets/t/logo.png.hasset.hmeta", "6"), derivedOnly));
+        Assert.False(withIdentity.DiffersOnlyByCreatedIdentitySidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hmeta", "6", "assets/m/mat.hasset", "3")));
+        Assert.False(before.DiffersOnlyByCreatedIdentitySidecars(
+            CreateKey("b", "assets/t/logo.png", "5", "assets/t/logo.png.hmeta", "5", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "3")));
+        Assert.False(before.DiffersOnlyByCreatedIdentitySidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "8")));
+        Assert.False(before.DiffersOnlyByCreatedIdentitySidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/m/mat.hasset", "3")));
+        Assert.False(before.DiffersOnlyByCreatedIdentitySidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "3", "settings/build_config.json", "7")));
+        Assert.False(before.DiffersOnlyByCreatedIdentitySidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "3", "assets/t/logo.png.hasset.hmeta", "6")));
 
         // The keys are equal, or differ while every covered file is identical.
-        Assert.False(before.DiffersOnlyByPackagerSidecars(
-            CreateKey("a", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "9", "assets/m/mat.hasset", "3"), derivedOnly));
-        Assert.False(before.DiffersOnlyByPackagerSidecars(
-            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "3"), derivedOnly));
-    }
-
-    /// <summary>
-    /// Ensures the sidecar comparer accepts a rewrite of only the asset id and source checksum, and rejects an importer
-    /// or processor edit and bytes that are not texture import settings.
-    /// </summary>
-    [Fact]
-    public void SidecarComparer_AcceptsOnlyCookDerivedFieldChanges() {
-        byte[] original = SerializeTextureSettings("asset-a", "checksum-a", "importer", 256);
-
-        Assert.True(EditorScenePackageSidecarComparer.DiffersOnlyByCookDerivedFields(original, SerializeTextureSettings("asset-b", "checksum-b", "importer", 256)));
-        Assert.False(EditorScenePackageSidecarComparer.DiffersOnlyByCookDerivedFields(original, SerializeTextureSettings("asset-a", "checksum-a", "importer", 128)));
-        Assert.False(EditorScenePackageSidecarComparer.DiffersOnlyByCookDerivedFields(original, SerializeTextureSettings("asset-b", "checksum-a", "other-importer", 256)));
-        Assert.False(EditorScenePackageSidecarComparer.DiffersOnlyByCookDerivedFields(original, [1, 2, 3]));
-    }
-
-    /// <summary>
-    /// Ensures a model import-settings sidecar rewritten with a new platform-derived asset id, which every cook-time
-    /// model import produces on a platform switch, is rejected without any exception being thrown and caught.
-    /// </summary>
-    [Fact]
-    public void SidecarComparer_WhenAModelSidecarIsRewritten_RejectsWithoutExceptions() {
-        byte[] before = SerializeModelSettings("asset-a");
-        byte[] after = SerializeModelSettings("asset-b");
-        int testThreadId = Environment.CurrentManagedThreadId;
-        int firstChanceCount = 0;
-        EventHandler<System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs> handler = (sender, args) => {
-            if (Environment.CurrentManagedThreadId == testThreadId) {
-                firstChanceCount++;
-            }
-        };
-
-        AppDomain.CurrentDomain.FirstChanceException += handler;
-        bool accepted;
-        try {
-            accepted = EditorScenePackageSidecarComparer.DiffersOnlyByCookDerivedFields(before, after);
-        } finally {
-            AppDomain.CurrentDomain.FirstChanceException -= handler;
-        }
-
-        Assert.False(accepted);
-        Assert.Equal(0, firstChanceCount);
-    }
-
-    /// <summary>
-    /// Serializes model import settings with one asset id.
-    /// </summary>
-    /// <param name="assetId">Platform-derived asset id.</param>
-    /// <returns>Sidecar bytes.</returns>
-    static byte[] SerializeModelSettings(string assetId) {
-        ModelAssetImportSettings settings = new ModelAssetImportSettings();
-        settings.Importer.ProcessedAssetId = assetId;
-        settings.Importer.SourceChecksum = "checksum";
-        settings.Importer.ImporterId = "importer";
-        using MemoryStream stream = new MemoryStream();
-        ModelAssetImportSettingsBinarySerializer.Serialize(stream, settings);
-        return stream.ToArray();
-    }
-
-    /// <summary>
-    /// Serializes texture import settings with one windows processor entry.
-    /// </summary>
-    /// <param name="assetId">Cook-derived asset id.</param>
-    /// <param name="sourceChecksum">Cook-derived source checksum.</param>
-    /// <param name="importerId">Importer id.</param>
-    /// <param name="maxResolution">Windows processor maximum resolution.</param>
-    /// <returns>Sidecar bytes.</returns>
-    static byte[] SerializeTextureSettings(string assetId, string sourceChecksum, string importerId, int maxResolution) {
-        TextureAssetImportSettings settings = new TextureAssetImportSettings();
-        settings.Importer.ProcessedAssetId = assetId;
-        settings.Importer.SourceChecksum = sourceChecksum;
-        settings.Importer.ImporterId = importerId;
-        settings.Processor.Platforms["windows"] = new TextureAssetProcessorSettings { MaxResolution = maxResolution };
-        using MemoryStream stream = new MemoryStream();
-        TextureAssetImportSettingsBinarySerializer.Serialize(stream, settings);
-        return stream.ToArray();
+        Assert.False(before.DiffersOnlyByCreatedIdentitySidecars(
+            CreateKey("a", "assets/t/logo.png", "1", "assets/t/logo.png.hmeta", "5", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "3")));
+        Assert.False(before.DiffersOnlyByCreatedIdentitySidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "3")));
     }
 
     /// <summary>

@@ -12,19 +12,27 @@ namespace helengine.editor.tests.testing {
     /// </summary>
     public sealed class TestPlatformMaterialAssetBuilder : IPlatformAssetBuilder {
         /// <summary>
-        /// Initializes one minimal material-cook builder.
+        /// Initializes one minimal material-cook builder for the Windows platform.
         /// </summary>
-        public TestPlatformMaterialAssetBuilder() {
+        public TestPlatformMaterialAssetBuilder() : this("windows") {
+        }
+
+        /// <summary>
+        /// Initializes one minimal material-cook builder that cooks for the supplied platform id, so tests can switch
+        /// the cooked platform with an otherwise identical builder.
+        /// </summary>
+        /// <param name="platformId">Platform the builder and its definition cook for.</param>
+        public TestPlatformMaterialAssetBuilder(string platformId) {
             Descriptor = new PlatformBuilderDescriptor(
                 "helengine.editor.tests.material-builder",
                 "1.0.0",
-                "windows",
+                platformId,
                 new EngineCompatibilityRange("1.0.0", "999.0.0"),
                 new ManifestCompatibilityRange(1, 1),
-                ["windows"],
+                [platformId],
                 ["debug"]);
             Definition = new PlatformDefinition(
-                "windows",
+                platformId,
                 "Windows DirectX",
                 [
                     new PlatformBuildProfileDefinition(

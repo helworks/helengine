@@ -582,6 +582,48 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies that cooking for another platform imports the texture again without modifying any tracked project file
+    /// (bytes and timestamps), and that each platform's scene package is restored on its next unchanged cook. The first
+    /// cook also proves why the post-packaging key is still needed: packaging creates the texture's identity sidecar,
+    /// and the entry is stored under both keys.
+    /// </summary>
+    [Fact]
+    public void Cook_after_a_platform_switch_leaves_tracked_files_unchanged_and_restores_each_platform_package() {
+        string textureSourcePath = WriteTextureWithImportSettings("Textures/Logo.png", "windows");
+        WriteSceneAsset(
+            "Scenes/MainMenu.helen",
+            [global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemTexture("Textures/Logo.png")]);
+        EditorPlatformAssetCookService service = CreateTextureCookService(new TestTextureImporter());
+        TestPlatformMaterialAssetBuilder windowsBuilder = new("windows");
+        TestPlatformMaterialAssetBuilder ps2Builder = new("ps2");
+        string sceneCacheRootPath = Path.Combine(ProjectRootPath, "cache", "build", "scene-package", "v1");
+        string cookedScenePath = Path.Combine(BuildRootPath, "cooked", "scenes", "MainMenu.hasset");
+        Assert.False(File.Exists(textureSourcePath + ".hmeta"));
+
+        service.Cook(windowsBuilder.Definition, ["MainMenu"], BuildRootPath, ["windows"], windowsBuilder);
+        Assert.True(File.Exists(textureSourcePath + ".hmeta"));
+        Assert.Equal(2, Directory.GetDirectories(sceneCacheRootPath).Length);
+        Dictionary<string, TrackedFileState> trackedFiles = CaptureTrackedFiles();
+
+        Directory.Delete(Path.Combine(BuildRootPath, "cooked"), true);
+        service.Cook(ps2Builder.Definition, ["MainMenu"], BuildRootPath, ["ps2"], ps2Builder);
+        AssertTrackedFilesUnchanged(trackedFiles);
+        int entriesAfterSwitch = Directory.GetDirectories(sceneCacheRootPath).Length;
+        Assert.Equal(3, entriesAfterSwitch);
+
+        Directory.Delete(Path.Combine(BuildRootPath, "cooked"), true);
+        service.Cook(ps2Builder.Definition, ["MainMenu"], BuildRootPath, ["ps2"], ps2Builder);
+        Assert.Equal(entriesAfterSwitch, Directory.GetDirectories(sceneCacheRootPath).Length);
+        Assert.True(File.Exists(cookedScenePath));
+
+        Directory.Delete(Path.Combine(BuildRootPath, "cooked"), true);
+        service.Cook(windowsBuilder.Definition, ["MainMenu"], BuildRootPath, ["windows"], windowsBuilder);
+        Assert.Equal(entriesAfterSwitch, Directory.GetDirectories(sceneCacheRootPath).Length);
+        Assert.True(File.Exists(cookedScenePath));
+        AssertTrackedFilesUnchanged(trackedFiles);
+    }
+
+    /// <summary>
     /// Verifies that a real import-settings edit made while packaging runs (a processor field that changes how the
     /// texture cooks) keeps the packaged output only under the pre-packaging inputs, while the import of the cooked
     /// texture itself leaves its own sidecar untouched.
@@ -604,6 +646,64 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         Assert.Equal(logoSidecarBeforeCook, File.ReadAllBytes(textureSourcePath + ".hasset"));
         Assert.NotEqual(otherSidecarBeforeCook, File.ReadAllBytes(otherSourcePath + ".hasset"));
         Assert.Single(Directory.GetDirectories(sceneCacheRootPath));
+    }
+
+    /// <summary>
+    /// Captures the bytes and last-write time of every tracked project file (everything outside <c>cache/</c> and the
+    /// build output directory).
+    /// </summary>
+    /// <returns>File state keyed by absolute path.</returns>
+    Dictionary<string, TrackedFileState> CaptureTrackedFiles() {
+        Dictionary<string, TrackedFileState> files = new(StringComparer.OrdinalIgnoreCase);
+        string cacheRootPath = Path.Combine(ProjectRootPath, "cache") + Path.DirectorySeparatorChar;
+        string buildRootPath = BuildRootPath + Path.DirectorySeparatorChar;
+        foreach (string path in Directory.EnumerateFiles(ProjectRootPath, "*", SearchOption.AllDirectories)) {
+            if (path.StartsWith(cacheRootPath, StringComparison.OrdinalIgnoreCase) || path.StartsWith(buildRootPath, StringComparison.OrdinalIgnoreCase)) {
+                continue;
+            }
+
+            files.Add(path, new TrackedFileState(File.ReadAllBytes(path), File.GetLastWriteTimeUtc(path)));
+        }
+
+        return files;
+    }
+
+    /// <summary>
+    /// Asserts that no tracked project file was created, removed, rewritten or retimestamped since the capture.
+    /// </summary>
+    /// <param name="before">State captured by <see cref="CaptureTrackedFiles"/>.</param>
+    void AssertTrackedFilesUnchanged(Dictionary<string, TrackedFileState> before) {
+        Dictionary<string, TrackedFileState> after = CaptureTrackedFiles();
+        Assert.Equal(before.Keys.OrderBy(path => path, StringComparer.OrdinalIgnoreCase), after.Keys.OrderBy(path => path, StringComparer.OrdinalIgnoreCase));
+        foreach (KeyValuePair<string, TrackedFileState> file in before) {
+            Assert.Equal(file.Value.Bytes, after[file.Key].Bytes);
+            Assert.Equal(file.Value.LastWriteTimeUtc, after[file.Key].LastWriteTimeUtc);
+        }
+    }
+
+    /// <summary>
+    /// Bytes and last-write time of one tracked project file.
+    /// </summary>
+    sealed class TrackedFileState {
+        /// <summary>
+        /// Creates one captured file state.
+        /// </summary>
+        /// <param name="bytes">File content.</param>
+        /// <param name="lastWriteTimeUtc">Last-write time in UTC.</param>
+        public TrackedFileState(byte[] bytes, DateTime lastWriteTimeUtc) {
+            Bytes = bytes;
+            LastWriteTimeUtc = lastWriteTimeUtc;
+        }
+
+        /// <summary>
+        /// File content.
+        /// </summary>
+        public byte[] Bytes { get; }
+
+        /// <summary>
+        /// Last-write time in UTC.
+        /// </summary>
+        public DateTime LastWriteTimeUtc { get; }
     }
 
     /// <summary>
