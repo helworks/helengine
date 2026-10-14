@@ -136,23 +136,48 @@ public sealed class EditorPlayScriptBuilderTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures a stale build deletes the previous output root before compiling, so assemblies of removed modules cannot
-    /// be loaded by the player.
+    /// Ensures a stale build deletes the module folders of modules the project no longer declares, so their assemblies
+    /// cannot be loaded by the player, while keeping the rest of the output root (such as MSBuild intermediates) so the
+    /// compile can stay incremental.
     /// </summary>
     [Fact]
-    public void Build_WhenStale_DeletesPreviousOutputBeforeCompiling() {
+    public void Build_WhenStale_DeletesRemovedModuleFoldersAndKeepsIncrementalState() {
         FakePlayScriptCompiler compiler = CreateCompiler();
         EditorPlayScriptBuilder builder = CreateBuilder(compiler);
         builder.Build(PlatformId, out string modulesRoot);
         string removedModuleDirectoryPath = Path.Combine(modulesRoot, "removed");
         Directory.CreateDirectory(removedModuleDirectoryPath);
         File.WriteAllText(Path.Combine(removedModuleDirectoryPath, "removed.dll"), "stale");
+        string intermediateFilePath = Path.Combine(OutputRootPath, "generated_code", "obj", ModuleId, "project.assets.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(intermediateFilePath));
+        File.WriteAllText(intermediateFilePath, "{}");
 
         File.WriteAllText(SourceFilePath, "public class Mover { public int Health; }");
         builder.Build(PlatformId, out _);
 
+        Assert.Equal(2, compiler.CompiledEnvironmentIds.Count);
         Assert.False(Directory.Exists(removedModuleDirectoryPath));
         Assert.True(File.Exists(Path.Combine(modulesRoot, ModuleId, ModuleId + ".dll")));
+        Assert.True(File.Exists(intermediateFilePath));
+    }
+
+    /// <summary>
+    /// Ensures a stale build discards the stored fingerprint before compiling: an in-place compile that fails may leave
+    /// some module assemblies rebuilt from the new sources, so reverting the sources afterwards must not match the old
+    /// fingerprint and skip over those half-updated outputs.
+    /// </summary>
+    [Fact]
+    public void Build_WhenStaleCompileFails_DiscardsPreviousFingerprint() {
+        FakePlayScriptCompiler compiler = CreateCompiler();
+        EditorPlayScriptBuilder builder = CreateBuilder(compiler);
+        builder.Build(PlatformId, out _);
+
+        File.WriteAllText(SourceFilePath, "public class Mover { public int Health; }");
+        compiler.NextResultSucceeds = false;
+        EditorBuildExecutionResult failed = builder.Build(PlatformId, out _);
+
+        Assert.False(failed.Succeeded);
+        Assert.False(File.Exists(Path.Combine(OutputRootPath, EditorPlayScriptBuilder.FingerprintFileName)));
     }
 
     /// <summary>

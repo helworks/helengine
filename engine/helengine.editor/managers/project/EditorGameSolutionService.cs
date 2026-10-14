@@ -775,7 +775,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="filePath">Generated file path.</param>
         /// <param name="contents">Expected UTF-8 text contents.</param>
-        static void WriteTextIfChanged(string filePath, string contents) {
+        internal static void WriteTextIfChanged(string filePath, string contents) {
             byte[] expectedBytes = Encoding.UTF8.GetBytes(contents);
             if (File.Exists(filePath)
                 && File.ReadAllBytes(filePath).SequenceEqual(expectedBytes)) {

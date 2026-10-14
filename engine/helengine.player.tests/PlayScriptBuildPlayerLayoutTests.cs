@@ -88,6 +88,71 @@ namespace helengine.player.tests {
         }
 
         /// <summary>
+        /// A real Play script build keeps its MSBuild intermediates in the project's Play output, so after one script
+        /// edit only the edited module is recompiled: the untouched module's published assembly is left as it was, and
+        /// the edited module still lands where the player loads it.
+        /// </summary>
+        [Fact]
+        public void RealPlayScriptBuild_AfterOneScriptEdit_RecompilesOnlyTheEditedModule() {
+            EditorPlayScriptBuildService compiler = new EditorPlayScriptBuildService(ProjectRootPath, "PlayFixture");
+            EditorPlayScriptBuilder builder = new EditorPlayScriptBuilder(ProjectRootPath, compiler, platformId => string.Empty);
+            EditorBuildExecutionResult first = builder.Build(PlatformId, out string modulesRootPath);
+            Assert.True(first.Succeeded, first.Message);
+            string coreAssemblyPath = Path.Combine(modulesRootPath, CoreModuleId, CoreModuleId + ".dll");
+            string levelsAssemblyPath = Path.Combine(modulesRootPath, LevelsModuleId, LevelsModuleId + ".dll");
+            DateTime firstCoreWriteTimeUtc = File.GetLastWriteTimeUtc(coreAssemblyPath);
+            byte[] firstLevelsBytes = File.ReadAllBytes(levelsAssemblyPath);
+
+            File.WriteAllText(
+                Path.Combine(ProjectRootPath, "assets", "codebase", "Levels", LevelsModuleId + ".cs"),
+                "namespace PlayFixture { public class LevelProbe { public CoreProbe Core; public int Depth; } }");
+            EditorBuildExecutionResult second = builder.Build(PlatformId, out string secondModulesRootPath);
+
+            Assert.True(second.Succeeded, second.Message);
+            Assert.DoesNotContain("script build skipped", second.Message);
+            Assert.Equal(modulesRootPath, secondModulesRootPath);
+            Assert.Equal(new[] { coreAssemblyPath, levelsAssemblyPath }, PlayerScriptModuleLoader.ResolveModuleAssemblyPaths(modulesRootPath));
+            Assert.Equal(firstCoreWriteTimeUtc, File.GetLastWriteTimeUtc(coreAssemblyPath));
+            Assert.NotEqual(firstLevelsBytes, File.ReadAllBytes(levelsAssemblyPath));
+            Assert.True(File.Exists(Path.Combine(
+                compiler.ResolvePlayOutputRootPath(PlatformId), "generated_code", "obj", CoreModuleId, "project.assets.json")));
+        }
+
+        /// <summary>
+        /// A real incremental Play script build follows module set changes: a removed runtime module's folder disappears
+        /// from the player's module root, and a newly added runtime module, whose project was never restored, still builds
+        /// and lands where the player loads it.
+        /// </summary>
+        [Fact]
+        public void RealPlayScriptBuild_WhenModulesAreAddedAndRemoved_PublishesExactlyTheCurrentModules() {
+            EditorPlayScriptBuildService compiler = new EditorPlayScriptBuildService(ProjectRootPath, "PlayFixture");
+            EditorPlayScriptBuilder builder = new EditorPlayScriptBuilder(ProjectRootPath, compiler, platformId => string.Empty);
+            EditorBuildExecutionResult first = builder.Build(PlatformId, out string modulesRootPath);
+            Assert.True(first.Succeeded, first.Message);
+
+            string codebasePath = Path.Combine(ProjectRootPath, "assets", "codebase");
+            Directory.Delete(Path.Combine(codebasePath, "Levels"), true);
+            const string ArenaModuleId = "PlayFixtureArena";
+            WriteModule(
+                Path.Combine(codebasePath, "Arena"),
+                ArenaModuleId,
+                "runtime",
+                "[\"" + CoreModuleId + "\"]",
+                "namespace PlayFixture { public class ArenaProbe { public CoreProbe Core; } }");
+            EditorBuildExecutionResult second = builder.Build(PlatformId, out string secondModulesRootPath);
+
+            Assert.True(second.Succeeded, second.Message);
+            Assert.Equal(modulesRootPath, secondModulesRootPath);
+            Assert.Equal(
+                new[] {
+                    Path.Combine(modulesRootPath, ArenaModuleId, ArenaModuleId + ".dll"),
+                    Path.Combine(modulesRootPath, CoreModuleId, CoreModuleId + ".dll")
+                },
+                PlayerScriptModuleLoader.ResolveModuleAssemblyPaths(modulesRootPath));
+            Assert.False(Directory.Exists(Path.Combine(modulesRootPath, LevelsModuleId)));
+        }
+
+        /// <summary>
         /// Resolves the workspace-owned scratch root <c>&lt;checkout parent&gt;/builds/helengine/play-tests</c> by walking up
         /// from the test binaries to the helengine checkout, identified by its <c>dotnetw.cmd</c> wrapper. Build outputs
         /// never go to the system temp folder.

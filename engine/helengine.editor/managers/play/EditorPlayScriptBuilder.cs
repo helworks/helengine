@@ -4,9 +4,10 @@ namespace helengine.editor {
     /// otherwise editing a scene must not rebuild scripts, so the builder fingerprints exactly the inputs that change the
     /// compiled modules: every <c>.cs</c> source and <c>code.module.json</c> manifest under the project's assets, the
     /// resolved gameplay symbol set for the platform and environment, and the content of the engine assemblies the
-    /// modules reference. A matching fingerprint with every module assembly present skips the compile; any mismatch deletes the previous
-    /// Play output (so assemblies of removed modules can never be loaded) and compiles from scratch, and the fingerprint
-    /// is stored only after a successful compile.
+    /// modules reference. A matching fingerprint with every module assembly present skips the compile. Any mismatch
+    /// discards the stored fingerprint, deletes the module folders of modules the project no longer declares (so their
+    /// assemblies can never be loaded) and compiles incrementally over the previous output; the fingerprint is stored
+    /// again only after a successful compile.
     /// </summary>
     public sealed class EditorPlayScriptBuilder : IEditorPlayScriptBuilder {
         /// <summary>
@@ -18,7 +19,8 @@ namespace helengine.editor {
         /// Version token mixed into every fingerprint; bump it when the fingerprint inputs or the published module layout
         /// change meaning. Version 2: modules publish flat as <c>&lt;moduleId&gt;/&lt;moduleId&gt;.dll</c> instead of
         /// below <c>Debug/net9.0</c>, so outputs fingerprinted under version 1 are always rebuilt. Version 3: engine
-        /// assemblies are identified by content instead of path, length and timestamp.
+        /// assemblies are identified by content instead of path, length and timestamp, and the compile runs
+        /// incrementally in place instead of into a fresh output root.
         /// </summary>
         const string FingerprintVersionToken = "play-script-fingerprint=3";
 
@@ -123,10 +125,13 @@ namespace helengine.editor {
                 return EditorBuildExecutionResult.Success("Play scripts are up to date; script build skipped.");
             }
 
-            if (Directory.Exists(playOutputRootPath)) {
-                Directory.Delete(playOutputRootPath, true);
+            // The compile is incremental and writes in place, so a failed compile can leave some modules rebuilt from the
+            // new sources: drop the stored fingerprint first so those outputs can never be mistaken for a finished build.
+            if (File.Exists(fingerprintFilePath)) {
+                File.Delete(fingerprintFilePath);
             }
 
+            DeleteRemovedModuleFolders(expectedModulesRootPath);
             EditorBuildExecutionResult result = Compiler.Build(platformId, environmentId, out runtimeModulesRootPath);
             if (result == null) {
                 throw new InvalidOperationException("The Play script compiler returned no result.");
@@ -137,6 +142,33 @@ namespace helengine.editor {
             Directory.CreateDirectory(runtimeModulesRootPath);
             EditorScriptBuildFingerprint.WriteStored(fingerprintFilePath, fingerprint);
             return result;
+        }
+
+        /// <summary>
+        /// Deletes every folder under the runtime module root that does not belong to a runtime module the project still
+        /// declares. The player loads every module folder it finds, so a removed or renamed module's assembly must not
+        /// survive into the next Play; current module folders stay so the compile can update them incrementally.
+        /// </summary>
+        /// <param name="runtimeModulesRootPath">Runtime module root laid out as <c>&lt;moduleId&gt;/&lt;moduleId&gt;.dll</c>.</param>
+        void DeleteRemovedModuleFolders(string runtimeModulesRootPath) {
+            if (!Directory.Exists(runtimeModulesRootPath)) {
+                return;
+            }
+
+            HashSet<string> runtimeModuleIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            EditorCodeModuleManifestEntry[] modules = ModuleManifestService.Load().Modules;
+            for (int index = 0; index < modules.Length; index++) {
+                if (modules[index].ModuleKind == EditorCodeModuleKind.Runtime) {
+                    runtimeModuleIds.Add(modules[index].ModuleId);
+                }
+            }
+
+            string[] moduleDirectoryPaths = Directory.GetDirectories(runtimeModulesRootPath);
+            for (int index = 0; index < moduleDirectoryPaths.Length; index++) {
+                if (!runtimeModuleIds.Contains(Path.GetFileName(moduleDirectoryPaths[index]))) {
+                    Directory.Delete(moduleDirectoryPaths[index], true);
+                }
+            }
         }
 
         /// <summary>

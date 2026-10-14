@@ -29,6 +29,16 @@ namespace helengine.editor {
         const string MsBuildOutputRootDirectoryName = "helengine-msbuild-output-roots";
 
         /// <summary>
+        /// File name of the stable invocation property file an incremental build keeps inside its output root.
+        /// </summary>
+        const string IncrementalPropertyFileName = "helengine-execution-output.props";
+
+        /// <summary>
+        /// File name of the stamp recording which restore inputs the last successful restoring incremental build saw.
+        /// </summary>
+        const string IncrementalRestoreStampFileName = "helengine-restore.stamp";
+
+        /// <summary>
         /// Sibling directory containing the operation manifest for one publication token.
         /// </summary>
         const string PublicationOperationDirectorySuffix = ".operation-";
@@ -167,19 +177,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Workspace lease does not cover the generated solution directory.", nameof(workspaceLease));
             }
 
-            ProcessStartInfo startInfo = new ProcessStartInfo {
-                FileName = DotNetExecutableName,
-                WorkingDirectory = workingDirectory,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            startInfo.ArgumentList.Add("build");
-            startInfo.ArgumentList.Add(solutionPath);
-            startInfo.ArgumentList.Add("--configuration");
-            startInfo.ArgumentList.Add(BuildConfigurationValue);
-            startInfo.ArgumentList.Add("--nologo");
+            ProcessStartInfo startInfo = CreateBuildStartInfo(solutionPath, workingDirectory);
             string outputRootTransportFilePath = string.Empty;
             string msbuildOutputRootPath = string.Empty;
             if (!string.IsNullOrWhiteSpace(executionOutputRootPath)) {
@@ -195,34 +193,12 @@ namespace helengine.editor {
             }
 
             try {
-                using Process process = Process.Start(startInfo);
-                if (process == null) {
-                    throw new InvalidOperationException($"Failed to launch '{DotNetExecutableName}'.");
+                EditorBuildExecutionResult result = RunBuildProcess(startInfo, solutionPath);
+                if (result.Succeeded && !string.IsNullOrWhiteSpace(msbuildOutputRootPath)) {
+                    PublishBuildOutputs(msbuildOutputRootPath, executionOutputRootPath, workspaceLease);
                 }
 
-                CaptureProcessOutput(process, out string stdout, out string stderr);
-
-                if (process.ExitCode == 0) {
-                    if (!string.IsNullOrWhiteSpace(msbuildOutputRootPath)) {
-                        PublishBuildOutputs(msbuildOutputRootPath, executionOutputRootPath, workspaceLease);
-                    }
-
-                    return EditorBuildExecutionResult.Success($"Script build completed: {solutionPath}");
-                }
-
-                StringBuilder messageBuilder = new StringBuilder();
-                messageBuilder.Append(DotNetExecutableName);
-                messageBuilder.Append(" build failed with exit code ");
-                messageBuilder.Append(process.ExitCode);
-                messageBuilder.Append('.');
-
-                string output = ChooseFailureOutput(stdout, stderr);
-                if (!string.IsNullOrWhiteSpace(output)) {
-                    messageBuilder.Append(' ');
-                    messageBuilder.Append(output.Trim());
-                }
-
-                return EditorBuildExecutionResult.Failure(messageBuilder.ToString());
+                return result;
             } finally {
                 if (!string.IsNullOrWhiteSpace(outputRootTransportFilePath)
                     && File.Exists(outputRootTransportFilePath)) {
@@ -233,6 +209,167 @@ namespace helengine.editor {
                     Directory.Delete(msbuildOutputRootPath, true);
                 }
             }
+        }
+
+        /// <summary>
+        /// Builds one solution incrementally, with MSBuild writing its intermediates and assemblies directly beneath a
+        /// stable caller-owned output root instead of a fresh temporary root that is then published. Because
+        /// <c>obj</c> and <c>bin</c> survive between builds, MSBuild skips every project whose inputs did not change, and
+        /// restore is skipped entirely (<c>--no-restore</c>) while the restore inputs are unchanged since the last
+        /// successful restore and every project's restore output still exists. The invocation property file also lives at a stable path inside the output root and is
+        /// rewritten only when its contents change: MSBuild treats imported files as compile inputs, so a fresh file
+        /// would force every project to recompile. Unlike <see cref="Build(string, string, EditorGeneratedCodeWorkspaceLease, IReadOnlyList{string})"/>
+        /// a failed build can leave some projects updated, so callers must not treat the output as complete until it succeeds.
+        /// </summary>
+        /// <param name="solutionPath">Absolute path to the generated solution file.</param>
+        /// <param name="outputRootPath">Stable output root that receives <c>generated_code/obj</c> and <c>generated_code/bin</c>.</param>
+        /// <param name="workspaceLease">Lease acquired for the generated solution workspace.</param>
+        /// <param name="additionalDefineConstants">Symbols appended to every generated project's define constants.</param>
+        /// <param name="projectFilePaths">Generated project files the solution builds; each needs restore output before restore can be skipped.</param>
+        /// <param name="restoreInputFilePaths">Generated files whose contents decide what restore produces, such as the
+        /// solution, project and build property files. Restore is skipped only while their contents, and the invocation
+        /// property file, are byte-identical to the last build that restored successfully.</param>
+        /// <returns>Structured execution result describing the process outcome.</returns>
+        public EditorBuildExecutionResult BuildIncrementally(
+            string solutionPath,
+            string outputRootPath,
+            EditorGeneratedCodeWorkspaceLease workspaceLease,
+            IReadOnlyList<string> additionalDefineConstants,
+            IReadOnlyList<string> projectFilePaths,
+            IReadOnlyList<string> restoreInputFilePaths) {
+            if (string.IsNullOrWhiteSpace(solutionPath)) {
+                throw new ArgumentException("Solution path must be provided.", nameof(solutionPath));
+            } else if (string.IsNullOrWhiteSpace(outputRootPath)) {
+                throw new ArgumentException("Output root path must be provided.", nameof(outputRootPath));
+            } else if (workspaceLease == null) {
+                throw new ArgumentNullException(nameof(workspaceLease));
+            } else if (additionalDefineConstants == null) {
+                throw new ArgumentNullException(nameof(additionalDefineConstants));
+            } else if (projectFilePaths == null) {
+                throw new ArgumentNullException(nameof(projectFilePaths));
+            } else if (restoreInputFilePaths == null) {
+                throw new ArgumentNullException(nameof(restoreInputFilePaths));
+            }
+
+            string workingDirectory = ResolveWorkingDirectory(solutionPath);
+            if (!workspaceLease.Covers(workingDirectory)) {
+                throw new ArgumentException("Workspace lease does not cover the generated solution directory.", nameof(workspaceLease));
+            }
+
+            string fullOutputRootPath = Path.GetFullPath(outputRootPath);
+            if (workspaceLease.Matches(fullOutputRootPath)) {
+                throw new InvalidOperationException("Generated compiler output cannot replace its metadata workspace.");
+            }
+
+            Directory.CreateDirectory(fullOutputRootPath);
+            using EditorGeneratedCodeWorkspaceLease outputLease = EditorGeneratedCodeWorkspaceLease.Acquire(fullOutputRootPath);
+            string propertyFilePath = Path.Combine(outputLease.WorkspaceRootPath, IncrementalPropertyFileName);
+            EditorGameSolutionService.WriteTextIfChanged(
+                propertyFilePath,
+                BuildExecutionOutputPropsXml(outputLease.WorkspaceRootPath, additionalDefineConstants));
+            List<string> restoreInputs = new List<string>(restoreInputFilePaths.Count + 1);
+            restoreInputs.AddRange(restoreInputFilePaths);
+            restoreInputs.Add(propertyFilePath);
+            string restoreStamp = EditorScriptBuildFingerprint.Compute(new EditorScriptBuildInputs(
+                restoreInputs,
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                new[] { "restore-stamp=1" }));
+            string restoreStampFilePath = Path.Combine(outputLease.WorkspaceRootPath, IncrementalRestoreStampFileName);
+            bool restoreCurrent = EditorScriptBuildFingerprint.MatchesStored(restoreStampFilePath, restoreStamp)
+                && AllRestoreOutputsExist(outputLease.WorkspaceRootPath, projectFilePaths);
+
+            ProcessStartInfo startInfo = CreateBuildStartInfo(solutionPath, workingDirectory);
+            startInfo.Environment["HelengineExecutionOutputRootFile"] = propertyFilePath;
+            if (restoreCurrent) {
+                startInfo.ArgumentList.Add("--no-restore");
+            }
+
+            EditorBuildExecutionResult result = RunBuildProcess(startInfo, solutionPath);
+            if (result.Succeeded && !restoreCurrent) {
+                EditorScriptBuildFingerprint.WriteStored(restoreStampFilePath, restoreStamp);
+            } else if (!result.Succeeded && restoreCurrent && File.Exists(restoreStampFilePath)) {
+                // A build that skipped restore failed; restore again next time rather than trusting the restore output.
+                File.Delete(restoreStampFilePath);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Checks that every generated project still has the restore output an incremental build skips restore for.
+        /// The generated build properties place each project's intermediates under
+        /// <c>&lt;output root&gt;/generated_code/obj/&lt;project name&gt;</c>.
+        /// </summary>
+        /// <param name="outputRootPath">Incremental output root holding <c>generated_code/obj</c>.</param>
+        /// <param name="projectFilePaths">Generated project files the solution builds.</param>
+        /// <returns>True when every project's assets and NuGet property imports exist.</returns>
+        static bool AllRestoreOutputsExist(string outputRootPath, IReadOnlyList<string> projectFilePaths) {
+            for (int index = 0; index < projectFilePaths.Count; index++) {
+                string projectName = Path.GetFileNameWithoutExtension(projectFilePaths[index]);
+                string intermediateDirectoryPath = Path.Combine(outputRootPath, EditorGeneratedCodePaths.GeneratedCodeFolderName, "obj", projectName);
+                if (!File.Exists(Path.Combine(intermediateDirectoryPath, "project.assets.json"))
+                    || !File.Exists(Path.Combine(intermediateDirectoryPath, Path.GetFileName(projectFilePaths[index]) + ".nuget.g.props"))) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Creates the <c>dotnet build</c> process description shared by every build mode.
+        /// </summary>
+        /// <param name="solutionPath">Absolute path to the generated solution file.</param>
+        /// <param name="workingDirectory">Directory the build runs in.</param>
+        /// <returns>Process start description with redirected output and the build arguments.</returns>
+        static ProcessStartInfo CreateBuildStartInfo(string solutionPath, string workingDirectory) {
+            ProcessStartInfo startInfo = new ProcessStartInfo {
+                FileName = DotNetExecutableName,
+                WorkingDirectory = workingDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add("build");
+            startInfo.ArgumentList.Add(solutionPath);
+            startInfo.ArgumentList.Add("--configuration");
+            startInfo.ArgumentList.Add(BuildConfigurationValue);
+            startInfo.ArgumentList.Add("--nologo");
+            return startInfo;
+        }
+
+        /// <summary>
+        /// Runs one <c>dotnet build</c> process to completion and converts its exit code and output into a result.
+        /// </summary>
+        /// <param name="startInfo">Fully configured build process description.</param>
+        /// <param name="solutionPath">Solution being built, named in the success message.</param>
+        /// <returns>Success when the process exits with code zero, otherwise a failure carrying the build output.</returns>
+        EditorBuildExecutionResult RunBuildProcess(ProcessStartInfo startInfo, string solutionPath) {
+            using Process process = Process.Start(startInfo);
+            if (process == null) {
+                throw new InvalidOperationException($"Failed to launch '{DotNetExecutableName}'.");
+            }
+
+            CaptureProcessOutput(process, out string stdout, out string stderr);
+            if (process.ExitCode == 0) {
+                return EditorBuildExecutionResult.Success($"Script build completed: {solutionPath}");
+            }
+
+            StringBuilder messageBuilder = new StringBuilder();
+            messageBuilder.Append(DotNetExecutableName);
+            messageBuilder.Append(" build failed with exit code ");
+            messageBuilder.Append(process.ExitCode);
+            messageBuilder.Append('.');
+
+            string output = ChooseFailureOutput(stdout, stderr);
+            if (!string.IsNullOrWhiteSpace(output)) {
+                messageBuilder.Append(' ');
+                messageBuilder.Append(output.Trim());
+            }
+
+            return EditorBuildExecutionResult.Failure(messageBuilder.ToString());
         }
 
         /// <summary>

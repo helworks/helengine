@@ -3,7 +3,8 @@ namespace helengine.editor {
     /// Compiles a project's runtime script modules for the editor's Play button. The modules are built with the
     /// selected platform's gameplay preprocessor symbols, so <c>#if</c>-gated platform code is included, into a
     /// per-platform output under <c>cache/generated_code/play/&lt;platformId&gt;</c> that never touches the editor's
-    /// hot-reload output. The engine itself is never recompiled.
+    /// hot-reload output. MSBuild builds directly into that stable output, so its intermediates persist and later Play
+    /// builds only recompile the modules whose inputs changed. The engine itself is never recompiled.
     /// </summary>
     public sealed class EditorPlayScriptBuildService : IEditorPlayScriptCompiler {
         /// <summary>
@@ -88,7 +89,7 @@ namespace helengine.editor {
             EditorBuildIsolationPathResolver isolationPathResolver = new EditorBuildIsolationPathResolver(ProjectRootPath);
             string routeId = PlayRouteIdPrefix + platformId;
             // The solution and project files live in their own route workspace so Play never rewrites the editor's
-            // hot-reload projects, and outside the output root because publication swaps that whole directory.
+            // hot-reload projects, and outside the output root so the generated metadata and compiler outputs stay apart.
             EditorGameSolutionService solutionService = new EditorGameSolutionService(
                 ProjectRootPath,
                 ProjectName,
@@ -108,11 +109,21 @@ namespace helengine.editor {
             IReadOnlyList<string> gameplaySymbols = EditorPlatformPreprocessorSymbolService.ResolveGameplaySymbols(platformId, environmentId);
             using EditorGeneratedCodeWorkspaceLease workspaceLease = solutionService.AcquireWorkspaceLease();
             solutionService.GenerateSolutionFiles(workspaceLease);
-            return BuildTool.Build(
+            // Play builds in place into its stable per-platform output root, so MSBuild reuses obj/ and skips up-to-date
+            // module projects; hot-reload and platform builds keep their isolated temporary build roots.
+            IReadOnlyList<EditorGeneratedCodeModuleProject> moduleProjects = solutionService.GeneratedModuleProjects;
+            string[] projectFilePaths = new string[moduleProjects.Count];
+            for (int index = 0; index < moduleProjects.Count; index++) {
+                projectFilePaths[index] = moduleProjects[index].ProjectFilePath;
+            }
+
+            return BuildTool.BuildIncrementally(
                 solutionService.GeneratedProductionSolutionFilterFilePath,
                 playOutputRootPath,
                 workspaceLease,
-                gameplaySymbols);
+                gameplaySymbols,
+                projectFilePaths,
+                solutionService.DescribeBuildInputs().GeneratedFilePaths);
         }
 
         /// <summary>
