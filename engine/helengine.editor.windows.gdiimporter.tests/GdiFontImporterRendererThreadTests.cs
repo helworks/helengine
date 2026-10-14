@@ -45,5 +45,24 @@ namespace helengine.editor.windows.gdiimporter.tests {
                 Assert.Equal(ownerImport.AtlasHeight, backgroundImport.AtlasHeight);
             }
         }
+
+        /// <summary>
+        /// Ensures a host can name the renderer thread explicitly: the importer reports it, and an import on any other
+        /// thread, here the constructing one, does not use the renderer.
+        /// </summary>
+        [Fact]
+        public void ExplicitRendererThread_IsTheOnlyThreadThatUsesTheRenderer() {
+            string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "trebuc.ttf");
+            CountingRenderManager2D renderer = new CountingRenderManager2D();
+            int otherThreadId = Environment.CurrentManagedThreadId + 1000;
+            GdiFontImporter importer = new GdiFontImporter(renderer, otherThreadId);
+
+            using FileStream stream = File.OpenRead(path);
+            using FontAsset imported = importer.ImportFont(stream, new FontAssetProcessorSettings { PixelSize = 34 });
+
+            Assert.Equal(otherThreadId, importer.RendererThreadId);
+            Assert.Equal(0, renderer.BuildTextureFromRawCallCount);
+            Assert.NotNull(imported.SourceTextureAsset);
+        }
     }
 }

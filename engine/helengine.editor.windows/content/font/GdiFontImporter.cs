@@ -13,20 +13,36 @@ namespace helengine.editor {
         readonly RenderManager2D RenderManager2D;
 
         /// <summary>
-        /// Managed id of the thread that created the importer. An interactive host creates it on the editor frame
-        /// thread, the only thread that may use the session renderer.
-        /// </summary>
-        readonly int RendererThreadId;
-
-        /// <summary>
-        /// Initializes a GDI font importer with its explicit renderer owner. The importer must be created on the thread
-        /// that owns the renderer.
+        /// Initializes a GDI font importer whose renderer belongs to the calling thread. This is the contract with the
+        /// interactive host: it must construct the importer on the editor frame thread, the thread every frame and every
+        /// interactive import runs on. If the host ever drives frames from another thread, it must use the overload that
+        /// names the renderer thread, or interactive imports would build headless atlases the renderer cannot draw.
         /// </summary>
         /// <param name="renderManager2D">Session-owned renderer, or null for headless imports.</param>
-        public GdiFontImporter(RenderManager2D renderManager2D) {
-            RenderManager2D = renderManager2D;
-            RendererThreadId = Environment.CurrentManagedThreadId;
+        public GdiFontImporter(RenderManager2D renderManager2D)
+            : this(renderManager2D, Environment.CurrentManagedThreadId) {
         }
+
+        /// <summary>
+        /// Initializes a GDI font importer with its renderer and the managed id of the only thread that may use it.
+        /// </summary>
+        /// <param name="renderManager2D">Session-owned renderer, or null for headless imports.</param>
+        /// <param name="rendererThreadId">Managed id of the thread that owns the renderer.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when the thread id is not positive.</exception>
+        public GdiFontImporter(RenderManager2D renderManager2D, int rendererThreadId) {
+            if (rendererThreadId <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(rendererThreadId), rendererThreadId, "The renderer thread id must be a managed thread id.");
+            }
+
+            RenderManager2D = renderManager2D;
+            RendererThreadId = rendererThreadId;
+        }
+
+        /// <summary>
+        /// Gets the managed id of the thread whose imports build atlases on the renderer; imports on any other thread
+        /// build the headless managed atlas.
+        /// </summary>
+        public int RendererThreadId { get; }
 
         /// <summary>
         /// Imports one source font stream into a runtime-ready font asset. The renderer is single-threaded, so only an
