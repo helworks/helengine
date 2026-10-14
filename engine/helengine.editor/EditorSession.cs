@@ -461,6 +461,13 @@ namespace helengine.editor {
         readonly EditorPlaySessionService PlaySession;
 
         /// <summary>
+        /// Editor state the current Play preparation cooks from, captured on the frame thread when Play was pressed.
+        /// The background preparation reads it through the Play cook runner's resolvers; the frame thread replaces it
+        /// only while no preparation is active, so the two threads never share a value that changes.
+        /// </summary>
+        EditorPlayPreparationInputs PlayPreparationInputs;
+
+        /// <summary>
         /// Owns the viewport Play platform selector's options and persisted choice; Play launches on its selection, never
         /// on the editor preview platform. Rebuilt whenever the project's supported platforms change.
         /// </summary>
@@ -934,7 +941,7 @@ namespace helengine.editor {
                 ResolvePlayPlatformConfig,
                 ResolvePlayPlatformSelectionModel,
                 CreatePlayPlatformBuildExecutor,
-                () => CurrentScenePath);
+                ResolvePlayScenePath);
             PlaySession = new EditorPlaySessionService(
                 playCookRunner,
                 new EditorPlayScriptBuilder(
@@ -942,7 +949,9 @@ namespace helengine.editor {
                     new EditorPlayScriptBuildService(this.projectPath, ProjectName),
                     playCookRunner.ResolveEnvironmentId),
                 new EditorPlayProcessLauncher(MainThreadActions),
-                Path.Combine(AppContext.BaseDirectory, PlayerDirectoryName, PlayerExecutableFileName));
+                Path.Combine(AppContext.BaseDirectory, PlayerDirectoryName, PlayerExecutableFileName),
+                MainThreadActions,
+                new EditorPlayPreparationThreadScheduler());
             constructionLedger.Register(() => PlaySession.Stop(), EditorSessionCleanupPhase.Dispose);
             RegisterDetacher(constructionLedger, () => PlaySession.StateChanged -= HandlePlaySessionStateChanged);
             PlaySession.StateChanged += HandlePlaySessionStateChanged;
@@ -3607,6 +3616,12 @@ namespace helengine.editor {
                     return;
                 }
 
+                // The inputs of a preparation that is still running must not change under it; the session ignores this
+                // Play and reports why.
+                if (!PlaySession.IsPreparationActive && !string.IsNullOrWhiteSpace(CurrentScenePath)) {
+                    PlayPreparationInputs = CapturePlayPreparationInputs(playPlatform.PlatformId);
+                }
+
                 EditorBuildExecutionResult result = PlaySession.Play(
                     playPlatform.PlatformId,
                     playPlatform.DisplayName,
@@ -3616,18 +3631,65 @@ namespace helengine.editor {
                     playPlatform.PlayerCapability.AdapterTypeName,
                     playPlatform.PlayerCapability.TargetFrameRate,
                     playPlatform.PlayerCapability.InputDevices,
-                    waitForDebugger);
+                    waitForDebugger,
+                    launchResult => HandlePlayLaunchCompleted(launchResult, waitForDebugger));
                 if (result.Succeeded) {
                     Logger.WriteLine(result.Message);
-                    if (waitForDebugger) {
-                        Logger.WriteLine("Player is waiting for a debugger to attach before it starts the scene; attach to the pid above.");
-                    }
                 } else {
                     Logger.WriteError(result.Message);
                 }
             } catch (Exception ex) {
                 Logger.WriteError($"Play failed: {ex}");
             }
+        }
+
+        /// <summary>
+        /// Reports the outcome of a Play preparation once it reaches the frame thread: the started player, with the
+        /// debugger hint for a Shift+click launch, or the failure that stopped Play.
+        /// </summary>
+        /// <param name="result">Launch outcome reported by the Play session.</param>
+        /// <param name="waitForDebugger">True when the Play was a Shift+click launch waiting for a debugger.</param>
+        void HandlePlayLaunchCompleted(EditorBuildExecutionResult result, bool waitForDebugger) {
+            if (!result.Succeeded) {
+                Logger.WriteError(result.Message);
+                return;
+            }
+
+            Logger.WriteLine(result.Message);
+            if (waitForDebugger) {
+                Logger.WriteLine("Player is waiting for a debugger to attach before it starts the scene; attach to the pid above.");
+            }
+        }
+
+        /// <summary>
+        /// Captures, on the frame thread, every piece of editor state the background Play cook reads: the open scene's
+        /// path, the platforms the build configuration is loaded for, a private copy of the Build dialog's settings when
+        /// the dialog holds edited ones, and the platform's catalog entries. The cook then never touches live editor
+        /// objects while the editor keeps running.
+        /// </summary>
+        /// <param name="platformId">Platform being played.</param>
+        /// <returns>Inputs the next Play preparation cooks from.</returns>
+        EditorPlayPreparationInputs CapturePlayPreparationInputs(string platformId) {
+            EditorBuildConfigDocument dialogBuildConfig = buildDialog.BuildConfig;
+            EditorBuildPlatformConfigDocument dialogPlatformConfig = null;
+            if (dialogBuildConfig != null) {
+                for (int index = 0; index < dialogBuildConfig.Platforms.Count; index++) {
+                    if (string.Equals(dialogBuildConfig.Platforms[index].PlatformId, platformId, StringComparison.OrdinalIgnoreCase)) {
+                        dialogPlatformConfig = EditorBuildConfigService.CopyPlatformConfig(dialogBuildConfig.Platforms[index]);
+                        break;
+                    }
+                }
+            }
+
+            EditorLoadedPlatformBuilder catalogEntry = platformCatalogService.Resolve(platformId);
+            return new EditorPlayPreparationInputs(
+                platformId,
+                Path.GetFullPath(CurrentScenePath),
+                ResolveVisibleSupportedPlatforms(),
+                dialogBuildConfig != null,
+                dialogPlatformConfig,
+                catalogEntry.SelectionModel,
+                catalogEntry.PlatformDescriptor);
         }
 
         /// <summary>
@@ -3760,12 +3822,21 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the persisted build settings the Play cook snapshots for one platform.
+        /// Resolves the build settings the Play cook snapshots for one platform. Runs on the Play preparation thread, so
+        /// it reads only the inputs captured when Play was pressed: the private copy of the Build dialog's settings when
+        /// the dialog held edited ones, otherwise a fresh load of the saved build configuration, which is a new document
+        /// built from files and shared with no other thread.
         /// </summary>
         /// <param name="platformId">Platform whose build settings are resolved.</param>
         /// <returns>The platform's build settings, or null when the build configuration has none for it.</returns>
         EditorBuildPlatformConfigDocument ResolvePlayPlatformConfig(string platformId) {
-            EditorBuildConfigDocument buildConfig = ResolveCurrentBuildConfig();
+            EditorPlayPreparationInputs inputs = RequirePlayPreparationInputs(platformId);
+            if (inputs.BuildDialogOpen) {
+                return inputs.BuildDialogPlatformConfig;
+            }
+
+            string sceneId = sceneCatalogService.ResolveSceneId(inputs.ScenePath);
+            EditorBuildConfigDocument buildConfig = buildConfigService.Load(inputs.VisiblePlatformIds, sceneId);
             for (int index = 0; index < buildConfig.Platforms.Count; index++) {
                 if (string.Equals(buildConfig.Platforms[index].PlatformId, platformId, StringComparison.OrdinalIgnoreCase)) {
                     return buildConfig.Platforms[index];
@@ -3776,21 +3847,52 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the builder selection model of one platform from the platform catalog.
+        /// Resolves the builder selection model of one platform from the inputs captured when Play was pressed.
         /// </summary>
         /// <param name="platformId">Platform whose selection model is resolved.</param>
         /// <returns>Selection model of the loaded platform builder.</returns>
         EditorPlatformBuildSelectionModel ResolvePlayPlatformSelectionModel(string platformId) {
-            return platformCatalogService.Resolve(platformId).SelectionModel;
+            return RequirePlayPreparationInputs(platformId).SelectionModel;
         }
 
         /// <summary>
-        /// Creates the platform build executor the Play cook runs through, for the platform the catalog already loaded.
+        /// Creates the platform build executor the Play cook runs through, for the platform descriptor captured when Play
+        /// was pressed.
         /// </summary>
         /// <param name="platformId">Platform whose executor is created.</param>
         /// <returns>New platform build executor.</returns>
         EditorPlatformBuildExecutor CreatePlayPlatformBuildExecutor(string platformId) {
-            return BuildMenuCoordinator.CreatePlatformBuildExecutor(platformCatalogService.Resolve(platformId).PlatformDescriptor);
+            return BuildMenuCoordinator.CreatePlatformBuildExecutor(RequirePlayPreparationInputs(platformId).PlatformDescriptor);
+        }
+
+        /// <summary>
+        /// Supplies the Play cook with the saved scene path captured when Play was pressed, never the live one.
+        /// </summary>
+        /// <returns>Saved path of the scene Play cooks.</returns>
+        string ResolvePlayScenePath() {
+            EditorPlayPreparationInputs inputs = PlayPreparationInputs;
+            if (inputs == null) {
+                throw new InvalidOperationException("The Play cook ran without inputs captured when Play was pressed.");
+            }
+
+            return inputs.ScenePath;
+        }
+
+        /// <summary>
+        /// Returns the inputs captured when Play was pressed, checking that they belong to the platform being cooked.
+        /// </summary>
+        /// <param name="platformId">Platform the cook asked about.</param>
+        /// <returns>Captured Play inputs for that platform.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when no inputs were captured or they belong to another platform.</exception>
+        EditorPlayPreparationInputs RequirePlayPreparationInputs(string platformId) {
+            EditorPlayPreparationInputs inputs = PlayPreparationInputs;
+            if (inputs == null) {
+                throw new InvalidOperationException("The Play cook ran without inputs captured when Play was pressed.");
+            } else if (!string.Equals(inputs.PlatformId, platformId, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException($"The Play inputs were captured for platform '{inputs.PlatformId}', not '{platformId}'.");
+            }
+
+            return inputs;
         }
 
         /// <summary>

@@ -20,6 +20,11 @@ public sealed class EditorPlaySessionStartupTimingTests {
     const string ScenePath = @"C:\project\assets\scenes\cube_test.hscene";
 
     /// <summary>
+    /// Main-thread queue the service under test reports its finished preparation through.
+    /// </summary>
+    readonly EditorMainThreadActionQueue Queue = new EditorMainThreadActionQueue();
+
+    /// <summary>
     /// Ensures the first-frame marker produces the summary line, with the player-reported first frame and the total
     /// since Play started, and is not echoed as a player line.
     /// </summary>
@@ -287,22 +292,27 @@ public sealed class EditorPlaySessionStartupTimingTests {
     /// <param name="launcher">Fake launcher recording the started players.</param>
     /// <param name="clock">Fake clock supplying the stage readings.</param>
     /// <returns>The service under test.</returns>
-    static EditorPlaySessionService CreateService(bool compileSkipped, FakePlayProcessLauncher launcher, FakePlayClock clock) {
+    EditorPlaySessionService CreateService(bool compileSkipped, FakePlayProcessLauncher launcher, FakePlayClock clock) {
         FakePlayCookRunner cookRunner = new FakePlayCookRunner(new EditorPlayCookResult(true, "Cooked.", @"C:\project\cache\play\ps2-staging", "scene-cube-test", "scenes/cube_test.hscene"));
         FakePlayScriptBuilder scriptBuilder = new FakePlayScriptBuilder(EditorBuildExecutionResult.Success("Scripts built."), @"C:\project\cache\play\modules");
         scriptBuilder.CompileSkipped = compileSkipped;
-        return new EditorPlaySessionService(cookRunner, scriptBuilder, launcher, PlayerExecutablePath, clock);
+        return new EditorPlaySessionService(cookRunner, scriptBuilder, launcher, PlayerExecutablePath, Queue, new InlinePlayPreparationScheduler(), clock);
     }
 
     /// <summary>
-    /// Presses Play for the PS2 platform with a saved scene.
+    /// Presses Play for the PS2 platform with a saved scene, then drains the main-thread queue the way the next editor
+    /// frame does, which launches the player.
     /// </summary>
     /// <param name="service">Service under test.</param>
-    static void StartPlay(EditorPlaySessionService service) {
+    void StartPlay(EditorPlaySessionService service) {
+        EditorBuildExecutionResult launchResult = null;
         EditorBuildExecutionResult result = service.Play(
             "ps2", "PlayStation 2", ScenePath, () => true,
             @"C:\platforms\ps2\helengine.ps2.player.dll", "helengine.ps2.player.Ps2PlayerAdapter",
-            60d, PlayerInputDevices.Gamepad, false);
+            60d, PlayerInputDevices.Gamepad, false, completed => launchResult = completed);
         Assert.True(result.Succeeded);
+        Queue.ProcessPending();
+        Assert.NotNull(launchResult);
+        Assert.True(launchResult.Succeeded);
     }
 }

@@ -6,6 +6,13 @@ namespace helengine.editor {
     /// separate desktop player and forwards its console output to the editor log. Stop terminates the player.
     /// The concrete cook, script build and process launch are supplied through small interfaces so the sequence can
     /// be verified without running real builds or processes.
+    /// <para>
+    /// Threading: <see cref="Play"/>, <see cref="Stop"/> and every player event run on the editor frame thread. Play
+    /// saves the scene there, then hands the cook and the script build to a background preparation and returns at once,
+    /// so the editor keeps rendering while Play is prepared. The preparation reports back through the main-thread queue,
+    /// and the player is launched on the frame thread. Only one preparation exists at a time: a second Play while one is
+    /// preparing is ignored, and Stop cancels it so it never launches.
+    /// </para>
     /// </summary>
     public sealed class EditorPlaySessionService {
         /// <summary>
@@ -73,6 +80,26 @@ namespace helengine.editor {
         const string UnexpectedFirstFrameMarkerPrefix = "[play] ignored unexpected first-frame marker: ";
 
         /// <summary>
+        /// Result message of a Play pressed while another Play is still preparing; that second Play is ignored.
+        /// </summary>
+        public const string AlreadyPreparingMessage = "Play is already preparing; the extra Play was ignored.";
+
+        /// <summary>
+        /// Result message of a Play pressed after Stop cancelled a preparation whose background cook has not finished yet.
+        /// </summary>
+        public const string PreviousPreparationStoppingMessage = "The stopped Play is still finishing its cook in the background; press Play again in a moment.";
+
+        /// <summary>
+        /// Editor log line written when Stop cancels a preparation.
+        /// </summary>
+        public const string PreparationStoppedMessage = "[play] preparation stopped; the player will not be launched.";
+
+        /// <summary>
+        /// Prefix of the failure reported when the cook, the script build or the launch throws.
+        /// </summary>
+        const string PlayFailedPrefix = "Play failed: ";
+
+        /// <summary>
         /// Runs the assets-only cook for the requested platform.
         /// </summary>
         readonly IEditorPlayCookRunner CookRunner;
@@ -98,10 +125,27 @@ namespace helengine.editor {
         readonly IEditorPlayClock Clock;
 
         /// <summary>
+        /// Queue the editor drains on its frame thread; the background preparation reports its outcome through it.
+        /// </summary>
+        readonly EditorMainThreadActionQueue MainThreadQueue;
+
+        /// <summary>
+        /// Starts the cook and the script build away from the editor frame thread.
+        /// </summary>
+        readonly IEditorPlayPreparationScheduler PreparationScheduler;
+
+        /// <summary>
         /// Binding to the player process started by the latest successful Play, or null when none is attached.
         /// Events from any other binding are stale and ignored.
         /// </summary>
         EditorPlayProcessBinding CurrentBinding;
+
+        /// <summary>
+        /// Preparation whose completion the frame thread has not processed yet, including one Stop already cancelled
+        /// whose background work is still finishing; null when no preparation exists. Only the frame thread reads or
+        /// writes it.
+        /// </summary>
+        EditorPlayPreparation CurrentPreparation;
 
         /// <summary>
         /// Initializes the Play session service.
@@ -110,14 +154,18 @@ namespace helengine.editor {
         /// <param name="scriptBuilder">Builds the runtime script modules.</param>
         /// <param name="launcher">Starts the player process.</param>
         /// <param name="playerExecutablePath">Absolute path of the desktop player executable.</param>
+        /// <param name="mainThreadQueue">Queue the editor drains on its frame thread, used to report a finished preparation.</param>
+        /// <param name="preparationScheduler">Starts the cook and the script build off the editor frame thread.</param>
         /// <exception cref="ArgumentNullException">Thrown when any collaborator is null.</exception>
         /// <exception cref="ArgumentException">Thrown when the player executable path is blank.</exception>
         public EditorPlaySessionService(
             IEditorPlayCookRunner cookRunner,
             IEditorPlayScriptBuilder scriptBuilder,
             IEditorPlayProcessLauncher launcher,
-            string playerExecutablePath)
-            : this(cookRunner, scriptBuilder, launcher, playerExecutablePath, new EditorPlayStopwatchClock()) {
+            string playerExecutablePath,
+            EditorMainThreadActionQueue mainThreadQueue,
+            IEditorPlayPreparationScheduler preparationScheduler)
+            : this(cookRunner, scriptBuilder, launcher, playerExecutablePath, mainThreadQueue, preparationScheduler, new EditorPlayStopwatchClock()) {
         }
 
         /// <summary>
@@ -128,7 +176,9 @@ namespace helengine.editor {
         /// <param name="scriptBuilder">Builds the runtime script modules.</param>
         /// <param name="launcher">Starts the player process.</param>
         /// <param name="playerExecutablePath">Absolute path of the desktop player executable.</param>
-        /// <param name="clock">Monotonic clock timing the Play stages for the startup summary.</param>
+        /// <param name="mainThreadQueue">Queue the editor drains on its frame thread, used to report a finished preparation.</param>
+        /// <param name="preparationScheduler">Starts the cook and the script build off the editor frame thread.</param>
+        /// <param name="clock">Monotonic clock timing the Play stages for the startup summary; read from both threads.</param>
         /// <exception cref="ArgumentNullException">Thrown when any collaborator or the clock is null.</exception>
         /// <exception cref="ArgumentException">Thrown when the player executable path is blank.</exception>
         internal EditorPlaySessionService(
@@ -136,6 +186,8 @@ namespace helengine.editor {
             IEditorPlayScriptBuilder scriptBuilder,
             IEditorPlayProcessLauncher launcher,
             string playerExecutablePath,
+            EditorMainThreadActionQueue mainThreadQueue,
+            IEditorPlayPreparationScheduler preparationScheduler,
             IEditorPlayClock clock) {
             if (string.IsNullOrWhiteSpace(playerExecutablePath)) {
                 throw new ArgumentException("The Play session requires the player executable path.", nameof(playerExecutablePath));
@@ -144,6 +196,8 @@ namespace helengine.editor {
             CookRunner = cookRunner ?? throw new ArgumentNullException(nameof(cookRunner));
             ScriptBuilder = scriptBuilder ?? throw new ArgumentNullException(nameof(scriptBuilder));
             Launcher = launcher ?? throw new ArgumentNullException(nameof(launcher));
+            MainThreadQueue = mainThreadQueue ?? throw new ArgumentNullException(nameof(mainThreadQueue));
+            PreparationScheduler = preparationScheduler ?? throw new ArgumentNullException(nameof(preparationScheduler));
             Clock = clock ?? throw new ArgumentNullException(nameof(clock));
             PlayerExecutablePath = playerExecutablePath;
             State = EditorPlaySessionState.Stopped;
@@ -160,6 +214,13 @@ namespace helengine.editor {
         public EditorPlaySessionState State { get; private set; }
 
         /// <summary>
+        /// Gets whether a Play preparation still has background work the frame thread has not completed: one that is
+        /// preparing, or one Stop cancelled whose cook is still finishing. While it is true the project's Play inputs
+        /// may be read by the preparation, so the editor defers authoring operations that would race it.
+        /// </summary>
+        public bool IsPreparationActive => CurrentPreparation != null;
+
+        /// <summary>
         /// Reports whether the platform described by the capability can be played in the editor.
         /// </summary>
         /// <param name="capability">Player capability declared by the active platform.</param>
@@ -174,9 +235,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Runs the full Play sequence: kill any running player, save the scene, cook, build scripts and launch the player.
-        /// Every failure, including a failure to terminate the previous player, returns the session to
-        /// <see cref="EditorPlaySessionState.Stopped"/>.
+        /// Starts Play: kills any running player and saves the scene on the calling (frame) thread, then starts the cook
+        /// and the script build in the background and returns without waiting for them. When the preparation finishes,
+        /// the player is launched on the frame thread during the next main-thread queue drain and
+        /// <paramref name="completed"/> receives the launch outcome; a preparation cancelled by <see cref="Stop"/> never
+        /// launches and never calls <paramref name="completed"/>. A Play pressed while a preparation is still active is
+        /// ignored and returns a failure naming why. Every failure, including a failure to terminate the previous player,
+        /// returns the session to <see cref="EditorPlaySessionState.Stopped"/>.
         /// </summary>
         /// <param name="platformId">Identifier of the platform whose content and scripts are prepared.</param>
         /// <param name="platformDisplayName">Display name of the platform, shown in the player window title.</param>
@@ -187,7 +252,8 @@ namespace helengine.editor {
         /// <param name="targetFrameRate">Frames per second the platform's Play capability asks the player to run at.</param>
         /// <param name="inputDevices">Input devices the platform's Play capability declares; the player forwards only these to the game.</param>
         /// <param name="waitForDebugger">Whether the player should wait for a debugger before starting the scene.</param>
-        /// <returns>Success naming the started player's process id, or the failure that stopped Play.</returns>
+        /// <param name="completed">Receives the launch outcome on the frame thread: success naming the started player's process id, or the failure that stopped Play.</param>
+        /// <returns>Success once the preparation started in the background, or the failure that stopped or ignored Play.</returns>
         /// <exception cref="ArgumentException">
         /// Thrown when the platform, platform display name, adapter assembly or adapter type is blank.
         /// </exception>
@@ -195,7 +261,7 @@ namespace helengine.editor {
         /// Thrown when the target frame rate is not a positive, finite number, or the input device set is empty or names
         /// unknown devices.
         /// </exception>
-        /// <exception cref="ArgumentNullException">Thrown when the save callback is null.</exception>
+        /// <exception cref="ArgumentNullException">Thrown when the save callback or the completion callback is null.</exception>
         public EditorBuildExecutionResult Play(
             string platformId,
             string platformDisplayName,
@@ -205,13 +271,16 @@ namespace helengine.editor {
             string adapterTypeName,
             double targetFrameRate,
             PlayerInputDevices inputDevices,
-            bool waitForDebugger) {
+            bool waitForDebugger,
+            Action<EditorBuildExecutionResult> completed) {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Play requires a platform identifier.", nameof(platformId));
             } else if (string.IsNullOrWhiteSpace(platformDisplayName)) {
                 throw new ArgumentException("Play requires the platform display name.", nameof(platformDisplayName));
             } else if (saveScene == null) {
                 throw new ArgumentNullException(nameof(saveScene));
+            } else if (completed == null) {
+                throw new ArgumentNullException(nameof(completed));
             } else if (string.IsNullOrWhiteSpace(adapterAssemblyPath)) {
                 throw new ArgumentException("Play requires the player adapter assembly path.", nameof(adapterAssemblyPath));
             } else if (string.IsNullOrWhiteSpace(adapterTypeName)) {
@@ -226,21 +295,57 @@ namespace helengine.editor {
                 return EditorBuildExecutionResult.Failure("Save the scene before pressing Play.");
             }
 
+            if (CurrentPreparation != null) {
+                return EditorBuildExecutionResult.Failure(CurrentPreparation.IsCancellationRequested
+                    ? PreviousPreparationStoppingMessage
+                    : AlreadyPreparingMessage);
+            }
+
             SetState(EditorPlaySessionState.Preparing);
+            EditorPlayPreparation preparation;
             try {
                 KillCurrentProcess();
-                return PrepareAndLaunch(platformId, platformDisplayName, saveScene, adapterAssemblyPath, adapterTypeName, targetFrameRate, inputDevices, waitForDebugger);
+                TimeSpan playStartedAt = Clock.Now;
+                if (!saveScene()) {
+                    SetState(EditorPlaySessionState.Stopped);
+                    return EditorBuildExecutionResult.Failure("Scene save failed; Play aborted.");
+                }
+
+                preparation = new EditorPlayPreparation(
+                    platformId,
+                    platformDisplayName,
+                    adapterAssemblyPath,
+                    adapterTypeName,
+                    targetFrameRate,
+                    inputDevices,
+                    waitForDebugger,
+                    completed,
+                    playStartedAt,
+                    Clock.Now);
+                CurrentPreparation = preparation;
+                PreparationScheduler.Start(() => RunPreparation(preparation));
             } catch {
+                CurrentPreparation = null;
                 SetState(EditorPlaySessionState.Stopped);
                 throw;
             }
+
+            return EditorBuildExecutionResult.Success($"Preparing Play for {platformDisplayName}.");
         }
 
         /// <summary>
-        /// Terminates the running player, if any, and returns the session to <see cref="EditorPlaySessionState.Stopped"/>.
-        /// The session ends stopped even when terminating the player fails; that failure is still rethrown.
+        /// Stops Play. A preparation that is still running is cancelled: it stops at its next stage boundary and the
+        /// player is never launched. A running player is terminated. The session returns to
+        /// <see cref="EditorPlaySessionState.Stopped"/> at once, even when terminating the player fails; that failure is
+        /// still rethrown.
         /// </summary>
         public void Stop() {
+            EditorPlayPreparation preparation = CurrentPreparation;
+            if (preparation != null && !preparation.IsCancellationRequested) {
+                preparation.RequestCancellation();
+                Logger.WriteLine(PreparationStoppedMessage);
+            }
+
             try {
                 KillCurrentProcess();
             } finally {
@@ -249,65 +354,115 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Performs the save, cook, script build and launch steps of Play once the session is preparing.
+        /// Runs the cook and then the script build for one preparation on the preparation thread, records their
+        /// outcomes on the preparation and queues its completion for the frame thread. The cancellation flag is polled
+        /// before each stage, so a stopped preparation skips the stages it has not started; the cook itself is not
+        /// interruptible. Any exception is recorded and reported by the completion instead of escaping the thread.
+        /// This method touches no editor UI or scene state: it reads only the preparation's captured request and the
+        /// cook runner and script builder, which work from files and from inputs captured when Play was pressed.
         /// </summary>
-        /// <param name="platformId">Identifier of the platform whose content and scripts are prepared.</param>
-        /// <param name="platformDisplayName">Display name of the platform, shown in the player window title.</param>
-        /// <param name="saveScene">Saves the open scene and returns whether the save succeeded.</param>
-        /// <param name="adapterAssemblyPath">Path of the assembly holding the platform's player adapter.</param>
-        /// <param name="adapterTypeName">Type name of the platform's player adapter.</param>
-        /// <param name="targetFrameRate">Frames per second the player paces its frame loop to.</param>
-        /// <param name="inputDevices">Input devices the player forwards to the game.</param>
-        /// <param name="waitForDebugger">Whether the player should wait for a debugger.</param>
+        /// <param name="preparation">Preparation to run.</param>
+        void RunPreparation(EditorPlayPreparation preparation) {
+            try {
+                if (preparation.IsCancellationRequested) {
+                    return;
+                }
+
+                EditorPlayCookResult cookResult = CookRunner.Cook(preparation.PlatformId);
+                preparation.CookedAt = Clock.Now;
+                preparation.CookResult = cookResult;
+                if (cookResult == null || !cookResult.Succeeded || preparation.IsCancellationRequested) {
+                    return;
+                }
+
+                EditorBuildExecutionResult buildResult = ScriptBuilder.Build(preparation.PlatformId, out string runtimeModulesRootPath, out bool scriptCompileSkipped);
+                preparation.ScriptsBuiltAt = Clock.Now;
+                preparation.ScriptBuildResult = buildResult;
+                preparation.RuntimeModulesRootPath = runtimeModulesRootPath ?? string.Empty;
+                preparation.ScriptCompileSkipped = scriptCompileSkipped;
+            } catch (Exception exception) {
+                preparation.Failure = exception;
+            } finally {
+                MainThreadQueue.Enqueue(() => CompletePreparation(preparation));
+            }
+        }
+
+        /// <summary>
+        /// Completes one preparation on the frame thread. A cancelled preparation is discarded without launching or
+        /// reporting anything, because Stop already returned the session to stopped. Otherwise the player is launched
+        /// when the cook and the script build succeeded, the session ends running or stopped, and the preparation's
+        /// completion callback receives the outcome. A launch that throws is reported as a failure, never propagated
+        /// into the frame's queue drain.
+        /// </summary>
+        /// <param name="preparation">Preparation whose background work finished.</param>
+        void CompletePreparation(EditorPlayPreparation preparation) {
+            if (preparation != CurrentPreparation) {
+                return;
+            }
+
+            CurrentPreparation = null;
+            if (preparation.IsCancellationRequested) {
+                return;
+            }
+
+            EditorBuildExecutionResult result;
+            try {
+                result = LaunchPreparedPlayer(preparation);
+            } catch (Exception exception) {
+                result = EditorBuildExecutionResult.Failure(PlayFailedPrefix + exception);
+            }
+
+            if (!result.Succeeded) {
+                SetState(EditorPlaySessionState.Stopped);
+            }
+
+            preparation.Completed(result);
+        }
+
+        /// <summary>
+        /// Turns a finished preparation into a launched player: reports the first failure the preparation recorded, or
+        /// builds the player command line, starts the player, binds its events and enters
+        /// <see cref="EditorPlaySessionState.Running"/>.
+        /// </summary>
+        /// <param name="preparation">Finished, not cancelled preparation.</param>
         /// <returns>Success naming the started player's process id, or the failure that stopped Play.</returns>
-        EditorBuildExecutionResult PrepareAndLaunch(
-            string platformId,
-            string platformDisplayName,
-            Func<bool> saveScene,
-            string adapterAssemblyPath,
-            string adapterTypeName,
-            double targetFrameRate,
-            PlayerInputDevices inputDevices,
-            bool waitForDebugger) {
-            TimeSpan playStartedAt = Clock.Now;
-            if (!saveScene()) {
-                SetState(EditorPlaySessionState.Stopped);
-                return EditorBuildExecutionResult.Failure("Scene save failed; Play aborted.");
-            }
-
-            TimeSpan savedAt = Clock.Now;
-            EditorPlayCookResult cookResult = CookRunner.Cook(platformId);
-            TimeSpan cookedAt = Clock.Now;
-            if (cookResult == null) {
-                throw new InvalidOperationException("The Play cook runner returned no result.");
+        EditorBuildExecutionResult LaunchPreparedPlayer(EditorPlayPreparation preparation) {
+            EditorPlayCookResult cookResult = preparation.CookResult;
+            EditorBuildExecutionResult buildResult = preparation.ScriptBuildResult;
+            if (preparation.Failure != null) {
+                return EditorBuildExecutionResult.Failure(PlayFailedPrefix + preparation.Failure);
+            } else if (cookResult == null) {
+                return EditorBuildExecutionResult.Failure(PlayFailedPrefix + "The Play cook runner returned no result.");
             } else if (!cookResult.Succeeded) {
-                SetState(EditorPlaySessionState.Stopped);
                 return EditorBuildExecutionResult.Failure(cookResult.Message);
-            }
-
-            EditorBuildExecutionResult buildResult = ScriptBuilder.Build(platformId, out string runtimeModulesRootPath, out bool scriptCompileSkipped);
-            TimeSpan scriptsBuiltAt = Clock.Now;
-            if (buildResult == null) {
-                throw new InvalidOperationException("The Play script builder returned no result.");
+            } else if (buildResult == null) {
+                return EditorBuildExecutionResult.Failure(PlayFailedPrefix + "The Play script builder returned no result.");
             } else if (!buildResult.Succeeded) {
-                SetState(EditorPlaySessionState.Stopped);
                 return buildResult;
             }
 
-            List<string> arguments = BuildPlayerArguments(cookResult, platformDisplayName, adapterAssemblyPath, adapterTypeName, runtimeModulesRootPath, targetFrameRate, inputDevices, waitForDebugger);
+            List<string> arguments = BuildPlayerArguments(
+                cookResult,
+                preparation.PlatformDisplayName,
+                preparation.AdapterAssemblyPath,
+                preparation.AdapterTypeName,
+                preparation.RuntimeModulesRootPath,
+                preparation.TargetFrameRate,
+                preparation.InputDevices,
+                preparation.WaitForDebugger);
             IEditorPlayProcess process = Launcher.Start(new EditorPlayLaunchRequest(PlayerExecutablePath, arguments));
             TimeSpan launchedAt = Clock.Now;
             if (process == null) {
-                throw new InvalidOperationException("The Play process launcher returned no process.");
+                return EditorBuildExecutionResult.Failure(PlayFailedPrefix + "The Play process launcher returned no process.");
             }
 
             EditorPlayStartupTiming startupTiming = new EditorPlayStartupTiming(
-                playStartedAt,
-                savedAt - playStartedAt,
-                cookedAt - savedAt,
-                scriptsBuiltAt - cookedAt,
-                scriptCompileSkipped,
-                launchedAt - scriptsBuiltAt);
+                preparation.PlayStartedAt,
+                preparation.SavedAt - preparation.PlayStartedAt,
+                preparation.CookedAt - preparation.SavedAt,
+                preparation.ScriptsBuiltAt - preparation.CookedAt,
+                preparation.ScriptCompileSkipped,
+                launchedAt - preparation.ScriptsBuiltAt);
             EditorPlayProcessBinding binding = new EditorPlayProcessBinding(this, process, startupTiming);
             CurrentBinding = binding;
             binding.Attach();

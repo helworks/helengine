@@ -38,15 +38,22 @@ namespace helengine.player.tests {
         [InlineData(true)]
         public void EditorPlayArguments_ParseBackIntoTheSameValues(bool waitForDebugger) {
             ContractPlayProcessLauncher launcher = new ContractPlayProcessLauncher();
+            EditorMainThreadActionQueue queue = new EditorMainThreadActionQueue();
             EditorPlaySessionService service = new EditorPlaySessionService(
                 new ContractPlayCookRunner(),
                 new ContractPlayScriptBuilder(),
                 launcher,
-                @"C:\editor\player\helengine.player.exe");
+                @"C:\editor\player\helengine.player.exe",
+                queue,
+                new ContractPlayPreparationScheduler());
+            EditorBuildExecutionResult result = null;
 
-            EditorBuildExecutionResult result = service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, waitForDebugger);
+            EditorBuildExecutionResult started = service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, waitForDebugger, completed => result = completed);
+            queue.ProcessPending();
             PlayerLaunchOptions options = PlayerLaunchOptions.Parse(launcher.LastRequest.Arguments.ToArray());
 
+            Assert.True(started.Succeeded, started.Message);
+            Assert.NotNull(result);
             Assert.True(result.Succeeded, result.Message);
             Assert.Equal(ContractPlayCookRunner.ContentRootPath, options.ContentRootPath);
             Assert.Equal(ContractPlayCookRunner.StartupSceneId, options.SceneId);

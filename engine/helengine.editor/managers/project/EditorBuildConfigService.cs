@@ -75,6 +75,25 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates an independent copy of one platform's build settings through the same JSON shape the build
+        /// configuration is persisted with, plus the in-memory scene id list the JSON omits. Play uses it to hand the
+        /// Build dialog's edited settings to its background cook without sharing the dialog's live document.
+        /// </summary>
+        /// <param name="platformConfig">Platform settings to copy.</param>
+        /// <returns>A copy that shares no mutable state with the source.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when the platform settings are null.</exception>
+        public static EditorBuildPlatformConfigDocument CopyPlatformConfig(EditorBuildPlatformConfigDocument platformConfig) {
+            if (platformConfig == null) {
+                throw new ArgumentNullException(nameof(platformConfig));
+            }
+
+            string json = JsonSerializer.Serialize(platformConfig, JsonSerializerOptions);
+            EditorBuildPlatformConfigDocument copy = JsonSerializer.Deserialize<EditorBuildPlatformConfigDocument>(json, JsonSerializerOptions);
+            copy.SelectedSceneIds = new List<string>(platformConfig.SelectedSceneIds ?? new List<string>());
+            return copy;
+        }
+
+        /// <summary>
         /// Attempts to load the composed build configuration without seeding new platform entries.
         /// </summary>
         /// <returns>Composed build configuration, or null when neither the project nor the local file is present and readable.</returns>
