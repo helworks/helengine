@@ -561,6 +561,53 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures composing from captured file text, as the background Play cook does, reflects the files as they were at
+    /// capture time and never writes either file, even when the editor rewrote them meanwhile and a new platform has to
+    /// be seeded.
+    /// </summary>
+    [Fact]
+    public void ComposeSnapshot_UsesTheCapturedTextAndNeverWritesTheFiles() {
+        EditorBuildConfigService service = CreateService();
+        EditorBuildConfigDocument document = service.Load(["windows"], "Scenes/City.helen");
+        document.Platforms[0].OutputDirectoryPath = @"C:\builds\captured";
+        service.Save(document);
+        EditorBuildConfigFileSnapshot snapshot = service.CaptureFiles();
+        document.Platforms[0].OutputDirectoryPath = @"C:\builds\edited-later";
+        service.Save(document);
+        string localPath = Path.Combine(TempProjectRootPath, "user_settings", "build_config.json");
+        string projectPath = Path.Combine(TempProjectRootPath, "settings", "build_config.json");
+        byte[] localBytes = File.ReadAllBytes(localPath);
+        byte[] projectBytes = File.ReadAllBytes(projectPath);
+
+        EditorBuildConfigDocument composed = service.ComposeSnapshot(snapshot, ["windows", "linux"], "Scenes/City.helen");
+
+        Assert.Equal(@"C:\builds\captured", composed.Platforms.Single(platform => platform.PlatformId == "windows").OutputDirectoryPath);
+        Assert.Contains(composed.Platforms, platform => platform.PlatformId == "linux");
+        Assert.Equal(localBytes, File.ReadAllBytes(localPath));
+        Assert.Equal(projectBytes, File.ReadAllBytes(projectPath));
+    }
+
+    /// <summary>
+    /// Ensures a local file that cannot be read is reported as an I/O failure and left untouched, instead of being
+    /// treated as missing, seeded with defaults and overwritten.
+    /// </summary>
+    [Fact]
+    public void Load_WhenTheLocalFileCannotBeRead_ThrowsAndKeepsTheFile() {
+        EditorBuildConfigService service = CreateService();
+        EditorBuildConfigDocument document = service.Load(["windows"], "Scenes/City.helen");
+        document.Platforms[0].OutputDirectoryPath = @"C:\builds\kept";
+        service.Save(document);
+        string localPath = Path.Combine(TempProjectRootPath, "user_settings", "build_config.json");
+        byte[] localBytes = File.ReadAllBytes(localPath);
+
+        using (FileStream exclusive = new FileStream(localPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) {
+            Assert.ThrowsAny<IOException>(() => service.Load(["windows", "linux"], "Scenes/City.helen"));
+        }
+
+        Assert.Equal(localBytes, File.ReadAllBytes(localPath));
+    }
+
+    /// <summary>
     /// Writes raw JSON to the expected local build-config path.
     /// </summary>
     /// <param name="json">Serialized build-config payload to persist.</param>

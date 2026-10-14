@@ -90,6 +90,16 @@ namespace helengine.editor {
             string json = JsonSerializer.Serialize(platformConfig, JsonSerializerOptions);
             EditorBuildPlatformConfigDocument copy = JsonSerializer.Deserialize<EditorBuildPlatformConfigDocument>(json, JsonSerializerOptions);
             copy.SelectedSceneIds = new List<string>(platformConfig.SelectedSceneIds ?? new List<string>());
+            // Scene-order ids are in-memory only as well; the JSON round-trip keeps the orders in the same sequence.
+            int orderCount = copy.SceneOrders == null || platformConfig.SceneOrders == null
+                ? 0
+                : Math.Min(copy.SceneOrders.Count, platformConfig.SceneOrders.Count);
+            for (int index = 0; index < orderCount; index++) {
+                if (copy.SceneOrders[index] != null && platformConfig.SceneOrders[index] != null) {
+                    copy.SceneOrders[index].SceneId = platformConfig.SceneOrders[index].SceneId;
+                }
+            }
+
             return copy;
         }
 
@@ -144,6 +154,49 @@ namespace helengine.editor {
                 Save(document, sharedResolver);
             }
 
+            return document;
+        }
+
+        /// <summary>
+        /// Reads the text of both build configuration files as they are now. It is cheap (two small reads, no scene
+        /// reference resolution), so the editor captures it on its frame thread when Play is pressed and hands it to the
+        /// background cook, which then never opens these files while the editor may be writing them. A read failure
+        /// propagates; it is never taken for a missing file.
+        /// </summary>
+        /// <returns>Text of both files, with null for a file that does not exist.</returns>
+        public EditorBuildConfigFileSnapshot CaptureFiles() {
+            string projectJson = File.Exists(ProjectBuildConfigFilePath) ? File.ReadAllText(ProjectBuildConfigFilePath) : null;
+            string localJson = File.Exists(LocalBuildConfigFilePath) ? File.ReadAllText(LocalBuildConfigFilePath) : null;
+            return new EditorBuildConfigFileSnapshot(projectJson, localJson);
+        }
+
+        /// <summary>
+        /// Composes the build configuration from captured file text exactly as <see cref="Load"/> composes it from the
+        /// files, seeding entries for newly supported platforms in memory, but never reading or writing either file. The
+        /// result is a new document no other caller shares.
+        /// </summary>
+        /// <param name="snapshot">File text captured by <see cref="CaptureFiles"/>.</param>
+        /// <param name="supportedPlatforms">Supported platform identifiers declared by the current project.</param>
+        /// <param name="currentSceneId">Project-relative scene identifier used to seed first-time platform packages.</param>
+        /// <returns>Composed build configuration.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when the snapshot or platform list is null.</exception>
+        public EditorBuildConfigDocument ComposeSnapshot(EditorBuildConfigFileSnapshot snapshot, IReadOnlyList<string> supportedPlatforms, string currentSceneId) {
+            if (snapshot == null) {
+                throw new ArgumentNullException(nameof(snapshot));
+            } else if (supportedPlatforms == null) {
+                throw new ArgumentNullException(nameof(supportedPlatforms));
+            }
+
+            using EditorSharedAssetReferenceResolver sharedResolver = CreateSharedResolver();
+            EditorProjectBuildConfigDocument projectDocument = snapshot.ProjectJson == null
+                ? null
+                : TryParseProjectDocument(snapshot.ProjectJson, sharedResolver, out _);
+            EditorBuildConfigDocument localDocument = snapshot.LocalJson == null
+                ? null
+                : TryParseLocalDocument(snapshot.LocalJson, sharedResolver, out _);
+            EditorBuildConfigDocument document = Compose(projectDocument, localDocument);
+            EnsurePlatformEntries(document, supportedPlatforms, currentSceneId);
+            NormalizeDocument(document);
             return document;
         }
 
@@ -375,8 +428,21 @@ namespace helengine.editor {
                 return null;
             }
 
+            return TryParseProjectDocument(File.ReadAllText(ProjectBuildConfigFilePath), sharedResolver, out malformed);
+        }
+
+        /// <summary>
+        /// Parses the project scene packages from the text of `settings/build_config.json`, resolving scene identifiers
+        /// from the references. Text that does not parse or whose references do not resolve counts as malformed; an I/O
+        /// failure while resolving (for example the project write lock timing out) is not a malformed file and propagates.
+        /// </summary>
+        /// <param name="json">Text of the project file.</param>
+        /// <param name="sharedResolver">Resolver holder shared by the calling load or save.</param>
+        /// <param name="malformed">Set to true when the text cannot be parsed or resolved.</param>
+        /// <returns>Project scene packages, or null when the text is malformed.</returns>
+        EditorProjectBuildConfigDocument TryParseProjectDocument(string json, EditorSharedAssetReferenceResolver sharedResolver, out bool malformed) {
+            malformed = false;
             try {
-                string json = File.ReadAllText(ProjectBuildConfigFilePath);
                 EditorProjectBuildConfigDocument document = JsonSerializer.Deserialize<EditorProjectBuildConfigDocument>(json, JsonSerializerOptions);
                 if (document == null) {
                     malformed = true;
@@ -398,7 +464,7 @@ namespace helengine.editor {
                 }
 
                 return document;
-            } catch {
+            } catch (Exception exception) when (exception is not IOException && exception is not UnauthorizedAccessException) {
                 malformed = true;
                 return null;
             }
@@ -416,8 +482,22 @@ namespace helengine.editor {
                 return null;
             }
 
+            return TryParseLocalDocument(File.ReadAllText(LocalBuildConfigFilePath), sharedResolver, out changed);
+        }
+
+        /// <summary>
+        /// Parses the local build document from the text of `user_settings/build_config.json`, normalizing
+        /// current-format fields. Text that does not parse or whose references do not resolve yields null, as before; an
+        /// I/O failure is never mistaken for a missing file, because a caller that saves afterwards would replace the
+        /// user's settings with defaults, so it propagates.
+        /// </summary>
+        /// <param name="json">Text of the local file.</param>
+        /// <param name="sharedResolver">Resolver holder shared by the calling load.</param>
+        /// <param name="changed">Set to true when normalization altered the document and it should be written back.</param>
+        /// <returns>Local build document, or null when the text is malformed.</returns>
+        EditorBuildConfigDocument TryParseLocalDocument(string json, EditorSharedAssetReferenceResolver sharedResolver, out bool changed) {
+            changed = false;
             try {
-                string json = File.ReadAllText(LocalBuildConfigFilePath);
                 EditorBuildConfigDocument document = JsonSerializer.Deserialize<EditorBuildConfigDocument>(json, JsonSerializerOptions);
                 if (document == null) {
                     return null;
@@ -485,7 +565,7 @@ namespace helengine.editor {
                 }
 
                 return document;
-            } catch {
+            } catch (Exception exception) when (exception is not IOException && exception is not UnauthorizedAccessException) {
                 return null;
             }
         }

@@ -3,8 +3,9 @@ using helengine.platforms;
 namespace helengine.editor {
     /// <summary>
     /// Editor state the Play cook needs, captured on the editor frame thread when Play is pressed so the background
-    /// preparation never reads live editor scene, dialog or catalog objects. Everything here is either immutable, a
-    /// private copy, or an object the editor only reads.
+    /// preparation never reads live editor scene or dialog objects and never opens the build configuration files.
+    /// Each member is an immutable value, a private copy only the preparation uses, or a platform catalog object
+    /// (selection model, descriptor) that is read-only after the catalog loads it; none is a deep immutable snapshot.
     /// </summary>
     public sealed class EditorPlayPreparationInputs {
         /// <summary>
@@ -15,6 +16,7 @@ namespace helengine.editor {
         /// <param name="visiblePlatformIds">Copy of the platform ids the build configuration is loaded for.</param>
         /// <param name="buildDialogOpen">Whether the Build dialog held an edited build configuration when Play was pressed.</param>
         /// <param name="buildDialogPlatformConfig">Private copy of the Build dialog's settings for the platform, or null when the dialog had none for it.</param>
+        /// <param name="buildConfigFiles">Text of the build configuration files read at press time, or null when the Build dialog's settings are used.</param>
         /// <param name="selectionModel">Builder selection model of the platform, resolved from the platform catalog.</param>
         /// <param name="platformDescriptor">Installed platform descriptor the cook's build executor is created for.</param>
         /// <exception cref="ArgumentException">Thrown when the platform id or scene path is blank.</exception>
@@ -25,6 +27,7 @@ namespace helengine.editor {
             IReadOnlyList<string> visiblePlatformIds,
             bool buildDialogOpen,
             EditorBuildPlatformConfigDocument buildDialogPlatformConfig,
+            EditorBuildConfigFileSnapshot buildConfigFiles,
             EditorPlatformBuildSelectionModel selectionModel,
             AvailablePlatformDescriptor platformDescriptor) {
             if (string.IsNullOrWhiteSpace(platformId)) {
@@ -33,6 +36,8 @@ namespace helengine.editor {
                 throw new ArgumentException("Play inputs require the saved scene path.", nameof(scenePath));
             } else if (visiblePlatformIds == null) {
                 throw new ArgumentNullException(nameof(visiblePlatformIds));
+            } else if (!buildDialogOpen && buildConfigFiles == null) {
+                throw new ArgumentNullException(nameof(buildConfigFiles), "Play inputs need the build configuration files when the Build dialog holds no settings.");
             } else if (selectionModel == null) {
                 throw new ArgumentNullException(nameof(selectionModel));
             } else if (platformDescriptor == null) {
@@ -44,6 +49,7 @@ namespace helengine.editor {
             VisiblePlatformIds = visiblePlatformIds.ToArray();
             BuildDialogOpen = buildDialogOpen;
             BuildDialogPlatformConfig = buildDialogPlatformConfig;
+            BuildConfigFiles = buildConfigFiles;
             SelectionModel = selectionModel;
             PlatformDescriptor = platformDescriptor;
         }
@@ -74,6 +80,12 @@ namespace helengine.editor {
         /// The preparation may change this copy freely; the dialog never sees it.
         /// </summary>
         public EditorBuildPlatformConfigDocument BuildDialogPlatformConfig { get; }
+
+        /// <summary>
+        /// Gets the text of the build configuration files read when Play was pressed, or null when the Build dialog's
+        /// settings are used instead. The cook composes the configuration from this text and never opens the files.
+        /// </summary>
+        public EditorBuildConfigFileSnapshot BuildConfigFiles { get; }
 
         /// <summary>
         /// Gets the builder selection model of the platform.

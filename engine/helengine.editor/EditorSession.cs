@@ -3669,8 +3669,9 @@ namespace helengine.editor {
 
         /// <summary>
         /// Captures, on the frame thread, every piece of editor state the background Play cook reads: the open scene's
-        /// path, the platforms the build configuration is loaded for, a private copy of the Build dialog's settings when
-        /// the dialog holds edited ones, and the platform's catalog entries. The cook then never touches live editor
+        /// path, the platforms the build configuration is composed for, a private copy of the Build dialog's settings
+        /// when the dialog holds edited ones or else the text of the build configuration files (two small reads), and
+        /// the platform's catalog entries. The cook then never touches live editor
         /// objects while the editor keeps running.
         /// </summary>
         /// <param name="platformId">Platform being played.</param>
@@ -3694,6 +3695,7 @@ namespace helengine.editor {
                 ResolveVisibleSupportedPlatforms(),
                 dialogBuildConfig != null,
                 dialogPlatformConfig,
+                dialogBuildConfig == null ? buildConfigService.CaptureFiles() : null,
                 catalogEntry.SelectionModel,
                 catalogEntry.PlatformDescriptor);
         }
@@ -3842,8 +3844,8 @@ namespace helengine.editor {
         /// <summary>
         /// Resolves the build settings the Play cook snapshots for one platform. Runs on the Play preparation thread, so
         /// it reads only the inputs captured when Play was pressed: the private copy of the Build dialog's settings when
-        /// the dialog held edited ones, otherwise a fresh load of the saved build configuration, which is a new document
-        /// built from files and shared with no other thread.
+        /// the dialog held edited ones, otherwise the build configuration composed from the file text read at press time.
+        /// It never opens or writes the build configuration files, which the editor may be writing meanwhile.
         /// </summary>
         /// <param name="platformId">Platform whose build settings are resolved.</param>
         /// <returns>The platform's build settings, or null when the build configuration has none for it.</returns>
@@ -3854,7 +3856,7 @@ namespace helengine.editor {
             }
 
             string sceneId = sceneCatalogService.ResolveSceneId(inputs.ScenePath);
-            EditorBuildConfigDocument buildConfig = buildConfigService.Load(inputs.VisiblePlatformIds, sceneId);
+            EditorBuildConfigDocument buildConfig = buildConfigService.ComposeSnapshot(inputs.BuildConfigFiles, inputs.VisiblePlatformIds, sceneId);
             for (int index = 0; index < buildConfig.Platforms.Count; index++) {
                 if (string.Equals(buildConfig.Platforms[index].PlatformId, platformId, StringComparison.OrdinalIgnoreCase)) {
                     return buildConfig.Platforms[index];
