@@ -383,7 +383,7 @@ namespace helengine.editor.tests {
 
             viewport.SetPlayPlatformOptions(new[] { "ps2", "n64" }, new[] { "PlayStation 2", "Nintendo 64" }, "ps2");
             ComboBoxComponent selector = GetPrivateField<ComboBoxComponent>(viewport, "PlayPlatformComboBox");
-            Assert.Equal(new[] { "PlayStation 2", "Nintendo 64" }, selector.Items);
+            Assert.Equal(new[] { "PlayStation 2", "Nintendo 64", "Play Settings..." }, selector.Items);
             Assert.Equal(0, selector.SelectedIndex);
             Assert.Empty(selections);
 
@@ -393,6 +393,28 @@ namespace helengine.editor.tests {
             viewport.SetPlayPlatformOptions(new[] { "ps2", "n64" }, new[] { "PlayStation 2", "Nintendo 64" }, "ps2");
             Assert.Equal(0, selector.SelectedIndex);
             Assert.Equal(new[] { "n64" }, selections);
+        }
+
+        /// <summary>
+        /// Picking Play Settings... raises the settings request, keeps the selected Play platform and is not a platform pick.
+        /// </summary>
+        [Fact]
+        public void EditorViewport_WhenPlaySettingsItemPicked_RaisesRequestAndKeepsPlatform() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            viewport.SetPlayPlatformOptions(new[] { "ps2", "windows" }, new[] { "PlayStation 2", "Windows" }, "ps2");
+            ComboBoxComponent combo = GetPrivateField<ComboBoxComponent>(viewport, "PlayPlatformComboBox");
+            int settingsRequests = 0;
+            List<string> platformPicks = new List<string>();
+            viewport.PlaySettingsRequested += () => settingsRequests++;
+            viewport.PlayPlatformSelected += platformPicks.Add;
+
+            combo.SelectedIndex = 2;
+
+            Assert.Equal(new[] { "PlayStation 2", "Windows", "Play Settings..." }, combo.Items);
+            Assert.Equal(1, settingsRequests);
+            Assert.Empty(platformPicks);
+            Assert.Equal(0, combo.SelectedIndex);
         }
 
         /// <summary>

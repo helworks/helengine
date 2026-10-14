@@ -305,6 +305,14 @@ namespace helengine.editor {
         /// </summary>
         string PresentedPlayPlatformId = string.Empty;
         /// <summary>
+        /// Display names of the presented platforms; the selector is sized to these, not to the settings item.
+        /// </summary>
+        readonly List<string> PresentedPlayPlatformNames = new List<string>();
+        /// <summary>
+        /// Selector index of the presented platform, restored after the settings item is picked.
+        /// </summary>
+        int PresentedPlayPlatformIndex = -1;
+        /// <summary>
         /// Current width of the Play platform selector, fitted to the longest offered platform name in the toolbar font.
         /// </summary>
         int PlayPlatformSelectorWidth = PlayPlatformSelectorMinimumWidth;
@@ -450,6 +458,12 @@ namespace helengine.editor {
         /// platform id; selections presented by the session through <see cref="SetPlayPlatformOptions"/> do not raise it.
         /// </summary>
         public event Action<string> PlayPlatformSelected;
+
+        /// <summary>
+        /// Raised when the user picks <see cref="EditorPlayPlatformMenu.PlaySettingsItemText"/> in the Play platform
+        /// selector; the session opens the Play Settings dialog for the selected Play platform.
+        /// </summary>
+        public event Action PlaySettingsRequested;
 
         /// <summary>
         /// Initializes a new dockable viewport and binds it to the provided camera.
@@ -1232,7 +1246,7 @@ namespace helengine.editor {
         /// Refits the selector to its current items and relays the toolbar when the width changed.
         /// </summary>
         void UpdatePlayPlatformSelectorWidth() {
-            int width = MeasurePlayPlatformSelectorWidth(PlayPlatformComboBox.Items);
+            int width = MeasurePlayPlatformSelectorWidth(PresentedPlayPlatformNames);
             if (width == PlayPlatformSelectorWidth) {
                 return;
             }
@@ -1276,24 +1290,37 @@ namespace helengine.editor {
             PresentedPlayPlatformIds.Clear();
             PresentedPlayPlatformIds.AddRange(platformIds);
             PresentedPlayPlatformId = selectedPlatformId;
-            PlayPlatformComboBox.SetItems(displayNames, selectedIndex);
+            PresentedPlayPlatformNames.Clear();
+            PresentedPlayPlatformNames.AddRange(displayNames);
+            PresentedPlayPlatformIndex = selectedIndex;
+            PlayPlatformComboBox.SetItems(EditorPlayPlatformMenu.BuildItems(displayNames), selectedIndex);
             PlayPlatformComboHost.Enabled = platformIds.Count > 0;
             UpdatePlayPlatformSelectorWidth();
         }
 
         /// <summary>
         /// Raises <see cref="PlayPlatformSelected"/> when the selector's item changes to a platform other than the one
-        /// already presented, which filters out the change events caused by <see cref="SetPlayPlatformOptions"/>.
+        /// already presented, which filters out the change events caused by <see cref="SetPlayPlatformOptions"/>. Picking
+        /// the trailing <see cref="EditorPlayPlatformMenu.PlaySettingsItemText"/> item is not a platform pick: the selector
+        /// returns to the presented platform and <see cref="PlaySettingsRequested"/> is raised instead.
         /// </summary>
         /// <param name="selectedIndex">Index of the newly selected item.</param>
         /// <param name="selectedDisplayName">Display name of the newly selected item.</param>
         void HandlePlayPlatformComboSelectionChanged(int selectedIndex, string selectedDisplayName) {
+            if (EditorPlayPlatformMenu.IsPlaySettingsItem(selectedIndex, PresentedPlayPlatformIds.Count)) {
+                // Restoring the platform raises this handler again for the presented platform, which it ignores.
+                PlayPlatformComboBox.SelectedIndex = PresentedPlayPlatformIndex;
+                PlaySettingsRequested?.Invoke();
+                return;
+            }
+
             string platformId = PresentedPlayPlatformIds[selectedIndex];
             if (string.Equals(platformId, PresentedPlayPlatformId, StringComparison.OrdinalIgnoreCase)) {
                 return;
             }
 
             PresentedPlayPlatformId = platformId;
+            PresentedPlayPlatformIndex = selectedIndex;
             PlayPlatformSelected?.Invoke(platformId);
         }
 
