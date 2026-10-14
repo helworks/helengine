@@ -15,10 +15,24 @@ namespace helengine.player.tests {
         public byte4[,] LastPresentedPixels { get; private set; }
 
         /// <summary>
+        /// Gets the size the presented surface reported to its camera passes (<see cref="DirectX11SwapChainSurface.Width"/>
+        /// and <see cref="DirectX11SwapChainSurface.Height"/>) at the most recent present.
+        /// </summary>
+        public int2 LastPresentedSurfaceSize { get; private set; }
+
+        /// <summary>
+        /// Gets the size of the depth buffer the camera passes used on the presented surface at the most recent present.
+        /// </summary>
+        public int2 LastPresentedDepthBufferSize { get; private set; }
+
+        /// <summary>
         /// Captures the back buffer that is about to be presented, then presents it through the normal path.
         /// </summary>
         /// <param name="surface">Surface whose back buffer is being presented.</param>
         protected override void PresentSurface(DirectX11SwapChainSurface surface) {
+            LastPresentedSurfaceSize = new int2(surface.Width, surface.Height);
+            Texture2DDescription depthDescription = surface.DepthBuffer.Description;
+            LastPresentedDepthBufferSize = new int2(depthDescription.Width, depthDescription.Height);
             using (Texture2D backBuffer = surface.SwapChain.GetBackBuffer<Texture2D>(0)) {
                 LastPresentedPixels = ReadPixels(backBuffer);
             }
