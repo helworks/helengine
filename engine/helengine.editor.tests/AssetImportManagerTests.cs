@@ -528,6 +528,73 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the tracked texture sidecar carries no processed id: importing the texture for two platforms writes
+        /// two distinct processed cache entries but leaves the sidecar's bytes and timestamp untouched.
+        /// </summary>
+        [Fact]
+        public void ImportTexture_ForTwoPlatforms_LeavesSidecarBytesAndTimestampUnchanged() {
+            string sourcePath = WriteSourceTexture("two-platform.png");
+            string settingsPath = sourcePath + AssetImportManager.SettingsExtension;
+            AssetImportManager windowsManager = CreateManager();
+            windowsManager.CurrentPlatformId = "windows";
+            windowsManager.SaveTextureImportSettings(sourcePath, windowsManager.LoadOrCreateTextureImportSettings(sourcePath));
+            DateTime pinnedWriteTime = new DateTime(2020, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+            File.SetLastWriteTimeUtc(settingsPath, pinnedWriteTime);
+            byte[] settingsBytes = File.ReadAllBytes(settingsPath);
+
+            TextureAsset windowsAsset = windowsManager.ImportTexture(sourcePath);
+            AssetImportManager ps2Manager = CreateManager();
+            ps2Manager.CurrentPlatformId = "ps2";
+            TextureAsset ps2Asset = ps2Manager.ImportTexture(sourcePath);
+
+            Assert.Equal(settingsBytes, File.ReadAllBytes(settingsPath));
+            Assert.Equal(pinnedWriteTime, File.GetLastWriteTimeUtc(settingsPath));
+            Assert.NotEqual(windowsAsset.Id, ps2Asset.Id);
+            Assert.True(File.Exists(Path.Combine(CacheRootPath, windowsAsset.Id)));
+            Assert.True(File.Exists(Path.Combine(CacheRootPath, ps2Asset.Id)));
+        }
+
+        /// <summary>
+        /// Ensures importing a model, an audio clip and a font for two platforms never rewrites their tracked sidecars.
+        /// </summary>
+        [Fact]
+        public void ImportModelAudioAndFont_ForTwoPlatforms_LeaveSidecarBytesAndTimestampUnchanged() {
+            string modelSourcePath = Path.Combine(AssetsRootPath, "two-platform.obj");
+            File.WriteAllBytes(modelSourcePath, new byte[] { 1, 2, 3, 4 });
+            string audioSourcePath = WriteSourceAudio("two-platform.wav");
+            string fontSourcePath = WriteSourceFont("two-platform.ttf");
+            string[] settingsPaths = [
+                modelSourcePath + AssetImportManager.SettingsExtension,
+                audioSourcePath + AssetImportManager.SettingsExtension,
+                fontSourcePath + AssetImportManager.SettingsExtension
+            ];
+            AssetImportManager windowsManager = CreateModelAudioAndFontManager("windows");
+            windowsManager.SaveModelImportSettings(modelSourcePath, windowsManager.LoadOrCreateModelImportSettings(modelSourcePath));
+            windowsManager.SaveAudioImportSettings(audioSourcePath, windowsManager.LoadOrCreateAudioImportSettings(audioSourcePath));
+            windowsManager.SaveImportSettings(fontSourcePath, windowsManager.LoadOrCreateImportSettings(fontSourcePath));
+            DateTime pinnedWriteTime = new DateTime(2020, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+            List<byte[]> settingsBytes = new List<byte[]>();
+            foreach (string settingsPath in settingsPaths) {
+                File.SetLastWriteTimeUtc(settingsPath, pinnedWriteTime);
+                settingsBytes.Add(File.ReadAllBytes(settingsPath));
+            }
+
+            AssetImportManager ps2Manager = CreateModelAudioAndFontManager("ps2");
+            ModelAsset windowsModel = windowsManager.ImportModel(modelSourcePath);
+            ModelAsset ps2Model = ps2Manager.ImportModel(modelSourcePath);
+            windowsManager.ImportAudio(audioSourcePath);
+            ps2Manager.ImportAudio(audioSourcePath);
+            windowsManager.ImportFont(fontSourcePath);
+            ps2Manager.ImportFont(fontSourcePath);
+
+            Assert.NotEqual(windowsModel.Id, ps2Model.Id);
+            for (int index = 0; index < settingsPaths.Length; index++) {
+                Assert.Equal(settingsBytes[index], File.ReadAllBytes(settingsPaths[index]));
+                Assert.Equal(pinnedWriteTime, File.GetLastWriteTimeUtc(settingsPaths[index]));
+            }
+        }
+
+        /// <summary>
         /// Ensures a texture sidecar written in an earlier format fails with a message that names the file and says to
         /// regenerate it, instead of being read through a conversion path.
         /// </summary>
@@ -1149,6 +1216,21 @@ namespace helengine.editor.tests {
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" }));
+            return manager;
+        }
+
+        /// <summary>
+        /// Creates an import manager with the model, audio and font test importers, processing for one platform.
+        /// </summary>
+        /// <param name="platformId">Platform the manager processes for.</param>
+        /// <returns>Configured asset import manager.</returns>
+        AssetImportManager CreateModelAudioAndFontManager(string platformId) {
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            manager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
+            manager.RegisterAudioImporter(new AudioImporterRegistration("test-audio", new TestAudioImporter(), new[] { ".wav" }));
+            manager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" }));
+            manager.CurrentPlatformId = platformId;
             return manager;
         }
 

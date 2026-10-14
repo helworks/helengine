@@ -880,7 +880,7 @@ namespace helengine.editor {
             }
 
             string settingsPath = GetSettingsPath(sourcePath);
-            WriteSerializedFile(settingsPath, stream => SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings));
+            WriteSerializedSettingsFileIfChanged(settingsPath, stream => SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings));
         }
 
         /// <summary>
@@ -2168,7 +2168,7 @@ namespace helengine.editor {
             }
 
             string settingsPath = GetSettingsPath(sourcePath);
-            WriteSerializedFile(settingsPath, stream => TextureAssetImportSettingsBinarySerializer.Serialize(stream, settings));
+            WriteSerializedSettingsFileIfChanged(settingsPath, stream => TextureAssetImportSettingsBinarySerializer.Serialize(stream, settings));
         }
 
         /// <summary>
@@ -2325,7 +2325,7 @@ namespace helengine.editor {
             }
 
             string settingsPath = GetSettingsPath(sourcePath);
-            WriteSerializedFile(settingsPath, stream => ModelAssetImportSettingsBinarySerializer.Serialize(stream, settings));
+            WriteSerializedSettingsFileIfChanged(settingsPath, stream => ModelAssetImportSettingsBinarySerializer.Serialize(stream, settings));
         }
 
         /// <summary>
@@ -2340,7 +2340,7 @@ namespace helengine.editor {
             }
 
             string settingsPath = GetSettingsPath(sourcePath);
-            WriteSerializedFile(settingsPath, stream => AudioAssetImportSettingsBinarySerializer.Serialize(stream, settings));
+            WriteSerializedSettingsFileIfChanged(settingsPath, stream => AudioAssetImportSettingsBinarySerializer.Serialize(stream, settings));
         }
 
         /// <summary>
@@ -3793,6 +3793,36 @@ namespace helengine.editor {
             using MemoryStream bytes = new MemoryStream();
             serializer(bytes);
             EditorAuthoringMutationScope.WriteAllBytesAtomically(projectRootPath, filePath, bytes.ToArray());
+        }
+
+        /// <summary>
+        /// Serializes one import-settings sidecar and publishes it only when its bytes differ from the published
+        /// sidecar. Sidecars hold authored data only, so loading, importing or cooking for any platform serializes the
+        /// same bytes and never rewrites (or retimestamps) an unchanged tracked sidecar; only a real settings change,
+        /// an importer repair or a missing sidecar is written.
+        /// </summary>
+        /// <param name="filePath">Absolute sidecar path.</param>
+        /// <param name="serializer">Writes the serialized settings into the supplied stream.</param>
+        /// <returns>True when the sidecar was written; false when the published bytes were already identical.</returns>
+        bool WriteSerializedSettingsFileIfChanged(string filePath, Action<Stream> serializer) {
+            if (string.IsNullOrWhiteSpace(filePath)) {
+                throw new ArgumentException("File path must be provided.", nameof(filePath));
+            } else if (serializer == null) {
+                throw new ArgumentNullException(nameof(serializer));
+            }
+
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
+            using MemoryStream bytes = new MemoryStream();
+            serializer(bytes);
+            byte[] serializedBytes = bytes.ToArray();
+            if (File.Exists(filePath)
+                && EditorAuthoringMutationScope.ReadAllBytes(projectRootPath, filePath).AsSpan().SequenceEqual(serializedBytes)) {
+                return false;
+            }
+
+            EnsureDirectoryForFile(filePath);
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(projectRootPath, filePath, serializedBytes);
+            return true;
         }
 
         /// <summary>
