@@ -43,6 +43,16 @@ public sealed class EditorPlaySessionServiceTests {
     const double TargetFrameRate = 60d;
 
     /// <summary>
+    /// Platform name the PS2 native runtime reports to the core; Play hands it to the player so the player reports it too.
+    /// </summary>
+    const string RuntimePlatformName = "ps2";
+
+    /// <summary>
+    /// Platform version the PS2 native runtime reports to the core; Play hands it to the player so the player reports it too.
+    /// </summary>
+    const string RuntimePlatformVersion = "1.0.0";
+
+    /// <summary>
     /// Input devices handed to Play, matching the PS2 capability (pad only).
     /// </summary>
     const PlayerInputDevices InputDevices = PlayerInputDevices.Gamepad;
@@ -169,7 +179,9 @@ public sealed class EditorPlaySessionServiceTests {
             "--adapter-type", AdapterTypeName,
             "--script-modules", RuntimeModulesRootPath,
             "--target-fps", "60",
-            "--input-devices", "gamepad"
+            "--input-devices", "gamepad",
+            "--runtime-platform-name", RuntimePlatformName,
+            "--runtime-platform-version", RuntimePlatformVersion
         };
         Assert.Equal(expectedArguments, request.Arguments);
 
@@ -475,6 +487,31 @@ public sealed class EditorPlaySessionServiceTests {
     }
 
     /// <summary>
+    /// Ensures Play refuses a blank runtime platform name or version before saving, because the player could not report
+    /// the platform identity the native runtime reports.
+    /// </summary>
+    /// <param name="runtimePlatformName">Runtime platform name handed to Play.</param>
+    /// <param name="runtimePlatformVersion">Runtime platform version handed to Play.</param>
+    /// <param name="expectedParameterName">Parameter the rejection must name.</param>
+    [Theory]
+    [InlineData(" ", "1.0.0", "runtimePlatformName")]
+    [InlineData("ps2", "", "runtimePlatformVersion")]
+    public void Play_WhenRuntimePlatformIdentityBlank_ThrowsBeforeSaving(string runtimePlatformName, string runtimePlatformVersion, string expectedParameterName) {
+        FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
+        EditorPlaySessionService service = CreateService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), launcher);
+        int saveCount = 0;
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => service.Play(
+            PlatformId, PlatformDisplayName, ScenePath, () => { saveCount++; return true; }, AdapterAssemblyPath, AdapterTypeName,
+            TargetFrameRate, InputDevices, runtimePlatformName, runtimePlatformVersion, false, result => { }));
+
+        Assert.Equal(expectedParameterName, exception.ParamName);
+        Assert.Equal(0, saveCount);
+        Assert.Empty(launcher.Requests);
+        Assert.Equal(EditorPlaySessionState.Stopped, service.State);
+    }
+
+    /// <summary>
     /// Presses Play and, when the preparation started, drains the main-thread queue the way the next editor frame does
     /// and returns the launch outcome the completion reported; otherwise returns the immediate failure.
     /// </summary>
@@ -501,7 +538,7 @@ public sealed class EditorPlaySessionServiceTests {
         PlayerInputDevices inputDevices,
         bool waitForDebugger) {
         EditorBuildExecutionResult launchResult = null;
-        EditorBuildExecutionResult startResult = service.Play(platformId, platformDisplayName, scenePath, saveScene, adapterAssemblyPath, adapterTypeName, targetFrameRate, inputDevices, waitForDebugger, result => launchResult = result);
+        EditorBuildExecutionResult startResult = service.Play(platformId, platformDisplayName, scenePath, saveScene, adapterAssemblyPath, adapterTypeName, targetFrameRate, inputDevices, RuntimePlatformName, RuntimePlatformVersion, waitForDebugger, result => launchResult = result);
         if (!startResult.Succeeded) {
             return startResult;
         }

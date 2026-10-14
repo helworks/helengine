@@ -429,7 +429,7 @@ namespace helengine.editor.tests {
             EditorBuildExecutionResult result = playSession.Play(
                 "ps2", "PlayStation 2", scenePath, () => true,
                 @"C:\platforms\ps2\helengine.ps2.player.dll", "helengine.ps2.player.Ps2PlayerAdapter",
-                60d, helengine.baseplatform.Definitions.PlayerInputDevices.Gamepad, false, launchResult => { });
+                60d, helengine.baseplatform.Definitions.PlayerInputDevices.Gamepad, "ps2", "1.0.0", false, launchResult => { });
             Assert.True(result.Succeeded, result.Message);
             return playSession;
         }

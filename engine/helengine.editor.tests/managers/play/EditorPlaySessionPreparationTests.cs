@@ -331,7 +331,7 @@ public sealed class EditorPlaySessionPreparationTests {
         return service.Play(
             "ps2", "PlayStation 2", ScenePath, saveScene,
             @"C:\platforms\ps2\helengine.ps2.player.dll", "helengine.ps2.player.Ps2PlayerAdapter",
-            60d, PlayerInputDevices.Gamepad, false, completed);
+            60d, PlayerInputDevices.Gamepad, "ps2", "1.0.0", false, completed);
     }
 
     /// <summary>

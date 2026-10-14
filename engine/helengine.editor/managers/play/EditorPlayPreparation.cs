@@ -31,6 +31,8 @@ namespace helengine.editor {
         /// <param name="adapterTypeName">Type name of the platform's player adapter.</param>
         /// <param name="targetFrameRate">Frames per second the player paces its frame loop to.</param>
         /// <param name="inputDevices">Input devices the player forwards to the game.</param>
+        /// <param name="runtimePlatformName">Platform name the player reports to the core, matching the platform's native runtime.</param>
+        /// <param name="runtimePlatformVersion">Platform version the player reports to the core, matching the platform's native runtime.</param>
         /// <param name="waitForDebugger">Whether the player should wait for a debugger.</param>
         /// <param name="completed">Receives the launch outcome on the editor frame thread, unless the preparation is cancelled.</param>
         /// <param name="playStartedAt">Clock reading taken when Play was pressed.</param>
@@ -43,6 +45,8 @@ namespace helengine.editor {
             string adapterTypeName,
             double targetFrameRate,
             PlayerInputDevices inputDevices,
+            string runtimePlatformName,
+            string runtimePlatformVersion,
             bool waitForDebugger,
             Action<EditorBuildExecutionResult> completed,
             TimeSpan playStartedAt,
@@ -53,6 +57,8 @@ namespace helengine.editor {
             AdapterTypeName = adapterTypeName;
             TargetFrameRate = targetFrameRate;
             InputDevices = inputDevices;
+            RuntimePlatformName = runtimePlatformName;
+            RuntimePlatformVersion = runtimePlatformVersion;
             WaitForDebugger = waitForDebugger;
             Completed = completed ?? throw new ArgumentNullException(nameof(completed));
             PlayStartedAt = playStartedAt;
@@ -88,6 +94,16 @@ namespace helengine.editor {
         /// Gets the input devices the player forwards to the game.
         /// </summary>
         public PlayerInputDevices InputDevices { get; }
+
+        /// <summary>
+        /// Gets the platform name the player reports to the core, matching the name the platform's native runtime reports.
+        /// </summary>
+        public string RuntimePlatformName { get; }
+
+        /// <summary>
+        /// Gets the platform version the player reports to the core, matching the version the platform's native runtime reports.
+        /// </summary>
+        public string RuntimePlatformVersion { get; }
 
         /// <summary>
         /// Gets whether the player should wait for a debugger before starting the scene.

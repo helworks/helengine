@@ -28,6 +28,12 @@ namespace helengine.player.tests {
         /// <summary>Input devices passed through to the player; more than one so the comma list round-trip is exercised.</summary>
         const PlayerInputDevices InputDevices = PlayerInputDevices.Mouse | PlayerInputDevices.Gamepad;
 
+        /// <summary>Platform name the native runtime reports, passed through to the player.</summary>
+        const string RuntimePlatformName = "ps2";
+
+        /// <summary>Platform version the native runtime reports, passed through to the player.</summary>
+        const string RuntimePlatformVersion = "1.0.0";
+
         /// <summary>
         /// The arguments the editor launches the player with parse back into exactly the values the editor prepared,
         /// with and without the debugger wait.
@@ -48,7 +54,7 @@ namespace helengine.player.tests {
                 new ContractPlayPreparationScheduler());
             EditorBuildExecutionResult result = null;
 
-            EditorBuildExecutionResult started = service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, waitForDebugger, completed => result = completed);
+            EditorBuildExecutionResult started = service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, RuntimePlatformName, RuntimePlatformVersion, waitForDebugger, completed => result = completed);
             queue.ProcessPending();
             PlayerLaunchOptions options = PlayerLaunchOptions.Parse(launcher.LastRequest.Arguments.ToArray());
 
@@ -64,6 +70,8 @@ namespace helengine.player.tests {
             Assert.Equal(ContractPlayScriptBuilder.RuntimeModulesRootPath, options.ScriptModulesRootPath);
             Assert.Equal(TargetFrameRate, options.TargetFrameRate);
             Assert.Equal(InputDevices, options.InputDevices);
+            Assert.Equal(RuntimePlatformName, options.RuntimePlatformName);
+            Assert.Equal(RuntimePlatformVersion, options.RuntimePlatformVersion);
             Assert.Equal(waitForDebugger, options.WaitForDebugger);
         }
     }

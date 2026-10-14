@@ -309,7 +309,7 @@ public sealed class EditorPlaySessionStartupTimingTests {
         EditorBuildExecutionResult result = service.Play(
             "ps2", "PlayStation 2", ScenePath, () => true,
             @"C:\platforms\ps2\helengine.ps2.player.dll", "helengine.ps2.player.Ps2PlayerAdapter",
-            60d, PlayerInputDevices.Gamepad, false, completed => launchResult = completed);
+            60d, PlayerInputDevices.Gamepad, "ps2", "1.0.0", false, completed => launchResult = completed);
         Assert.True(result.Succeeded);
         Queue.ProcessPending();
         Assert.NotNull(launchResult);

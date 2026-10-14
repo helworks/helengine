@@ -5,7 +5,8 @@ namespace helengine.player {
     /// Holds the validated command line the editor passes to the Play player:
     /// <c>--content-root &lt;dir&gt; --scene-id &lt;id&gt; --platform-name &lt;display name&gt; --scene-path &lt;cooked/relative.hasset&gt;
     /// --adapter-assembly &lt;dll&gt; --adapter-type &lt;full type name&gt; --script-modules &lt;dir&gt;
-    /// --target-fps &lt;frames per second&gt; --input-devices &lt;comma list&gt; [--wait-for-debugger]</c>.
+    /// --target-fps &lt;frames per second&gt; --input-devices &lt;comma list&gt; --runtime-platform-name &lt;name&gt;
+    /// --runtime-platform-version &lt;version&gt; [--wait-for-debugger]</c>.
     /// Every value option is required; unknown, repeated or value-less options are rejected so a
     /// mismatch between the editor and the player fails loudly instead of being ignored.
     /// </summary>
@@ -43,6 +44,18 @@ namespace helengine.player {
         /// </summary>
         public const string InputDevicesOption = "--input-devices";
 
+        /// <summary>
+        /// Option naming the platform name the player reports to the core, the same name the platform's native runtime
+        /// reports (for example <c>ps2</c>), so game code that branches on <c>PlatformInfo.Name</c> behaves as on the console.
+        /// </summary>
+        public const string RuntimePlatformNameOption = "--runtime-platform-name";
+
+        /// <summary>
+        /// Option naming the platform version the player reports to the core, the same version the platform's native
+        /// runtime reports (for example <c>1.0.0</c>).
+        /// </summary>
+        public const string RuntimePlatformVersionOption = "--runtime-platform-version";
+
         /// <summary>Optional boolean setting carrying the selected platform's renderer-wide shadow policy.</summary>
         public const string ShadowsEnabledOption = "--shadows-enabled";
 
@@ -64,8 +77,11 @@ namespace helengine.player {
         /// <param name="scriptModulesRootPath">Root folder holding compiled script modules.</param>
         /// <param name="targetFrameRate">Positive frames per second the player paces its frame loop to.</param>
         /// <param name="inputDevices">Non-empty set of input devices the player forwards to the game.</param>
+        /// <param name="runtimePlatformName">Platform name the player reports to the core.</param>
+        /// <param name="runtimePlatformVersion">Platform version the player reports to the core.</param>
         /// <param name="waitForDebugger">Whether the player waits for a debugger before starting.</param>
         /// <param name="shadowsEnabled">Whether the selected platform permits authored shadows.</param>
+        /// <param name="runtimeSettingsPath">Portable runtime settings catalog path, or empty when none was supplied.</param>
         PlayerLaunchOptions(
             string contentRootPath,
             string sceneId,
@@ -76,6 +92,8 @@ namespace helengine.player {
             string scriptModulesRootPath,
             double targetFrameRate,
             PlayerInputDevices inputDevices,
+            string runtimePlatformName,
+            string runtimePlatformVersion,
             bool waitForDebugger,
             bool shadowsEnabled,
             string runtimeSettingsPath) {
@@ -88,6 +106,8 @@ namespace helengine.player {
             ScriptModulesRootPath = scriptModulesRootPath;
             TargetFrameRate = targetFrameRate;
             InputDevices = inputDevices;
+            RuntimePlatformName = runtimePlatformName;
+            RuntimePlatformVersion = runtimePlatformVersion;
             WaitForDebugger = waitForDebugger;
             ShadowsEnabled = shadowsEnabled;
             RuntimeSettingsPath = runtimeSettingsPath;
@@ -123,6 +143,18 @@ namespace helengine.player {
         /// </summary>
         public PlayerInputDevices InputDevices { get; }
 
+        /// <summary>
+        /// Gets the platform name the player reports to the core, matching the name the selected platform's native runtime
+        /// reports.
+        /// </summary>
+        public string RuntimePlatformName { get; }
+
+        /// <summary>
+        /// Gets the platform version the player reports to the core, matching the version the selected platform's native
+        /// runtime reports.
+        /// </summary>
+        public string RuntimePlatformVersion { get; }
+
         /// <summary>Gets whether the player blocks at startup until a debugger is attached.</summary>
         public bool WaitForDebugger { get; }
 
@@ -131,6 +163,15 @@ namespace helengine.player {
 
         /// <summary>Gets the optional portable catalog path supplied by the editor.</summary>
         public string RuntimeSettingsPath { get; }
+
+        /// <summary>
+        /// Creates the platform identity the player hands to the core: the runtime platform name and version the editor
+        /// took from the selected platform's Play capability, so the core sees the console's identity.
+        /// </summary>
+        /// <returns>Platform identity reported to the core.</returns>
+        public PlatformInfo CreateRuntimePlatformInfo() {
+            return new PlatformInfo(RuntimePlatformName, RuntimePlatformVersion);
+        }
 
         /// <summary>
         /// Parses the player command line. Each value option consumes the argument that follows it.
@@ -152,6 +193,8 @@ namespace helengine.player {
             string scriptModulesRootPath = null;
             string targetFrameRateText = null;
             string inputDevicesText = null;
+            string runtimePlatformName = null;
+            string runtimePlatformVersion = null;
             string shadowsEnabledText = null;
             string runtimeSettingsPath = null;
             bool waitForDebugger = false;
@@ -184,6 +227,10 @@ namespace helengine.player {
                     targetFrameRateText = ReadValue(args, i, targetFrameRateText);
                 } else if (string.Equals(option, InputDevicesOption, StringComparison.Ordinal)) {
                     inputDevicesText = ReadValue(args, i, inputDevicesText);
+                } else if (string.Equals(option, RuntimePlatformNameOption, StringComparison.Ordinal)) {
+                    runtimePlatformName = ReadValue(args, i, runtimePlatformName);
+                } else if (string.Equals(option, RuntimePlatformVersionOption, StringComparison.Ordinal)) {
+                    runtimePlatformVersion = ReadValue(args, i, runtimePlatformVersion);
                 } else if (string.Equals(option, ShadowsEnabledOption, StringComparison.Ordinal)) {
                     shadowsEnabledText = ReadValue(args, i, shadowsEnabledText);
                 } else if (string.Equals(option, RuntimeSettingsOption, StringComparison.Ordinal)) {
@@ -204,6 +251,8 @@ namespace helengine.player {
             RequireOption(ScriptModulesOption, scriptModulesRootPath);
             RequireOption(TargetFpsOption, targetFrameRateText);
             RequireOption(InputDevicesOption, inputDevicesText);
+            RequireOption(RuntimePlatformNameOption, runtimePlatformName);
+            RequireOption(RuntimePlatformVersionOption, runtimePlatformVersion);
             double targetFrameRate = ParseTargetFrameRate(targetFrameRateText);
             PlayerInputDevices inputDevices = PlayerInputDevicesText.Parse(inputDevicesText, InputDevicesOption);
             bool shadowsEnabled = true;
@@ -221,6 +270,8 @@ namespace helengine.player {
                 scriptModulesRootPath,
                 targetFrameRate,
                 inputDevices,
+                runtimePlatformName,
+                runtimePlatformVersion,
                 waitForDebugger,
                 shadowsEnabled,
                 runtimeSettingsPath ?? string.Empty);

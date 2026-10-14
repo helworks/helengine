@@ -11,7 +11,8 @@ namespace helengine.player.tests {
         static readonly string[] ValidArgs = {
             "--content-root", "C:/c", "--scene-id", "cube_test", "--platform-name", "PlayStation 2", "--scene-path", "cooked/scenes/cube_test.hasset",
             "--adapter-assembly", "C:/p/helengine.ps2.builder.dll", "--adapter-type", "helengine.ps2.builder.Ps2PlayerAdapter",
-            "--script-modules", "C:/s", "--target-fps", "60", "--input-devices", "gamepad" };
+            "--script-modules", "C:/s", "--target-fps", "60", "--input-devices", "gamepad",
+            "--runtime-platform-name", "ps2", "--runtime-platform-version", "1.0.0" };
 
         /// <summary>All required options are read.</summary>
         [Fact]
@@ -24,9 +25,28 @@ namespace helengine.player.tests {
             Assert.Equal("helengine.ps2.builder.Ps2PlayerAdapter", options.AdapterTypeName);
             Assert.Equal(60d, options.TargetFrameRate);
             Assert.Equal(PlayerInputDevices.Gamepad, options.InputDevices);
+            Assert.Equal("ps2", options.RuntimePlatformName);
+            Assert.Equal("1.0.0", options.RuntimePlatformVersion);
             Assert.False(options.WaitForDebugger);
             Assert.True(options.ShadowsEnabled);
             Assert.Empty(options.RuntimeSettingsPath);
+        }
+
+        /// <summary>
+        /// The platform identity the player hands to the core is the runtime platform name and version the editor passed,
+        /// not a player-specific identity, so game code sees the same platform as on the console.
+        /// </summary>
+        [Fact]
+        public void CreateRuntimePlatformInfo_ReportsRuntimePlatformNameAndVersionToTheCore() {
+            PlatformInfo platformInfo = PlayerLaunchOptions.Parse(ValidArgs).CreateRuntimePlatformInfo();
+            Assert.Equal("ps2", platformInfo.Name);
+            Assert.Equal("1.0.0", platformInfo.Version);
+        }
+
+        /// <summary>A repeated runtime platform option is rejected like every other value option.</summary>
+        [Fact]
+        public void Parse_WhenRuntimePlatformNameRepeated_Throws() {
+            Assert.Throws<ArgumentException>(() => PlayerLaunchOptions.Parse([.. ValidArgs, "--runtime-platform-name", "player"]));
         }
 
         /// <summary>The debugger flag is a switch.</summary>
@@ -70,6 +90,8 @@ namespace helengine.player.tests {
         [InlineData("--script-modules")]
         [InlineData("--target-fps")]
         [InlineData("--input-devices")]
+        [InlineData("--runtime-platform-name")]
+        [InlineData("--runtime-platform-version")]
         public void Parse_WhenRequiredMissing_Throws(string option) {
             List<string> args = ValidArgs.ToList();
             int index = args.IndexOf(option);

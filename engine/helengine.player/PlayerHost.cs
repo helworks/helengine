@@ -10,12 +10,6 @@ namespace helengine.player {
     /// content, loads the requested scene and drives the frame loop until the player window is closed.
     /// </summary>
     public static class PlayerHost {
-        /// <summary>Platform name the player reports to the core.</summary>
-        public const string PlatformName = "player";
-
-        /// <summary>Platform version the player reports to the core.</summary>
-        public const string PlatformVersion = "1";
-
         /// <summary>Polling interval, in milliseconds, used while waiting for a debugger to attach before startup.</summary>
         public const int DebuggerPollMilliseconds = 100;
 
@@ -85,7 +79,7 @@ namespace helengine.player {
                     PlatformSettingsBackend = adapter as IPlatformSettingsBackend
                 };
                 core = new Core(coreOptions);
-                core.Initialize(renderer3D, renderer3D.Render2D, input, new PlatformInfo(PlatformName, PlatformVersion), coreOptions);
+                core.Initialize(renderer3D, renderer3D.Render2D, input, options.CreateRuntimePlatformInfo(), coreOptions);
 
                 renderer3D.AddWindow(window.Handle, PlayerWindow.ClientWidth, PlayerWindow.ClientHeight);
                 core.SceneManager.LoadScene(options.SceneId, SceneLoadMode.Single);

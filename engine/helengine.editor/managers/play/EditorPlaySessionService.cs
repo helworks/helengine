@@ -64,6 +64,18 @@ namespace helengine.editor {
         public const string InputDevicesOption = "--input-devices";
 
         /// <summary>
+        /// Player flag naming the platform name the player reports to the core, taken from the platform's Play capability
+        /// so it matches the name the platform's native runtime reports (PS2: <c>ps2</c>).
+        /// </summary>
+        public const string RuntimePlatformNameOption = "--runtime-platform-name";
+
+        /// <summary>
+        /// Player flag naming the platform version the player reports to the core, taken from the platform's Play
+        /// capability so it matches the version the platform's native runtime reports (PS2: <c>1.0.0</c>).
+        /// </summary>
+        public const string RuntimePlatformVersionOption = "--runtime-platform-version";
+
+        /// <summary>
         /// Player flag asking the player to wait for a debugger before starting the scene.
         /// </summary>
         public const string WaitForDebuggerOption = "--wait-for-debugger";
@@ -256,11 +268,14 @@ namespace helengine.editor {
         /// <param name="adapterTypeName">Type name of the platform's player adapter.</param>
         /// <param name="targetFrameRate">Frames per second the platform's Play capability asks the player to run at.</param>
         /// <param name="inputDevices">Input devices the platform's Play capability declares; the player forwards only these to the game.</param>
+        /// <param name="runtimePlatformName">Platform name the platform's Play capability declares; the player reports it to the core.</param>
+        /// <param name="runtimePlatformVersion">Platform version the platform's Play capability declares; the player reports it to the core.</param>
         /// <param name="waitForDebugger">Whether the player should wait for a debugger before starting the scene.</param>
         /// <param name="completed">Receives the launch outcome on the frame thread: success naming the started player's process id, or the failure that stopped Play.</param>
         /// <returns>Success once the preparation started in the background, or the failure that stopped or ignored Play.</returns>
         /// <exception cref="ArgumentException">
-        /// Thrown when the platform, platform display name, adapter assembly or adapter type is blank.
+        /// Thrown when the platform, platform display name, adapter assembly, adapter type, runtime platform name or runtime
+        /// platform version is blank.
         /// </exception>
         /// <exception cref="ArgumentOutOfRangeException">
         /// Thrown when the target frame rate is not a positive, finite number, or the input device set is empty or names
@@ -276,6 +291,8 @@ namespace helengine.editor {
             string adapterTypeName,
             double targetFrameRate,
             PlayerInputDevices inputDevices,
+            string runtimePlatformName,
+            string runtimePlatformVersion,
             bool waitForDebugger,
             Action<EditorBuildExecutionResult> completed) {
             if (string.IsNullOrWhiteSpace(platformId)) {
@@ -294,6 +311,10 @@ namespace helengine.editor {
                 throw new ArgumentOutOfRangeException(nameof(targetFrameRate), targetFrameRate, "Play requires a positive, finite player target frame rate.");
             } else if (inputDevices == PlayerInputDevices.None || (inputDevices & ~PlayerInputDevicesText.AllDevices) != PlayerInputDevices.None) {
                 throw new ArgumentOutOfRangeException(nameof(inputDevices), inputDevices, "Play requires at least one known player input device.");
+            } else if (string.IsNullOrWhiteSpace(runtimePlatformName)) {
+                throw new ArgumentException("Play requires the platform name the native runtime reports.", nameof(runtimePlatformName));
+            } else if (string.IsNullOrWhiteSpace(runtimePlatformVersion)) {
+                throw new ArgumentException("Play requires the platform version the native runtime reports.", nameof(runtimePlatformVersion));
             }
 
             if (string.IsNullOrWhiteSpace(currentScenePath)) {
@@ -323,6 +344,8 @@ namespace helengine.editor {
                     adapterTypeName,
                     targetFrameRate,
                     inputDevices,
+                    runtimePlatformName,
+                    runtimePlatformVersion,
                     waitForDebugger,
                     completed,
                     playStartedAt,
@@ -475,6 +498,8 @@ namespace helengine.editor {
                 preparation.RuntimeModulesRootPath,
                 preparation.TargetFrameRate,
                 preparation.InputDevices,
+                preparation.RuntimePlatformName,
+                preparation.RuntimePlatformVersion,
                 preparation.WaitForDebugger);
             IEditorPlayProcess process = Launcher.Start(new EditorPlayLaunchRequest(PlayerExecutablePath, arguments));
             TimeSpan launchedAt = Clock.Now;
@@ -513,6 +538,8 @@ namespace helengine.editor {
         /// <param name="runtimeModulesRootPath">Directory holding the built runtime script modules.</param>
         /// <param name="targetFrameRate">Frames per second the player paces its frame loop to.</param>
         /// <param name="inputDevices">Input devices the player forwards to the game.</param>
+        /// <param name="runtimePlatformName">Platform name the player reports to the core.</param>
+        /// <param name="runtimePlatformVersion">Platform version the player reports to the core.</param>
         /// <param name="waitForDebugger">Whether to append the debugger wait flag.</param>
         /// <returns>Player arguments, one entry per argument, in order.</returns>
         /// <exception cref="InvalidOperationException">Thrown when the script builder reported no module root.</exception>
@@ -524,6 +551,8 @@ namespace helengine.editor {
             string runtimeModulesRootPath,
             double targetFrameRate,
             PlayerInputDevices inputDevices,
+            string runtimePlatformName,
+            string runtimePlatformVersion,
             bool waitForDebugger) {
             if (string.IsNullOrWhiteSpace(runtimeModulesRootPath)) {
                 throw new InvalidOperationException("The Play script build succeeded without reporting a runtime module root.");
@@ -538,7 +567,9 @@ namespace helengine.editor {
                 AdapterTypeOption, adapterTypeName,
                 ScriptModulesOption, runtimeModulesRootPath,
                 TargetFpsOption, targetFrameRate.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
-                InputDevicesOption, PlayerInputDevicesText.Format(inputDevices)
+                InputDevicesOption, PlayerInputDevicesText.Format(inputDevices),
+                RuntimePlatformNameOption, runtimePlatformName,
+                RuntimePlatformVersionOption, runtimePlatformVersion
             };
             if (!cookResult.ShadowsEnabled) {
                 arguments.Add("--shadows-enabled");
