@@ -300,6 +300,78 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures Play does not save a scene without unsaved changes: in-memory settings that were never marked dirty
+        /// must not reach the file.
+        /// </summary>
+        [Fact]
+        public void SaveCurrentSceneForPlay_WhenSceneIsClean_DoesNotSaveTheScene() {
+            EditorSession session = CreateSessionForSceneSave();
+            string scenePath = SaveSceneThenChangeSettings(session, "PlayClean.helen");
+
+            bool ready = InvokePrivate<bool>(session, "SaveCurrentSceneForPlay");
+
+            Assert.True(ready);
+            Assert.False(ReadSavedDontUnload(scenePath));
+        }
+
+        /// <summary>
+        /// Ensures Play saves a scene with unsaved changes before cooking it and records it as clean afterwards.
+        /// </summary>
+        [Fact]
+        public void SaveCurrentSceneForPlay_WhenSceneIsDirty_SavesTheScene() {
+            EditorSession session = CreateSessionForSceneSave();
+            string scenePath = SaveSceneThenChangeSettings(session, "PlayDirty.helen");
+            EditorSceneLifecycleService lifecycle = GetPrivateField<EditorSceneLifecycleService>(session, "SceneLifecycleService");
+            lifecycle.IsSceneDirty = true;
+
+            bool ready = InvokePrivate<bool>(session, "SaveCurrentSceneForPlay");
+
+            Assert.True(ready);
+            Assert.True(ReadSavedDontUnload(scenePath));
+            Assert.False(lifecycle.IsSceneDirty);
+        }
+
+        /// <summary>
+        /// Saves the session's scene through the regular save path, which leaves it clean, then changes the in-memory
+        /// scene settings so a later save is visible in the file.
+        /// </summary>
+        /// <param name="session">Session whose scene is saved.</param>
+        /// <param name="fileName">Scene file name beneath `assets/Scenes`.</param>
+        /// <returns>Absolute path of the saved scene.</returns>
+        string SaveSceneThenChangeSettings(EditorSession session, string fileName) {
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", fileName);
+            InvokePrivate(session, "HandleSceneSaveRequested", scenePath);
+            Assert.False(GetPrivateField<EditorSceneLifecycleService>(session, "SceneLifecycleService").IsSceneDirty);
+            Assert.False(ReadSavedDontUnload(scenePath));
+            GetPrivateField<SceneSettingsAsset>(session, "CurrentSceneSettings").DontUnload = true;
+            return scenePath;
+        }
+
+        /// <summary>
+        /// Reads the persisted keep-loaded flag of one saved scene.
+        /// </summary>
+        /// <param name="scenePath">Absolute path of the saved scene.</param>
+        /// <returns>The saved scene's <see cref="SceneSettingsAsset.DontUnload"/> value.</returns>
+        bool ReadSavedDontUnload(string scenePath) {
+            using FileStream stream = File.OpenRead(scenePath);
+            SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            return sceneAsset.SceneSettings.DontUnload;
+        }
+
+        /// <summary>
+        /// Invokes one non-public instance method and returns its result.
+        /// </summary>
+        /// <typeparam name="T">Expected return type.</typeparam>
+        /// <param name="target">Target object that owns the method.</param>
+        /// <param name="methodName">Name of the method to invoke.</param>
+        /// <param name="arguments">Arguments passed to the method.</param>
+        /// <returns>Value returned by the method.</returns>
+        T InvokePrivate<T>(object target, string methodName, params object[] arguments) {
+            MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            return Assert.IsType<T>(method.Invoke(target, arguments));
+        }
+
+        /// <summary>
         /// Creates a partially initialized editor session containing only the collaborators used by scene save handlers.
         /// </summary>
         /// <returns>Editor session instance configured for scene save tests.</returns>

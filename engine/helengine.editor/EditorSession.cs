@@ -3643,13 +3643,17 @@ namespace helengine.editor {
 
         /// <summary>
         /// Saves the open scene in place before Play cooks it, with the same bookkeeping as a normal save but without
-        /// the save dialog's export mode or any pending scene transition. A save failure propagates to the Play handler,
-        /// which logs it.
+        /// the save dialog's export mode or any pending scene transition. A scene without unsaved changes whose file is
+        /// still on disk is already what Play cooks, so it is not rewritten: that keeps its file stamp stable and skips
+        /// the save's bookkeeping. A save failure propagates to the Play handler, which logs it.
         /// </summary>
-        /// <returns>False when the scene was never saved; true once the scene was written to its current path.</returns>
+        /// <returns>False when the scene was never saved; true once the scene on disk matches the open scene.</returns>
         bool SaveCurrentSceneForPlay() {
             if (string.IsNullOrWhiteSpace(CurrentScenePath)) {
                 return false;
+            }
+            if (!IsSceneDirty && File.Exists(CurrentScenePath)) {
+                return true;
             }
 
             try {
