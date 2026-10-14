@@ -52,13 +52,22 @@ namespace helengine.editor {
                 }
 
                 bool sawVersion = false;
+                bool sawCommon = false;
+                bool sawPlatforms = false;
                 foreach (JsonProperty property in root.EnumerateObject()) {
                     if (string.Equals(property.Name, "version", StringComparison.Ordinal)) {
+                        if (sawVersion) {
+                            throw new InvalidOperationException($"Play settings file '{FilePath}' repeats property 'version'.");
+                        }
                         sawVersion = true;
                         if (property.Value.ValueKind != JsonValueKind.Number || !property.Value.TryGetInt32(out int version) || version != CurrentVersion) {
                             throw new InvalidOperationException($"Play settings file '{FilePath}' has version {property.Value.GetRawText()}; this editor reads version {CurrentVersion} only.");
                         }
                     } else if (string.Equals(property.Name, "common", StringComparison.Ordinal)) {
+                        if (sawCommon) {
+                            throw new InvalidOperationException($"Play settings file '{FilePath}' repeats property 'common'.");
+                        }
+                        sawCommon = true;
                         ReadSection(property.Value, "common", document.CommonValues);
                         foreach (string settingId in document.CommonValues.Keys) {
                             if (!PlayerCommonPlaySettings.IsCommonId(settingId)) {
@@ -66,10 +75,17 @@ namespace helengine.editor {
                             }
                         }
                     } else if (string.Equals(property.Name, "platforms", StringComparison.Ordinal)) {
+                        if (sawPlatforms) {
+                            throw new InvalidOperationException($"Play settings file '{FilePath}' repeats property 'platforms'.");
+                        }
+                        sawPlatforms = true;
                         if (property.Value.ValueKind != JsonValueKind.Object) {
                             throw new InvalidOperationException($"Play settings file '{FilePath}' property 'platforms' must be an object.");
                         }
                         foreach (JsonProperty platform in property.Value.EnumerateObject()) {
+                            if (document.PlatformValues.ContainsKey(platform.Name)) {
+                                throw new InvalidOperationException($"Play settings file '{FilePath}' repeats platform '{platform.Name}'.");
+                            }
                             Dictionary<string, string> values = new Dictionary<string, string>(StringComparer.Ordinal);
                             ReadSection(platform.Value, "platform '" + platform.Name + "'", values);
                             document.PlatformValues.Add(platform.Name, values);
@@ -88,31 +104,77 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Saves the document, replacing the file. Boolean text is written as JSON booleans.
+        /// Saves the document, replacing the file atomically: the content is validated against the same rules
+        /// <see cref="Load"/> applies, written to a staging file beside <c>play.json</c> and then moved over it, so a
+        /// failed save never leaves a truncated file behind. Boolean text is written as JSON booleans.
         /// </summary>
         /// <param name="document">Document to save.</param>
         /// <exception cref="ArgumentNullException">Thrown when the document is null.</exception>
+        /// <exception cref="ArgumentException">Thrown when a common id is not declared, or a section or value is null.</exception>
         public void Save(EditorPlaySettingsDocument document) {
             if (document == null) {
                 throw new ArgumentNullException(nameof(document));
             }
 
-            Directory.CreateDirectory(Path.GetDirectoryName(FilePath));
-            using FileStream stream = File.Create(FilePath);
-            using Utf8JsonWriter writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
-            writer.WriteStartObject();
-            writer.WriteNumber("version", CurrentVersion);
-            writer.WriteStartObject("common");
-            WriteValues(writer, document.CommonValues);
-            writer.WriteEndObject();
-            writer.WriteStartObject("platforms");
-            foreach (KeyValuePair<string, Dictionary<string, string>> section in document.PlatformValues) {
-                writer.WriteStartObject(section.Key);
-                WriteValues(writer, section.Value);
-                writer.WriteEndObject();
+            ValidateForSave(document);
+            byte[] bytes;
+            using (MemoryStream buffer = new MemoryStream()) {
+                using (Utf8JsonWriter writer = new Utf8JsonWriter(buffer, new JsonWriterOptions { Indented = true })) {
+                    writer.WriteStartObject();
+                    writer.WriteNumber("version", CurrentVersion);
+                    writer.WriteStartObject("common");
+                    WriteValues(writer, document.CommonValues);
+                    writer.WriteEndObject();
+                    writer.WriteStartObject("platforms");
+                    foreach (KeyValuePair<string, Dictionary<string, string>> section in document.PlatformValues) {
+                        writer.WriteStartObject(section.Key);
+                        WriteValues(writer, section.Value);
+                        writer.WriteEndObject();
+                    }
+                    writer.WriteEndObject();
+                    writer.WriteEndObject();
+                }
+                bytes = buffer.ToArray();
             }
-            writer.WriteEndObject();
-            writer.WriteEndObject();
+
+            string directoryPath = Path.GetDirectoryName(FilePath);
+            string stagingPath = Path.Combine(directoryPath, Path.GetFileName(FilePath) + "." + Guid.NewGuid().ToString("N") + ".tmp");
+            Directory.CreateDirectory(directoryPath);
+            try {
+                File.WriteAllBytes(stagingPath, bytes);
+                File.Move(stagingPath, FilePath, true);
+            } catch (Exception) {
+                if (File.Exists(stagingPath)) {
+                    File.Delete(stagingPath);
+                }
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Applies the rules <see cref="Load"/> enforces before anything is written, so <see cref="Save"/> can never produce
+        /// a file that loading rejects.
+        /// </summary>
+        /// <param name="document">Document about to be saved.</param>
+        /// <exception cref="ArgumentException">Thrown when a common id is not declared, or a section or value is null.</exception>
+        static void ValidateForSave(EditorPlaySettingsDocument document) {
+            foreach (KeyValuePair<string, string> entry in document.CommonValues) {
+                if (!PlayerCommonPlaySettings.IsCommonId(entry.Key)) {
+                    throw new ArgumentException($"Play settings cannot save unknown common setting '{entry.Key}'.", nameof(document));
+                } else if (entry.Value == null) {
+                    throw new ArgumentException($"Play settings cannot save a null value for common setting '{entry.Key}'.", nameof(document));
+                }
+            }
+            foreach (KeyValuePair<string, Dictionary<string, string>> section in document.PlatformValues) {
+                if (section.Value == null) {
+                    throw new ArgumentException($"Play settings cannot save a null section for platform '{section.Key}'.", nameof(document));
+                }
+                foreach (KeyValuePair<string, string> entry in section.Value) {
+                    if (entry.Value == null) {
+                        throw new ArgumentException($"Play settings cannot save a null value for setting '{entry.Key}' in platform '{section.Key}'.", nameof(document));
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -128,7 +190,9 @@ namespace helengine.editor {
             }
 
             foreach (JsonProperty entry in section.EnumerateObject()) {
-                if (entry.Value.ValueKind == JsonValueKind.String) {
+                if (values.ContainsKey(entry.Name)) {
+                    throw new InvalidOperationException($"Play settings file '{FilePath}' repeats setting '{entry.Name}' in {sectionName}.");
+                } else if (entry.Value.ValueKind == JsonValueKind.String) {
                     values.Add(entry.Name, entry.Value.GetString());
                 } else if (entry.Value.ValueKind == JsonValueKind.True) {
                     values.Add(entry.Name, "true");
