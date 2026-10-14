@@ -13,6 +13,15 @@ namespace helengine.baseplatform.Player {
         void Initialize(string contentRootPath);
 
         /// <summary>
+        /// Applies the resolved Play settings of this session (including the platform's own Play settings in
+        /// <see cref="PlayerPlaySettings.PlatformValues"/>) and declares the size of the frame the platform renders. Called
+        /// once, after <see cref="Initialize"/> and before any content is loaded.
+        /// </summary>
+        /// <param name="playSettings">Resolved Play settings.</param>
+        /// <returns>The render size the player renders at before magnifying into the window.</returns>
+        PlayerRenderSize ApplyPlaySettings(PlayerPlaySettings playSettings);
+
+        /// <summary>
         /// Registers the platform's content processors so the player's content manager can decode platform-cooked assets.
         /// </summary>
         /// <param name="contentManager">Content manager owned by the player.</param>
