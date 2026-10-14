@@ -152,6 +152,28 @@ public sealed class EditorPlayCookRunnerTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a failed cook remembers no environment, so the lookup reads the platform's current settings.
+    /// </summary>
+    [Fact]
+    public void ResolveEnvironmentId_AfterAFailedCook_ReadsTheCurrentSettings() {
+        string selectedEnvironmentId = "staging";
+        EditorPlayCookRunner runner = CreateRunner(
+            platformId => new EditorBuildPlatformConfigDocument {
+                PlatformId = platformId,
+                SelectedSceneIds = ["A", "B"],
+                SelectedEnvironmentId = selectedEnvironmentId
+            },
+            () => CurrentScenePath,
+            platformId => new FailingPlayAssetCookExecutor());
+
+        EditorPlayCookResult cookResult = runner.Cook(PlatformId);
+        selectedEnvironmentId = "qa";
+
+        Assert.False(cookResult.Succeeded);
+        Assert.Equal("qa", runner.ResolveEnvironmentId(PlatformId));
+    }
+
+    /// <summary>
     /// Ensures the environment remembered from a cook is only used for the platform that was cooked.
     /// </summary>
     [Fact]

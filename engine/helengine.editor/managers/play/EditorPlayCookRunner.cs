@@ -52,13 +52,13 @@ namespace helengine.editor {
         readonly Func<string> CurrentScenePathProvider;
 
         /// <summary>
-        /// Platform of the queue item the latest <see cref="Cook"/> created, or null before the first cook and while a
-        /// cook is creating its queue item.
+        /// Platform the latest <see cref="Cook"/> cooked successfully, or null before the first successful cook, while a
+        /// cook is running, and after a cook that failed or threw.
         /// </summary>
         string CookedPlatformId;
 
         /// <summary>
-        /// Environment captured by the queue item the latest <see cref="Cook"/> created for <see cref="CookedPlatformId"/>.
+        /// Environment captured by the queue item of the latest successful <see cref="Cook"/> for <see cref="CookedPlatformId"/>.
         /// </summary>
         string CookedEnvironmentId;
 
@@ -93,9 +93,10 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Cooks the open scene's content for the platform and reports where the player should read it from. The
-        /// environment of the cooked queue item is remembered, so the Play script stage that follows compiles with it
-        /// without loading the build configuration again.
+        /// Cooks the open scene's content for the platform and reports where the player should read it from. When the
+        /// cook succeeds, the environment of the cooked queue item is remembered, so the Play script stage that follows
+        /// compiles with it without loading the build configuration again. A cook that fails or throws remembers
+        /// nothing.
         /// </summary>
         /// <param name="platformId">Identifier of the platform whose content processors drive the cook.</param>
         /// <returns>Cook outcome with the staged content root and startup scene on success.</returns>
@@ -103,25 +104,35 @@ namespace helengine.editor {
             CookedPlatformId = null;
             CookedEnvironmentId = null;
             EditorBuildQueueItemDocument queueItem = CreateQueueItem(platformId);
-            CookedPlatformId = platformId;
-            CookedEnvironmentId = queueItem.SelectedEnvironmentId;
             IEditorPlayAssetCookExecutor executor = ExecutorFactory(platformId);
             if (executor == null) {
                 throw new InvalidOperationException($"No platform build executor could be created for '{platformId}'.");
             }
 
-            return executor.ExecuteAssetsOnly(queueItem);
+            EditorPlayCookResult result = executor.ExecuteAssetsOnly(queueItem);
+            if (result != null && result.Succeeded) {
+                CookedPlatformId = platformId;
+                CookedEnvironmentId = queueItem.SelectedEnvironmentId;
+            }
+
+            return result;
         }
 
         /// <summary>
         /// Resolves the environment the Play cook uses for the platform, so the Play script build compiles with the same
-        /// environment symbols as the cooked content. Play cooks before it builds scripts, so when the latest cook was
-        /// for this platform its queue item's environment is returned and the build configuration is not loaded again.
-        /// Otherwise the queue item's environment rule is applied to the platform's build settings directly, which
-        /// neither creates a queue item nor changes the settings.
+        /// environment symbols as the cooked content.
+        /// <para>
+        /// Temporal contract: when the latest <see cref="Cook"/> on this runner succeeded for this platform, the result
+        /// is the environment that cook's queue item captured, not a fresh read of the settings. If the platform's
+        /// build settings changed after that cook, the answer still describes the content that was cooked, which is
+        /// what the Play script stage that immediately follows a cook needs. Callers that want the current settings
+        /// must ask before cooking, or for a platform that was not just cooked: then the queue item's environment
+        /// rule is applied to the platform's build settings directly, which neither creates a queue item nor changes
+        /// the settings.
+        /// </para>
         /// </summary>
         /// <param name="platformId">Platform whose Play environment is resolved.</param>
-        /// <returns>Environment id the Play queue item of the platform selects.</returns>
+        /// <returns>Environment id of the platform's last successful Play cook on this runner, or else the one its Play queue item would select now.</returns>
         /// <exception cref="InvalidOperationException">Thrown when the platform has no build settings or selection model.</exception>
         public string ResolveEnvironmentId(string platformId) {
             if (CookedPlatformId != null && string.Equals(CookedPlatformId, platformId, StringComparison.Ordinal)) {
