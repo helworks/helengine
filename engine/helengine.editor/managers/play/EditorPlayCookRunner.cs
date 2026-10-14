@@ -44,12 +44,23 @@ namespace helengine.editor {
         /// <summary>
         /// Creates the platform build executor that runs the cook.
         /// </summary>
-        readonly Func<string, EditorPlatformBuildExecutor> ExecutorFactory;
+        readonly Func<string, IEditorPlayAssetCookExecutor> ExecutorFactory;
 
         /// <summary>
         /// Supplies the saved path of the scene open in the editor.
         /// </summary>
         readonly Func<string> CurrentScenePathProvider;
+
+        /// <summary>
+        /// Platform of the queue item the latest <see cref="Cook"/> created, or null before the first cook and while a
+        /// cook is creating its queue item.
+        /// </summary>
+        string CookedPlatformId;
+
+        /// <summary>
+        /// Environment captured by the queue item the latest <see cref="Cook"/> created for <see cref="CookedPlatformId"/>.
+        /// </summary>
+        string CookedEnvironmentId;
 
         /// <summary>
         /// Initializes the Play cook runner.
@@ -67,7 +78,7 @@ namespace helengine.editor {
             EditorProjectSceneCatalogService sceneCatalogService,
             Func<string, EditorBuildPlatformConfigDocument> platformConfigResolver,
             Func<string, EditorPlatformBuildSelectionModel> selectionModelResolver,
-            Func<string, EditorPlatformBuildExecutor> executorFactory,
+            Func<string, IEditorPlayAssetCookExecutor> executorFactory,
             Func<string> currentScenePathProvider) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
@@ -82,13 +93,19 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Cooks the open scene's content for the platform and reports where the player should read it from.
+        /// Cooks the open scene's content for the platform and reports where the player should read it from. The
+        /// environment of the cooked queue item is remembered, so the Play script stage that follows compiles with it
+        /// without loading the build configuration again.
         /// </summary>
         /// <param name="platformId">Identifier of the platform whose content processors drive the cook.</param>
         /// <returns>Cook outcome with the staged content root and startup scene on success.</returns>
         public EditorPlayCookResult Cook(string platformId) {
+            CookedPlatformId = null;
+            CookedEnvironmentId = null;
             EditorBuildQueueItemDocument queueItem = CreateQueueItem(platformId);
-            EditorPlatformBuildExecutor executor = ExecutorFactory(platformId);
+            CookedPlatformId = platformId;
+            CookedEnvironmentId = queueItem.SelectedEnvironmentId;
+            IEditorPlayAssetCookExecutor executor = ExecutorFactory(platformId);
             if (executor == null) {
                 throw new InvalidOperationException($"No platform build executor could be created for '{platformId}'.");
             }
@@ -98,13 +115,19 @@ namespace helengine.editor {
 
         /// <summary>
         /// Resolves the environment the Play cook uses for the platform, so the Play script build compiles with the same
-        /// environment symbols as the cooked content. It applies the queue item's environment rule to the platform's
-        /// build settings directly, so it neither creates a queue item nor changes the settings.
+        /// environment symbols as the cooked content. Play cooks before it builds scripts, so when the latest cook was
+        /// for this platform its queue item's environment is returned and the build configuration is not loaded again.
+        /// Otherwise the queue item's environment rule is applied to the platform's build settings directly, which
+        /// neither creates a queue item nor changes the settings.
         /// </summary>
         /// <param name="platformId">Platform whose Play environment is resolved.</param>
         /// <returns>Environment id the Play queue item of the platform selects.</returns>
         /// <exception cref="InvalidOperationException">Thrown when the platform has no build settings or selection model.</exception>
         public string ResolveEnvironmentId(string platformId) {
+            if (CookedPlatformId != null && string.Equals(CookedPlatformId, platformId, StringComparison.Ordinal)) {
+                return CookedEnvironmentId;
+            }
+
             return EditorBuildQueueItemDocument.ResolveEnvironmentId(ResolvePlatformConfig(platformId), ResolveSelectionModel(platformId));
         }
 

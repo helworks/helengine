@@ -72,17 +72,22 @@ public sealed class EditorPlayCookRunnerTests : IDisposable {
     /// </summary>
     /// <param name="selectedEnvironmentId">Persisted environment selection of the platform.</param>
     /// <param name="debugBuild">Persisted debug-build flag of the platform.</param>
+    /// <param name="selectedBuildProfileId">Persisted build profile selection, possibly stale or non-default.</param>
     [Theory]
-    [InlineData("", false)]
-    [InlineData("", true)]
-    [InlineData(" staging ", false)]
-    [InlineData("release", true)]
-    public void ResolveEnvironmentId_EqualsTheEnvironmentTheQueueItemCaptures(string selectedEnvironmentId, bool debugBuild) {
+    [InlineData("", false, "")]
+    [InlineData("", true, "")]
+    [InlineData(" staging ", false, "")]
+    [InlineData("release", true, "")]
+    [InlineData("", false, "retired-profile")]
+    [InlineData("", false, "release")]
+    [InlineData("", true, "Debug")]
+    public void ResolveEnvironmentId_EqualsTheEnvironmentTheQueueItemCaptures(string selectedEnvironmentId, bool debugBuild, string selectedBuildProfileId) {
         EditorPlayCookRunner runner = CreateRunner(platformId => new EditorBuildPlatformConfigDocument {
             PlatformId = platformId,
             SelectedSceneIds = ["A", "B"],
             SelectedEnvironmentId = selectedEnvironmentId,
-            DebugBuild = debugBuild
+            DebugBuild = debugBuild,
+            SelectedBuildProfileId = selectedBuildProfileId
         });
 
         string environmentId = runner.ResolveEnvironmentId(PlatformId);
@@ -115,6 +120,56 @@ public sealed class EditorPlayCookRunnerTests : IDisposable {
         Assert.Equal(string.Empty, platformConfig.SelectedBuildProfileId);
         Assert.Equal(string.Empty, platformConfig.SelectedGraphicsProfileId);
         Assert.Equal(new[] { "A", "B" }, platformConfig.SelectedSceneIds);
+    }
+
+    /// <summary>
+    /// Ensures one Play (cook, then the script stage's environment lookup) loads the platform's build settings once,
+    /// and the script stage receives the environment of the queue item that was cooked.
+    /// </summary>
+    [Fact]
+    public void Cook_ThenResolveEnvironmentId_LoadsTheBuildSettingsOnce() {
+        int settingsLoads = 0;
+        RecordingPlayAssetCookExecutor executor = new RecordingPlayAssetCookExecutor();
+        EditorPlayCookRunner runner = CreateRunner(
+            platformId => {
+                settingsLoads++;
+                return new EditorBuildPlatformConfigDocument {
+                    PlatformId = platformId,
+                    SelectedSceneIds = ["A", "B"],
+                    SelectedEnvironmentId = " staging "
+                };
+            },
+            () => CurrentScenePath,
+            platformId => executor);
+
+        EditorPlayCookResult cookResult = runner.Cook(PlatformId);
+        string environmentId = runner.ResolveEnvironmentId(PlatformId);
+
+        Assert.True(cookResult.Succeeded);
+        Assert.Equal(1, settingsLoads);
+        Assert.Equal(Assert.Single(executor.QueueItems).SelectedEnvironmentId, environmentId);
+        Assert.Equal("staging", environmentId);
+    }
+
+    /// <summary>
+    /// Ensures the environment remembered from a cook is only used for the platform that was cooked.
+    /// </summary>
+    [Fact]
+    public void ResolveEnvironmentId_ForAnotherPlatformThanTheCook_ReadsThatPlatformsSettings() {
+        RecordingPlayAssetCookExecutor executor = new RecordingPlayAssetCookExecutor();
+        EditorPlayCookRunner runner = CreateRunner(
+            platformId => new EditorBuildPlatformConfigDocument {
+                PlatformId = platformId,
+                SelectedSceneIds = ["A", "B"],
+                SelectedEnvironmentId = platformId == PlatformId ? "staging" : "qa"
+            },
+            () => CurrentScenePath,
+            platformId => executor);
+
+        runner.Cook(PlatformId);
+
+        Assert.Equal("qa", runner.ResolveEnvironmentId("linux"));
+        Assert.Equal("staging", runner.ResolveEnvironmentId(PlatformId));
     }
 
     /// <summary>
@@ -155,6 +210,23 @@ public sealed class EditorPlayCookRunnerTests : IDisposable {
     /// <param name="currentScenePathProvider">Supplies the saved path of the open scene.</param>
     /// <returns>Runner under test; its executor factory is never reached by these tests.</returns>
     EditorPlayCookRunner CreateRunner(Func<string, EditorBuildPlatformConfigDocument> platformConfigResolver, Func<string> currentScenePathProvider) {
+        return CreateRunner(
+            platformConfigResolver,
+            currentScenePathProvider,
+            platformId => throw new InvalidOperationException("The executor is not used by queue-item tests."));
+    }
+
+    /// <summary>
+    /// Creates the runner with the supplied platform build settings, open-scene provider and cook executor.
+    /// </summary>
+    /// <param name="platformConfigResolver">Supplies the platform's build settings.</param>
+    /// <param name="currentScenePathProvider">Supplies the saved path of the open scene.</param>
+    /// <param name="executorFactory">Creates the asset-cook executor of one platform.</param>
+    /// <returns>Runner under test.</returns>
+    EditorPlayCookRunner CreateRunner(
+        Func<string, EditorBuildPlatformConfigDocument> platformConfigResolver,
+        Func<string> currentScenePathProvider,
+        Func<string, IEditorPlayAssetCookExecutor> executorFactory) {
         EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(ProjectRootPath);
         EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(
             new RecordingPlayPlatformAssetBuilder(PlatformPlayerCapability.CreateUnsupported()).Definition);
@@ -163,7 +235,7 @@ public sealed class EditorPlayCookRunnerTests : IDisposable {
             sceneCatalogService,
             platformConfigResolver,
             platformId => selectionModel,
-            platformId => throw new InvalidOperationException("The executor is not used by queue-item tests."),
+            executorFactory,
             currentScenePathProvider);
     }
 

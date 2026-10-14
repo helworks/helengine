@@ -4,7 +4,7 @@ namespace helengine.editor {
     /// <summary>
     /// Executes one queued build item through the shared editor-owned platform build graph.
     /// </summary>
-    public sealed class EditorPlatformBuildExecutor : IEditorBuildExecutor {
+    public sealed class EditorPlatformBuildExecutor : IEditorBuildExecutor, IEditorPlayAssetCookExecutor {
         /// <summary>
         /// Platform descriptor loaded from the editor platform catalog.
         /// </summary>
