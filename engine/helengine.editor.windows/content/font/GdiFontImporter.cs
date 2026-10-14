@@ -13,15 +13,26 @@ namespace helengine.editor {
         readonly RenderManager2D RenderManager2D;
 
         /// <summary>
-        /// Initializes a GDI font importer with its explicit renderer owner.
+        /// Managed id of the thread that created the importer. An interactive host creates it on the editor frame
+        /// thread, the only thread that may use the session renderer.
+        /// </summary>
+        readonly int RendererThreadId;
+
+        /// <summary>
+        /// Initializes a GDI font importer with its explicit renderer owner. The importer must be created on the thread
+        /// that owns the renderer.
         /// </summary>
         /// <param name="renderManager2D">Session-owned renderer, or null for headless imports.</param>
         public GdiFontImporter(RenderManager2D renderManager2D) {
             RenderManager2D = renderManager2D;
+            RendererThreadId = Environment.CurrentManagedThreadId;
         }
 
         /// <summary>
-        /// Imports one source font stream into a runtime-ready font asset.
+        /// Imports one source font stream into a runtime-ready font asset. The renderer is single-threaded, so only an
+        /// import on the renderer's own thread builds the atlas texture on it. An import on any other thread, such as
+        /// the editor's background Play cook, builds the headless managed atlas a command-line build uses; cooking
+        /// packages the atlas pixels from <see cref="FontAsset.SourceTextureAsset"/>, which both paths fill identically.
         /// </summary>
         /// <param name="stream">Stream containing source font bytes.</param>
         /// <param name="settings">Platform font settings supplied by the caller.</param>
@@ -54,7 +65,8 @@ namespace helengine.editor {
                     settings.PixelSize,
                     sourceStyle,
                     System.Drawing.GraphicsUnit.Pixel);
-                FontAsset asset = GDIFontProcessor.ImportFont(font, RenderManager2D);
+                RenderManager2D atlasRenderer = Environment.CurrentManagedThreadId == RendererThreadId ? RenderManager2D : null;
+                FontAsset asset = GDIFontProcessor.ImportFont(font, atlasRenderer);
                 FontHorizontalMetricsProcessor.Apply(asset, settings);
                 return asset;
             } finally {
