@@ -36,7 +36,8 @@ namespace helengine.player {
             Core core = null;
             PlatformSettingsConfiguration runtimeSettings = null;
             try {
-                if (options.PlaySettings.WaitForDebugger) {
+                PlayerPlaySettings playSettings = options.PlaySettings;
+                if (playSettings.WaitForDebugger) {
                     Console.WriteLine("[player] waiting for debugger, pid " + Environment.ProcessId);
                     while (!Debugger.IsAttached) {
                         Thread.Sleep(DebuggerPollMilliseconds);
@@ -46,6 +47,7 @@ namespace helengine.player {
                 IPlatformPlayerAdapter adapter = PlayerPlatformAdapterLoader.Load(options.AdapterAssemblyPath, options.AdapterTypeName);
                 if (options.RuntimeSettingsPath.Length > 0) { runtimeSettings = PlatformSettingsSerializer.ReadBytes(File.ReadAllBytes(options.RuntimeSettingsPath)); }
                 adapter.Initialize(options.ContentRootPath);
+                PlayerRenderSize renderSize = adapter.ApplyPlaySettings(playSettings);
                 PlayerScriptModuleLoader.LoadAll(options.ScriptModulesRootPath);
 
                 ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
@@ -53,11 +55,24 @@ namespace helengine.player {
                 shaders = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
 
                 renderer3D = new PlayerRenderManager3D(adapter, shaders);
-                renderer3D.ShadowsEnabled = options.PlaySettings.ShadowsEnabled;
-                // Vsync only prevents tearing; PlayerFramePacer limits the loop to the platform's target frame rate,
-                // which is below the refresh rate of the high-refresh monitors the editor runs on.
-                renderer3D.PresentSyncInterval = 1;
-                window = new PlayerWindow(options.PlatformName, options.SceneId);
+                renderer3D.ShadowsEnabled = playSettings.ShadowsEnabled;
+                // Vsync only prevents tearing; the frame limiter holds the loop to the platform's rate. An unlimited Play
+                // turns vsync off too, so it really runs unpaced.
+                renderer3D.PresentSyncInterval = playSettings.FrameRateUnlimited ? 0 : 1;
+                window = new PlayerWindow(options.PlatformName, options.SceneId, renderSize.Width, renderSize.Height);
+                PlayerScreenArea workArea = new PlayerMonitorLocator(new WinFormsPlayerMonitorQuery()).ResolveWorkArea(playSettings.WindowMonitor, playSettings.EditorProcessId);
+                PlayerWindowLayoutResult layout = PlayerWindowLayout.Compute(
+                    renderSize,
+                    playSettings.WindowScale,
+                    workArea,
+                    window.Width - window.ClientSize.Width,
+                    window.Height - window.ClientSize.Height);
+                window.ClientSize = new Size(layout.ClientWidth, layout.ClientHeight);
+                window.Location = new Point(layout.Left, layout.Top);
+                Console.WriteLine("[player] render " + renderSize.Width + "x" + renderSize.Height + " at " + layout.Multiplier + "x");
+                if (layout.ExceedsWorkArea) {
+                    Console.WriteLine("[player] window-scale " + layout.Multiplier + "x is larger than the monitor work area " + workArea.Width + "x" + workArea.Height + "; the window opens at the work-area origin");
+                }
                 window.Show();
                 Application.DoEvents();
                 new PlayerWindowActivator(new Win32PlayerForegroundWindow(), Console.Out).Activate(window.Handle);
@@ -81,10 +96,10 @@ namespace helengine.player {
                 core = new Core(coreOptions);
                 core.Initialize(renderer3D, renderer3D.Render2D, input, options.CreateRuntimePlatformInfo(), coreOptions);
 
-                renderer3D.AddWindow(window.Handle, PlayerWindow.ClientWidth, PlayerWindow.ClientHeight);
+                renderer3D.AddWindow(window.Handle, layout.ClientWidth, layout.ClientHeight);
                 core.SceneManager.LoadScene(options.SceneId, SceneLoadMode.Single);
 
-                RunFrameLoop(core, window, options.PlaySettings.TargetFrameRate, startupStopwatch);
+                RunFrameLoop(core, window, playSettings, startupStopwatch);
             } finally {
                 if (core != null) {
                     core.Dispose();
@@ -132,23 +147,24 @@ namespace helengine.player {
 
         /// <summary>
         /// Pumps window messages and advances the core one frame at a time, using the measured wall-clock delta, until
-        /// the player window is closed. Each frame is paced to <paramref name="targetFrameRate"/>, so the measured
-        /// delta handed to <c>Core.Update</c> is the real time between frames at that rate. Right after the first frame
-        /// is presented, the machine-readable <see cref="EditorPlayFirstFrameMarker"/> line is written to stdout with the
-        /// milliseconds elapsed on <paramref name="startupStopwatch"/>, so the editor can finish its Play startup summary.
+        /// the player window is closed. The <c>frame-rate</c> Play setting picks the frame limiter: a paced Play holds each
+        /// frame to the target frame rate, so the measured delta handed to <c>Core.Update</c> is the real time between
+        /// frames at that rate; an unlimited Play never waits. Right after the first frame is presented, the
+        /// machine-readable <see cref="EditorPlayFirstFrameMarker"/> line is written to stdout with the milliseconds
+        /// elapsed on <paramref name="startupStopwatch"/>, so the editor can finish its Play startup summary.
         /// </summary>
         /// <param name="core">Initialized core with the scene loaded.</param>
         /// <param name="window">Player window whose closing ends the loop.</param>
-        /// <param name="targetFrameRate">Frames per second the selected platform runs at.</param>
+        /// <param name="playSettings">Resolved Play settings; their frame rate selects the frame limiter.</param>
         /// <param name="startupStopwatch">Stopwatch started at the top of <see cref="Program.Main"/>.</param>
-        static void RunFrameLoop(Core core, PlayerWindow window, double targetFrameRate, Stopwatch startupStopwatch) {
-            Console.WriteLine("[player] frame loop target: " + targetFrameRate.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + " FPS");
+        static void RunFrameLoop(Core core, PlayerWindow window, PlayerPlaySettings playSettings, Stopwatch startupStopwatch) {
+            Console.WriteLine("[player] frame loop target: " + (playSettings.FrameRateUnlimited ? "unlimited" : playSettings.TargetFrameRate.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + " FPS"));
             using StopwatchPlayerFrameClock clock = new StopwatchPlayerFrameClock();
-            PlayerFramePacer pacer = new PlayerFramePacer(targetFrameRate, clock);
+            IPlayerFrameLimiter limiter = PlayerFrameLimiterFactory.Create(playSettings, clock);
             double previousElapsedSeconds = 0d;
             bool isFirstFrame = true;
             Application.DoEvents();
-            pacer.Start();
+            limiter.Start();
             while (!window.IsClosed) {
                 double currentElapsedSeconds = clock.ElapsedSeconds;
                 double frameDeltaSeconds = isFirstFrame
@@ -163,7 +179,7 @@ namespace helengine.player {
                     Console.WriteLine(EditorPlayFirstFrameMarker.Format(startupStopwatch.ElapsedMilliseconds));
                 }
                 Application.DoEvents();
-                pacer.WaitForNextFrame();
+                limiter.WaitForNextFrame();
             }
         }
     }

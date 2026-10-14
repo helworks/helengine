@@ -8,7 +8,7 @@ namespace helengine.player {
     /// When a frame overruns its slot by a full frame or more the cadence restarts from the current time instead of
     /// running a burst of unpaced catch-up frames.
     /// </summary>
-    public sealed class PlayerFramePacer {
+    public sealed class PlayerFramePacer : IPlayerFrameLimiter {
         /// <summary>
         /// Remaining time, in seconds, below which the pacer stops sleeping and spins until the deadline.
         /// </summary>
