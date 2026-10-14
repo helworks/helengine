@@ -153,6 +153,43 @@ namespace helengine.player.tests {
         }
 
         /// <summary>
+        /// A real Play build that restores for changed project inputs and then fails to compile must not leave the
+        /// previous restore stamp behind: the restore already rewrote the restore output for the new inputs, so reverting
+        /// to the old inputs must restore again instead of skipping restore against the new inputs' output.
+        /// </summary>
+        [Fact]
+        public void RealPlayScriptBuild_WhenRestoringBuildFailsToCompile_DropsThePreviousRestoreStamp() {
+            EditorPlayScriptBuildService compiler = new EditorPlayScriptBuildService(ProjectRootPath, "PlayFixture");
+            EditorPlayScriptBuilder builder = new EditorPlayScriptBuilder(ProjectRootPath, compiler, platformId => string.Empty);
+            EditorBuildExecutionResult first = builder.Build(PlatformId, out _);
+            Assert.True(first.Succeeded, first.Message);
+            string restoreStampFilePath = Path.Combine(
+                compiler.ResolvePlayOutputRootPath(PlatformId),
+                EditorDotNetScriptBuildTool.IncrementalRestoreStampFileName);
+            Assert.True(File.Exists(restoreStampFilePath));
+
+            // Dropping the Levels -> Core dependency changes the generated Levels project (a restore input), and the
+            // edited source no longer compiles.
+            string levelsFolderPath = Path.Combine(ProjectRootPath, "assets", "codebase", "Levels");
+            WriteModule(levelsFolderPath, LevelsModuleId, "runtime", "[]", "namespace PlayFixture { public class LevelProbe { public CoreProbe Core; } }");
+            EditorBuildExecutionResult failed = builder.Build(PlatformId, out _);
+
+            Assert.False(failed.Succeeded);
+            Assert.False(File.Exists(restoreStampFilePath));
+
+            WriteModule(
+                levelsFolderPath,
+                LevelsModuleId,
+                "runtime",
+                "[\"" + CoreModuleId + "\"]",
+                "namespace PlayFixture { public class LevelProbe { public CoreProbe Core; } }");
+            EditorBuildExecutionResult reverted = builder.Build(PlatformId, out _);
+
+            Assert.True(reverted.Succeeded, reverted.Message);
+            Assert.True(File.Exists(restoreStampFilePath));
+        }
+
+        /// <summary>
         /// Resolves the workspace-owned scratch root <c>&lt;checkout parent&gt;/builds/helengine/play-tests</c> by walking up
         /// from the test binaries to the helengine checkout, identified by its <c>dotnetw.cmd</c> wrapper. Build outputs
         /// never go to the system temp folder.

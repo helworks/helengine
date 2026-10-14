@@ -36,7 +36,7 @@ namespace helengine.editor {
         /// <summary>
         /// File name of the stamp recording which restore inputs the last successful restoring incremental build saw.
         /// </summary>
-        const string IncrementalRestoreStampFileName = "helengine-restore.stamp";
+        public const string IncrementalRestoreStampFileName = "helengine-restore.stamp";
 
         /// <summary>
         /// Sibling directory containing the operation manifest for one publication token.
@@ -283,6 +283,10 @@ namespace helengine.editor {
             startInfo.Environment["HelengineExecutionOutputRootFile"] = propertyFilePath;
             if (restoreCurrent) {
                 startInfo.ArgumentList.Add("--no-restore");
+            } else if (File.Exists(restoreStampFilePath)) {
+                // This build restores for new inputs and rewrites the restore output even if the compile later fails, so
+                // the old stamp must go first: reverting to the old inputs must restore again, not reuse these outputs.
+                File.Delete(restoreStampFilePath);
             }
 
             EditorBuildExecutionResult result = RunBuildProcess(startInfo, solutionPath);
