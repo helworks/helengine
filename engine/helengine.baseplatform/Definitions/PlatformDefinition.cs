@@ -99,6 +99,7 @@ namespace helengine.baseplatform.Definitions {
             AssetCookCapabilities = assetCookCapabilities == null ? Array.Empty<PlatformAssetCookCapabilityDefinition>() : [.. assetCookCapabilities];
             ComponentMemberDefinitions = componentMemberDefinitions == null ? Array.Empty<PlatformComponentMemberDefinition>() : [.. componentMemberDefinitions];
             PlayerCapability = playerCapability ?? PlatformPlayerCapability.CreateUnsupported();
+            ValidateProjectPlaySettings(PlayerCapability, GraphicsProfiles);
         }
 
         /// <summary>
@@ -401,6 +402,33 @@ namespace helengine.baseplatform.Definitions {
         /// Gets the component support rules exposed by the platform.
         /// </summary>
         public PlatformComponentSupportRule[] ComponentSupportRules { get; }
+
+        /// <summary>
+        /// Ensures every Play setting that may hold <see cref="PlayerCommonPlaySettings.ProjectValue"/> names a graphics option
+        /// declared by every graphics profile, because the editor resolves <c>project</c> to that option when Play launches.
+        /// </summary>
+        /// <param name="playerCapability">Play capability whose settings are checked.</param>
+        /// <param name="graphicsProfiles">Graphics profiles the project may select.</param>
+        /// <exception cref="ArgumentException">Thrown when a graphics profile lacks the option a Play setting follows.</exception>
+        static void ValidateProjectPlaySettings(PlatformPlayerCapability playerCapability, PlatformGraphicsProfileDefinition[] graphicsProfiles) {
+            for (int settingIndex = 0; settingIndex < playerCapability.PlaySettings.Length; settingIndex++) {
+                PlatformSettingDefinition playSetting = playerCapability.PlaySettings[settingIndex];
+                bool canFollowProject = Array.IndexOf(playSetting.AllowedValues, PlayerCommonPlaySettings.ProjectValue) >= 0
+                    || string.Equals(playSetting.DefaultValue, PlayerCommonPlaySettings.ProjectValue, StringComparison.Ordinal);
+                if (!canFollowProject) {
+                    continue;
+                }
+
+                for (int profileIndex = 0; profileIndex < graphicsProfiles.Length; profileIndex++) {
+                    PlatformGraphicsProfileDefinition profile = graphicsProfiles[profileIndex];
+                    if (!Array.Exists(profile.Settings, setting => string.Equals(setting.SettingId, playSetting.SettingId, StringComparison.Ordinal))) {
+                        throw new ArgumentException(
+                            $"Play setting '{playSetting.SettingId}' can follow the project, but graphics profile '{profile.ProfileId}' declares no '{playSetting.SettingId}' option.",
+                            "playerCapability");
+                    }
+                }
+            }
+        }
 
         /// <summary>
         /// Returns true when a component type id belongs to the engine (the <c>helengine.</c> namespace). Anything else
