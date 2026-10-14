@@ -21,6 +21,11 @@ namespace helengine.editor {
         readonly string CacheRootPath;
 
         /// <summary>
+        /// File remembering the content hash of each key input by its length and last-write stamp.
+        /// </summary>
+        readonly string InputStampMemoPath;
+
+        /// <summary>
         /// Creates a cache for one project.
         /// </summary>
         /// <param name="projectRootPath">Absolute project root.</param>
@@ -31,7 +36,19 @@ namespace helengine.editor {
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             CacheRootPath = Path.Combine(ProjectRootPath, "cache", "build", "scene-package", "v1");
+            InputStampMemoPath = Path.Combine(ProjectRootPath, "cache", "build", "scene-package", EditorScenePackageInputStampMemo.FileName);
         }
+
+        /// <summary>
+        /// Number of project input files the latest <see cref="ComputeKey"/> had to hash because they were new or
+        /// their stamp changed.
+        /// </summary>
+        public int LastHashedInputCount { get; private set; }
+
+        /// <summary>
+        /// Number of project input files the latest <see cref="ComputeKey"/> took from the stamp memo.
+        /// </summary>
+        public int LastReusedInputCount { get; private set; }
 
         /// <summary>
         /// Hashes the authored project snapshot and every option that changes scene packaging.
@@ -97,13 +114,16 @@ namespace helengine.editor {
             // One read batch verifies and pins each assets directory chain once for the whole key instead of once
             // per hashed file; every leaf is still checked and opened through a verified handle.
             using EditorAuthoringReadBatch readBatch = EditorAuthoringReadBatch.Begin(ProjectRootPath);
-            AppendDirectory(hash, "assets", skipTemporaryGeneratedScenes: true);
-            AppendDirectory(hash, "settings", skipTemporaryGeneratedScenes: false);
-            AppendDirectory(hash, "helenui", skipTemporaryGeneratedScenes: false);
-            AppendDirectory(hash, "src", skipTemporaryGeneratedScenes: false);
-            AppendDirectory(hash, "scripts", skipTemporaryGeneratedScenes: false);
-            AppendDirectory(hash, "code", skipTemporaryGeneratedScenes: false);
-            AppendFile(hash, "project.heproj");
+            EditorScenePackageInputStampMemo stampMemo = EditorScenePackageInputStampMemo.Begin(InputStampMemoPath);
+            AssetFileHasher fileHasher = new(ProjectRootPath);
+            Dictionary<string, string> inputHashes = new(StringComparer.Ordinal);
+            AppendDirectory(hash, "assets", skipTemporaryGeneratedScenes: true, stampMemo, fileHasher, inputHashes);
+            AppendDirectory(hash, "settings", skipTemporaryGeneratedScenes: false, stampMemo, fileHasher, inputHashes);
+            AppendDirectory(hash, "helenui", skipTemporaryGeneratedScenes: false, stampMemo, fileHasher, inputHashes);
+            AppendDirectory(hash, "src", skipTemporaryGeneratedScenes: false, stampMemo, fileHasher, inputHashes);
+            AppendDirectory(hash, "scripts", skipTemporaryGeneratedScenes: false, stampMemo, fileHasher, inputHashes);
+            AppendDirectory(hash, "code", skipTemporaryGeneratedScenes: false, stampMemo, fileHasher, inputHashes);
+            AppendFile(hash, "project.heproj", stampMemo, fileHasher, inputHashes);
             AppendExternalDirectory(hash, Path.Combine(AppContext.BaseDirectory, "shaders", "builtin"), "packaged-built-in-shaders");
             try {
                 string engineRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
@@ -116,16 +136,24 @@ namespace helengine.editor {
 
             string assetsRootPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets"));
             string assetsRootPrefix = EnsureTrailingSeparator(assetsRootPath);
-            AssetFileHasher fileHasher = new(ProjectRootPath);
             for (int index = 0; index < sceneIds.Count; index++) {
                 AppendText(hash, sceneIds[index]);
                 string fullScenePath = Path.GetFullPath(Path.Combine(assetsRootPath, sceneSourcePaths[index]));
                 if (!fullScenePath.StartsWith(assetsRootPrefix, StringComparison.OrdinalIgnoreCase)) {
                     throw new InvalidOperationException($"Scene source '{sceneSourcePaths[index]}' is outside the project assets root.");
                 }
-                AppendText(hash, fileHasher.ComputeHash(fullScenePath));
+
+                // Scenes under the assets tree were hashed by the directory pass above; only temporary generated
+                // scenes, which that pass skips, are hashed here.
+                string sceneInputPath = "assets/" + Path.GetRelativePath(assetsRootPath, fullScenePath).Replace('\\', '/');
+                AppendText(hash, inputHashes.TryGetValue(sceneInputPath, out string sceneHash)
+                    ? sceneHash
+                    : fileHasher.ComputeHash(fullScenePath));
             }
 
+            stampMemo.Save();
+            LastHashedInputCount = stampMemo.HashedFileCount;
+            LastReusedInputCount = stampMemo.ReusedFileCount;
             return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
         }
 
@@ -225,26 +253,60 @@ namespace helengine.editor {
 
         /// <summary>
         /// Adds stable authored file names and content hashes from one project directory.
+        /// <para>
+        /// One listing supplies every file's length and last-write stamp, and the stamp memo decides which files
+        /// must be hashed. Files that are hashed are read through <see cref="AssetFileHasher"/>, which verifies and
+        /// pins the directory chain (once per directory inside the caller's read batch) and verifies the leaf
+        /// handle, exactly as before. A file whose remembered hash is reused is not opened at all, so no byte is read
+        /// without that verification. Reparse points are still rejected for every hashed input: the listing reports
+        /// each directory's and file's attributes, so a reparse-point leaf, or a file beneath a reparse-point
+        /// directory, fails the key just as the per-file chain validation did, and the root's own chain is
+        /// validated once.
+        /// </para>
         /// </summary>
         /// <param name="hash">Aggregate input hash.</param>
         /// <param name="relativeDirectoryPath">Project-relative directory to scan.</param>
         /// <param name="skipTemporaryGeneratedScenes">Whether queue-specific temporary scenes should be omitted.</param>
-        void AppendDirectory(IncrementalHash hash, string relativeDirectoryPath, bool skipTemporaryGeneratedScenes) {
+        /// <param name="stampMemo">Memo pass supplying remembered hashes for unchanged files.</param>
+        /// <param name="fileHasher">Verified hasher for new or changed files.</param>
+        /// <param name="inputHashes">Receives each appended file's content hash by its appended path.</param>
+        void AppendDirectory(
+            IncrementalHash hash,
+            string relativeDirectoryPath,
+            bool skipTemporaryGeneratedScenes,
+            EditorScenePackageInputStampMemo stampMemo,
+            AssetFileHasher fileHasher,
+            Dictionary<string, string> inputHashes) {
             string rootPath = Path.Combine(ProjectRootPath, relativeDirectoryPath);
             if (!Directory.Exists(rootPath)) {
                 return;
             }
 
-            string[] files = Directory.GetFiles(rootPath, "*", SearchOption.AllDirectories);
-            Array.Sort(files, StringComparer.Ordinal);
-            AssetFileHasher fileHasher = new(ProjectRootPath);
-            foreach (string filePath in files) {
-                string relativePath = Path.GetRelativePath(rootPath, filePath).Replace('\\', '/');
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(ProjectRootPath, ProjectRootPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(rootPath, ProjectRootPath);
+            List<FileInfo> files = new();
+            List<string> reparseDirectoryPrefixes = new();
+            foreach (FileSystemInfo entry in new DirectoryInfo(rootPath).EnumerateFileSystemInfos("*", SearchOption.AllDirectories)) {
+                if (entry is FileInfo file) {
+                    files.Add(file);
+                } else if ((entry.Attributes & FileAttributes.ReparsePoint) != 0) {
+                    reparseDirectoryPrefixes.Add(EnsureTrailingSeparator(entry.FullName));
+                }
+            }
+
+            files.Sort((left, right) => string.CompareOrdinal(left.FullName, right.FullName));
+            foreach (FileInfo file in files) {
+                string relativePath = Path.GetRelativePath(rootPath, file.FullName).Replace('\\', '/');
                 if (skipTemporaryGeneratedScenes && relativePath.StartsWith(".generated-build/", StringComparison.OrdinalIgnoreCase)) {
                     continue;
                 }
-                AppendText(hash, relativeDirectoryPath + "/" + relativePath);
-                AppendText(hash, fileHasher.ComputeHash(filePath));
+
+                RejectReparseTraversal(file, reparseDirectoryPrefixes);
+                string inputPath = relativeDirectoryPath + "/" + relativePath;
+                string contentHash = stampMemo.ResolveHash(inputPath, file, fileHasher);
+                AppendText(hash, inputPath);
+                AppendText(hash, contentHash);
+                inputHashes[inputPath] = contentHash;
             }
         }
 
@@ -253,11 +315,39 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="hash">Aggregate input hash.</param>
         /// <param name="relativePath">Project-relative file.</param>
-        void AppendFile(IncrementalHash hash, string relativePath) {
-            string fullPath = Path.Combine(ProjectRootPath, relativePath);
-            if (File.Exists(fullPath)) {
+        /// <param name="stampMemo">Memo pass supplying the remembered hash when the file is unchanged.</param>
+        /// <param name="fileHasher">Verified hasher used when the file changed.</param>
+        /// <param name="inputHashes">Receives the file's content hash by its appended path.</param>
+        void AppendFile(
+            IncrementalHash hash,
+            string relativePath,
+            EditorScenePackageInputStampMemo stampMemo,
+            AssetFileHasher fileHasher,
+            Dictionary<string, string> inputHashes) {
+            FileInfo file = new(Path.Combine(ProjectRootPath, relativePath));
+            if (file.Exists) {
+                string contentHash = stampMemo.ResolveHash(relativePath, file, fileHasher);
                 AppendText(hash, relativePath);
-                AppendText(hash, new AssetFileHasher(ProjectRootPath).ComputeHash(fullPath));
+                AppendText(hash, contentHash);
+                inputHashes[relativePath] = contentHash;
+            }
+        }
+
+        /// <summary>
+        /// Rejects a listed input that is itself a reparse point or lies beneath a reparse-point directory, matching
+        /// the verified read path, which refuses to traverse either.
+        /// </summary>
+        /// <param name="file">Listed input file.</param>
+        /// <param name="reparseDirectoryPrefixes">Reparse-point directories found by the same listing, with trailing separators.</param>
+        static void RejectReparseTraversal(FileInfo file, List<string> reparseDirectoryPrefixes) {
+            if ((file.Attributes & FileAttributes.ReparsePoint) != 0) {
+                throw new InvalidDataException($"The scene-package input '{file.FullName}' is a reparse point.");
+            }
+
+            for (int index = 0; index < reparseDirectoryPrefixes.Count; index++) {
+                if (file.FullName.StartsWith(reparseDirectoryPrefixes[index], StringComparison.OrdinalIgnoreCase)) {
+                    throw new InvalidDataException($"The scene-package input '{file.FullName}' traverses a reparse point.");
+                }
             }
         }
 

@@ -135,7 +135,7 @@ namespace helengine.editor {
                     effectiveExecutionRootPath);
                 scenePackageCache.Store(scenePackageKey, effectiveExecutionRootPath, packagerResult);
             }
-            Console.WriteLine($"[cook] scene-package-cache {(scenePackageCacheHit ? "hit" : "miss")} fingerprint-ms={fingerprintMilliseconds} total-ms={scenePackageTimer.ElapsedMilliseconds}");
+            Console.WriteLine($"[cook] scene-package-cache {(scenePackageCacheHit ? "hit" : "miss")} fingerprint-ms={fingerprintMilliseconds} inputs-hashed={scenePackageCache.LastHashedInputCount} inputs-reused={scenePackageCache.LastReusedInputCount} total-ms={scenePackageTimer.ElapsedMilliseconds}");
             PlatformCookWorkItem[] platformCookWorkItems = [.. packagerResult.PlatformCookWorkItems];
             System.Diagnostics.Stopwatch cookStageTimer = System.Diagnostics.Stopwatch.StartNew();
             PlatformCookedArtifactDeclaration[] cookedArtifactDeclarations = CookPlatformShaderArtifacts(
