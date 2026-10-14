@@ -29,16 +29,20 @@ PS_INPUT VS(VS_INPUT input)
 {
     PS_INPUT output;
     
+    // destRect.xy is the sprite's transformed top-left origin in Y-down screen pixels and the sprite rotates
+    // around it, matching the PS2 corner geometry: origin, origin + right * w, origin + right * w + down * h and
+    // origin + down * h, with right = (cos r, sin r) and down = (-sin r, cos r) in Y-down screen space.
     float4 dest = destRect;
-    float2 center = float2(dest.x + (dest.z * 0.5), -(dest.y + (dest.w * 0.5)));
-    float2 localOffset = input.pos.xy * dest.zw;
+    // The shared quad spans -0.5..0.5 with +y at its top; convert to 0..1 factors measured from the top-left, y down.
+    float2 cornerFactor = float2(input.pos.x + 0.5, 0.5 - input.pos.y);
     float rotation = spriteTransform.x;
     float rotationSin = sin(rotation);
     float rotationCos = cos(rotation);
-    float2 rotatedOffset = float2(
-        (localOffset.x * rotationCos) - (localOffset.y * rotationSin),
-        (localOffset.x * rotationSin) + (localOffset.y * rotationCos));
-    float2 destPos = center + rotatedOffset;
+    float2 right = float2(rotationCos, rotationSin) * (dest.z * cornerFactor.x);
+    float2 down = float2(-rotationSin, rotationCos) * (dest.w * cornerFactor.y);
+    float2 screenPos = dest.xy + right + down;
+    // The 2D projection maps screen y to negative world y.
+    float2 destPos = float2(screenPos.x, -screenPos.y);
     
     output.pos = mul(float4(destPos, input.pos.z, 1.0), world);
     
