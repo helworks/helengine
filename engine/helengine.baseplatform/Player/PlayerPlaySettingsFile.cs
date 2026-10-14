@@ -21,11 +21,13 @@ namespace helengine.baseplatform.Player {
         /// </summary>
         /// <param name="path">Absolute file path.</param>
         /// <param name="settings">Resolved settings.</param>
-        /// <exception cref="ArgumentException">Thrown when the path is blank.</exception>
+        /// <exception cref="ArgumentException">Thrown when the path is blank or not fully qualified.</exception>
         /// <exception cref="ArgumentNullException">Thrown when the settings are null.</exception>
         public static void Write(string path, PlayerPlaySettings settings) {
             if (string.IsNullOrWhiteSpace(path)) {
                 throw new ArgumentException("The Play settings file path is required.", nameof(path));
+            } else if (!Path.IsPathFullyQualified(path)) {
+                throw new ArgumentException($"The Play settings file path '{path}' must be absolute.", nameof(path));
             } else if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             }
@@ -56,46 +58,57 @@ namespace helengine.baseplatform.Player {
         /// <param name="path">Absolute file path.</param>
         /// <returns>The resolved settings.</returns>
         /// <exception cref="FileNotFoundException">Thrown when the file does not exist.</exception>
-        /// <exception cref="InvalidOperationException">Thrown for another version, an unknown or missing property, or a wrongly typed value.</exception>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown for malformed JSON, another version, an unknown or missing property, a wrongly typed value, or a value the
+        /// settings do not allow; every message names the file and the property.
+        /// </exception>
         public static PlayerPlaySettings Read(string path) {
             if (!File.Exists(path)) {
                 throw new FileNotFoundException("The Play settings file does not exist.", path);
             }
 
-            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
-            JsonElement root = document.RootElement;
-            if (root.ValueKind != JsonValueKind.Object) {
-                throw new InvalidOperationException($"Play settings file '{path}' must hold one JSON object.");
+            JsonDocument document;
+            try {
+                document = JsonDocument.Parse(File.ReadAllText(path));
+            } catch (JsonException exception) {
+                throw new InvalidOperationException($"Play settings file '{path}' contains malformed JSON.", exception);
             }
 
-            foreach (JsonProperty property in root.EnumerateObject()) {
-                if (Array.IndexOf(PropertyNames, property.Name) < 0) {
-                    throw new InvalidOperationException($"Play settings file '{path}' has unknown property '{property.Name}'.");
+            using (document) {
+                JsonElement root = document.RootElement;
+                if (root.ValueKind != JsonValueKind.Object) {
+                    throw new InvalidOperationException($"Play settings file '{path}' must hold one JSON object.");
                 }
-            }
 
-            int version = RequireProperty(root, "version", JsonValueKind.Number, path).GetInt32();
-            if (version != CurrentVersion) {
-                throw new InvalidOperationException($"Play settings file '{path}' has version {version}; this player reads version {CurrentVersion} only.");
-            }
-
-            Dictionary<string, string> platformValues = new Dictionary<string, string>(StringComparer.Ordinal);
-            foreach (JsonProperty entry in RequireProperty(root, "platform", JsonValueKind.Object, path).EnumerateObject()) {
-                if (entry.Value.ValueKind != JsonValueKind.String) {
-                    throw new InvalidOperationException($"Play settings file '{path}' platform value '{entry.Name}' must be a string.");
+                int version = RequireInt32(root, "version", path);
+                if (version != CurrentVersion) {
+                    throw new InvalidOperationException($"Play settings file '{path}' has version {version}; this player reads version {CurrentVersion} only.");
                 }
-                platformValues.Add(entry.Name, entry.Value.GetString());
-            }
 
-            return new PlayerPlaySettings(
-                PlayerWindowScaleText.Parse(RequireProperty(root, "windowScale", JsonValueKind.String, path).GetString()),
-                PlayerWindowMonitorText.Parse(RequireProperty(root, "windowMonitor", JsonValueKind.String, path).GetString()),
-                RequireProperty(root, "editorProcessId", JsonValueKind.Number, path).GetInt32(),
-                RequireBoolean(root, "waitForDebugger", path),
-                RequireBoolean(root, "shadowsEnabled", path),
-                RequireBoolean(root, "frameRateUnlimited", path),
-                RequireProperty(root, "targetFrameRate", JsonValueKind.Number, path).GetDouble(),
-                platformValues);
+                foreach (JsonProperty property in root.EnumerateObject()) {
+                    if (Array.IndexOf(PropertyNames, property.Name) < 0) {
+                        throw new InvalidOperationException($"Play settings file '{path}' has unknown property '{property.Name}'.");
+                    }
+                }
+
+                int editorProcessId = RequireInt32(root, "editorProcessId", path);
+                if (editorProcessId <= 0) {
+                    throw new InvalidOperationException($"Play settings file '{path}' property 'editorProcessId' is {editorProcessId}; it must be positive.");
+                }
+
+                bool frameRateUnlimited = RequireBoolean(root, "frameRateUnlimited", path);
+                double targetFrameRate = RequireFrameRate(root, frameRateUnlimited, path);
+
+                return new PlayerPlaySettings(
+                    RequireWindowScale(root, path),
+                    RequireWindowMonitor(root, path),
+                    editorProcessId,
+                    RequireBoolean(root, "waitForDebugger", path),
+                    RequireBoolean(root, "shadowsEnabled", path),
+                    frameRateUnlimited,
+                    targetFrameRate,
+                    RequirePlatformValues(root, path));
+            }
         }
 
         /// <summary>
@@ -115,6 +128,104 @@ namespace helengine.baseplatform.Player {
             }
 
             return value;
+        }
+
+        /// <summary>
+        /// Returns one required whole-number property that fits a 32-bit integer.
+        /// </summary>
+        /// <param name="root">Root object.</param>
+        /// <param name="name">Property name.</param>
+        /// <param name="path">File path reported on failure.</param>
+        /// <returns>The integer value.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the property is missing, not a number, fractional or out of range.</exception>
+        static int RequireInt32(JsonElement root, string name, string path) {
+            JsonElement value = RequireProperty(root, name, JsonValueKind.Number, path);
+            if (!value.TryGetInt32(out int number)) {
+                throw new InvalidOperationException($"Play settings file '{path}' property '{name}' is {value.GetRawText()}; it must be a whole number in the 32-bit integer range.");
+            }
+
+            return number;
+        }
+
+        /// <summary>
+        /// Returns the required target frame rate, checked against the frame-rate mode: 0 exactly when unlimited, otherwise a
+        /// positive finite rate.
+        /// </summary>
+        /// <param name="root">Root object.</param>
+        /// <param name="frameRateUnlimited">Whether the file declares an unlimited frame rate.</param>
+        /// <param name="path">File path reported on failure.</param>
+        /// <returns>The target frame rate.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the rate is missing, not a number, or inconsistent with the mode.</exception>
+        static double RequireFrameRate(JsonElement root, bool frameRateUnlimited, string path) {
+            JsonElement value = RequireProperty(root, "targetFrameRate", JsonValueKind.Number, path);
+            if (!value.TryGetDouble(out double rate) || !double.IsFinite(rate)) {
+                throw new InvalidOperationException($"Play settings file '{path}' property 'targetFrameRate' is {value.GetRawText()}; it must be a finite number.");
+            } else if (frameRateUnlimited && rate != 0d) {
+                throw new InvalidOperationException($"Play settings file '{path}' property 'targetFrameRate' is {value.GetRawText()} but 'frameRateUnlimited' is true; an unlimited frame rate carries a target of 0.");
+            } else if (!frameRateUnlimited && rate <= 0d) {
+                throw new InvalidOperationException($"Play settings file '{path}' property 'targetFrameRate' is {value.GetRawText()}; a paced frame rate needs a positive target.");
+            }
+
+            return rate;
+        }
+
+        /// <summary>
+        /// Returns the required <c>windowScale</c> property, matched against the text of every defined window scale.
+        /// </summary>
+        /// <param name="root">Root object.</param>
+        /// <param name="path">File path reported on failure.</param>
+        /// <returns>The window scale.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the property is missing, not a string, or not a window scale.</exception>
+        static PlayerWindowScale RequireWindowScale(JsonElement root, string path) {
+            string text = RequireProperty(root, "windowScale", JsonValueKind.String, path).GetString();
+            foreach (PlayerWindowScale scale in Enum.GetValues<PlayerWindowScale>()) {
+                if (string.Equals(PlayerWindowScaleText.Format(scale), text, StringComparison.Ordinal)) {
+                    return scale;
+                }
+            }
+
+            throw new InvalidOperationException($"Play settings file '{path}' property 'windowScale' has unknown value '{text}'; expected 1x, 2x, 3x, 4x or fit.");
+        }
+
+        /// <summary>
+        /// Returns the required <c>windowMonitor</c> property, matched against the text of every defined monitor choice.
+        /// </summary>
+        /// <param name="root">Root object.</param>
+        /// <param name="path">File path reported on failure.</param>
+        /// <returns>The monitor choice.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the property is missing, not a string, or not a monitor choice.</exception>
+        static PlayerWindowMonitor RequireWindowMonitor(JsonElement root, string path) {
+            string text = RequireProperty(root, "windowMonitor", JsonValueKind.String, path).GetString();
+            foreach (PlayerWindowMonitor monitor in Enum.GetValues<PlayerWindowMonitor>()) {
+                if (string.Equals(PlayerWindowMonitorText.Format(monitor), text, StringComparison.Ordinal)) {
+                    return monitor;
+                }
+            }
+
+            throw new InvalidOperationException($"Play settings file '{path}' property 'windowMonitor' has unknown value '{text}'; expected editor or primary.");
+        }
+
+        /// <summary>
+        /// Returns the required <c>platform</c> object as setting values keyed by id, rejecting blank, repeated or
+        /// non-string entries.
+        /// </summary>
+        /// <param name="root">Root object.</param>
+        /// <param name="path">File path reported on failure.</param>
+        /// <returns>The platform values.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the object is missing or holds an invalid entry.</exception>
+        static Dictionary<string, string> RequirePlatformValues(JsonElement root, string path) {
+            Dictionary<string, string> platformValues = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (JsonProperty entry in RequireProperty(root, "platform", JsonValueKind.Object, path).EnumerateObject()) {
+                if (string.IsNullOrWhiteSpace(entry.Name)) {
+                    throw new InvalidOperationException($"Play settings file '{path}' property 'platform' has blank id '{entry.Name}'.");
+                } else if (entry.Value.ValueKind != JsonValueKind.String) {
+                    throw new InvalidOperationException($"Play settings file '{path}' property 'platform' id '{entry.Name}' must be a string.");
+                } else if (!platformValues.TryAdd(entry.Name, entry.Value.GetString())) {
+                    throw new InvalidOperationException($"Play settings file '{path}' property 'platform' repeats id '{entry.Name}'.");
+                }
+            }
+
+            return platformValues;
         }
 
         /// <summary>

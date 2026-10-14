@@ -55,12 +55,83 @@ namespace helengine.baseplatform.tests.Player {
         /// <summary>A file of another version is rejected, naming the file and the version.</summary>
         [Fact]
         public void Read_WhenVersionIsNotCurrent_ThrowsNamingFileAndVersion() {
-            string path = WriteRaw("v2.json", "{\"version\":2}");
+            string path = WriteRaw("future.json", "{\"version\":2}");
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => PlayerPlaySettingsFile.Read(path));
 
             Assert.Contains(path, exception.Message);
-            Assert.Contains("2", exception.Message);
+            Assert.Contains("version 2", exception.Message);
+        }
+
+        /// <summary>
+        /// A file of another version that also carries properties this version does not know is reported by its version,
+        /// the real cause, rather than by its first unknown property.
+        /// </summary>
+        [Fact]
+        public void Read_WhenVersionIsNotCurrentAndPropertyUnknown_ReportsVersion() {
+            string path = WriteRaw("future-shape.json", "{\"newSetting\":true,\"version\":2}");
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => PlayerPlaySettingsFile.Read(path));
+
+            Assert.Contains(path, exception.Message);
+            Assert.Contains("version 2", exception.Message);
+            Assert.DoesNotContain("newSetting", exception.Message);
+        }
+
+        /// <summary>Malformed JSON fails naming the file, keeping the parser error as the inner exception.</summary>
+        [Fact]
+        public void Read_WhenJsonMalformed_ThrowsNamingFile() {
+            string path = WriteRaw("truncated.json", "{\"version\": 1, \"windowScale\": ");
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => PlayerPlaySettingsFile.Read(path));
+
+            Assert.Contains(path, exception.Message);
+            Assert.IsAssignableFrom<System.Text.Json.JsonException>(exception.InnerException);
+        }
+
+        /// <summary>
+        /// Every value the reader rejects fails as one error naming the file, the field and the offending value, instead of
+        /// escaping as a parser or constructor error that names neither.
+        /// </summary>
+        /// <param name="find">Text of the valid file to replace.</param>
+        /// <param name="replacement">Invalid replacement text.</param>
+        /// <param name="field">Field the error must name.</param>
+        /// <param name="value">Offending value the error must name.</param>
+        [Theory]
+        [InlineData("\"version\": 1,", "\"version\": 1.0,", "version", "1.0")]
+        [InlineData("\"editorProcessId\": 4242,", "\"editorProcessId\": 4242.0,", "editorProcessId", "4242.0")]
+        [InlineData("\"editorProcessId\": 4242,", "\"editorProcessId\": 99999999999,", "editorProcessId", "99999999999")]
+        [InlineData("\"editorProcessId\": 4242,", "\"editorProcessId\": 0,", "editorProcessId", "0")]
+        [InlineData("\"windowScale\": \"3x\"", "\"windowScale\": \"5x\"", "windowScale", "5x")]
+        [InlineData("\"windowMonitor\": \"primary\"", "\"windowMonitor\": \"secondary\"", "windowMonitor", "secondary")]
+        [InlineData("\"targetFrameRate\": 59.94", "\"targetFrameRate\": 0", "targetFrameRate", "0")]
+        [InlineData("\"frameRateUnlimited\": false", "\"frameRateUnlimited\": true", "targetFrameRate", "59.94")]
+        [InlineData("\"screen-gap\": \"8\"", "\"screen-gap\": \"8\", \"screen-gap\": \"9\"", "platform", "screen-gap")]
+        [InlineData("\"screen-gap\": \"8\"", "\" \": \"8\"", "platform", "' '")]
+        public void Read_WhenValueInvalid_ThrowsNamingFileFieldAndValue(string find, string replacement, string field, string value) {
+            string path = Path.Combine(Root, "invalid-value.json");
+            PlayerPlaySettingsFile.Write(path, new PlayerPlaySettings(
+                PlayerWindowScale.Three, PlayerWindowMonitor.Primary, 4242, false, true, false, 59.94d,
+                new Dictionary<string, string> { ["screen-gap"] = "8" }));
+            string json = File.ReadAllText(path);
+            Assert.Contains(find, json);
+            File.WriteAllText(path, json.Replace(find, replacement));
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => PlayerPlaySettingsFile.Read(path));
+
+            Assert.Contains(path, exception.Message);
+            Assert.Contains("'" + field + "'", exception.Message);
+            Assert.Contains(value, exception.Message);
+        }
+
+        /// <summary>Writing to a bare file name is rejected naming that path, because the file must have a known location.</summary>
+        [Fact]
+        public void Write_WhenPathNotFullyQualified_ThrowsNamingPath() {
+            ArgumentException exception = Assert.Throws<ArgumentException>(() => PlayerPlaySettingsFile.Write(
+                "play-settings.json",
+                new PlayerPlaySettings(PlayerWindowScale.Fit, PlayerWindowMonitor.Editor, 1, false, true, false, 60d, new Dictionary<string, string>())));
+
+            Assert.Contains("play-settings.json", exception.Message);
         }
 
         /// <summary>An unknown property is rejected, naming it.</summary>
