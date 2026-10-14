@@ -118,6 +118,42 @@ namespace helengine.editor.tests.managers.asset {
                 $"Batched {batched.ElapsedMilliseconds} ms was not clearly faster than unbatched {unbatched.ElapsedMilliseconds} ms.");
         }
 
+        /// <summary>
+        /// Ensures the asset hasher reuses the batch's per-directory scope and returns the same hash as an unbatched
+        /// verified read, and that the batch is markedly cheaper for many files in one directory.
+        /// </summary>
+        [Fact]
+        public void AssetFileHasher_WhenBatched_ReturnsTheUnbatchedHashFaster() {
+            string directory = Path.Combine(ProjectRootPath, "assets", "hashed");
+            Directory.CreateDirectory(directory);
+            string[] files = new string[200];
+            for (int index = 0; index < files.Length; index++) {
+                files[index] = Path.Combine(directory, $"file{index}.txt");
+                File.WriteAllText(files[index], index.ToString());
+            }
+
+            AssetFileHasher hasher = new AssetFileHasher(ProjectRootPath);
+            string[] unbatchedHashes = new string[files.Length];
+            Stopwatch unbatched = Stopwatch.StartNew();
+            for (int index = 0; index < files.Length; index++) {
+                unbatchedHashes[index] = hasher.ComputeHash(files[index]);
+            }
+            unbatched.Stop();
+
+            string[] batchedHashes = new string[files.Length];
+            Stopwatch batched = Stopwatch.StartNew();
+            using (EditorAuthoringReadBatch.Begin(ProjectRootPath)) {
+                for (int index = 0; index < files.Length; index++) {
+                    batchedHashes[index] = hasher.ComputeHash(files[index]);
+                }
+            }
+            batched.Stop();
+
+            Assert.Equal(unbatchedHashes, batchedHashes);
+            Assert.True(batched.ElapsedMilliseconds * 3 < unbatched.ElapsedMilliseconds + 30,
+                $"Batched {batched.ElapsedMilliseconds} ms was not clearly faster than unbatched {unbatched.ElapsedMilliseconds} ms.");
+        }
+
         string ReadText(string path) {
             return System.Text.Encoding.UTF8.GetString(EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, path));
         }

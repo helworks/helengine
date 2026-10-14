@@ -94,6 +94,9 @@ namespace helengine.editor {
                 AppendText(hash, Convert.ToHexString(SHA256.HashData(fontStream.ToArray())));
             }
 
+            // One read batch verifies and pins each assets directory chain once for the whole key instead of once
+            // per hashed file; every leaf is still checked and opened through a verified handle.
+            using EditorAuthoringReadBatch readBatch = EditorAuthoringReadBatch.Begin(ProjectRootPath);
             AppendDirectory(hash, "assets", skipTemporaryGeneratedScenes: true);
             AppendDirectory(hash, "settings", skipTemporaryGeneratedScenes: false);
             AppendDirectory(hash, "helenui", skipTemporaryGeneratedScenes: false);
