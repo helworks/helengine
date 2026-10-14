@@ -3,8 +3,8 @@ namespace helengine.editor {
     /// Builds the runtime script modules for editor Play, but only when a script input changed. Moving an object or
     /// otherwise editing a scene must not rebuild scripts, so the builder fingerprints exactly the inputs that change the
     /// compiled modules: every <c>.cs</c> source and <c>code.module.json</c> manifest under the project's assets, the
-    /// resolved gameplay symbol set for the platform and environment, and the engine assemblies the modules reference.
-    /// A matching fingerprint with every module assembly present skips the compile; any mismatch deletes the previous
+    /// resolved gameplay symbol set for the platform and environment, and the content of the engine assemblies the
+    /// modules reference. A matching fingerprint with every module assembly present skips the compile; any mismatch deletes the previous
     /// Play output (so assemblies of removed modules can never be loaded) and compiles from scratch, and the fingerprint
     /// is stored only after a successful compile.
     /// </summary>
@@ -17,9 +17,10 @@ namespace helengine.editor {
         /// <summary>
         /// Version token mixed into every fingerprint; bump it when the fingerprint inputs or the published module layout
         /// change meaning. Version 2: modules publish flat as <c>&lt;moduleId&gt;/&lt;moduleId&gt;.dll</c> instead of
-        /// below <c>Debug/net9.0</c>, so outputs fingerprinted under version 1 are always rebuilt.
+        /// below <c>Debug/net9.0</c>, so outputs fingerprinted under version 1 are always rebuilt. Version 3: engine
+        /// assemblies are identified by content instead of path, length and timestamp.
         /// </summary>
-        const string FingerprintVersionToken = "play-script-fingerprint=2";
+        const string FingerprintVersionToken = "play-script-fingerprint=3";
 
         /// <summary>
         /// Project-relative folder that holds every authored script and code module manifest.
@@ -52,6 +53,11 @@ namespace helengine.editor {
         readonly EditorCodeModuleManifestService ModuleManifestService;
 
         /// <summary>
+        /// Engine assemblies every runtime module references; a change to their bytes invalidates the Play modules.
+        /// </summary>
+        readonly IReadOnlyList<string> EngineAssemblyPaths;
+
+        /// <summary>
         /// Initializes the Play script builder.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative authored project root.</param>
@@ -59,7 +65,25 @@ namespace helengine.editor {
         /// <param name="environmentIdResolver">Resolves the selected environment id for a platform; empty means none.</param>
         /// <exception cref="ArgumentException">Thrown when the project root is blank.</exception>
         /// <exception cref="ArgumentNullException">Thrown when the compiler or environment resolver is null.</exception>
-        public EditorPlayScriptBuilder(string projectRootPath, IEditorPlayScriptCompiler compiler, Func<string, string> environmentIdResolver) {
+        public EditorPlayScriptBuilder(string projectRootPath, IEditorPlayScriptCompiler compiler, Func<string, string> environmentIdResolver)
+            : this(projectRootPath, compiler, environmentIdResolver, EditorGameSolutionService.ResolveRuntimeEngineAssemblyPaths()) {
+        }
+
+        /// <summary>
+        /// Initializes the Play script builder with an explicit set of engine assemblies to fingerprint, so tests can
+        /// stand in scratch files for the real engine assemblies.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative authored project root.</param>
+        /// <param name="compiler">Compiler that builds and publishes the runtime modules.</param>
+        /// <param name="environmentIdResolver">Resolves the selected environment id for a platform; empty means none.</param>
+        /// <param name="engineAssemblyPaths">Engine assemblies the runtime modules reference, fingerprinted by content.</param>
+        /// <exception cref="ArgumentException">Thrown when the project root is blank.</exception>
+        /// <exception cref="ArgumentNullException">Thrown when the compiler, environment resolver or assembly list is null.</exception>
+        internal EditorPlayScriptBuilder(
+            string projectRootPath,
+            IEditorPlayScriptCompiler compiler,
+            Func<string, string> environmentIdResolver,
+            IReadOnlyList<string> engineAssemblyPaths) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -67,6 +91,7 @@ namespace helengine.editor {
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             Compiler = compiler ?? throw new ArgumentNullException(nameof(compiler));
             EnvironmentIdResolver = environmentIdResolver ?? throw new ArgumentNullException(nameof(environmentIdResolver));
+            EngineAssemblyPaths = engineAssemblyPaths ?? throw new ArgumentNullException(nameof(engineAssemblyPaths));
             ModuleManifestService = new EditorCodeModuleManifestService(ProjectRootPath);
         }
 
@@ -119,14 +144,14 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="platformId">Platform whose gameplay symbols are defined.</param>
         /// <param name="environmentId">Selected project environment, or empty when none is selected.</param>
-        /// <returns>Fingerprint inputs: manifests by content, sources by stamp, engine assemblies by stamp, and symbols.</returns>
+        /// <returns>Fingerprint inputs: manifests by content, sources by stamp, engine assemblies by content, and symbols.</returns>
         EditorScriptBuildInputs DescribeBuildInputs(string platformId, string environmentId) {
             string assetsRootPath = Path.Combine(ProjectRootPath, AssetsFolderName);
             string[] manifestFilePaths = Directory.Exists(assetsRootPath)
                 ? Directory.GetFiles(assetsRootPath, ModuleManifestFileName, SearchOption.AllDirectories)
                 : Array.Empty<string>();
             IReadOnlyList<string> gameplaySymbols = EditorPlatformPreprocessorSymbolService.ResolveGameplaySymbols(platformId, environmentId);
-            List<string> tokens = new List<string>(gameplaySymbols.Count + 3) {
+            List<string> tokens = new List<string>(gameplaySymbols.Count + EngineAssemblyPaths.Count + 3) {
                 FingerprintVersionToken,
                 "platform=" + platformId,
                 "environment=" + environmentId
@@ -135,10 +160,17 @@ namespace helengine.editor {
                 tokens.Add("symbol=" + gameplaySymbols[index]);
             }
 
+            // Engine assemblies are identified by content, not timestamp: an engine rebuild that changes nothing
+            // rewrites byte-identical assemblies and must not trigger a script rebuild.
+            for (int index = 0; index < EngineAssemblyPaths.Count; index++) {
+                string engineAssemblyPath = Path.GetFullPath(EngineAssemblyPaths[index]);
+                tokens.Add("engine=" + engineAssemblyPath + "|" + EditorScriptBuildFingerprint.DescribeFileContent(engineAssemblyPath));
+            }
+
             return new EditorScriptBuildInputs(
                 manifestFilePaths,
                 new[] { assetsRootPath },
-                EditorGameSolutionService.ResolveRuntimeEngineAssemblyPaths(),
+                Array.Empty<string>(),
                 tokens);
         }
 

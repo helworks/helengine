@@ -223,6 +223,25 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Describes one file by its content rather than its timestamp: the SHA-256 of its bytes, or <c>missing</c> when
+        /// it does not exist. Rebuilding a deterministic assembly without changing its sources rewrites identical bytes
+        /// with a new timestamp, so this identity survives a no-op rebuild yet changes on any real change.
+        /// </summary>
+        /// <param name="filePath">Absolute path of the file to describe.</param>
+        /// <returns>Lowercase hexadecimal SHA-256 of the file's bytes, or <c>missing</c>.</returns>
+        public static string DescribeFileContent(string filePath) {
+            if (string.IsNullOrWhiteSpace(filePath)) {
+                throw new ArgumentException("File path must be provided.", nameof(filePath));
+            }
+            if (!File.Exists(filePath)) {
+                return "missing";
+            }
+
+            using FileStream stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+        }
+
+        /// <summary>
         /// Appends one file's identity, size, and last-write time; missing files are recorded as such.
         /// </summary>
         static void AppendFileStamp(IncrementalHash hash, string kind, string filePath) {

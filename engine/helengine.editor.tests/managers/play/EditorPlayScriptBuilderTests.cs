@@ -156,6 +156,42 @@ public sealed class EditorPlayScriptBuilderTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures rebuilding the engine without changing it, which rewrites its assemblies with identical bytes and a new
+    /// timestamp, does not rebuild the Play scripts.
+    /// </summary>
+    [Fact]
+    public void Build_WhenEngineAssemblyTimestampChangesWithoutContentChange_DoesNotCompileAgain() {
+        string engineAssemblyPath = WriteEngineAssembly(new byte[] { 1, 2, 3, 4 });
+        FakePlayScriptCompiler compiler = CreateCompiler();
+        EditorPlayScriptBuilder builder = CreateBuilder(compiler, engineAssemblyPath);
+        builder.Build(PlatformId, out _);
+
+        File.SetLastWriteTimeUtc(engineAssemblyPath, File.GetLastWriteTimeUtc(engineAssemblyPath).AddMinutes(5));
+        EditorBuildExecutionResult second = builder.Build(PlatformId, out _);
+
+        Assert.True(second.Succeeded);
+        Assert.Single(compiler.CompiledEnvironmentIds);
+    }
+
+    /// <summary>
+    /// Ensures an engine assembly whose bytes changed, even with the same length and timestamp, rebuilds the Play scripts.
+    /// </summary>
+    [Fact]
+    public void Build_WhenEngineAssemblyContentChanges_CompilesAgain() {
+        string engineAssemblyPath = WriteEngineAssembly(new byte[] { 1, 2, 3, 4 });
+        FakePlayScriptCompiler compiler = CreateCompiler();
+        EditorPlayScriptBuilder builder = CreateBuilder(compiler, engineAssemblyPath);
+        builder.Build(PlatformId, out _);
+
+        DateTime originalWriteTimeUtc = File.GetLastWriteTimeUtc(engineAssemblyPath);
+        File.WriteAllBytes(engineAssemblyPath, new byte[] { 4, 3, 2, 1 });
+        File.SetLastWriteTimeUtc(engineAssemblyPath, originalWriteTimeUtc);
+        builder.Build(PlatformId, out _);
+
+        Assert.Equal(2, compiler.CompiledEnvironmentIds.Count);
+    }
+
+    /// <summary>
     /// Ensures a missing module assembly forces a compile even when the fingerprint still matches.
     /// </summary>
     [Fact]
@@ -203,5 +239,28 @@ public sealed class EditorPlayScriptBuilderTests : IDisposable {
     /// <returns>Builder under test.</returns>
     EditorPlayScriptBuilder CreateBuilder(FakePlayScriptCompiler compiler) {
         return new EditorPlayScriptBuilder(ProjectRootPath, compiler, platformId => EnvironmentId);
+    }
+
+    /// <summary>
+    /// Creates the builder under test fingerprinting one scratch engine assembly instead of the real engine assemblies.
+    /// </summary>
+    /// <param name="compiler">Compiler seam used instead of <c>dotnet build</c>.</param>
+    /// <param name="engineAssemblyPath">Scratch file standing in for an engine assembly the modules reference.</param>
+    /// <returns>Builder under test.</returns>
+    EditorPlayScriptBuilder CreateBuilder(FakePlayScriptCompiler compiler, string engineAssemblyPath) {
+        return new EditorPlayScriptBuilder(ProjectRootPath, compiler, platformId => EnvironmentId, new[] { engineAssemblyPath });
+    }
+
+    /// <summary>
+    /// Writes a scratch stand-in for an engine assembly outside the project.
+    /// </summary>
+    /// <param name="contents">Bytes of the stand-in assembly.</param>
+    /// <returns>Absolute path of the written file.</returns>
+    string WriteEngineAssembly(byte[] contents) {
+        string engineDirectoryPath = Path.Combine(ScratchRootPath, "engine");
+        Directory.CreateDirectory(engineDirectoryPath);
+        string engineAssemblyPath = Path.Combine(engineDirectoryPath, "helengine.core.dll");
+        File.WriteAllBytes(engineAssemblyPath, contents);
+        return engineAssemblyPath;
     }
 }
