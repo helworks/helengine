@@ -492,6 +492,10 @@ namespace helengine.editor {
         /// </summary>
         SceneSettingsDialog sceneSettingsDialog;
         /// <summary>
+        /// Dialog that edits the selected Play platform's Play settings.
+        /// </summary>
+        PlaySettingsDialog playSettingsDialog;
+        /// <summary>
         /// Per-user Play settings in user_settings/play.json.
         /// </summary>
         EditorPlaySettingsStore PlaySettingsStore;
@@ -996,6 +1000,8 @@ namespace helengine.editor {
             RegisterScaleSensitiveDialogCleanup(constructionLedger, unsavedChangesDialog.Dispose, hide: unsavedChangesDialog.Hide);
             sceneSettingsDialog = new SceneSettingsDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, sceneSettingsDialog.Dispose, hide: sceneSettingsDialog.Hide);
+            playSettingsDialog = new PlaySettingsDialog(core, interactionServices, uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(constructionLedger, playSettingsDialog.Dispose, hide: playSettingsDialog.Hide);
             projectSettingsDialog = new ProjectSettingsDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, projectSettingsDialog.Dispose, hide: projectSettingsDialog.Hide);
             preferencesDialog = new EditorPreferencesDialog(core, interactionServices, uiFont, CurrentUiMetrics);
@@ -1679,6 +1685,7 @@ namespace helengine.editor {
             buildDialogCopySettingsDialog?.UpdateLayout(width, height);
             unsavedChangesDialog?.UpdateLayout(width, height);
             sceneSettingsDialog?.UpdateLayout(width, height);
+            playSettingsDialog?.UpdateLayout(width, height);
             projectSettingsDialog?.UpdateLayout(width, height);
             preferencesDialog?.UpdateLayout(width, height);
             IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
@@ -1844,6 +1851,9 @@ namespace helengine.editor {
             if (sceneSettingsDialog != null) {
                 RegisterScaleSensitiveDialogCleanup(ledger, sceneSettingsDialog.Dispose, hide: sceneSettingsDialog.Hide);
             }
+            if (playSettingsDialog != null) {
+                RegisterScaleSensitiveDialogCleanup(ledger, playSettingsDialog.Dispose, hide: playSettingsDialog.Hide);
+            }
         }
 
         void AttachScaleSensitiveDialogHandlers() {
@@ -1922,6 +1932,12 @@ namespace helengine.editor {
                 sceneSettingsDialog.ConfirmRequested += HandleSceneSettingsDialogConfirmed;
                 RegisterDetacher(ConstructionLedger, () => sceneSettingsDialog.CancelRequested -= HandleSceneSettingsDialogCanceled);
                 sceneSettingsDialog.CancelRequested += HandleSceneSettingsDialogCanceled;
+            }
+            if (playSettingsDialog != null) {
+                RegisterDetacher(ConstructionLedger, () => playSettingsDialog.SaveRequested -= HandlePlaySettingsDialogSaveRequested);
+                playSettingsDialog.SaveRequested += HandlePlaySettingsDialogSaveRequested;
+                RegisterDetacher(ConstructionLedger, () => playSettingsDialog.CancelRequested -= HandlePlaySettingsDialogCancelRequested);
+                playSettingsDialog.CancelRequested += HandlePlaySettingsDialogCancelRequested;
             }
             if (projectSettingsDialog != null) {
                 RegisterDetacher(ConstructionLedger, () => projectSettingsDialog.ConfirmRequested -= HandleProjectSettingsDialogConfirmed);
@@ -2040,6 +2056,8 @@ namespace helengine.editor {
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, unsavedChangesDialog.Dispose, hide: unsavedChangesDialog.Hide);
             sceneSettingsDialog = new SceneSettingsDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, sceneSettingsDialog.Dispose, hide: sceneSettingsDialog.Hide);
+            playSettingsDialog = new PlaySettingsDialog(core, interactionServices, uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(ConstructionLedger, playSettingsDialog.Dispose, hide: playSettingsDialog.Hide);
             projectSettingsDialog = new ProjectSettingsDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, projectSettingsDialog.Dispose, hide: projectSettingsDialog.Hide);
             preferencesDialog = new EditorPreferencesDialog(core, interactionServices, uiFont, CurrentUiMetrics);
@@ -2556,6 +2574,8 @@ namespace helengine.editor {
                 viewport.StopRequested += HandleStopRequested;
                 RegisterDetacher(ConstructionLedger, () => viewport.PlayPlatformSelected -= HandlePlayPlatformSelected);
                 viewport.PlayPlatformSelected += HandlePlayPlatformSelected;
+                RegisterDetacher(ConstructionLedger, () => viewport.PlaySettingsRequested -= HandlePlaySettingsRequested);
+                viewport.PlaySettingsRequested += HandlePlaySettingsRequested;
                 return;
             }
             if (string.Equals(instance.PanelTypeId, PropertiesPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
@@ -2590,6 +2610,7 @@ namespace helengine.editor {
                 viewport.PlayRequested -= HandlePlayRequested;
                 viewport.StopRequested -= HandleStopRequested;
                 viewport.PlayPlatformSelected -= HandlePlayPlatformSelected;
+                viewport.PlaySettingsRequested -= HandlePlaySettingsRequested;
                 return;
             }
             if (string.Equals(instance.PanelTypeId, PropertiesPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
@@ -3291,6 +3312,10 @@ namespace helengine.editor {
                 return true;
             }
 
+            if (playSettingsDialog != null && playSettingsDialog.Enabled) {
+                return true;
+            }
+
             if (preferencesDialog != null && preferencesDialog.Enabled) {
                 return true;
             }
@@ -3798,6 +3823,48 @@ namespace helengine.editor {
             }
 
             RefreshPlayButtons();
+        }
+
+        /// <summary>
+        /// Opens the Play Settings dialog for the platform selected in the Play platform selector. A Play settings file
+        /// that is broken (malformed, unknown version or unknown common id) cannot be edited here and is reported instead.
+        /// </summary>
+        void HandlePlaySettingsRequested() {
+            if (!PlayPlatformSelection.HasSelection) {
+                Logger.WriteError("No installed project platform supports Play.");
+                return;
+            }
+
+            EditorPlayPlatformOption option = PlayPlatformSelection.SelectedOption;
+            EditorPlaySettingsDialogModel model;
+            try {
+                model = new EditorPlaySettingsDialogModel(option.PlatformId, option.DisplayName, option.PlayerCapability, PlaySettingsStore.Load(), PlaySettingsStore.FilePath);
+            } catch (InvalidOperationException exception) {
+                Logger.WriteError("Play Settings cannot open: " + exception.Message);
+                return;
+            }
+
+            playSettingsDialog.Show(model);
+        }
+
+        /// <summary>
+        /// Saves the dialog's Play settings to user_settings/play.json and closes the dialog. The next Play uses them; a
+        /// Play already preparing keeps the settings captured when it was pressed. A rejected value, or a file that cannot
+        /// be written, keeps the dialog open with the reason (naming play.json) in its status line.
+        /// </summary>
+        /// <param name="model">Model of the dialog being saved.</param>
+        void HandlePlaySettingsDialogSaveRequested(EditorPlaySettingsDialogModel model) {
+            if (!playSettingsDialog.TrySave(PlaySettingsStore)) {
+                return;
+            }
+
+            playSettingsDialog.Hide();
+            Logger.WriteLine("[play] Play settings saved to " + model.FilePath);
+        }
+
+        /// <summary>Closes the Play Settings dialog without saving.</summary>
+        void HandlePlaySettingsDialogCancelRequested() {
+            playSettingsDialog.Hide();
         }
 
         /// <summary>
