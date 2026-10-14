@@ -1550,7 +1550,7 @@ namespace helengine.vulkan {
         /// <param name="height">Height in pixels.</param>
         /// <param name="uvRect">Source UV rectangle.</param>
         /// <param name="color">Vertex color modulation.</param>
-        /// <param name="rotation">Rotation, in radians, applied around the quad center.</param>
+        /// <param name="rotation">Rotation, in radians, applied around the quad's top-left origin.</param>
         unsafe void DrawQuad(VulkanTextureResource texture, double x, double y, double width, double height, float4 uvRect, byte4 color, float rotation) {
             if (CurrentViewportWidth <= 0.0 || CurrentViewportHeight <= 0.0) {
                 return;
@@ -1560,26 +1560,23 @@ namespace helengine.vulkan {
                 throw new InvalidOperationException("Exceeded the Vulkan 2D per-frame quad capacity.");
             }
 
-            double halfWidth = width * 0.5;
-            double halfHeight = height * 0.5;
-            double centerX = x + halfWidth;
-            double centerY = y + halfHeight;
+            // The quad rotates around its transformed top-left origin, matching the PS2 corner geometry:
+            // right = (cos r, sin r) and down = (-sin r, cos r) in Y-down screen space.
             double rotationSin = Math.Sin(rotation);
             double rotationCos = Math.Cos(rotation);
+            double rightX = rotationCos * width;
+            double rightY = rotationSin * width;
+            double downX = -rotationSin * height;
+            double downY = rotationCos * height;
 
-            double left = -halfWidth;
-            double right = halfWidth;
-            double top = -halfHeight;
-            double bottom = halfHeight;
-
-            double topLeftX = centerX + ((left * rotationCos) - (top * rotationSin));
-            double topLeftY = centerY + ((left * rotationSin) + (top * rotationCos));
-            double topRightX = centerX + ((right * rotationCos) - (top * rotationSin));
-            double topRightY = centerY + ((right * rotationSin) + (top * rotationCos));
-            double bottomRightX = centerX + ((right * rotationCos) - (bottom * rotationSin));
-            double bottomRightY = centerY + ((right * rotationSin) + (bottom * rotationCos));
-            double bottomLeftX = centerX + ((left * rotationCos) - (bottom * rotationSin));
-            double bottomLeftY = centerY + ((left * rotationSin) + (bottom * rotationCos));
+            double topLeftX = x;
+            double topLeftY = y;
+            double topRightX = x + rightX;
+            double topRightY = y + rightY;
+            double bottomRightX = x + rightX + downX;
+            double bottomRightY = y + rightY + downY;
+            double bottomLeftX = x + downX;
+            double bottomLeftY = y + downY;
 
             float ndcTopLeftX = (float)ComputeNdcX(topLeftX);
             float ndcTopLeftY = (float)ComputeNdcY(topLeftY);
