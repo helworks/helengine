@@ -28,15 +28,21 @@ namespace helengine.baseplatform.Definitions {
         /// Platform version the platform's native runtime reports to the core through <c>PlatformInfo.Version</c>
         /// (PS2: <c>1.0.0</c>). The desktop player reports the same version. Required when Play is supported.
         /// </param>
+        /// <param name="playSettings">
+        /// Platform-specific Play settings (for example PS2 <c>video-mode</c>); may be empty, never null. Ids must be unique
+        /// and must not reuse a <see cref="PlayerCommonPlaySettings"/> id. A platform that does not support Play declares none.
+        /// </param>
         /// <exception cref="ArgumentException">
         /// Thrown when Play is supported but the adapter type name, content root, runtime platform name or runtime platform
-        /// version is blank, or no input device is declared.
+        /// version is blank, or no input device is declared; or when a Play setting declaration is inconsistent, repeats an
+        /// id, reuses a common Play setting id, or is declared by a platform that does not support Play.
         /// </exception>
+        /// <exception cref="ArgumentNullException">Thrown when the Play settings array is null.</exception>
         /// <exception cref="ArgumentOutOfRangeException">
         /// Thrown when Play is supported but the target frame rate is not a positive, finite number, or the device set contains
         /// bits that name no known device.
         /// </exception>
-        public PlatformPlayerCapability(bool supportsPlay, string adapterTypeName, string contentRootRelativePath, double targetFrameRate, PlayerInputDevices inputDevices, string runtimePlatformName, string runtimePlatformVersion) {
+        public PlatformPlayerCapability(bool supportsPlay, string adapterTypeName, string contentRootRelativePath, double targetFrameRate, PlayerInputDevices inputDevices, string runtimePlatformName, string runtimePlatformVersion, PlatformSettingDefinition[] playSettings) {
             if (supportsPlay && string.IsNullOrWhiteSpace(adapterTypeName)) {
                 throw new ArgumentException("A platform that supports Play must name its player adapter type.", nameof(adapterTypeName));
             } else if (supportsPlay && string.IsNullOrWhiteSpace(contentRootRelativePath)) {
@@ -57,6 +63,21 @@ namespace helengine.baseplatform.Definitions {
                 throw new ArgumentException("A platform that supports Play must name the platform its native runtime reports to the core.", nameof(runtimePlatformName));
             } else if (supportsPlay && string.IsNullOrWhiteSpace(runtimePlatformVersion)) {
                 throw new ArgumentException("A platform that supports Play must name the platform version its native runtime reports to the core.", nameof(runtimePlatformVersion));
+            } else if (playSettings == null) {
+                throw new ArgumentNullException(nameof(playSettings), "Play settings are required; pass an empty array when the platform declares none.");
+            } else if (!supportsPlay && playSettings.Length > 0) {
+                throw new ArgumentException("A platform that does not support Play cannot declare Play settings.", nameof(playSettings));
+            }
+
+            HashSet<string> playSettingIds = new HashSet<string>(StringComparer.Ordinal);
+            for (int index = 0; index < playSettings.Length; index++) {
+                PlatformPlaySettingDeclarationRules.Validate(playSettings[index], nameof(playSettings));
+                string settingId = playSettings[index].SettingId;
+                if (PlayerCommonPlaySettings.IsCommonId(settingId)) {
+                    throw new ArgumentException($"Play setting '{settingId}' reuses a common Play setting id.", nameof(playSettings));
+                } else if (!playSettingIds.Add(settingId)) {
+                    throw new ArgumentException($"Play setting '{settingId}' is declared more than once.", nameof(playSettings));
+                }
             }
 
             SupportsPlay = supportsPlay;
@@ -66,6 +87,7 @@ namespace helengine.baseplatform.Definitions {
             InputDevices = inputDevices;
             RuntimePlatformName = runtimePlatformName;
             RuntimePlatformVersion = runtimePlatformVersion;
+            PlaySettings = [.. playSettings];
         }
 
         /// <summary>
@@ -109,13 +131,34 @@ namespace helengine.baseplatform.Definitions {
         public string RuntimePlatformVersion { get; }
 
         /// <summary>
+        /// Gets the platform-specific Play settings, shown under the platform section of the Play Settings dialog and
+        /// handed to the platform's player adapter; empty when the platform declares none.
+        /// </summary>
+        public PlatformSettingDefinition[] PlaySettings { get; }
+
+        /// <summary>
         /// Creates the capability for platforms that do not opt in to editor Play. The adapter and content root are
-        /// <c>none</c>, the target frame rate is <c>0</c>, no input device is declared and the runtime platform name and version are <c>none</c>, because no player is ever
+        /// <c>none</c>, the target frame rate is <c>0</c>, no input device is declared and the runtime platform name and version are <c>none</c>, and no Play settings are declared, because no player is ever
         /// launched for such a platform.
         /// </summary>
         /// <returns>Unsupported Play capability.</returns>
         public static PlatformPlayerCapability CreateUnsupported() {
-            return new PlatformPlayerCapability(false, "none", "none", 0d, PlayerInputDevices.None, "none", "none");
+            return new PlatformPlayerCapability(false, "none", "none", 0d, PlayerInputDevices.None, "none", "none", []);
+        }
+
+        /// <summary>
+        /// Finds one platform Play setting declaration by id, compared ordinally.
+        /// </summary>
+        /// <param name="settingId">Setting id to look up.</param>
+        /// <returns>The declaration, or null when the platform declares no Play setting with that id.</returns>
+        public PlatformSettingDefinition FindPlaySetting(string settingId) {
+            for (int index = 0; index < PlaySettings.Length; index++) {
+                if (string.Equals(PlaySettings[index].SettingId, settingId, StringComparison.Ordinal)) {
+                    return PlaySettings[index];
+                }
+            }
+
+            return null;
         }
     }
 }
