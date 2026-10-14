@@ -305,10 +305,6 @@ namespace helengine.editor {
         /// </summary>
         string PresentedPlayPlatformId = string.Empty;
         /// <summary>
-        /// Display names of the presented platforms; the selector is sized to these, not to the settings item.
-        /// </summary>
-        readonly List<string> PresentedPlayPlatformNames = new List<string>();
-        /// <summary>
         /// Selector index of the presented platform, restored after the settings item is picked.
         /// </summary>
         int PresentedPlayPlatformIndex = -1;
@@ -1243,10 +1239,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Refits the selector to its current items and relays the toolbar when the width changed.
+        /// Refits the selector to its current items and relays the toolbar when the width changed. The items include
+        /// <see cref="EditorPlayPlatformMenu.PlaySettingsItemText"/>, because the drop-down list shares the selector's
+        /// width and does not clip its labels.
         /// </summary>
         void UpdatePlayPlatformSelectorWidth() {
-            int width = MeasurePlayPlatformSelectorWidth(PresentedPlayPlatformNames);
+            int width = MeasurePlayPlatformSelectorWidth(PlayPlatformComboBox.Items);
             if (width == PlayPlatformSelectorWidth) {
                 return;
             }
@@ -1259,7 +1257,8 @@ namespace helengine.editor {
         /// <summary>
         /// Presents the platforms the Play platform selector offers and the one currently selected. Presenting a
         /// selection never raises <see cref="PlayPlatformSelected"/>; only a user pick does. The selector is sized to the
-        /// longest name; with no platforms it is disabled, which hides it and removes it from keyboard traversal.
+        /// longest item, the trailing Play Settings item included; with no platforms it is disabled, which hides it and
+        /// removes it from keyboard traversal.
         /// </summary>
         /// <param name="platformIds">Ids of the offered platforms, in display order.</param>
         /// <param name="displayNames">Display names index-aligned with <paramref name="platformIds"/>.</param>
@@ -1290,8 +1289,6 @@ namespace helengine.editor {
             PresentedPlayPlatformIds.Clear();
             PresentedPlayPlatformIds.AddRange(platformIds);
             PresentedPlayPlatformId = selectedPlatformId;
-            PresentedPlayPlatformNames.Clear();
-            PresentedPlayPlatformNames.AddRange(displayNames);
             PresentedPlayPlatformIndex = selectedIndex;
             PlayPlatformComboBox.SetItems(EditorPlayPlatformMenu.BuildItems(displayNames), selectedIndex);
             PlayPlatformComboHost.Enabled = platformIds.Count > 0;

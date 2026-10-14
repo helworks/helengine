@@ -418,6 +418,45 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Picking Play Settings... after switching platforms returns the selector to the switched-to platform and never
+        /// reports a pick of the platform presented before the switch.
+        /// </summary>
+        [Fact]
+        public void EditorViewport_WhenPlaySettingsItemPickedAfterSwitch_KeepsSwitchedPlatform() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            viewport.SetPlayPlatformOptions(new[] { "ps2", "windows" }, new[] { "PlayStation 2", "Windows" }, "ps2");
+            ComboBoxComponent combo = GetPrivateField<ComboBoxComponent>(viewport, "PlayPlatformComboBox");
+            int settingsRequests = 0;
+            List<string> platformPicks = new List<string>();
+            viewport.PlaySettingsRequested += () => settingsRequests++;
+            viewport.PlayPlatformSelected += platformPicks.Add;
+
+            combo.SelectedIndex = 1;
+            combo.SelectedIndex = 2;
+
+            Assert.Equal(new[] { "windows" }, platformPicks);
+            Assert.Equal(1, settingsRequests);
+            Assert.Equal(1, combo.SelectedIndex);
+        }
+
+        /// <summary>
+        /// Ensures the selector, whose drop-down list shares its width and does not clip labels, is wide enough for the
+        /// Play Settings... item even when every platform name is shorter.
+        /// </summary>
+        [Fact]
+        public void PlayPlatformSelector_FitsThePlaySettingsItem() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            ComboBoxComponent selector = GetPrivateField<ComboBoxComponent>(viewport, "PlayPlatformComboBox");
+
+            viewport.SetPlayPlatformOptions(new[] { "windows" }, new[] { "Windows" }, "windows");
+
+            Assert.True(selector.Size.X >= selector.Font.MeasureTight(EditorPlayPlatformMenu.PlaySettingsItemText).Width + 16f,
+                "Expected the selector to fit the Play Settings... item and both edge paddings.");
+        }
+
+        /// <summary>
         /// Ensures an empty selector (nothing playable) is disabled, so it is hidden and cannot take keyboard focus, and
         /// that it comes back once platforms are offered.
         /// </summary>
