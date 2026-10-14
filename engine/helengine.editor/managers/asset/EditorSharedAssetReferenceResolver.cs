@@ -5,6 +5,10 @@ namespace helengine.editor {
     /// fresh asset identity index, which walks and stamps the whole <c>assets</c> tree, so batching every scene list of
     /// one operation through this holder pays that cost at most once. The resolver is only created when a file-backed
     /// reference actually needs it, and it is disposed together with this holder.
+    /// The holder keeps serving the same resolver after one of its resolutions throws: a failed resolution leaves the
+    /// resolver usable, because it releases its synchronized read, and any identity it adopted before failing is
+    /// persisted the same way a fresh resolver would read it back. Callers such as the build-config load rely on that when an unreadable project package is skipped
+    /// and the local document is still resolved through the same resolver.
     /// </summary>
     public sealed class EditorSharedAssetReferenceResolver : IDisposable {
         /// <summary>

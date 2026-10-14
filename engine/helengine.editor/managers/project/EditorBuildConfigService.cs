@@ -149,10 +149,6 @@ namespace helengine.editor {
         /// <param name="document">Composed build configuration to persist.</param>
         /// <param name="sharedResolver">Resolver holder shared by the calling load or save.</param>
         void Save(EditorBuildConfigDocument document, EditorSharedAssetReferenceResolver sharedResolver) {
-            if (document == null) {
-                throw new ArgumentNullException(nameof(document));
-            }
-
             EditorRuntimeLoadingSettingsResolver.Validate(document);
             SynchronizeSceneReferences(document, sharedResolver);
             NormalizeDocument(document);

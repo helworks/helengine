@@ -524,6 +524,35 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a project package whose reference no longer resolves is treated as unreadable while the local
+    /// override loaded after it still resolves through the same shared resolver.
+    /// </summary>
+    [Fact]
+    public void TryLoadExisting_WhenProjectReferenceCannotResolve_StillResolvesTheLocalOverride() {
+        WriteSerializedScene("Scenes/City.helen");
+        WriteSerializedScene("Scenes/Menu.helen");
+        CreateService().Save(new EditorBuildConfigDocument {
+            Platforms = [
+                CreateOrderedPlatform("windows", ["City"], false),
+                CreateOrderedPlatform("ps2", ["Menu"], true)
+            ]
+        });
+        File.Delete(Path.Combine(TempProjectRootPath, "assets", "Scenes", "City.helen"));
+        int resolverCount = 0;
+        EditorBuildConfigService service = new EditorBuildConfigService(TempProjectRootPath, () => {
+            resolverCount++;
+            return new EditorAssetReferenceResolver(TempProjectRootPath);
+        });
+
+        EditorBuildConfigDocument document = service.TryLoadExisting();
+
+        Assert.Equal(1, resolverCount);
+        Assert.Null(service.TryLoadProjectBuildConfig());
+        AssertOrderedPlatform(document.Platforms[1], "ps2", ["Menu"]);
+        Assert.Empty(document.Platforms[0].SelectedSceneIds);
+    }
+
+    /// <summary>
     /// Creates the service under test for the current temporary project root.
     /// </summary>
     /// <returns>Build-config service configured for the current test project.</returns>
