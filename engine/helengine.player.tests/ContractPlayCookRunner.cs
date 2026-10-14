@@ -21,7 +21,7 @@ namespace helengine.player.tests {
         /// <param name="platformId">Platform the session service asked to cook; unused.</param>
         /// <returns>The successful cook outcome.</returns>
         public EditorPlayCookResult Cook(string platformId) {
-            return new EditorPlayCookResult(true, "Cooked.", ContentRootPath, StartupSceneId, StartupSceneCookedRelativePath);
+            return new EditorPlayCookResult(true, "Cooked.", ContentRootPath, StartupSceneId, StartupSceneCookedRelativePath, new Dictionary<string, string>());
         }
     }
 }

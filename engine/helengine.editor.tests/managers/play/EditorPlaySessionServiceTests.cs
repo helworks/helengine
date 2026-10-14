@@ -197,7 +197,7 @@ public sealed class EditorPlaySessionServiceTests {
     /// <summary>A platform with shadows disabled passes that policy to the player without altering the scene or input choices.</summary>
     [Fact]
     public void Play_WhenPlatformDisablesShadows_PassesSwitchToPlayer() {
-        FakePlayCookRunner cook = new(new EditorPlayCookResult(true, "Cooked.", "C:/content", "cube", "scenes/cube.hasset", false, "C:/settings/catalog.bin"));
+        FakePlayCookRunner cook = new(new EditorPlayCookResult(true, "Cooked.", "C:/content", "cube", "scenes/cube.hasset", new Dictionary<string, string>(), false, "C:/settings/catalog.bin"));
         FakePlayProcessLauncher launcher = new();
         EditorPlaySessionService service = CreateService(cook, CreateSucceedingScriptBuilder(), launcher);
         Assert.True(PlayToCompletion(service, PlatformId, PlatformDisplayName, ScenePath, () => true,
@@ -554,7 +554,7 @@ public sealed class EditorPlaySessionServiceTests {
     /// </summary>
     /// <returns>Succeeding cook runner fake.</returns>
     static FakePlayCookRunner CreateSucceedingCookRunner() {
-        return new FakePlayCookRunner(new EditorPlayCookResult(true, "Cooked.", @"C:\project\cache\play\ps2-staging", "scene-cube-test", "scenes/cube_test.hscene"));
+        return new FakePlayCookRunner(new EditorPlayCookResult(true, "Cooked.", @"C:\project\cache\play\ps2-staging", "scene-cube-test", "scenes/cube_test.hscene", new Dictionary<string, string>()));
     }
 
     /// <summary>

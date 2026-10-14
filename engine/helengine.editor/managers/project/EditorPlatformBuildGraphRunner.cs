@@ -379,6 +379,7 @@ namespace helengine.editor {
                 Path.Combine(workspace.BuilderWorkingRootPath, playerCapability.ContentRootRelativePath),
                 cookedManifest.StartupSceneId,
                 ResolveStartupSceneCookedRelativePath(cookedManifest),
+                queueItem.SelectedGraphicsOptionValues,
                 cookedManifest.ShadowsEnabled,
                 settingsPath);
         }

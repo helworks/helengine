@@ -25,7 +25,7 @@ namespace helengine.editor.tests.testing {
             }
 
             RecordedQueueItems.Add(queueItem);
-            return new EditorPlayCookResult(true, "Recorded.", queueItem.OutputDirectoryPath, queueItem.SelectedSceneIds[0], queueItem.SelectedSceneIds[0]);
+            return new EditorPlayCookResult(true, "Recorded.", queueItem.OutputDirectoryPath, queueItem.SelectedSceneIds[0], queueItem.SelectedSceneIds[0], new Dictionary<string, string>());
         }
     }
 }

@@ -112,6 +112,23 @@ public sealed class EditorPlatformBuildGraphRunnerAssetsOnlyTests : IDisposable 
     }
 
     /// <summary>
+    /// Ensures a successful Play cook reports the queue item's graphics option values, so Play settings that follow the
+    /// project resolve against the graphics settings captured at press time.
+    /// </summary>
+    [Fact]
+    public void ExecuteAssetsOnly_ReportsQueueItemGraphicsOptionValues() {
+        RecordingPlayPlatformAssetBuilder builder = new(new PlatformPlayerCapability(true, "x.Adapter", "staging", 60d, PlayerInputDevices.Gamepad, "ps2", "1.0.0", []));
+        EditorPlatformBuildGraphRunner runner = CreateRunner(builder);
+        EditorBuildQueueItemDocument queueItem = CreateQueueItem();
+        queueItem.SelectedGraphicsOptionValues["video-mode"] = "ntsc-320x224p";
+
+        EditorPlayCookResult result = runner.ExecuteAssetsOnly(queueItem);
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal("ntsc-320x224p", result.GraphicsOptionValues["video-mode"]);
+    }
+
+    /// <summary>
     /// Ensures repeated Play cooks reuse one workspace and keep the builder working root, where the platform keeps
     /// its fingerprint store and staged content, while still refreshing the cooked tree.
     /// </summary>

@@ -419,7 +419,7 @@ namespace helengine.editor.tests {
         /// <returns>The Play session, preparing.</returns>
         EditorPlaySessionService StartPreparingPlay(EditorSession session, string scenePath, EditorMainThreadActionQueue queue) {
             EditorPlaySessionService playSession = new EditorPlaySessionService(
-                new managers.play.FakePlayCookRunner(new EditorPlayCookResult(true, "Cooked.", @"C:\project\cache\play\ps2-staging", "scene", "scenes/scene.helen")),
+                new managers.play.FakePlayCookRunner(new EditorPlayCookResult(true, "Cooked.", @"C:\project\cache\play\ps2-staging", "scene", "scenes/scene.helen", new Dictionary<string, string>())),
                 new managers.play.FakePlayScriptBuilder(EditorBuildExecutionResult.Success("Scripts built."), @"C:\project\cache\play\modules"),
                 new managers.play.FakePlayProcessLauncher(),
                 @"C:\player\helengine.player.exe",

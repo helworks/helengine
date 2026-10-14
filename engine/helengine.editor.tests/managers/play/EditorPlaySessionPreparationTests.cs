@@ -369,7 +369,7 @@ public sealed class EditorPlaySessionPreparationTests {
     /// </summary>
     /// <returns>Successful cook outcome.</returns>
     static EditorPlayCookResult CreateSucceedingCookResult() {
-        return new EditorPlayCookResult(true, "Cooked.", @"C:\project\cache\play\ps2-staging", "scene-cube-test", "scenes/cube_test.hscene");
+        return new EditorPlayCookResult(true, "Cooked.", @"C:\project\cache\play\ps2-staging", "scene-cube-test", "scenes/cube_test.hscene", new Dictionary<string, string>());
     }
 
     /// <summary>

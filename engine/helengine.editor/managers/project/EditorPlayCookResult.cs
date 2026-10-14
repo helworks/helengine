@@ -12,6 +12,10 @@ namespace helengine.editor {
         /// <param name="contentRootPath">Absolute root of the staged cooked content the player reads; empty on failure.</param>
         /// <param name="startupSceneId">Identifier of the scene the player should load first; empty on failure.</param>
         /// <param name="startupSceneCookedRelativePath">Forward-slash path of the startup scene relative to the cooked content layout; empty on failure.</param>
+        /// <param name="graphicsOptionValues">
+        /// Graphics option values of the cooked queue item (the project's selected graphics settings captured at press time);
+        /// Play settings that follow the project resolve against them. Empty on failure.
+        /// </param>
         /// <param name="shadowsEnabled">Whether the selected platform permits shadows in the desktop player.</param>
         public EditorPlayCookResult(
             bool succeeded,
@@ -19,6 +23,7 @@ namespace helengine.editor {
             string contentRootPath,
             string startupSceneId,
             string startupSceneCookedRelativePath,
+            IReadOnlyDictionary<string, string> graphicsOptionValues,
             bool shadowsEnabled = true,
             string runtimeSettingsPath = "") {
             Succeeded = succeeded;
@@ -26,6 +31,7 @@ namespace helengine.editor {
             ContentRootPath = contentRootPath ?? throw new ArgumentNullException(nameof(contentRootPath));
             StartupSceneId = startupSceneId ?? throw new ArgumentNullException(nameof(startupSceneId));
             StartupSceneCookedRelativePath = startupSceneCookedRelativePath ?? throw new ArgumentNullException(nameof(startupSceneCookedRelativePath));
+            GraphicsOptionValues = graphicsOptionValues == null ? throw new ArgumentNullException(nameof(graphicsOptionValues)) : new Dictionary<string, string>(graphicsOptionValues, StringComparer.Ordinal);
             ShadowsEnabled = shadowsEnabled;
             RuntimeSettingsPath = runtimeSettingsPath ?? throw new ArgumentNullException(nameof(runtimeSettingsPath));
         }
@@ -62,12 +68,18 @@ namespace helengine.editor {
         public string StartupSceneCookedRelativePath { get; }
 
         /// <summary>
+        /// Gets the graphics option values of the cooked queue item; Play settings whose value is <c>project</c> resolve
+        /// against them.
+        /// </summary>
+        public IReadOnlyDictionary<string, string> GraphicsOptionValues { get; }
+
+        /// <summary>
         /// Creates a failed Play cook outcome with empty content and scene paths.
         /// </summary>
         /// <param name="message">Human-readable failure message.</param>
         /// <returns>Failed Play cook outcome.</returns>
         public static EditorPlayCookResult Failure(string message) {
-            return new EditorPlayCookResult(false, message, string.Empty, string.Empty, string.Empty);
+            return new EditorPlayCookResult(false, message, string.Empty, string.Empty, string.Empty, new Dictionary<string, string>());
         }
     }
 }

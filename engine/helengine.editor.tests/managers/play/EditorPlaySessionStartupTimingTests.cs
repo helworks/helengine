@@ -293,7 +293,7 @@ public sealed class EditorPlaySessionStartupTimingTests {
     /// <param name="clock">Fake clock supplying the stage readings.</param>
     /// <returns>The service under test.</returns>
     EditorPlaySessionService CreateService(bool compileSkipped, FakePlayProcessLauncher launcher, FakePlayClock clock) {
-        FakePlayCookRunner cookRunner = new FakePlayCookRunner(new EditorPlayCookResult(true, "Cooked.", @"C:\project\cache\play\ps2-staging", "scene-cube-test", "scenes/cube_test.hscene"));
+        FakePlayCookRunner cookRunner = new FakePlayCookRunner(new EditorPlayCookResult(true, "Cooked.", @"C:\project\cache\play\ps2-staging", "scene-cube-test", "scenes/cube_test.hscene", new Dictionary<string, string>()));
         FakePlayScriptBuilder scriptBuilder = new FakePlayScriptBuilder(EditorBuildExecutionResult.Success("Scripts built."), @"C:\project\cache\play\modules");
         scriptBuilder.CompileSkipped = compileSkipped;
         return new EditorPlaySessionService(cookRunner, scriptBuilder, launcher, PlayerExecutablePath, Queue, new InlinePlayPreparationScheduler(), clock);
