@@ -15,7 +15,7 @@ namespace helengine.editor.tests.managers.project {
         /// Initializes a temporary project root with an assets folder.
         /// </summary>
         public BlueprintPackagedSceneExpansionTests() {
-            ProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-blueprint-packaged-scene-tests", Guid.NewGuid().ToString("N"));
+            ProjectRootPath = Path.Combine(Directory.GetCurrentDirectory(), "scratch", "helengine-blueprint-packaged-scene-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets", "Blueprints"));
         }
 
@@ -339,6 +339,38 @@ namespace helengine.editor.tests.managers.project {
                     BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem(blueprintPath)
                 })]
             };
+        }
+
+        /// <summary>Ensures references inside base and Android override payloads target the cloned Blueprint entities.</summary>
+        [Fact]
+        public void Expand_WhenReferencesHavePlatformPayloads_RemapsBaseAndOverrideTargets() {
+            SceneEntityTriggerObserverComponent observer = new SceneEntityTriggerObserverComponent { TargetEntityReference = new SceneEntityReference { EntityId = 2u } };
+            SceneComponentAssetRecord baseRecord = SerializeComponent(observer, new EntityComponentSaveState { ComponentKey = "observer" });
+            EntityComponentSaveState saveState = new EntityComponentSaveState { ComponentKey = "observer" };
+            EntityComponentPlatformOverrideState android = new EntityComponentPlatformOverrideState { Payload = baseRecord.Payload };
+            android.SetPropertyOverride(nameof(SceneEntityTriggerObserverComponent.TargetEntityReference));
+            saveState.SetPlatformOverride("android", android);
+            ComponentPlatformOverridePayloadService payloads = new ComponentPlatformOverridePayloadService();
+            WriteBlueprintAsset("Blueprints/References.hblueprint", null, new SceneEntityAsset {
+                Id = 1u, Name = "Observer", Components = [payloads.Wrap(baseRecord, saveState)],
+                Children = [new SceneEntityAsset { Id = 2u, Name = "Target" }]
+            });
+            SceneAsset scene = new SceneAsset { RootEntities = [CreateBlueprintInstance(100u, "Blueprints/References.hblueprint")] };
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            using BlueprintPackagedSceneExpansionService service = new BlueprintPackagedSceneExpansionService(ProjectRootPath, registry);
+
+            service.Expand(scene);
+
+            SceneEntityAsset clone = Assert.Single(Assert.Single(scene.RootEntities).Children);
+            uint expected = Assert.Single(clone.Children).Id;
+            SceneComponentAssetRecord rewritten = Assert.Single(clone.Components);
+            IComponentPersistenceDescriptor descriptor = registry.GetDescriptor(rewritten.ComponentTypeId);
+            SceneEntityTriggerObserverComponent actualBase = (SceneEntityTriggerObserverComponent)descriptor.DeserializeComponent(payloads.UnwrapBaseRecord(rewritten), null, null);
+            Assert.Equal(expected, actualBase.TargetEntityReference.EntityId);
+            EntityComponentPlatformOverrideState actualOverride = Assert.Single(payloads.ReadOverrideStates(rewritten));
+            SceneEntityTriggerObserverComponent actualAndroid = (SceneEntityTriggerObserverComponent)descriptor.DeserializeComponent(new SceneComponentAssetRecord { ComponentTypeId = rewritten.ComponentTypeId, Payload = actualOverride.Payload }, null, null);
+            Assert.Equal(expected, actualAndroid.TargetEntityReference.EntityId);
+            Assert.True(actualOverride.HasPropertyOverride(nameof(SceneEntityTriggerObserverComponent.TargetEntityReference)));
         }
 
         /// <summary>

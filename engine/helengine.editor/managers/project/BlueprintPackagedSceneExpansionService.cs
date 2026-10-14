@@ -525,20 +525,24 @@ namespace helengine.editor {
             for (int index = 0; index < components.Length; index++) {
                 RemapInternalReferences(components[index], clonedIds);
             }
+            foreach (SceneEntityPlatformComponentOverrideAsset platform in entityAsset.PlatformComponentOverrides ?? []) {
+                foreach (SceneEntityPlatformAddedComponentAsset added in platform.AddedComponents ?? []) {
+                    RemapInternalReferences(added.Component, clonedIds);
+                }
+            }
             SceneEntityAsset[] children = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
             for (int index = 0; index < children.Length; index++) {
                 RemapInternalReferences(children[index], clonedIds);
             }
         }
 
-        static void RemapInternalReferences(SceneComponentAssetRecord record, Dictionary<uint, uint> clonedIds) {
+        void RemapInternalReferences(SceneComponentAssetRecord record, Dictionary<uint, uint> clonedIds) {
             if (record == null || record.Payload == null) {
                 return;
             }
-            Type componentType = PersistedComponentTypeResolver.TryResolve(record.ComponentTypeId);
-            if (componentType == null) {
-                return;
-            }
+            ComponentPlatformOverridePayloadService payloadService = new ComponentPlatformOverridePayloadService();
+            SceneComponentAssetRecord baseRecord = payloadService.UnwrapBaseRecord(record);
+            Type componentType = PersistenceRegistry.ResolveComponentType(record.ComponentTypeId);
             ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(componentType);
             Dictionary<string, Type> referenceFields = new Dictionary<string, Type>(StringComparer.Ordinal);
             for (int index = 0; index < schema.Members.Count; index++) {
@@ -551,11 +555,27 @@ namespace helengine.editor {
                 return;
             }
 
-            using MemoryStream sourceStream = new MemoryStream(record.Payload, false);
+            baseRecord.Payload = RemapTaggedReferencePayload(baseRecord.Payload, record.ComponentTypeId, referenceFields, clonedIds);
+            EntityComponentSaveState saveState = new EntityComponentSaveState { ComponentKey = record.ComponentKey };
+            foreach (EntityComponentPlatformOverrideState state in payloadService.ReadOverrideStates(record)) {
+                state.Payload = RemapTaggedReferencePayload(state.Payload, record.ComponentTypeId, referenceFields, clonedIds);
+                saveState.SetScopedPlatformOverride(state.Scope, state);
+            }
+            record.Payload = payloadService.Wrap(baseRecord, saveState).Payload;
+        }
+
+        /// <summary>Remaps entity-reference fields while retaining every other tagged component field verbatim.</summary>
+        /// <param name="payload">Unwrapped current tagged component payload.</param>
+        /// <param name="componentTypeId">Component identifier used to report malformed payloads.</param>
+        /// <param name="referenceFields">Scalar and array fields whose values contain scene entity references.</param>
+        /// <param name="clonedIds">Mapping from source Blueprint IDs to their scene-owned clone IDs.</param>
+        /// <returns>Tagged payload whose internal references point to cloned entities.</returns>
+        static byte[] RemapTaggedReferencePayload(byte[] payload, string componentTypeId, Dictionary<string, Type> referenceFields, Dictionary<uint, uint> clonedIds) {
+            using MemoryStream sourceStream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(sourceStream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
             if (version != EditorTaggedSceneComponentPayloadFormat.CurrentVersion) {
-                throw new InvalidOperationException($"Blueprint component '{record.ComponentTypeId}' needs a current tagged payload to remap internal entity references.");
+                throw new InvalidOperationException($"Blueprint component '{componentTypeId}' needs a current tagged payload to remap internal entity references.");
             }
             int fieldCount = reader.ReadInt32();
             using MemoryStream outputStream = new MemoryStream();
@@ -573,9 +593,9 @@ namespace helengine.editor {
                 }
             }
             if (sourceStream.Position != sourceStream.Length) {
-                throw new InvalidOperationException($"Blueprint component '{record.ComponentTypeId}' has trailing tagged payload data.");
+                throw new InvalidOperationException($"Blueprint component '{componentTypeId}' has trailing tagged payload data.");
             }
-            record.Payload = outputStream.ToArray();
+            return outputStream.ToArray();
         }
 
         static byte[] RemapReferenceField(byte[] payload, bool isArray, Dictionary<uint, uint> clonedIds) {

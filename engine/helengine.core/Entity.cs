@@ -41,12 +41,14 @@ namespace helengine {
         bool WorldTransformCacheIsValid;
         ushort LayerMaskValue;
         /// <summary>
-        /// Stores the component container owned and released by this entity.
+        /// Stores the component container owned and released by this entity. Its entries are aliases;
+        /// this entity explicitly detaches, disposes and deletes components in lifecycle order.
         /// </summary>
         [NativeOwnedMember]
         List<Component> ComponentsValue;
         /// <summary>
-        /// Stores the child-entity container owned and released by this entity.
+        /// Stores the child-entity container owned and released by this entity. Its entries are aliases;
+        /// child lifetime ends through explicit hierarchy disposal rather than collection removal.
         /// </summary>
         [NativeOwnedMember]
         List<Entity> ChildrenValue;
@@ -424,7 +426,7 @@ namespace helengine {
             bool wasHierarchyEnabled = entity.IsHierarchyEnabled;
             entity.Parent = this;
             entity.InvalidateWorldTransformCache();
-            ChildrenValue.Add(entity);
+            RetainChildReference(entity);
             if (IsInitializedValue) {
                 entity.InitializeHierarchy();
             }
@@ -435,6 +437,15 @@ namespace helengine {
             if (wasHierarchyEnabled != isHierarchyEnabled) {
                 entity.ParentEnabledChange(isHierarchyEnabled);
             }
+        }
+
+        /// <summary>
+        /// Stores a child alias without giving the native container a second destruction responsibility.
+        /// The parent owns the child's lifecycle and performs final disposal explicitly.
+        /// </summary>
+        /// <param name="entity">Child whose lifetime is governed by this parent until it is detached.</param>
+        void RetainChildReference([NativeRetainsBorrow] Entity entity) {
+            ChildrenValue.Add(entity);
         }
 
         /// <summary>
@@ -516,7 +527,7 @@ namespace helengine {
                 throw new InvalidOperationException("Component is already attached to an entity.");
             }
 
-            ComponentsValue.Add(comp);
+            RetainComponentReference(comp);
             comp.AttachToEntity(this);
             if (comp is SceneEntityRuntimeIdComponent) {
                 RefreshCachedSceneEntityRuntimeIdComponent();
@@ -528,6 +539,15 @@ namespace helengine {
                     comp.ComponentInitialized(this);
                 }
             }
+        }
+
+        /// <summary>
+        /// Stores a component alias while leaving removal callbacks and final destruction under this entity's control.
+        /// The native list must not delete a component when the public detach-only operation removes it.
+        /// </summary>
+        /// <param name="comp">Component whose lifecycle is owned by this entity until it is detached.</param>
+        void RetainComponentReference([NativeRetainsBorrow] Component comp) {
+            ComponentsValue.Add(comp);
         }
 
         /// <summary>

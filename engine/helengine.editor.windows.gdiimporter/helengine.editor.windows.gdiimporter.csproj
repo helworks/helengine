@@ -9,6 +9,7 @@
   <ItemGroup>
     <Using Include="System.Drawing" />
     <Compile Include="..\helengine.editor.windows\content\font\GdiFontImporter.cs" Link="content\font\GdiFontImporter.cs" />
+    <Compile Include="..\helengine.editor.windows\content\font\GdiFontSourceStyle.cs" Link="content\font\GdiFontSourceStyle.cs" />
     <Compile Include="..\helengine.editor.windows\content\font\GDIFontProcessor.cs" Link="content\font\GDIFontProcessor.cs" />
     <Compile Include="..\helengine.editor.windows\content\font\TempFontChar.cs" Link="content\font\TempFontChar.cs" />
     <Compile Include="..\helengine.editor.windows\content\font\TempFontItem.cs" Link="content\font\TempFontItem.cs" />

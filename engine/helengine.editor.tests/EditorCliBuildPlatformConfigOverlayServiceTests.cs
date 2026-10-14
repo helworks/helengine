@@ -33,6 +33,8 @@ namespace helengine.editor.tests {
             };
             EditorPlatformProfileSettingsDocument sharedPlatformSettings = new EditorPlatformProfileSettingsDocument {
                 PlatformId = "ds",
+                Graphics = null,
+                Codegen = null,
                 Build = new EditorBuildProfileSettingsDocument {
                     SelectedBuildProfileId = "release",
                     SelectedOptionValues = new Dictionary<string, string>(StringComparer.Ordinal) {
@@ -56,6 +58,45 @@ namespace helengine.editor.tests {
             Assert.True(localPlatformConfig.DebugBuild);
             Assert.Equal("nitrofs-package", localPlatformConfig.SelectedStorageProfileId);
             Assert.Equal("ds-cartridge", localPlatformConfig.SelectedMediaProfileId);
+        }
+
+        /// <summary>
+        /// Ensures command-line Android exports honor shared landscape and codegen options without sharing mutable dictionaries or replacing local scene selection.
+        /// </summary>
+        [Fact]
+        public void ApplySharedProfileSettings_whenSharedGraphicsAndCodegenExist_usesCanonicalOptionsAndPreservesSceneSelection() {
+            EditorBuildPlatformConfigDocument localPlatformConfig = new EditorBuildPlatformConfigDocument {
+                PlatformId = "android",
+                SelectedSceneIds = ["HelenOfCodeSplash", "cube_test"],
+                OutputDirectoryPath = @"C:\builds\android",
+                SelectedGraphicsProfileId = "stale",
+                SelectedGraphicsOptionValues = new Dictionary<string, string> { ["screen-orientation"] = "portrait" },
+                SelectedCodegenProfileId = "stale"
+            };
+            EditorPlatformProfileSettingsDocument sharedPlatformSettings = new EditorPlatformProfileSettingsDocument {
+                PlatformId = "android",
+                Graphics = new EditorGraphicsProfileSettingsDocument {
+                    SelectedGraphicsProfileId = "android-native",
+                    SelectedOptionValues = new Dictionary<string, string> { ["screen-orientation"] = "landscape" }
+                },
+                Codegen = new EditorCodegenProfileSettingsDocument {
+                    SelectedCodegenProfileId = "default",
+                    SelectedOptionValues = new Dictionary<string, string> { ["load-native-runtime-metadata"] = "true" }
+                }
+            };
+
+            InvokeApplySharedProfileSettings(localPlatformConfig, sharedPlatformSettings);
+
+            Assert.Equal("android-native", localPlatformConfig.SelectedGraphicsProfileId);
+            Assert.Equal("landscape", localPlatformConfig.SelectedGraphicsOptionValues["screen-orientation"]);
+            Assert.Equal("default", localPlatformConfig.SelectedCodegenProfileId);
+            Assert.Equal("true", localPlatformConfig.SelectedCodegenOptionValues["load-native-runtime-metadata"]);
+            Assert.Equal(["HelenOfCodeSplash", "cube_test"], localPlatformConfig.SelectedSceneIds);
+            Assert.Equal(@"C:\builds\android", localPlatformConfig.OutputDirectoryPath);
+            localPlatformConfig.SelectedGraphicsOptionValues["screen-orientation"] = "portrait";
+            localPlatformConfig.SelectedCodegenOptionValues["load-native-runtime-metadata"] = "false";
+            Assert.Equal("landscape", sharedPlatformSettings.Graphics.SelectedOptionValues["screen-orientation"]);
+            Assert.Equal("true", sharedPlatformSettings.Codegen.SelectedOptionValues["load-native-runtime-metadata"]);
         }
 
         /// <summary>

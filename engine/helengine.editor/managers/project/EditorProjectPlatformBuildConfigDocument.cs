@@ -8,6 +8,9 @@ namespace helengine.editor {
         /// </summary>
         public string PlatformId { get; set; } = string.Empty;
 
+        /// <summary>Gets or sets the project platform's text-command metadata budget used when the user file omits this setting; zero disables reuse.</summary>
+        public int Render2DTextCommandReuseMemoryBudgetBytes { get; set; }
+
         /// <summary>
         /// Gets or sets the project-relative scene identifiers in the package, resolved from the persisted references.
         /// </summary>

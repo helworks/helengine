@@ -11,6 +11,9 @@ namespace helengine.editor {
         /// <summary>Gets or sets this platform's cooperative loading budget in milliseconds; zero inherits the user default, otherwise a finite positive value is required.</summary>
         public double SceneLoadingBudgetMilliseconds { get; set; }
 
+        /// <summary>Gets or sets this platform's bounded text-command reuse metadata budget in bytes; zero disables reuse and negative values are invalid.</summary>
+        public int Render2DTextCommandReuseMemoryBudgetBytes { get; set; }
+
         /// <summary>Gets or sets whether this platform replaces the default loading-screen id, including an explicit empty id to disable the screen.</summary>
         public bool OverridesLoadingScreenSceneId { get; set; }
 

@@ -1,6 +1,36 @@
 namespace DemoDisc.MenuContractTests {
     /// <summary>Exercises the canonical title-menu readiness callback with real visible-width font metrics.</summary>
     public sealed class MenuTitlePreparedTests {
+        /// <summary>Native headings keep their atlas pixel scale and effect sizes even when their painted width exceeds the authored alignment box.</summary>
+        [Fact]
+        public void NativePixelScenePreparedAlignsWithoutResizing() {
+            using MenuContractFixture fixture = new MenuContractFixture("empty", false);
+            Dictionary<char, FontChar> glyphs = new Dictionary<char, FontChar>();
+            foreach (char character in "HELANGIDMOSC ") {
+                glyphs[character] = new FontChar(new float4(0f, 0f, 20f / 512f, 25f / 256f), 8f, 21f, 0f, 0f);
+            }
+            using FontAsset font = new FontAsset(new FontInfo("Native uppercase", 38, 9f), null, glyphs, 37f, 512, 256);
+            Entity overlay = fixture.CreateNode();
+            fixture.Root.AddChild(overlay);
+            TextComponent first = AddHeading(fixture, overlay, font, "HELENGINE");
+            TextComponent second = AddHeading(fixture, overlay, font, "DEMO DISC");
+            first.NativeFontPixels = TextNativePixelMode.RoundNearest;
+            second.NativeFontPixels = TextNativePixelMode.RoundNearest;
+            fixture.Menu.ScenePrepared(fixture.Root);
+            Assert.Equal(1f, first.FontScale);
+            Assert.Equal(1f, second.FontScale);
+            Assert.Equal(2f / 3f, first.OutlineScale);
+            Assert.Equal(2f / 3f, second.OutlineScale);
+            Assert.True(VisibleWidth(first) > 70d);
+            Assert.Equal(TextAlignment.Right, first.Alignment);
+            Assert.Equal(first.Parent.LocalPosition.X, second.Parent.LocalPosition.X);
+            float3 position = first.Parent.LocalPosition;
+            fixture.Menu.ScenePrepared(fixture.Root);
+            Assert.Equal(position, first.Parent.LocalPosition);
+            Assert.Equal(1f, first.FontScale);
+            Assert.Equal(34, fixture.Panels.Values.Sum(panel => panel.Items.Length));
+        }
+
         /// <summary>Binding and title fitting finish during ScenePrepared without an input update, while all unavailable rows remain present.</summary>
         [Fact]
         public void CanonicalScenePreparedFitsBothTitlesAndRetainsCompleteMenu() {

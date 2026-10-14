@@ -136,6 +136,7 @@ public sealed class EditorRuntimeNativeManifestWriter {
             builder.AppendLine("const char* he_get_runtime_platform_name();");
             builder.AppendLine("const char* he_get_runtime_platform_version();");
             builder.AppendLine("double he_get_runtime_scene_loading_budget_milliseconds();");
+            builder.AppendLine("int he_get_runtime_render2d_text_command_reuse_memory_budget_bytes();");
             builder.AppendLine("const char* he_get_runtime_loading_screen_scene_id();");
             return builder.ToString();
         }
@@ -171,7 +172,8 @@ public sealed class EditorRuntimeNativeManifestWriter {
             }
 
             EditorRuntimeLoadingSettingsResolver.Apply(cookedManifest, new EditorRuntimeLoadingSettings(
-                cookedManifest.SceneLoadingBudgetMilliseconds, cookedManifest.LoadingScreenSceneId));
+                cookedManifest.SceneLoadingBudgetMilliseconds, cookedManifest.LoadingScreenSceneId,
+                cookedManifest.Render2DTextCommandReuseMemoryBudgetBytes));
             StringBuilder builder = new();
             builder.AppendLine("#include \"runtime/runtime_startup_manifest.hpp\"");
             builder.AppendLine();
@@ -180,6 +182,7 @@ public sealed class EditorRuntimeNativeManifestWriter {
             builder.AppendLine("static const char kRuntimePlatformVersion[] = \"" + EscapeCppStringLiteral(cookedManifest.PlatformVersion) + "\";");
             builder.AppendLine("static const double kRuntimeSceneLoadingBudgetMilliseconds = " + cookedManifest.SceneLoadingBudgetMilliseconds.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + ";");
             builder.AppendLine("static const char kRuntimeLoadingScreenSceneId[] = \"" + EscapeCppStringLiteral(cookedManifest.LoadingScreenSceneId) + "\";");
+            builder.AppendLine("static const int kRuntimeRender2DTextCommandReuseMemoryBudgetBytes = " + cookedManifest.Render2DTextCommandReuseMemoryBudgetBytes.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";");
             builder.AppendLine();
             builder.AppendLine("const char* he_get_runtime_startup_scene_relative_path() {");
             builder.AppendLine("    return kRuntimeStartupSceneRelativePath;");
@@ -194,6 +197,9 @@ public sealed class EditorRuntimeNativeManifestWriter {
             builder.AppendLine("}");
             builder.AppendLine("double he_get_runtime_scene_loading_budget_milliseconds() {");
             builder.AppendLine("    return kRuntimeSceneLoadingBudgetMilliseconds;");
+            builder.AppendLine("}");
+            builder.AppendLine("int he_get_runtime_render2d_text_command_reuse_memory_budget_bytes() {");
+            builder.AppendLine("    return kRuntimeRender2DTextCommandReuseMemoryBudgetBytes;");
             builder.AppendLine("}");
             builder.AppendLine("const char* he_get_runtime_loading_screen_scene_id() {");
             builder.AppendLine("    return kRuntimeLoadingScreenSceneId;");

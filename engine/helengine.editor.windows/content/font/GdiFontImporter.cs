@@ -41,14 +41,18 @@ namespace helengine.editor {
             if (bytes.Length == 0) {
                 throw new InvalidOperationException("Font source stream must contain data.");
             }
+            System.Drawing.FontStyle sourceStyle = GdiFontSourceStyle.Read(bytes);
 
             string temporaryFontFilePath = string.Empty;
             try {
                 using PrivateFontCollection fontCollection = LoadFontCollection(bytes, ref temporaryFontFilePath);
+                if (!fontCollection.Families[0].IsStyleAvailable(sourceStyle)) {
+                    throw new InvalidOperationException("The source font family does not support its authored face style.");
+                }
                 using System.Drawing.Font font = new System.Drawing.Font(
                     fontCollection.Families[0],
                     settings.PixelSize,
-                    System.Drawing.FontStyle.Regular,
+                    sourceStyle,
                     System.Drawing.GraphicsUnit.Pixel);
                 FontAsset asset = GDIFontProcessor.ImportFont(font, RenderManager2D);
                 FontHorizontalMetricsProcessor.Apply(asset, settings);

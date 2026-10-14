@@ -17,7 +17,9 @@ namespace helengine.editor {
             } else {
                 document = new EditorBuildConfigDocument();
             }
-            return Resolve(document, platformId);
+            EditorRuntimeLoadingSettings loading = Resolve(document, platformId);
+            return new EditorRuntimeLoadingSettings(loading.SceneLoadingBudgetMilliseconds, loading.LoadingScreenSceneId,
+                EditorRuntimeTextCommandReuseSettingsResolver.LoadBudget(projectRootPath, platformId));
         }
 
         /// <summary>Applies the selected platform override while leaving other platform settings untouched.</summary>
@@ -27,17 +29,19 @@ namespace helengine.editor {
             Validate(document);
             double budget = document.SceneLoadingBudgetMilliseconds;
             string screen = document.LoadingScreenSceneId;
+            int textReuseBudget = 0;
             bool found = false;
             if (document.Platforms != null) {
                 foreach (EditorBuildPlatformConfigDocument platform in document.Platforms) {
                     if (platform == null || !string.Equals(platform.PlatformId, platformId, StringComparison.OrdinalIgnoreCase)) { continue; }
                     if (found) { throw new InvalidOperationException("Duplicate runtime settings exist for platform '" + platformId + "'."); }
                     found = true;
+                    textReuseBudget = platform.Render2DTextCommandReuseMemoryBudgetBytes;
                     if (platform.SceneLoadingBudgetMilliseconds != 0d) { budget = platform.SceneLoadingBudgetMilliseconds; }
                     if (platform.OverridesLoadingScreenSceneId) { screen = platform.LoadingScreenSceneId; }
                 }
             }
-            return new EditorRuntimeLoadingSettings(budget, screen);
+            return new EditorRuntimeLoadingSettings(budget, screen, textReuseBudget);
         }
 
         /// <summary>Rejects malformed values before persistence or build, reserving zero only for an unset platform override.</summary>
@@ -46,7 +50,10 @@ namespace helengine.editor {
             ValidateBudget(document.SceneLoadingBudgetMilliseconds, false);
             if (document.Platforms != null) {
                 foreach (EditorBuildPlatformConfigDocument platform in document.Platforms) {
-                    if (platform != null) { ValidateBudget(platform.SceneLoadingBudgetMilliseconds, true); }
+                    if (platform != null) {
+                        ValidateBudget(platform.SceneLoadingBudgetMilliseconds, true);
+                        EditorRuntimeTextCommandReuseSettingsResolver.ValidateBudget(platform.Render2DTextCommandReuseMemoryBudgetBytes);
+                    }
                 }
             }
         }
@@ -70,6 +77,7 @@ namespace helengine.editor {
             if (settings == null) { throw new ArgumentNullException(nameof(settings)); }
             string screenId = ResolvePackagedLoadingScreenId(manifest, settings.LoadingScreenSceneId, projectRootPath);
             manifest.SceneLoadingBudgetMilliseconds = settings.SceneLoadingBudgetMilliseconds;
+            manifest.Render2DTextCommandReuseMemoryBudgetBytes = settings.Render2DTextCommandReuseMemoryBudgetBytes;
             manifest.LoadingScreenSceneId = screenId;
         }
 

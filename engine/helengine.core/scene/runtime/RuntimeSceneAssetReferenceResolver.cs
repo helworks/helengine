@@ -393,6 +393,7 @@ namespace helengine {
             List<RuntimeModel> ownedModels = new List<RuntimeModel>(ActiveOwnedModels);
             List<RuntimeMaterial> ownedMaterials = new List<RuntimeMaterial>(ActiveOwnedMaterials);
             List<AnimationClipAsset> ownedAnimationClips = new List<AnimationClipAsset>(ActiveOwnedAnimationClips);
+            DetachActiveOwnedAssetItems();
             NativeOwnership.Release(ref ActiveOwnedTextures);
             NativeOwnership.Release(ref ActiveOwnedFonts);
             NativeOwnership.Release(ref ActiveOwnedAudio);
@@ -409,7 +410,7 @@ namespace helengine {
         /// Cancels the active scene-owned asset tracking scope after one failed materialization attempt.
         /// </summary>
         public void CancelOwnedAssetTracking() {
-            DisposeActiveAnimationClipItems();
+            DisposeActiveOwnedAssetItems();
             NativeOwnership.Release(ref ActiveOwnedAnimationClips);
             NativeOwnership.Release(ref ActiveResolvedAnimationClipsByPath);
             NativeOwnership.Release(ref ActiveOwnedTextures);
@@ -425,7 +426,7 @@ namespace helengine {
         /// Releases active tracking containers and generated-reference caches owned by this resolver.
         /// </summary>
         public void Dispose() {
-            DisposeActiveAnimationClipItems();
+            DisposeActiveOwnedAssetItems();
             NativeOwnership.Release(ref ActiveOwnedAnimationClips);
             NativeOwnership.Release(ref ActiveResolvedAnimationClipsByPath);
             NativeOwnership.Release(ref ActiveOwnedTextures);
@@ -442,8 +443,12 @@ namespace helengine {
         /// Clears the per-load generated runtime asset caches so generated references participate in normal scene ownership across transitions.
         /// </summary>
         void ResetGeneratedRuntimeAssetCaches() {
-            ActiveGeneratedModelsByKey.Clear();
-            ActiveGeneratedMaterialsByKey.Clear();
+            if (ActiveGeneratedModelsByKey != null) {
+                ActiveGeneratedModelsByKey.Clear();
+            }
+            if (ActiveGeneratedMaterialsByKey != null) {
+                ActiveGeneratedMaterialsByKey.Clear();
+            }
         }
 
         /// <summary>
@@ -758,11 +763,110 @@ namespace helengine {
             return asset;
         }
 
-        /// <summary>Disposes clips left in an unfinished materialization; the caller separately releases its reference containers.</summary>
+        /// <summary>Releases unfinished assets through their resource owners after detaching automatic native list-element deletion.</summary>
+        void DisposeActiveOwnedAssetItems() {
+            DetachActiveOwnedAssetItems();
+            DisposeActiveFontItems();
+            DisposeActiveAudioItems();
+            DisposeActiveTextureItems();
+            DisposeActiveModelItems();
+            DisposeActiveMaterialItems();
+            DisposeActiveAnimationClipItems();
+        }
+
+        /// <summary>
+        /// Removes native list-element ownership before successful transfer or explicit renderer-aware cancellation cleanup.
+        /// The copied scene asset set borrows its elements until the scene manager performs their final release.
+        /// </summary>
+        void DetachActiveOwnedAssetItems() {
+            if (ActiveOwnedTextures != null) {
+                NativeOwnership.DetachOwned(ActiveOwnedTextures);
+            }
+            if (ActiveOwnedFonts != null) {
+                NativeOwnership.DetachOwned(ActiveOwnedFonts);
+            }
+            if (ActiveOwnedAudio != null) {
+                NativeOwnership.DetachOwned(ActiveOwnedAudio);
+            }
+            if (ActiveOwnedModels != null) {
+                NativeOwnership.DetachOwned(ActiveOwnedModels);
+            }
+            if (ActiveOwnedMaterials != null) {
+                NativeOwnership.DetachOwned(ActiveOwnedMaterials);
+            }
+            if (ActiveOwnedAnimationClips != null) {
+                NativeOwnership.DetachOwned(ActiveOwnedAnimationClips);
+            }
+        }
+
+        /// <summary>Releases canceled fonts and their atlas textures through the owning renderer before removing their borrows.</summary>
+        void DisposeActiveFontItems() {
+            if (ActiveOwnedFonts != null) {
+                for (int index = 0; index < ActiveOwnedFonts.Count; index++) {
+                    if (ActiveOwnedFonts[index] != null) {
+                        RequireRenderManager2D().ReleaseFont(ActiveOwnedFonts[index]);
+                        ActiveOwnedFonts[index] = null;
+                    }
+                }
+            }
+        }
+
+        /// <summary>Releases canceled encoded audio buffers before removing their borrows from the tracking list.</summary>
+        void DisposeActiveAudioItems() {
+            if (ActiveOwnedAudio != null) {
+                for (int index = 0; index < ActiveOwnedAudio.Count; index++) {
+                    if (ActiveOwnedAudio[index] != null) {
+                        ReleaseTransientAudioAsset(ActiveOwnedAudio[index]);
+                        ActiveOwnedAudio[index] = null;
+                    }
+                }
+            }
+        }
+
+        /// <summary>Releases canceled standalone textures through their renderer, preserving backend fences and VRAM cleanup.</summary>
+        void DisposeActiveTextureItems() {
+            if (ActiveOwnedTextures != null) {
+                for (int index = 0; index < ActiveOwnedTextures.Count; index++) {
+                    if (ActiveOwnedTextures[index] != null) {
+                        RequireRenderManager2D().ReleaseTexture(ActiveOwnedTextures[index]);
+                        ActiveOwnedTextures[index] = null;
+                    }
+                }
+            }
+        }
+
+        /// <summary>Releases canceled model buffers through their renderer before discarding the tracking container.</summary>
+        void DisposeActiveModelItems() {
+            if (ActiveOwnedModels != null) {
+                for (int index = 0; index < ActiveOwnedModels.Count; index++) {
+                    if (ActiveOwnedModels[index] != null) {
+                        RequireRenderManager3D().ReleaseModel(ActiveOwnedModels[index]);
+                        ActiveOwnedModels[index] = null;
+                    }
+                }
+            }
+        }
+
+        /// <summary>Releases canceled materials through their renderer while their native resources remain available.</summary>
+        void DisposeActiveMaterialItems() {
+            if (ActiveOwnedMaterials != null) {
+                for (int index = 0; index < ActiveOwnedMaterials.Count; index++) {
+                    if (ActiveOwnedMaterials[index] != null) {
+                        RequireRenderManager3D().ReleaseMaterial(ActiveOwnedMaterials[index]);
+                        ActiveOwnedMaterials[index] = null;
+                    }
+                }
+            }
+        }
+
+        /// <summary>Disposes canceled clip payloads once before releasing the now-borrowing tracking container.</summary>
         void DisposeActiveAnimationClipItems() {
             if (ActiveOwnedAnimationClips != null) {
                 for (int index = 0; index < ActiveOwnedAnimationClips.Count; index++) {
-                    NativeOwnership.DisposeAndDelete(ActiveOwnedAnimationClips[index]);
+                    if (ActiveOwnedAnimationClips[index] != null) {
+                        NativeOwnership.DisposeAndDelete(ActiveOwnedAnimationClips[index]);
+                        ActiveOwnedAnimationClips[index] = null;
+                    }
                 }
             }
         }

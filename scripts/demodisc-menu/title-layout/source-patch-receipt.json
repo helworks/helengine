@@ -11,14 +11,15 @@
   ],
   "menuBaseline": "C:/dev/helworks/builds/helengine-n64/menu-20261007/menu-availability-hidden/MenuComponent.cs",
   "menuBaselineSha256": "1cec75579bf8a36e3b392f3f709ad44d319fba197b52dd77b98c0f67f52eb27d",
-  "menuPatchedSha256": "4225f7eaedc30fe2d19e1da8da3dd57a6b33304335cf1d710a97f8d4ba746b97",
+  "menuPatchedSha256": "493f5679219981060b3e139a6de628c701b9f42bf65d92f6bd7ccc7497669187",
   "acceptedPreviousMenuSha256": [
     "c0810919c6d3e380a37923f6067b2ec9bfe727c0f132423b23c505654718b7d8",
     "212bd45d27a08ce1974d827abe6151fc93ccd8ea7076e7e694a6d4b6590e6409",
     "3208112cb6da58fbde0c92f8b23bc5087d939e92f7f8285b5516801f5b891894"
   ],
-  "helperSha256": "f41f2f2e9ebde3a50abff878226dd41331c15d7e2c1021f1f54d56b0c0e73198",
+  "helperSha256": "2a9a64e0a373ce0b9b0e031b9f9b5806140f045f27a89b4b4faee4ad73836fe9",
   "acceptedPreviousHelperSha256": [
+    "f41f2f2e9ebde3a50abff878226dd41331c15d7e2c1021f1f54d56b0c0e73198",
     "2fda5f183d0bd7070d414837591d41b49970e08ac94e0838e6356b2c559e9b4c",
     "abd3d7444dc953c107978dc2c9548884cfe0809d91a514d77722bffa7f3f7fc3",
     "8c41c5fb8526127ee4b600dbe3c8264505bd7d8312cc189f95838de05c676925"
@@ -30,5 +31,7 @@
   "commonHeadingReducingRatio": true,
   "generatedFilesModified": false,
   "originalProjectModified": false,
-  "scenePreparationHook": "ScenePrepared binds the complete authored menu and fits titles before publication."
+  "scenePreparationHook": "ScenePrepared binds the complete authored menu and fits titles before publication.",
+  "nativeFontPixelsPreserved": true,
+  "nativeTitleHelperPolicy": "Native headings retain their cooked glyph size; alignment remains active."
 }

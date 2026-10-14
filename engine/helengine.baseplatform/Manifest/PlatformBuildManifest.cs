@@ -107,6 +107,9 @@ namespace helengine.baseplatform.Manifest {
         /// <summary>Gets or sets the resolved cooperative loading budget in milliseconds per frame; an indivisible load step may exceed this value.</summary>
         public double SceneLoadingBudgetMilliseconds { get; set; } = 8d;
 
+        /// <summary>Gets or sets the resolved platform text-command reuse metadata budget in bytes; zero disables reuse, independently of the existing command payload storage.</summary>
+        public int Render2DTextCommandReuseMemoryBudgetBytes { get; set; }
+
         /// <summary>Gets or sets the optional loading-screen scene id from this manifest's packaged scene catalog.</summary>
         public string LoadingScreenSceneId { get; set; } = string.Empty;
 

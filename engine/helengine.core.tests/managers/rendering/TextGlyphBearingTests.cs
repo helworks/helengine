@@ -82,6 +82,40 @@ namespace helengine.core.tests.managers.rendering {
             Assert.Equal(20f, before.Y);
         }
 
+        /// <summary>A bearing mutation outside TextComponent setters invalidates warmed exact font snapshots and updates the same retained command buffers.</summary>
+        [Fact]
+        public void WarmedTextReuseRebuildsWhenBearingChanges() {
+            using Batch2DTestRenderManager renderer = new Batch2DTestRenderManager();
+            using Core core = CreateCore(renderer);
+            using FontAsset font = CreateFont(renderer, 0f);
+            TextComponent text = CreateText(core, font, "Be", TextAlignment.Left, 1f, false);
+            using RenderList2D queue = new RenderList2D(1);
+            queue.Add(text);
+            using RenderCommandListBuilder2D builder = new RenderCommandListBuilder2D();
+            builder.SetTextCommandReuseMemoryBudgetBytes(8192);
+            CommandBuilderProfileTestSink sink = new CommandBuilderProfileTestSink();
+            builder.SetCpuProfileSink(sink);
+            RenderCommandList2D commands = builder.Build(queue);
+            int textVersion = text.TextRenderStateVersion;
+            Assert.Equal(10f, commands.GetGlyphQuadBounds(0).X);
+            sink.ClearSamples();
+            builder.Build(queue);
+            Assert.DoesNotContain(RuntimeCpuProfileStage.CommandListTextLayout, sink.Stages);
+            FontChar glyph = font.Characters['B'];
+            glyph.BearingX = 2f;
+            font.Characters['B'] = glyph;
+            sink.ClearSamples();
+            Assert.Same(commands, builder.Build(queue));
+            Assert.Single(sink.Stages, stage => stage == RuntimeCpuProfileStage.CommandListTextLayout);
+            Assert.Equal(12f, commands.GetGlyphQuadBounds(0).X);
+            Assert.Equal(textVersion, text.TextRenderStateVersion);
+            AssertBothPaths(text, commands);
+            sink.ClearSamples();
+            builder.Build(queue);
+            Assert.DoesNotContain(RuntimeCpuProfileStage.CommandListTextLayout, sink.Stages);
+            Assert.Equal(2, builder.CachedGlyphCount);
+        }
+
         /// <summary>Creates a real headless core whose initialized entities expose resolved world positions.</summary>
         /// <param name="renderer">Test texture renderer.</param>
         /// <returns>The caller-owned core.</returns>

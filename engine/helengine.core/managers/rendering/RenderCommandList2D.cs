@@ -103,6 +103,15 @@ namespace helengine {
         /// </summary>
         bool IsDisposedValue;
 
+        /// <summary>Next retained glyph payload to replace while emitting a moved text through the ordinary emission path.</summary>
+        int GlyphOverwriteIndex = -1;
+
+        /// <summary>Exclusive end of the checked retained glyph range currently being replaced.</summary>
+        int GlyphOverwriteEnd;
+
+        /// <summary>Gets the number of glyph payloads stored in the single reusable glyph buffer.</summary>
+        public int GlyphCount => GlyphTextures.Count;
+
         /// <summary>
         /// Initializes a reusable command list with the supplied initial capacity.
         /// </summary>
@@ -181,6 +190,15 @@ namespace helengine {
         /// Clears all logical commands and payload lists so the container can be reused for another frame.
         /// </summary>
         public void Reset() {
+            ResetPreservingGlyphPayloads();
+            GlyphTextures.Clear();
+            GlyphBounds.Clear();
+            GlyphSourceRects.Clear();
+            GlyphColors.Clear();
+        }
+
+        /// <summary>Rebuilds command ordering, clipping and dynamic payloads while retaining the existing glyph payload arrays without copying them.</summary>
+        internal void ResetPreservingGlyphPayloads() {
             if (VersionValue == int.MaxValue) {
                 VersionValue = 1;
             } else {
@@ -195,10 +213,7 @@ namespace helengine {
             QuadSourceRects.Clear();
             QuadColors.Clear();
             QuadRotations.Clear();
-            GlyphTextures.Clear();
-            GlyphBounds.Clear();
-            GlyphSourceRects.Clear();
-            GlyphColors.Clear();
+            GlyphOverwriteIndex = -1;
             RoundedRectBounds.Clear();
             RoundedRectRadii.Clear();
             RoundedRectBorderThicknesses.Clear();
@@ -261,13 +276,62 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(texture));
             }
 
-            int payloadIndex = GlyphTextures.Count;
-            GlyphTextures.Add(texture);
-            GlyphBounds.Add(bounds);
-            GlyphSourceRects.Add(sourceRect);
-            GlyphColors.Add(color);
+            int payloadIndex;
+            if (GlyphOverwriteIndex >= 0) {
+                if (GlyphOverwriteIndex >= GlyphOverwriteEnd) {
+                    throw new InvalidOperationException("Retained text emitted more glyphs than its validated payload range.");
+                }
+                payloadIndex = GlyphOverwriteIndex++;
+                GlyphTextures[payloadIndex] = texture;
+                GlyphBounds[payloadIndex] = bounds;
+                GlyphSourceRects[payloadIndex] = sourceRect;
+                GlyphColors[payloadIndex] = color;
+            } else {
+                payloadIndex = GlyphTextures.Count;
+                GlyphTextures.Add(texture);
+                GlyphBounds.Add(bounds);
+                GlyphSourceRects.Add(sourceRect);
+                GlyphColors.Add(color);
+            }
             CommandTypes.Add(RenderCommand2DType.GlyphQuad);
             PayloadIndices.Add(payloadIndex);
+        }
+
+        /// <summary>Reinserts an unchanged retained text range into the newly rebuilt logical command order.</summary>
+        /// <param name="start">First glyph payload in the retained range.</param>
+        /// <param name="count">Number of effect and primary glyph payloads in that range.</param>
+        internal void AddRetainedGlyphRange(int start, int count) {
+            ValidateGlyphRange(start, count);
+            for (int index = start; index < start + count; index++) {
+                CommandTypes.Add(RenderCommand2DType.GlyphQuad);
+                PayloadIndices.Add(index);
+            }
+        }
+
+        /// <summary>Directs ordinary glyph emission to overwrite exactly one existing payload range without allocating a second buffer.</summary>
+        /// <param name="start">First retained glyph payload to replace.</param>
+        /// <param name="count">Validated number of emitted glyphs, including effect copies.</param>
+        internal void BeginGlyphOverwrite(int start, int count) {
+            ValidateGlyphRange(start, count);
+            GlyphOverwriteIndex = start;
+            GlyphOverwriteEnd = start + count;
+        }
+
+        /// <summary>Checks that moved text reproduced its complete retained range before allowing another text to emit.</summary>
+        internal void EndGlyphOverwrite() {
+            if (GlyphOverwriteIndex != GlyphOverwriteEnd) {
+                throw new InvalidOperationException("Retained text emitted fewer glyphs than its validated payload range.");
+            }
+            GlyphOverwriteIndex = -1;
+        }
+
+        /// <summary>Rejects invalid retained indices before accessing any of the parallel glyph payload arrays.</summary>
+        /// <param name="start">First existing glyph payload.</param>
+        /// <param name="count">Number of existing glyph payloads.</param>
+        void ValidateGlyphRange(int start, int count) {
+            if (start < 0 || count < 0 || start > GlyphTextures.Count - count) {
+                throw new ArgumentOutOfRangeException(nameof(start), "Retained glyph range lies outside the current payload buffer.");
+            }
         }
 
         /// <summary>

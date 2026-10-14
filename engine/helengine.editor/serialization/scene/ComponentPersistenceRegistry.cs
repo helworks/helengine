@@ -121,7 +121,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="componentTypeId">Serialized component type id to resolve.</param>
         /// <returns>Resolved runtime component type.</returns>
-        Type ResolveComponentType(string componentTypeId) {
+        public Type ResolveComponentType(string componentTypeId) {
             if (string.IsNullOrWhiteSpace(componentTypeId)) {
                 throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
             }

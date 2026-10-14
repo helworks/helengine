@@ -1725,7 +1725,7 @@ public class BuildDialog : EditorDialogBase {
             EnvironmentComboBoxHost.Position = new float3(GetBuildColumnWidth() - environmentComboBoxWidth, 0f, 0.1f);
             EnvironmentComboBox.Size = new int2(environmentComboBoxWidth, GetPlatformTabHeightPixels());
             int sceneListTop = GetPlatformTabHeightPixels() + GetSceneListTopMarginPixels();
-            int loadingControlsTop = copySettingsButtonY - DialogMetrics.ScalePixels(124);
+            int loadingControlsTop = copySettingsButtonY - DialogMetrics.ScalePixels(174);
             int sceneListHeight = Math.Max(1, loadingControlsTop - DialogMetrics.ScalePixels(12) - sceneListTop);
             RuntimeLoadingControls.UpdateLayout(loadingControlsTop, GetBuildColumnWidth(), DialogMetrics);
 

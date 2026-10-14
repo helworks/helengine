@@ -29,7 +29,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Replaces local build selections with the canonical shared platform build settings for headless CLI builds.
+        /// Replaces local build, graphics and codegen selections with their canonical shared platform settings for headless CLI builds.
         /// </summary>
         /// <param name="platformConfig">Local platform configuration that should receive the shared profile selections.</param>
         /// <param name="sharedPlatformSettings">Shared platform profile settings that own the canonical build selections.</param>
@@ -46,6 +46,18 @@ namespace helengine.editor {
                 platformConfig.SelectedBuildProfileId = sharedPlatformSettings.Build.SelectedBuildProfileId ?? string.Empty;
                 platformConfig.SelectedBuildOptionValues = new Dictionary<string, string>(
                     sharedPlatformSettings.Build.SelectedOptionValues ?? [],
+                    StringComparer.Ordinal);
+            }
+            if (sharedPlatformSettings.Graphics != null) {
+                platformConfig.SelectedGraphicsProfileId = sharedPlatformSettings.Graphics.SelectedGraphicsProfileId ?? string.Empty;
+                platformConfig.SelectedGraphicsOptionValues = new Dictionary<string, string>(
+                    sharedPlatformSettings.Graphics.SelectedOptionValues ?? [],
+                    StringComparer.Ordinal);
+            }
+            if (sharedPlatformSettings.Codegen != null) {
+                platformConfig.SelectedCodegenProfileId = sharedPlatformSettings.Codegen.SelectedCodegenProfileId ?? string.Empty;
+                platformConfig.SelectedCodegenOptionValues = new Dictionary<string, string>(
+                    sharedPlatformSettings.Codegen.SelectedOptionValues ?? [],
                     StringComparer.Ordinal);
             }
         }

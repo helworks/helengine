@@ -30,7 +30,7 @@ namespace DemoDisc.menu {
             return null;
         }
 
-        /// <summary>Reduces an overflowing heading, then aligns its visible glyphs and right effects one pixel inside the shared right anchor.</summary>
+        /// <summary>Reduces a scalable overflowing heading, then aligns it at the shared right anchor; native-pixel headings retain their cooked size.</summary>
         /// <param name="text">Borrowed heading component; menu binding passes only HELENGINE and DEMO DISC.</param>
         public static void Fit(TextComponent text) {
             if (text == null || text.Font == null || text.FontScale <= 0f || text.Size.X <= RightPixelMargin) {
@@ -41,7 +41,7 @@ namespace DemoDisc.menu {
             double rightEffect = Math.Max((double)text.OutlineScale, Math.Max(0d, (double)text.ShadowOffset.X));
             double drawnWidth = width + rightEffect;
             double availableWidth = text.Size.X - RightPixelMargin;
-            if (drawnWidth > availableWidth + WidthTolerance) {
+            if (text.NativeFontPixels == TextNativePixelMode.Disabled && drawnWidth > availableWidth + WidthTolerance) {
                 float ratio = (float)(availableWidth / drawnWidth);
                 text.FontScale = text.FontScale * ratio;
                 text.OutlineScale = text.OutlineScale * ratio;
@@ -50,7 +50,7 @@ namespace DemoDisc.menu {
             AlignRight(text);
         }
 
-        /// <summary>Uses one reducing ratio for both authored headings so their matching styles retain identical painted right margins after raster snapping.</summary>
+        /// <summary>Applies a common reducing ratio only to scalable headings and aligns both headings without resizing native font pixels.</summary>
         /// <param name="first">Borrowed HELENGINE heading, with the same authored font scale and right effects as the second heading.</param>
         /// <param name="second">Borrowed DEMO DISC heading sharing the first heading's right-anchor parent.</param>
         public static void FitPair(TextComponent first, TextComponent second) {
@@ -72,6 +72,9 @@ namespace DemoDisc.menu {
         /// <param name="text">Validated borrowed heading with available font metrics and a positive text box.</param>
         /// <returns>One when no reduction is needed, otherwise the ratio required to fit inside the box.</returns>
         static double MeasureFitRatio(TextComponent text) {
+            if (text.NativeFontPixels != TextNativePixelMode.Disabled) {
+                return 1d;
+            }
             double width = TextLayoutAlignmentUtils.MeasureVisibleLineWidth(text.Text, text.Font, text.FontScale, text.Font.AtlasWidth);
             double rightEffect = Math.Max((double)text.OutlineScale, Math.Max(0d, (double)text.ShadowOffset.X));
             double drawnWidth = width + rightEffect;
@@ -86,6 +89,9 @@ namespace DemoDisc.menu {
         /// <param name="text">Borrowed heading whose owning entity remains responsible for its lifetime.</param>
         /// <param name="ratio">The common ratio, strictly below one, required by the wider of the two headings.</param>
         static void ScaleStyle(TextComponent text, float ratio) {
+            if (text.NativeFontPixels != TextNativePixelMode.Disabled) {
+                return;
+            }
             text.FontScale = text.FontScale * ratio;
             text.OutlineScale = text.OutlineScale * ratio;
             text.ShadowOffset = new float2(text.ShadowOffset.X * ratio, text.ShadowOffset.Y * ratio);

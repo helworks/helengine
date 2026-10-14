@@ -175,7 +175,7 @@ namespace DemoDisc.menu {
         }
 
         /// <summary>
-        /// Binds the complete menu hierarchy before publication without running keyboard, pointer or gamepad input.
+        /// Binds the complete menu hierarchy before publication without processing user input.
         /// </summary>
         /// <param name="entity">Menu owner whose viewport and authored child references have finished preparation.</param>
         public override void ScenePrepared(Entity entity) {

@@ -48,6 +48,33 @@ namespace helengine {
         /// </summary>
         bool IsDisposedValue;
 
+        /// <summary>Optional borrowed timing sink whose owner must outlive every build using it; the builder never disposes or deletes the sink.</summary>
+        IRuntimeCpuProfileSink CpuProfileSinkValue;
+
+        /// <summary>Optional fixed metadata storage; glyph payloads remain owned solely by CommandListValue.</summary>
+        [NativeOwnedMember] TextCommandReuseCache TextReuseCache;
+
+        /// <summary>Whether the current visit reuses previously validated glyph ranges.</summary>
+        bool ReusingTextPayloads;
+
+        /// <summary>Whether the current full build records ranges for a newly captured queue.</summary>
+        bool CapturingTextPayloads;
+
+        /// <summary>Requested metadata allowance; a positive but insufficient allowance uses ordinary builds instead of the legacy signature fast path.</summary>
+        int TextReuseMemoryBudgetBytes;
+
+        /// <summary>Gets the conservative metadata allocation charge, excluding the already existing command payload buffers.</summary>
+        public int TextCommandReuseMetadataCapacityBytes => TextReuseCache == null ? 0 : TextReuseCache.CapacityBytes;
+
+        /// <summary>Gets the fixed text slot capacity, capped at sixteen regardless of the configured byte budget.</summary>
+        public int TextCommandReuseTextCapacity => TextReuseCache == null ? 0 : TextReuseCache.TextCapacity;
+
+        /// <summary>Gets the fixed unique font-character snapshot capacity, capped at one hundred and twenty-eight.</summary>
+        public int TextCommandReuseMetricCapacity => TextReuseCache == null ? 0 : TextReuseCache.MetricCapacity;
+
+        /// <summary>Gets the glyph payload count retained for the one validated queue, or zero when reuse is invalid.</summary>
+        public int CachedGlyphCount => TextReuseCache != null && TextReuseCache.IsValid ? CommandListValue.GlyphCount : 0;
+
         /// <summary>
         /// Initializes one reusable 2D command builder.
         /// </summary>
@@ -56,6 +83,60 @@ namespace helengine {
             ActiveClipChain = new List<IClipRegion2D>();
             NextClipChain = new List<IClipRegion2D>();
             TextLineOffsets = new List<double>();
+        }
+
+        /// <summary>Enables coarse nonoverlapping build timing, or disables all clock reads when the optional borrowed sink is null.</summary>
+        /// <param name="sink">Host-owned timing sink retained only as a borrowed reference.</param>
+        public void SetCpuProfileSink([NativeRetainsBorrow] IRuntimeCpuProfileSink sink) {
+            CpuProfileSinkValue = sink;
+        }
+
+        /// <summary>Configures fixed mixed-queue metadata; zero preserves the existing text-only path, while positive insufficient budgets allocate nothing and rebuild normally.</summary>
+        /// <param name="budget">Nonnegative maximum conservative metadata bytes, including helper and array overhead.</param>
+        public void SetTextCommandReuseMemoryBudgetBytes(int budget) {
+            if (budget < 0) {
+                throw new ArgumentOutOfRangeException(nameof(budget));
+            }
+            InvalidateTextCommandReuse();
+            NativeOwnership.Release(ref TextReuseCache);
+            TextReuseMemoryBudgetBytes = budget;
+            if (budget >= TextCommandReuseCache.OverheadBytes + TextCommandReuseCache.TextEntryBytes + TextCommandReuseCache.MetricEntryBytes) {
+                TextReuseCache = new TextCommandReuseCache(budget);
+            }
+        }
+
+        /// <summary>Clears borrowed identities and glyph payload references before scene, font or texture owners destroy their resources.</summary>
+        public void InvalidateTextCommandReuse() {
+            if (TextReuseCache != null) {
+                TextReuseCache.Invalidate();
+            }
+            if (CommandListValue != null) {
+                CommandListValue.Reset();
+            }
+            HasCachedStaticTextRenderQueue = false;
+            CachedStaticTextRenderQueue = null;
+            CachedStaticTextRenderQueueSignature = 0;
+            ReusingTextPayloads = false;
+            CapturingTextPayloads = false;
+        }
+
+        /// <summary>Reads the host clock only when coarse profiling is enabled.</summary>
+        /// <returns>The starting monotonic microseconds, or zero without accessing a clock when profiling is disabled.</returns>
+        ulong BeginCpuProfileStage() {
+            return CpuProfileSinkValue == null ? 0UL : CpuProfileSinkValue.ReadMicroseconds();
+        }
+
+        /// <summary>Records one completed segment without nesting other profile stages and reports a backwards host clock explicitly.</summary>
+        /// <param name="stage">Stable command-builder phase identifier.</param>
+        /// <param name="start">Timestamp captured immediately before this segment's work.</param>
+        void EndCpuProfileStage(RuntimeCpuProfileStage stage, ulong start) {
+            if (CpuProfileSinkValue == null) { return; }
+            ulong end = CpuProfileSinkValue.ReadMicroseconds();
+            if (end < start) {
+                CpuProfileSinkValue.ClockFault();
+            } else {
+                CpuProfileSinkValue.RecordStage(stage, end - start);
+            }
         }
 
         /// <summary>
@@ -68,25 +149,52 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(renderQueue));
             }
 
-            int staticTextRenderQueueSignature;
-            bool canReuseStaticTextCommandList = TryResolveStaticTextRenderQueueSignature(renderQueue, out staticTextRenderQueueSignature);
+            ulong setupStart = BeginCpuProfileStage();
+            int staticTextRenderQueueSignature = 0;
+            bool canReuseStaticTextCommandList = TextReuseMemoryBudgetBytes == 0
+                && TryResolveStaticTextRenderQueueSignature(renderQueue, out staticTextRenderQueueSignature);
             if (canReuseStaticTextCommandList
                 && HasCachedStaticTextRenderQueue
                 && ReferenceEquals(renderQueue, CachedStaticTextRenderQueue)
                 && staticTextRenderQueueSignature == CachedStaticTextRenderQueueSignature) {
+                EndCpuProfileStage(RuntimeCpuProfileStage.CommandListSetup, setupStart);
                 return CommandListValue;
             }
 
+            ReusingTextPayloads = false;
+            CapturingTextPayloads = false;
+            bool preserveGlyphPayloads = false;
+            if (TextReuseCache != null) {
+                if (renderQueue is RenderList2D concreteQueue) {
+                    ReusingTextPayloads = TextReuseCache.Matches(concreteQueue) && MatchesTextVisibility();
+                    preserveGlyphPayloads = ReusingTextPayloads
+                        || (TextReuseCache.IsValid && !TextReuseCache.IsSameQueue(concreteQueue) && !QueueContainsText(concreteQueue));
+                    if (!preserveGlyphPayloads) {
+                        CapturingTextPayloads = TextReuseCache.Capture(concreteQueue);
+                    }
+                } else {
+                    TextReuseCache.Invalidate();
+                }
+            }
             if (CommandListValue == null) {
                 CommandListValue = new RenderCommandList2D(Math.Max(renderQueue.Count, 4));
+            } else if (preserveGlyphPayloads) {
+                CommandListValue.ResetPreservingGlyphPayloads();
             } else {
                 CommandListValue.Reset();
             }
 
             ActiveClipChain.Clear();
             NextClipChain.Clear();
+            EndCpuProfileStage(RuntimeCpuProfileStage.CommandListSetup, setupStart);
             renderQueue.VisitOrdered(this);
+            ulong trailingStart = BeginCpuProfileStage();
             EmitTrailingClipPops();
+            EndCpuProfileStage(RuntimeCpuProfileStage.CommandListTrailingClips, trailingStart);
+            ulong cacheStart = BeginCpuProfileStage();
+            if (CapturingTextPayloads) {
+                TextReuseCache.Commit(CommandListValue.GlyphCount);
+            }
             bool canCacheStaticTextCommandList = canReuseStaticTextCommandList && !ContainsClipCommands();
             if (canCacheStaticTextCommandList) {
                 CachedStaticTextRenderQueue = renderQueue;
@@ -97,8 +205,40 @@ namespace helengine {
                 CachedStaticTextRenderQueueSignature = 0;
                 HasCachedStaticTextRenderQueue = false;
             }
+            EndCpuProfileStage(RuntimeCpuProfileStage.CommandListSetup, cacheStart);
 
             return CommandListValue;
+        }
+
+        /// <summary>Checks visibility before resetting commands, so newly visible text never reuses an absent or incompatible range.</summary>
+        /// <returns>True when hierarchy and full-clip decisions still match every captured text.</returns>
+        bool MatchesTextVisibility() {
+            for (int index = 0; index < TextReuseCache.Count; index++) {
+                TextCommandReuseEntry entry = TextReuseCache.Get(index);
+                ITextDrawable2D text = entry.Text;
+                bool visible = text.Parent != null && text.Parent.IsHierarchyEnabled;
+                if (visible) {
+                    ClipRegionStackBuilder.BuildClipChain(text, NextClipChain);
+                    visible = !ShouldSkipDrawableBecauseItIsFullyClipped(text);
+                }
+                if (visible != entry.Visible) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /// <summary>Examines the current concrete queue without dereferencing any cached queue, allowing a foreign nonglyph loading pass to preserve menu payloads.</summary>
+        /// <param name="queue">Current live camera queue.</param>
+        /// <returns>True when even one current drawable is a text drawable.</returns>
+        static bool QueueContainsText([NativeNoEscape] RenderList2D queue) {
+            int version = queue.Version;
+            for (int index = 0; index < queue.Count; index++) {
+                if (queue.GetPreparedDrawable(index) is ITextDrawable2D) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>
@@ -120,6 +260,7 @@ namespace helengine {
         /// Releases the reusable command-list state and native clip-chain lists owned by this builder.
         /// </summary>
         public void Dispose() {
+            NativeOwnership.Release(ref TextReuseCache);
             if (IsDisposedValue) {
                 return;
             }
@@ -135,6 +276,7 @@ namespace helengine {
             CachedStaticTextRenderQueue = null;
             CachedStaticTextRenderQueueSignature = 0;
             HasCachedStaticTextRenderQueue = false;
+            CpuProfileSinkValue = null;
             IsDisposedValue = true;
         }
 
@@ -178,29 +320,37 @@ namespace helengine {
         /// </summary>
         /// <param name="drawable">Drawable visited from the ordered render queue.</param>
         public void Visit(IDrawable2D drawable) {
+            ulong clippingStart = BeginCpuProfileStage();
             if (drawable == null || drawable.Parent == null || !drawable.Parent.IsHierarchyEnabled) {
+                EndCpuProfileStage(RuntimeCpuProfileStage.CommandListClipping, clippingStart);
                 return;
             }
 
             ClipRegionStackBuilder.BuildClipChain(drawable, NextClipChain);
             if (ShouldSkipDrawableBecauseItIsFullyClipped(drawable)) {
+                EndCpuProfileStage(RuntimeCpuProfileStage.CommandListClipping, clippingStart);
                 return;
             }
 
             SyncClipTransitions();
+            EndCpuProfileStage(RuntimeCpuProfileStage.CommandListClipping, clippingStart);
 
             if (drawable is ISpriteDrawable2D sprite) {
+                ulong spriteStart = BeginCpuProfileStage();
                 EmitSprite(sprite);
+                EndCpuProfileStage(RuntimeCpuProfileStage.CommandListSprites, spriteStart);
                 return;
             }
 
             if (drawable is ITextDrawable2D text) {
-                EmitText(text);
+                EmitReusableText(text);
                 return;
             }
 
             if (drawable is IRoundedRectDrawable2D roundedRect) {
+                ulong shapeStart = BeginCpuProfileStage();
                 EmitRoundedRect(roundedRect);
+                EndCpuProfileStage(RuntimeCpuProfileStage.CommandListRoundedRects, shapeStart);
                 return;
             }
 
@@ -397,6 +547,7 @@ namespace helengine {
         /// </summary>
         /// <param name="text">Text drawable to flatten.</param>
         void EmitText(ITextDrawable2D text) {
+            ulong layoutStart = BeginCpuProfileStage();
             FontAsset font = text.Font;
             double fontScale = Math.Max((double)text.FontScale, 0.0001d);
             string content = text.Text ?? string.Empty;
@@ -405,6 +556,7 @@ namespace helengine {
             }
 
             if (string.IsNullOrEmpty(content)) {
+                EndCpuProfileStage(RuntimeCpuProfileStage.CommandListTextLayout, layoutStart);
                 return;
             }
 
@@ -415,12 +567,16 @@ namespace helengine {
             double baseX = Math.Round(ownerWorldPosition.X);
             double baseY = Math.Round(ownerWorldPosition.Y);
             IReadOnlyList<double> lineOffsets = BuildTextLineOffsets(text, font, content, fontScale);
+            EndCpuProfileStage(RuntimeCpuProfileStage.CommandListTextLayout, layoutStart);
+            ulong effectsStart = BeginCpuProfileStage();
             bool hasTextEffects = text.ShadowOffset.X != 0f
                 || text.ShadowOffset.Y != 0f
                 || text.OutlineScale > 0f;
             List<TextRenderEffectPass> effectPasses = hasTextEffects
                 ? TextRenderEffectPassBuilder.Build(text)
                 : null;
+            EndCpuProfileStage(RuntimeCpuProfileStage.CommandListTextEffectsSetup, effectsStart);
+            ulong glyphStart = BeginCpuProfileStage();
             int lineIndex = 0;
             double lineOriginX = baseX + TextLineOffsets2D.Resolve(lineOffsets, lineIndex);
 
@@ -477,8 +633,34 @@ namespace helengine {
                 offsetX += advanceWidth;
             }
 
+            EndCpuProfileStage(RuntimeCpuProfileStage.CommandListGlyphEmission, glyphStart);
             if (effectPasses != null) {
                 NativeOwnership.Delete(effectPasses);
+            }
+        }
+
+        /// <summary>Reuses unchanged glyphs or reruns the original emitter into the same checked range when only the snapped world origin moved.</summary>
+        /// <param name="text">Current live text whose clipping has already been resolved.</param>
+        void EmitReusableText([NativeNoEscape] ITextDrawable2D text) {
+            int slot = TextReuseCache == null ? -1 : TextReuseCache.Find(text);
+            if (ReusingTextPayloads && slot >= 0) {
+                TextCommandReuseEntry entry = TextReuseCache.Get(slot);
+                if (entry.OriginX == Math.Round(text.Parent.Position.X) && entry.OriginY == Math.Round(text.Parent.Position.Y)) {
+                    ulong glyphStart = BeginCpuProfileStage();
+                    CommandListValue.AddRetainedGlyphRange(entry.Start, entry.Count);
+                    EndCpuProfileStage(RuntimeCpuProfileStage.CommandListGlyphEmission, glyphStart);
+                } else {
+                    CommandListValue.BeginGlyphOverwrite(entry.Start, entry.Count);
+                    EmitText(text);
+                    CommandListValue.EndGlyphOverwrite();
+                    TextReuseCache.SetRange(slot, entry.Start, entry.Count);
+                }
+                return;
+            }
+            int start = CommandListValue.GlyphCount;
+            EmitText(text);
+            if (CapturingTextPayloads && slot >= 0) {
+                TextReuseCache.SetRange(slot, start, CommandListValue.GlyphCount - start);
             }
         }
 

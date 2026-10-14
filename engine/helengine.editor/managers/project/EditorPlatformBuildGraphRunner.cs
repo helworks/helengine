@@ -1755,6 +1755,7 @@ namespace helengine.editor {
                 cookedManifest.RuntimeFeatureManifest);
 
             manifest.SceneLoadingBudgetMilliseconds = cookedManifest.SceneLoadingBudgetMilliseconds;
+            manifest.Render2DTextCommandReuseMemoryBudgetBytes = cookedManifest.Render2DTextCommandReuseMemoryBudgetBytes;
             manifest.LoadingScreenSceneId = cookedManifest.LoadingScreenSceneId;
 
             PlatformBuildTargetVariant[] targetVariants = [

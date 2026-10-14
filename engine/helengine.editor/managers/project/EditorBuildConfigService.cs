@@ -180,6 +180,7 @@ namespace helengine.editor {
                 ApplyProjectScenes(platform, FindProjectPlatformEntry(projectDocument, platform.PlatformId));
             }
 
+            EditorRuntimeTextCommandReuseSettingsResolver.ApplyProjectDefaults(ProjectRootPath, document);
             return document;
         }
 

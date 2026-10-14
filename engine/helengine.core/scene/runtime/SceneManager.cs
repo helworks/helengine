@@ -327,19 +327,28 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Transfers one loaded scene record into the manager's owning load-order collection and indexes the same record by scene identifier.
+        /// Transfers one loaded scene record to this manager's explicit unload lifecycle and stores borrowing indices for lookup and load order.
         /// </summary>
         /// <param name="loadedSceneRecord">New record whose native lifetime becomes owned by this scene manager.</param>
-        /// <returns>The tracked record borrowed from the manager's owning collection.</returns>
+        /// <returns>The tracked record borrowed from this manager until the corresponding unload or untrack operation.</returns>
         [NativeBorrowedReturn]
         LoadedSceneRecord TrackLoadedSceneRecord([NativeTakesOwnership] LoadedSceneRecord loadedSceneRecord) {
             if (loadedSceneRecord == null) {
                 throw new ArgumentNullException(nameof(loadedSceneRecord));
             }
 
+            RetainLoadedSceneRecordReferences(loadedSceneRecord);
+            return LoadedSceneRecords[LoadedSceneRecords.Count - 1];
+        }
+
+        /// <summary>
+        /// Keeps two lookup aliases to one manually owned record without allowing either native index to destroy it.
+        /// Unload removes these aliases only after entity and asset teardown, then deletes the record once.
+        /// </summary>
+        /// <param name="loadedSceneRecord">Record whose lifetime remains owned by this scene manager.</param>
+        void RetainLoadedSceneRecordReferences([NativeRetainsBorrow] LoadedSceneRecord loadedSceneRecord) {
             LoadedSceneRecordsById.Add(loadedSceneRecord.SceneId, loadedSceneRecord);
             LoadedSceneRecords.Add(loadedSceneRecord);
-            return LoadedSceneRecords[LoadedSceneRecords.Count - 1];
         }
 
         /// <summary>
