@@ -290,6 +290,11 @@
         "hold_last_frame": {
           "type": "boolean"
         },
+        "rate": {
+          "type": "number",
+          "minimum": 0.25,
+          "maximum": 4
+        },
         "members": {
           "type": "array",
           "items": {
@@ -339,6 +344,11 @@
         },
         "muted": {
           "type": "boolean"
+        },
+        "rate": {
+          "type": "number",
+          "minimum": 0.25,
+          "maximum": 4
         },
         "envelopes": {
           "type": "array",

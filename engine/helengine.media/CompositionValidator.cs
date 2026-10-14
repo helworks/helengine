@@ -36,6 +36,7 @@ public static class CompositionValidator {
             if(layer.Mask!=null) {CheckMedia(errors,media,layer.Mask.MediaId,path+".mask");if(layer.Mask.Channel is not ("alpha" or "luma")) {Add(errors,"invalid_mask",path,"Mask channel is unsupported.");}}
             try {MediaColor.Parse(layer.PaddingColor);} catch(InvalidDataException) {Add(errors,"invalid_color",path,"Padding color is invalid.");}
             CheckInterval(errors,layer.Start,layer.End,document.Duration,path);
+            if (!MediaTime.IsValidRate(layer.Rate)) { Add(errors,"invalid_rate",path+".rate",$"Playback rate must be finite and in {MediaTime.MinimumRate}..{MediaTime.MaximumRate}."); }
             if (ValidTime(layer.Start) && ValidTime(layer.End)) {errors.AddRange(AnimationValidator.Validate(layer,path));}
             if (layer.Effects==null) { Add(errors,"invalid_collection",path+".effects","Effects cannot be null."); continue; }
             errors.AddRange(EffectInputValidator.Validate(layer.Effects,capabilities,media,path+".effects"));
@@ -47,6 +48,7 @@ public static class CompositionValidator {
             CheckIdentity(errors,items,clip.Id,path); CheckMedia(errors,media,clip.MediaId,path);
             CheckInterval(errors,clip.Start,clip.End,document.Duration,path);
             if (!double.IsFinite(clip.Gain) || clip.Gain<0 || clip.Gain>16) { Add(errors,"invalid_gain",path+".gain","Gain must be finite and in 0..16."); }
+            if (!MediaTime.IsValidRate(clip.Rate)) { Add(errors,"invalid_rate",path+".rate",$"Playback rate must be finite and in {MediaTime.MinimumRate}..{MediaTime.MaximumRate}."); }
         }
         for (int i=0;i<document.Transitions.Count;i++) {
             CompositionTransition transition=document.Transitions[i]; string path=$"transitions[{i}]";

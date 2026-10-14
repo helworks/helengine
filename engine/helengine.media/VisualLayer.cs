@@ -47,4 +47,8 @@ public sealed class VisualLayer {
     public bool ClipToViewport {get;set;} = true;
     /// <summary>Lets a video layer outlast its source interval by holding the last source frame, e.g. under a transition overlap without handles; omitted from JSON when false so ordinary compositions stay readable by older engines.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] public bool HoldLastFrame {get;set;}
+    /// <summary>Source seconds played per timeline second (1 is real time, 2 plays twice as fast), so the source time is <c>SourceIn + local * Rate</c>; within <see cref="MediaTime.MinimumRate"/>..<see cref="MediaTime.MaximumRate"/>.</summary>
+    [JsonIgnore] public double Rate {get;set;} = 1;
+    /// <summary>JSON form of <see cref="Rate"/>: omitted when the layer plays in real time so ordinary compositions stay readable by older engines.</summary>
+    [JsonInclude,JsonPropertyName("rate"),JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)] double? SerializedRate {get=>Rate==1?null:Rate;set=>Rate=value ?? 1;}
 }

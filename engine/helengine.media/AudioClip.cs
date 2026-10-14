@@ -27,4 +27,8 @@ public sealed class AudioClip {
     public bool Muted { get; set; }
     /// <summary>Gain envelopes evaluated per sample in local clip time.</summary>
     public List<AudioEnvelope> Envelopes {get;set;} = [];
+    /// <summary>Source seconds played per timeline second; the mixer time-stretches with the pitch preserved when it is not 1. Within <see cref="MediaTime.MinimumRate"/>..<see cref="MediaTime.MaximumRate"/>.</summary>
+    [JsonIgnore] public double Rate {get;set;} = 1;
+    /// <summary>JSON form of <see cref="Rate"/>: omitted when the clip plays in real time so ordinary compositions stay readable by older engines.</summary>
+    [JsonInclude,JsonPropertyName("rate"),JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)] double? SerializedRate {get=>Rate==1?null:Rate;set=>Rate=value ?? 1;}
 }

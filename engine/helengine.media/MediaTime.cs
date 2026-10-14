@@ -20,6 +20,24 @@ public readonly struct MediaTime : IComparable<MediaTime>, IEquatable<MediaTime>
         if (!double.IsFinite(seconds)) { throw new ArgumentOutOfRangeException(nameof(seconds)); }
         return new(checked((long)Math.Round(seconds*1000000000d,MidpointRounding.AwayFromZero)),1000000000);
     }
+    /// <summary>Slowest playback rate a layer or audio clip may declare.</summary>
+    public const double MinimumRate=0.25;
+    /// <summary>Fastest playback rate a layer or audio clip may declare.</summary>
+    public const double MaximumRate=4;
+    /// <summary>Checks that a playback rate is finite and inside the supported range.</summary>
+    public static bool IsValidRate(double rate) => double.IsFinite(rate) && rate>=MinimumRate && rate<=MaximumRate;
+    /// <summary>Multiplies a timeline duration by a playback rate taken at nanosecond precision, returning the source duration it consumes; a rate of 1 returns the value unchanged. The product stays exact when it fits a nanosecond-or-coarser denominator and is otherwise rounded to the nearest nanosecond, so a rate such as 4/3 applied to frame-aligned times never overflows the stored long fraction.</summary>
+    public MediaTime AtRate(double rate) {
+        if (rate==1) { return this; }
+        Validate();var factor=FromSeconds(rate);
+        BigInteger numerator=(BigInteger)Numerator*factor.Numerator,denominator=(BigInteger)Denominator*factor.Denominator;
+        BigInteger gcd=BigInteger.GreatestCommonDivisor(numerator,denominator);numerator/=gcd;denominator/=gcd;
+        if (denominator<=NanosecondsPerSecond) { return new(checked((long)numerator),checked((long)denominator)); }
+        BigInteger scaled=numerator*NanosecondsPerSecond,half=denominator/2;
+        return new(checked((long)((scaled>=0 ? scaled+half : scaled-half)/denominator)),NanosecondsPerSecond);
+    }
+    /// <summary>Nanoseconds in one second, the finest grid a rate-scaled time is rounded to.</summary>
+    const long NanosecondsPerSecond=1000000000;
     /// <summary>Approximates the exact value for interpolation and external API boundaries.</summary>
     public double ToSeconds() { Validate(); return (double)Numerator/Denominator; }
     /// <summary>Rounds an exact nonnegative value upward to an integer unit count.</summary>
