@@ -6,7 +6,9 @@ namespace helengine.editor {
     /// launched player, plus the clock reading at which Play started. Once the player reports its first frame, or exits
     /// without one, it formats the single startup summary line the editor console shows, for example
     /// <c>[play] save 0.1s · cook 8.4s · scripts 0.0s (skipped) · launch 0.3s · first frame 2.7s · total 11.5s</c>.
-    /// Every duration is written in seconds with one decimal and the invariant culture.
+    /// Every duration is written in seconds with one decimal and the invariant culture. The stages and the total are
+    /// measured on the editor clock, while the first frame is the player's own measurement from its start, so the parts
+    /// may not add up exactly to the total.
     /// </summary>
     public sealed class EditorPlayStartupTiming {
         /// <summary>
@@ -87,8 +89,10 @@ namespace helengine.editor {
         /// <summary>
         /// Formats the summary for a player that presented its first frame.
         /// </summary>
-        /// <param name="firstFrameDuration">Time the player reported from its process start to its first presented frame.</param>
-        /// <param name="totalDuration">Time from the start of Play until the editor received the first-frame report.</param>
+        /// <param name="firstFrameDuration">Time the player measured from its start to its first presented frame.</param>
+        /// <param name="totalDuration">
+        /// Time on the editor clock from the start of Play until the editor received the first-frame report.
+        /// </param>
         /// <returns>The summary line, including every stage, the first frame and the total.</returns>
         /// <exception cref="ArgumentOutOfRangeException">Thrown when either duration is negative.</exception>
         public string FormatFirstFrameSummary(TimeSpan firstFrameDuration, TimeSpan totalDuration) {
@@ -111,6 +115,14 @@ namespace helengine.editor {
         /// <returns>The summary line ending in <c>no frame (exit code N)</c>.</returns>
         public string FormatNoFrameSummary(int exitCode) {
             return FormatStages() + StageSeparator + "no frame (exit code " + exitCode.ToString(CultureInfo.InvariantCulture) + ")";
+        }
+
+        /// <summary>
+        /// Formats the summary for a player the editor stopped before it presented a frame.
+        /// </summary>
+        /// <returns>The summary line ending in <c>no frame (stopped)</c>.</returns>
+        public string FormatStoppedSummary() {
+            return FormatStages() + StageSeparator + "no frame (stopped)";
         }
 
         /// <summary>

@@ -4,8 +4,9 @@ using Xunit;
 namespace helengine.editor.tests.managers.play;
 
 /// <summary>
-/// Verifies that every Play logs one startup timing summary: when the player reports its first frame, or with the exit
-/// code when the player exits before presenting one.
+/// Verifies that every Play logs one startup timing summary: when the player reports its first frame, with the exit code
+/// when the player exits before presenting one, or as stopped when the editor stops it first. Unexpected marker lines
+/// from the player are reported and never throw.
 /// </summary>
 public sealed class EditorPlaySessionStartupTimingTests {
     /// <summary>
@@ -27,14 +28,14 @@ public sealed class EditorPlaySessionStartupTimingTests {
         // Readings: play start, saved, cooked, scripts built, launched, first-frame marker received.
         FakePlayClock clock = new FakePlayClock(100, 100.1, 108.5, 109.75, 110.05, 112.8);
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
-        EditorPlaySessionService service = CreateService(EditorBuildExecutionResult.Success("Scripts built."), launcher, clock);
+        EditorPlaySessionService service = CreateService(false, launcher, clock);
         StartPlay(service);
         List<string> messages = new List<string>();
         Action<LogEntry> captureMessage = entry => messages.Add(entry.Message);
 
         Logger.MessageLogged += captureMessage;
         try {
-            launcher.StartedProcesses[0].RaiseOutputLine("first-frame 2690");
+            launcher.StartedProcesses[0].RaiseOutputLine("##helengine.play first-frame-ms=2690");
             launcher.StartedProcesses[0].RaiseExit(0);
         } finally {
             Logger.MessageLogged -= captureMessage;
@@ -51,20 +52,131 @@ public sealed class EditorPlaySessionStartupTimingTests {
     public void FirstFrameMarker_WhenScriptBuildSkipped_TagsScriptStage() {
         FakePlayClock clock = new FakePlayClock(0, 0.1, 8.5, 8.51, 8.8, 11.5);
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
-        EditorPlaySessionService service = CreateService(
-            EditorBuildExecutionResult.Success(EditorPlaySessionService.ScriptBuildSkippedMessage), launcher, clock);
+        EditorPlaySessionService service = CreateService(true, launcher, clock);
         StartPlay(service);
         List<string> messages = new List<string>();
         Action<LogEntry> captureMessage = entry => messages.Add(entry.Message);
 
         Logger.MessageLogged += captureMessage;
         try {
-            launcher.StartedProcesses[0].RaiseOutputLine("first-frame 2700");
+            launcher.StartedProcesses[0].RaiseOutputLine("##helengine.play first-frame-ms=2700");
         } finally {
             Logger.MessageLogged -= captureMessage;
         }
 
         Assert.Equal(new[] { "[play] save 0.1s · cook 8.4s · scripts 0.0s (skipped) · launch 0.3s · first frame 2.7s · total 11.5s" }, messages);
+    }
+
+    /// <summary>
+    /// Ensures an ordinary game or engine log line that merely starts with "first-frame" is echoed as a player line and
+    /// not taken as the marker.
+    /// </summary>
+    [Fact]
+    public void LogLineStartingWithFirstFrame_IsEchoedNotConsumed() {
+        FakePlayClock clock = new FakePlayClock(0, 0.1, 1, 2, 2.5);
+        FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
+        EditorPlaySessionService service = CreateService(false, launcher, clock);
+        StartPlay(service);
+        List<string> messages = new List<string>();
+        Action<LogEntry> captureMessage = entry => messages.Add(entry.Message);
+
+        Logger.MessageLogged += captureMessage;
+        try {
+            launcher.StartedProcesses[0].RaiseOutputLine("first-frame 1234");
+        } finally {
+            Logger.MessageLogged -= captureMessage;
+        }
+
+        Assert.Equal(new[] { "[player] first-frame 1234" }, messages);
+        Assert.Equal(0, clock.RemainingReadings);
+    }
+
+    /// <summary>
+    /// Ensures a second marker after the summary is reported as an editor error and ignored, without throwing.
+    /// </summary>
+    [Fact]
+    public void DuplicateFirstFrameMarker_IsReportedAndIgnored() {
+        FakePlayClock clock = new FakePlayClock(0, 0.1, 1, 2, 2.5, 4);
+        FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
+        EditorPlaySessionService service = CreateService(false, launcher, clock);
+        StartPlay(service);
+        List<string> messages = new List<string>();
+        List<string> errors = new List<string>();
+        Action<LogEntry> captureMessage = entry => messages.Add(entry.Message);
+        Action<LogEntry> captureError = entry => errors.Add(entry.Message);
+
+        Logger.MessageLogged += captureMessage;
+        Logger.ErrorLogged += captureError;
+        try {
+            launcher.StartedProcesses[0].RaiseOutputLine("##helengine.play first-frame-ms=1500");
+            launcher.StartedProcesses[0].RaiseOutputLine("##helengine.play first-frame-ms=1600");
+        } finally {
+            Logger.MessageLogged -= captureMessage;
+            Logger.ErrorLogged -= captureError;
+        }
+
+        Assert.Single(messages, message => message.StartsWith("[play] save", StringComparison.Ordinal));
+        Assert.Contains("[play] save 0.1s · cook 0.9s · scripts 1.0s · launch 0.5s · first frame 1.5s · total 4.0s", messages);
+        Assert.Equal(new[] { "[play] ignored unexpected first-frame marker: ##helengine.play first-frame-ms=1600" }, errors);
+        Assert.Equal(EditorPlaySessionState.Running, service.State);
+    }
+
+    /// <summary>
+    /// Ensures a malformed marker is reported and ignored, and the following well-formed marker still logs the summary.
+    /// </summary>
+    [Fact]
+    public void MalformedFirstFrameMarker_IsReportedAndLaterValidMarkerWins() {
+        FakePlayClock clock = new FakePlayClock(0, 0.1, 1, 2, 2.5, 4);
+        FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
+        EditorPlaySessionService service = CreateService(false, launcher, clock);
+        StartPlay(service);
+        List<string> messages = new List<string>();
+        List<string> errors = new List<string>();
+        Action<LogEntry> captureMessage = entry => messages.Add(entry.Message);
+        Action<LogEntry> captureError = entry => errors.Add(entry.Message);
+
+        Logger.MessageLogged += captureMessage;
+        Logger.ErrorLogged += captureError;
+        try {
+            launcher.StartedProcesses[0].RaiseOutputLine("##helengine.play first-frame-ms=abc");
+            launcher.StartedProcesses[0].RaiseOutputLine("##helengine.play first-frame-ms=-1");
+            launcher.StartedProcesses[0].RaiseOutputLine("##helengine.play first-frame-ms=1500");
+        } finally {
+            Logger.MessageLogged -= captureMessage;
+            Logger.ErrorLogged -= captureError;
+        }
+
+        Assert.Equal(
+            new[] {
+                "[play] ignored unexpected first-frame marker: ##helengine.play first-frame-ms=abc",
+                "[play] ignored unexpected first-frame marker: ##helengine.play first-frame-ms=-1"
+            },
+            errors);
+        Assert.Contains("[play] save 0.1s · cook 0.9s · scripts 1.0s · launch 0.5s · first frame 1.5s · total 4.0s", messages);
+    }
+
+    /// <summary>
+    /// Ensures a marker delivered after the player exited is ignored: the no-frame summary stands and nothing throws.
+    /// </summary>
+    [Fact]
+    public void FirstFrameMarkerAfterExit_IsIgnored() {
+        FakePlayClock clock = new FakePlayClock(0, 0.1, 1, 2, 2.5);
+        FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
+        EditorPlaySessionService service = CreateService(false, launcher, clock);
+        StartPlay(service);
+        List<string> messages = new List<string>();
+        Action<LogEntry> captureMessage = entry => messages.Add(entry.Message);
+
+        Logger.MessageLogged += captureMessage;
+        try {
+            launcher.StartedProcesses[0].RaiseExit(0);
+            launcher.StartedProcesses[0].RaiseStaleEventsToEverySubscriber("##helengine.play first-frame-ms=1500", 0);
+        } finally {
+            Logger.MessageLogged -= captureMessage;
+        }
+
+        Assert.Equal(new[] { "[play] save 0.1s · cook 0.9s · scripts 1.0s · launch 0.5s · no frame (exit code 0)" }, messages);
+        Assert.Equal(0, clock.RemainingReadings);
     }
 
     /// <summary>
@@ -75,7 +187,7 @@ public sealed class EditorPlaySessionStartupTimingTests {
     public void ExitBeforeFirstFrame_LogsStagesAndExitCode() {
         FakePlayClock clock = new FakePlayClock(0, 0.2, 3.2, 7.6, 7.9);
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
-        EditorPlaySessionService service = CreateService(EditorBuildExecutionResult.Success("Scripts built."), launcher, clock);
+        EditorPlaySessionService service = CreateService(false, launcher, clock);
         StartPlay(service);
         List<string> messages = new List<string>();
         List<string> errors = new List<string>();
@@ -107,7 +219,7 @@ public sealed class EditorPlaySessionStartupTimingTests {
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
         launcher.StartAlreadyExited = true;
         launcher.AlreadyExitedCode = 2;
-        EditorPlaySessionService service = CreateService(EditorBuildExecutionResult.Success("Scripts built."), launcher, clock);
+        EditorPlaySessionService service = CreateService(false, launcher, clock);
         List<string> messages = new List<string>();
         Action<LogEntry> captureMessage = entry => messages.Add(entry.Message);
 
@@ -122,15 +234,63 @@ public sealed class EditorPlaySessionStartupTimingTests {
     }
 
     /// <summary>
-    /// Creates the service under test with succeeding cook, the given script build result and the fake clock.
+    /// Ensures stopping the player before its first frame logs the measured stages and "no frame (stopped)" once.
     /// </summary>
-    /// <param name="scriptBuildResult">Result the fake script builder returns.</param>
+    [Fact]
+    public void StopBeforeFirstFrame_LogsStoppedSummary() {
+        FakePlayClock clock = new FakePlayClock(0, 0.1, 1, 2, 2.5);
+        FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
+        EditorPlaySessionService service = CreateService(false, launcher, clock);
+        StartPlay(service);
+        List<string> messages = new List<string>();
+        Action<LogEntry> captureMessage = entry => messages.Add(entry.Message);
+
+        Logger.MessageLogged += captureMessage;
+        try {
+            service.Stop();
+            launcher.StartedProcesses[0].RaiseStaleEventsToEverySubscriber("##helengine.play first-frame-ms=1500", 1);
+        } finally {
+            Logger.MessageLogged -= captureMessage;
+        }
+
+        Assert.Equal(new[] { "[play] save 0.1s · cook 0.9s · scripts 1.0s · launch 0.5s · no frame (stopped)" }, messages);
+        Assert.Equal(1, launcher.StartedProcesses[0].KillCount);
+    }
+
+    /// <summary>
+    /// Ensures stopping a player that already presented its first frame logs no second summary.
+    /// </summary>
+    [Fact]
+    public void StopAfterFirstFrame_LogsNoSecondSummary() {
+        FakePlayClock clock = new FakePlayClock(0, 0.1, 1, 2, 2.5, 4);
+        FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
+        EditorPlaySessionService service = CreateService(false, launcher, clock);
+        StartPlay(service);
+        List<string> messages = new List<string>();
+        Action<LogEntry> captureMessage = entry => messages.Add(entry.Message);
+
+        Logger.MessageLogged += captureMessage;
+        try {
+            launcher.StartedProcesses[0].RaiseOutputLine("##helengine.play first-frame-ms=1500");
+            service.Stop();
+        } finally {
+            Logger.MessageLogged -= captureMessage;
+        }
+
+        Assert.Equal(new[] { "[play] save 0.1s · cook 0.9s · scripts 1.0s · launch 0.5s · first frame 1.5s · total 4.0s" }, messages);
+    }
+
+    /// <summary>
+    /// Creates the service under test with a succeeding cook and script build and the fake clock.
+    /// </summary>
+    /// <param name="compileSkipped">Whether the fake script build reports that the compile was skipped.</param>
     /// <param name="launcher">Fake launcher recording the started players.</param>
     /// <param name="clock">Fake clock supplying the stage readings.</param>
     /// <returns>The service under test.</returns>
-    static EditorPlaySessionService CreateService(EditorBuildExecutionResult scriptBuildResult, FakePlayProcessLauncher launcher, FakePlayClock clock) {
+    static EditorPlaySessionService CreateService(bool compileSkipped, FakePlayProcessLauncher launcher, FakePlayClock clock) {
         FakePlayCookRunner cookRunner = new FakePlayCookRunner(new EditorPlayCookResult(true, "Cooked.", @"C:\project\cache\play\ps2-staging", "scene-cube-test", "scenes/cube_test.hscene"));
-        FakePlayScriptBuilder scriptBuilder = new FakePlayScriptBuilder(scriptBuildResult, @"C:\project\cache\play\modules");
+        FakePlayScriptBuilder scriptBuilder = new FakePlayScriptBuilder(EditorBuildExecutionResult.Success("Scripts built."), @"C:\project\cache\play\modules");
+        scriptBuilder.CompileSkipped = compileSkipped;
         return new EditorPlaySessionService(cookRunner, scriptBuilder, launcher, PlayerExecutablePath, clock);
     }
 

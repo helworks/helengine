@@ -2,32 +2,34 @@ using System.Globalization;
 
 namespace helengine.editor {
     /// <summary>
-    /// Machine-readable standard-output line the desktop player writes once, right after its first frame is presented:
-    /// <c>first-frame &lt;milliseconds since the player process started&gt;</c>. The editor recognizes it by its exact
-    /// prefix, uses it to finish the Play startup timing summary and does not echo it as a <c>[player]</c> log line.
+    /// Machine-readable standard-output line the desktop player host writes once, right after its first frame is
+    /// presented: <c>##helengine.play first-frame-ms=&lt;milliseconds&gt;</c>. The player also forwards every engine and
+    /// game log message to stdout unprefixed, so the marker uses a sentinel no log message would plausibly start with.
+    /// The editor recognizes it by that exact prefix, uses it to finish the Play startup timing summary and does not
+    /// echo it as a <c>[player]</c> log line. Parsing never throws: the line comes from another process.
     /// </summary>
     public static class EditorPlayFirstFrameMarker {
         /// <summary>
-        /// Exact prefix of the marker line, including the separating space.
+        /// Exact prefix of the marker line; the milliseconds follow directly after the equals sign.
         /// </summary>
-        public const string Prefix = "first-frame ";
+        public const string Prefix = "##helengine.play first-frame-ms=";
 
         /// <summary>
-        /// Builds the marker line for the given time since the player process started.
+        /// Builds the marker line for the given time from player start to the first presented frame.
         /// </summary>
-        /// <param name="millisecondsSinceProcessStart">Milliseconds from process start to the first presented frame.</param>
+        /// <param name="milliseconds">Milliseconds from player start to the first presented frame.</param>
         /// <returns>The marker line, written with the invariant culture.</returns>
         /// <exception cref="ArgumentOutOfRangeException">Thrown when the milliseconds are negative.</exception>
-        public static string Format(long millisecondsSinceProcessStart) {
-            if (millisecondsSinceProcessStart < 0) {
-                throw new ArgumentOutOfRangeException(nameof(millisecondsSinceProcessStart), millisecondsSinceProcessStart, "The first-frame time cannot be negative.");
+        public static string Format(long milliseconds) {
+            if (milliseconds < 0) {
+                throw new ArgumentOutOfRangeException(nameof(milliseconds), milliseconds, "The first-frame time cannot be negative.");
             }
 
-            return Prefix + millisecondsSinceProcessStart.ToString(CultureInfo.InvariantCulture);
+            return Prefix + milliseconds.ToString(CultureInfo.InvariantCulture);
         }
 
         /// <summary>
-        /// Reports whether a player output line is the first-frame marker.
+        /// Reports whether a player output line claims to be the first-frame marker, valid or not.
         /// </summary>
         /// <param name="line">Line the player wrote.</param>
         /// <returns>True when the line starts with <see cref="Prefix"/>.</returns>
@@ -41,20 +43,24 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Reads the milliseconds since process start from a marker line.
+        /// Reads the milliseconds from a marker line without throwing. Surrounding white space is tolerated; a sign,
+        /// a fraction, other text or a value that does not fit a <see cref="long"/> makes the marker malformed.
         /// </summary>
-        /// <param name="line">Marker line the player wrote.</param>
-        /// <returns>Milliseconds from the player process start to its first presented frame.</returns>
-        /// <exception cref="ArgumentException">Thrown when the line is not a marker line.</exception>
-        /// <exception cref="FormatException">Thrown when the marker does not carry a non-negative whole number.</exception>
-        public static long ParseMilliseconds(string line) {
+        /// <param name="line">Line the player wrote.</param>
+        /// <param name="milliseconds">Receives the milliseconds when the marker is well formed; zero otherwise.</param>
+        /// <returns>True when the line is a well-formed marker.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when the line is null.</exception>
+        public static bool TryParseMilliseconds(string line, out long milliseconds) {
             if (!IsMarker(line)) {
-                throw new ArgumentException("The line is not a first-frame marker.", nameof(line));
+                milliseconds = 0;
+                return false;
             }
 
-            string value = line.Substring(Prefix.Length);
-            long milliseconds = long.Parse(value, NumberStyles.None, CultureInfo.InvariantCulture);
-            return milliseconds;
+            return long.TryParse(
+                line.AsSpan(Prefix.Length),
+                NumberStyles.AllowLeadingWhite | NumberStyles.AllowTrailingWhite,
+                CultureInfo.InvariantCulture,
+                out milliseconds);
         }
     }
 }

@@ -71,16 +71,45 @@ public sealed class EditorPlayStartupTimingTests {
     }
 
     /// <summary>
-    /// Ensures the first-frame marker round-trips through its format and parse.
+    /// Ensures a stopped player's summary ends in "no frame (stopped)".
+    /// </summary>
+    [Fact]
+    public void FormatStoppedSummary_EndsWithStopped() {
+        EditorPlayStartupTiming timing = new EditorPlayStartupTiming(
+            TimeSpan.Zero, TimeSpan.FromSeconds(0.1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(1), true, TimeSpan.FromSeconds(0.2));
+
+        Assert.Equal("[play] save 0.1s · cook 2.0s · scripts 1.0s (skipped) · launch 0.2s · no frame (stopped)", timing.FormatStoppedSummary());
+    }
+
+    /// <summary>
+    /// Ensures the first-frame marker round-trips through its format and parse, and is not confused with log text.
     /// </summary>
     [Fact]
     public void FirstFrameMarker_FormatsAndParsesMilliseconds() {
         string line = EditorPlayFirstFrameMarker.Format(2734);
 
-        Assert.Equal("first-frame 2734", line);
+        Assert.Equal("##helengine.play first-frame-ms=2734", line);
+        Assert.True(EditorPlayFirstFrameMarker.TryParseMilliseconds(line, out long milliseconds));
+        Assert.Equal(2734L, milliseconds);
+        Assert.True(EditorPlayFirstFrameMarker.TryParseMilliseconds(line + " \r", out long tolerated));
+        Assert.Equal(2734L, tolerated);
+        Assert.False(EditorPlayFirstFrameMarker.IsMarker("first-frame 2734"));
+        Assert.False(EditorPlayFirstFrameMarker.IsMarker("[player] ##helengine.play first-frame-ms=2734"));
+    }
+
+    /// <summary>
+    /// Ensures malformed markers are rejected without throwing.
+    /// </summary>
+    /// <param name="line">Malformed marker line.</param>
+    [Theory]
+    [InlineData("##helengine.play first-frame-ms=")]
+    [InlineData("##helengine.play first-frame-ms=abc")]
+    [InlineData("##helengine.play first-frame-ms=-1")]
+    [InlineData("##helengine.play first-frame-ms=1.5")]
+    [InlineData("##helengine.play first-frame-ms=99999999999999999999")]
+    [InlineData("##helengine.play first-frame-ms=12 ms")]
+    public void FirstFrameMarker_WhenMalformed_TryParseFails(string line) {
         Assert.True(EditorPlayFirstFrameMarker.IsMarker(line));
-        Assert.Equal(2734L, EditorPlayFirstFrameMarker.ParseMilliseconds(line));
-        Assert.False(EditorPlayFirstFrameMarker.IsMarker("[player] first-frame 2734"));
-        Assert.False(EditorPlayFirstFrameMarker.IsMarker("first-frames are fun"));
+        Assert.False(EditorPlayFirstFrameMarker.TryParseMilliseconds(line, out _));
     }
 }

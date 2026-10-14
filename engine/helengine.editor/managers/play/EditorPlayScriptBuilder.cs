@@ -102,10 +102,11 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="platformId">Platform whose gameplay symbols the scripts compile against.</param>
         /// <param name="runtimeModulesRootPath">Receives the runtime module root; it exists on disk after success.</param>
+        /// <param name="compileSkipped">Receives true when the fingerprint matched and the compile was skipped.</param>
         /// <returns>Success when the modules are current or were rebuilt, otherwise the compile failure.</returns>
         /// <exception cref="ArgumentException">Thrown when the platform id is blank.</exception>
         /// <exception cref="InvalidOperationException">Thrown when the environment resolver or compiler returns nothing.</exception>
-        public EditorBuildExecutionResult Build(string platformId, out string runtimeModulesRootPath) {
+        public EditorBuildExecutionResult Build(string platformId, out string runtimeModulesRootPath, out bool compileSkipped) {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
@@ -122,6 +123,7 @@ namespace helengine.editor {
             if (EditorScriptBuildFingerprint.MatchesStored(fingerprintFilePath, fingerprint)
                 && AllRuntimeModuleAssembliesExist(expectedModulesRootPath)) {
                 runtimeModulesRootPath = expectedModulesRootPath;
+                compileSkipped = true;
                 return EditorBuildExecutionResult.Success("Play scripts are up to date; script build skipped.");
             }
 
@@ -131,6 +133,7 @@ namespace helengine.editor {
                 File.Delete(fingerprintFilePath);
             }
 
+            compileSkipped = false;
             DeleteRemovedModuleFolders(expectedModulesRootPath);
             EditorBuildExecutionResult result = Compiler.Build(platformId, environmentId, out runtimeModulesRootPath);
             if (result == null) {

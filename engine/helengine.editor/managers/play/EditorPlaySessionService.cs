@@ -67,10 +67,10 @@ namespace helengine.editor {
         const string PlayerLogPrefix = "[player] ";
 
         /// <summary>
-        /// Success message <see cref="EditorPlayScriptBuilder"/> returns when the script fingerprint matched and the
-        /// compile was skipped; the startup summary tags the script stage "(skipped)" when the build reports it.
+        /// Prefix of the editor error logged when the player writes a first-frame marker that is malformed or arrives
+        /// after the startup summary was already logged.
         /// </summary>
-        internal const string ScriptBuildSkippedMessage = "Play scripts are up to date; script build skipped.";
+        const string UnexpectedFirstFrameMarkerPrefix = "[play] ignored unexpected first-frame marker: ";
 
         /// <summary>
         /// Runs the assets-only cook for the requested platform.
@@ -285,7 +285,7 @@ namespace helengine.editor {
                 return EditorBuildExecutionResult.Failure(cookResult.Message);
             }
 
-            EditorBuildExecutionResult buildResult = ScriptBuilder.Build(platformId, out string runtimeModulesRootPath);
+            EditorBuildExecutionResult buildResult = ScriptBuilder.Build(platformId, out string runtimeModulesRootPath, out bool scriptCompileSkipped);
             TimeSpan scriptsBuiltAt = Clock.Now;
             if (buildResult == null) {
                 throw new InvalidOperationException("The Play script builder returned no result.");
@@ -306,7 +306,7 @@ namespace helengine.editor {
                 savedAt - playStartedAt,
                 cookedAt - savedAt,
                 scriptsBuiltAt - cookedAt,
-                string.Equals(buildResult.Message, ScriptBuildSkippedMessage, StringComparison.Ordinal),
+                scriptCompileSkipped,
                 launchedAt - scriptsBuiltAt);
             EditorPlayProcessBinding binding = new EditorPlayProcessBinding(this, process, startupTiming);
             CurrentBinding = binding;
@@ -368,7 +368,8 @@ namespace helengine.editor {
 
         /// <summary>
         /// Detaches from the current player and terminates it when it is still running, so its late events can no
-        /// longer change this session.
+        /// longer change this session. A player stopped before its first frame logs the startup summary ending in
+        /// <c>no frame (stopped)</c>, or its exit code when it had already exited.
         /// </summary>
         void KillCurrentProcess() {
             if (CurrentBinding == null) {
@@ -377,8 +378,16 @@ namespace helengine.editor {
 
             EditorPlayProcessBinding binding = CurrentBinding;
             DetachCurrentBinding();
-            if (!binding.Process.HasExited) {
+            bool alreadyExited = binding.Process.HasExited;
+            if (!alreadyExited) {
                 binding.Process.Kill();
+            }
+
+            if (!binding.StartupSummaryLogged) {
+                binding.StartupSummaryLogged = true;
+                Logger.WriteLine(alreadyExited
+                    ? binding.StartupTiming.FormatNoFrameSummary(binding.Process.ExitCode)
+                    : binding.StartupTiming.FormatStoppedSummary());
             }
         }
 
@@ -411,18 +420,20 @@ namespace helengine.editor {
 
         /// <summary>
         /// Logs the startup summary for a player that reported its first frame: the measured editor stages, the time the
-        /// player reported from its process start to the first frame, and the total since Play started.
+        /// player reported from its start to the first frame, and the total since Play started. The first well-formed
+        /// marker is authoritative; a malformed marker, or one arriving after the summary was logged, is reported as an
+        /// editor error and otherwise ignored, because the line comes from another process and must never throw on the
+        /// editor thread.
         /// </summary>
         /// <param name="binding">Binding of the process that wrote the marker.</param>
         /// <param name="markerLine">First-frame marker line the player wrote.</param>
-        /// <exception cref="InvalidOperationException">Thrown when the player reports a first frame more than once.</exception>
         void LogFirstFrameSummary(EditorPlayProcessBinding binding, string markerLine) {
-            if (binding.StartupSummaryLogged) {
-                throw new InvalidOperationException("The player reported its first frame more than once.");
+            if (binding.StartupSummaryLogged || !EditorPlayFirstFrameMarker.TryParseMilliseconds(markerLine, out long firstFrameMilliseconds)) {
+                Logger.WriteError(UnexpectedFirstFrameMarkerPrefix + markerLine);
+                return;
             }
 
             TimeSpan receivedAt = Clock.Now;
-            long firstFrameMilliseconds = EditorPlayFirstFrameMarker.ParseMilliseconds(markerLine);
             EditorPlayStartupTiming timing = binding.StartupTiming;
             binding.StartupSummaryLogged = true;
             Logger.WriteLine(timing.FormatFirstFrameSummary(

@@ -24,9 +24,14 @@ namespace helengine.player {
         /// player's console streams, which the editor reads into its console.
         /// </summary>
         /// <param name="options">Validated launch options from the editor.</param>
-        public static void Run(PlayerLaunchOptions options) {
+        /// <param name="startupStopwatch">
+        /// Stopwatch started at the top of <see cref="Program.Main"/>; the first-frame marker reports its elapsed time.
+        /// </param>
+        public static void Run(PlayerLaunchOptions options, Stopwatch startupStopwatch) {
             if (options == null) {
                 throw new ArgumentNullException(nameof(options));
+            } else if (startupStopwatch == null) {
+                throw new ArgumentNullException(nameof(startupStopwatch));
             }
 
             PlayerConsoleLogForwarder logForwarder = new PlayerConsoleLogForwarder(Console.Out, Console.Error);
@@ -79,7 +84,7 @@ namespace helengine.player {
                 renderer3D.AddWindow(window.Handle, PlayerWindow.ClientWidth, PlayerWindow.ClientHeight);
                 core.SceneManager.LoadScene(options.SceneId, SceneLoadMode.Single);
 
-                RunFrameLoop(core, window, options.TargetFrameRate);
+                RunFrameLoop(core, window, options.TargetFrameRate, startupStopwatch);
             } finally {
                 if (core != null) {
                     core.Dispose();
@@ -127,18 +132,20 @@ namespace helengine.player {
         /// <summary>
         /// Pumps window messages and advances the core one frame at a time, using the measured wall-clock delta, until
         /// the player window is closed. Each frame is paced to <paramref name="targetFrameRate"/>, so the measured
-        /// delta handed to <c>Core.Update</c> is the real time between frames at that rate.
+        /// delta handed to <c>Core.Update</c> is the real time between frames at that rate. Right after the first frame
+        /// is presented, the machine-readable <see cref="EditorPlayFirstFrameMarker"/> line is written to stdout with the
+        /// milliseconds elapsed on <paramref name="startupStopwatch"/>, so the editor can finish its Play startup summary.
         /// </summary>
         /// <param name="core">Initialized core with the scene loaded.</param>
         /// <param name="window">Player window whose closing ends the loop.</param>
         /// <param name="targetFrameRate">Frames per second the selected platform runs at.</param>
-        static void RunFrameLoop(Core core, PlayerWindow window, double targetFrameRate) {
+        /// <param name="startupStopwatch">Stopwatch started at the top of <see cref="Program.Main"/>.</param>
+        static void RunFrameLoop(Core core, PlayerWindow window, double targetFrameRate, Stopwatch startupStopwatch) {
             Console.WriteLine("[player] frame loop target: " + targetFrameRate.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + " FPS");
             using StopwatchPlayerFrameClock clock = new StopwatchPlayerFrameClock();
             PlayerFramePacer pacer = new PlayerFramePacer(targetFrameRate, clock);
             double previousElapsedSeconds = 0d;
             bool isFirstFrame = true;
-            bool firstFrameReported = false;
             Application.DoEvents();
             pacer.Start();
             while (!window.IsClosed) {
@@ -147,29 +154,16 @@ namespace helengine.player {
                     ? core.InitializationOptions.DefaultUpdateDeltaSeconds
                     : currentElapsedSeconds - previousElapsedSeconds;
                 previousElapsedSeconds = currentElapsedSeconds;
-                isFirstFrame = false;
 
                 core.Update(frameDeltaSeconds);
                 core.Draw();
-                if (!firstFrameReported) {
-                    firstFrameReported = true;
-                    WriteFirstFrameMarker();
+                if (isFirstFrame) {
+                    isFirstFrame = false;
+                    Console.WriteLine(EditorPlayFirstFrameMarker.Format(startupStopwatch.ElapsedMilliseconds));
                 }
                 Application.DoEvents();
                 pacer.WaitForNextFrame();
             }
-        }
-
-        /// <summary>
-        /// Writes the machine-readable first-frame marker to stdout with the milliseconds elapsed since this process
-        /// started, so the editor can finish its Play startup timing summary. Called once, right after the first frame
-        /// is presented; the editor consumes the line instead of echoing it.
-        /// </summary>
-        static void WriteFirstFrameMarker() {
-            using Process currentProcess = Process.GetCurrentProcess();
-            TimeSpan sinceProcessStart = DateTime.Now - currentProcess.StartTime;
-            long milliseconds = (long)Math.Round(sinceProcessStart.TotalMilliseconds);
-            Console.WriteLine(EditorPlayFirstFrameMarker.Format(milliseconds));
         }
     }
 }
