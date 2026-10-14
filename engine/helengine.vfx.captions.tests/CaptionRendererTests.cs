@@ -43,6 +43,35 @@ public sealed class CaptionRendererTests {
     }
 
     /// <summary>Repeated rendering of an animation time produces identical pixels and the second frame differs.</summary>
+    /// <summary>A multi-word group pops once as it enters; the next spoken word does not shrink and regrow the block.</summary>
+    [Fact]
+    public void PopAnimatesTheGroupOnceNotEveryWord() {
+        CaptionStyle style = SmallStyle();
+        style.Animation = CaptionAnimation.Pop;
+        style.AnimationDuration = 0.2;
+        style.HighlightWords = false;
+        var cue = new CaptionCue("one two three", 0, 3, new[] { new CaptionWord("one", 0, 1), new CaptionWord("two", 1, 2), new CaptionWord("three", 2, 3) });
+        using var renderer = new CaptionRenderer(new CaptionDocument(new[] { cue }), style);
+        using Bitmap settled = renderer.Render(0.9, 320, 180);
+        using Bitmap nextWord = renderer.Render(1.02, 320, 180);
+        Assert.Equal(VisibleWidth(settled), VisibleWidth(nextWord));
+        using Bitmap entering = renderer.Render(0.02, 320, 180);
+        Assert.True(VisibleWidth(entering) < VisibleWidth(settled));
+    }
+
+    static int VisibleWidth(Bitmap bitmap) {
+        int left = bitmap.Width, right = -1;
+        for (int y = 0; y < bitmap.Height; y++) {
+            for (int x = 0; x < bitmap.Width; x++) {
+                if (bitmap.GetPixel(x, y).A > 0) {
+                    left = Math.Min(left, x);
+                    right = Math.Max(right, x);
+                }
+            }
+        }
+        return right - left;
+    }
+
     [Fact]
     public void TwoFrameAnimationIsDeterministic() {
         CaptionStyle style = SmallStyle();

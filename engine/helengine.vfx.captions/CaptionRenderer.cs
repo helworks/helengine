@@ -129,7 +129,9 @@ public sealed class CaptionRenderer : IDisposable {
             throw new ArgumentException("Caption text cannot fit at the selected position and canvas size.");
         }
         CaptionRenderWord active = words.FirstOrDefault(word => word.Start <= time && time < word.End);
-        double animationStart = active == null ? Math.Max(cue.Start, words[0].Start) : active.Start;
+        // A one-word group animates with each word; a group of several words animates once as it enters, and the spoken word
+        // only changes colour, so the block does not pulse on every word.
+        double animationStart = active == null || words.Length > 1 ? Math.Max(cue.Start, words[0].Start) : active.Start;
         double elapsed = Math.Max(0, time - animationStart);
         double transition = Math.Clamp(elapsed / Style.AnimationDuration, 0, 1);
         int textureFrame = (int)Math.Floor(Math.Max(0, time - cue.Start) * Style.TextureFps);
