@@ -4,6 +4,8 @@ namespace helengine {
     /// Captures the state of one pointer device for the current frame.
     /// </summary>
     public struct InputPointerState {
+        /// <summary>Gets or sets whether this pointer projects touch input already routed through the independent contact stream.</summary>
+        public bool IsTouch { get; set; }
         /// <summary>
         /// Gets or sets a value indicating whether the pointer is currently available.
         /// </summary>

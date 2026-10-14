@@ -299,6 +299,9 @@ namespace helengine {
         /// <param name="entity">Interactable to remove.</param>
         public virtual void RemoveInteractable(IInteractable2D entity) {
             RemoveByReference(Interactables, entity);
+            if (entity != null && OwnerCore != null && OwnerCore.PointerInteractionSystem != null) {
+                OwnerCore.PointerInteractionSystem.ClearInteractionFor(entity);
+            }
         }
 
         /// <summary>
@@ -527,6 +530,9 @@ namespace helengine {
             }
 
             RemoveByReference(Cameras, camera);
+            if (OwnerCore != null && OwnerCore.PointerInteractionSystem != null) {
+                OwnerCore.PointerInteractionSystem.ClearInteractionsForCamera(camera);
+            }
             camera.RenderQueue3D.Clear();
             camera.RenderQueue2D.Clear();
         }

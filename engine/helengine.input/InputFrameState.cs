@@ -21,6 +21,12 @@ namespace helengine {
         /// </summary>
         public InputPointerState Pointer { get; set; }
 
+        /// <summary>Gets or sets ordered touch samples borrowed from the backend until the next frame capture.</summary>
+        public InputTouchState[] Touches { get; set; }
+
+        /// <summary>Gets or sets the valid sample count. One ID may occur repeatedly, preserving taps and ID reuse within a frame.</summary>
+        public int TouchCount { get; set; }
+
         /// <summary>
         /// Gets or sets the captured gamepad states.
         /// </summary>

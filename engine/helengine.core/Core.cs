@@ -902,6 +902,7 @@ namespace helengine {
         /// Releases managed resources for render managers.
         /// </summary>
         public void Dispose() {
+            PointerInteractionSystem.Dispose();
             NativeOwnership.DisposeAndRelease(ref PlatformSettingsValue);
             if (SceneManager != null) {
                 SceneManager.Dispose();

@@ -147,6 +147,15 @@ namespace helengine {
         /// </summary>
         public InputFrameState CurrentFrame { get; private set; }
 
+        /// <summary>Gets the number of ordered touch samples in the captured frame, including ended and canceled contacts.</summary>
+        public int TouchCount => CurrentFrame.TouchCount;
+
+        /// <summary>Reads a touch sample by frame index; use its Id to track a contact across frames.</summary>
+        public InputTouchState GetTouch(int index) {
+            if (index < 0 || index >= CurrentFrame.TouchCount) { throw new ArgumentOutOfRangeException(nameof(index)); }
+            return CurrentFrame.Touches[index];
+        }
+
         /// <summary>
         /// Gets a value indicating whether client-edge pointer wrapping is currently active.
         /// </summary>
@@ -808,6 +817,10 @@ namespace helengine {
 
             if (Backend != null) {
                 InputFrameState backendFrame = Backend.CaptureFrame();
+                if (backendFrame.TouchCount < 0 || (backendFrame.TouchCount > 0 &&
+                    (backendFrame.Touches == null || backendFrame.TouchCount > backendFrame.Touches.Length))) {
+                    throw new InvalidOperationException("The input backend supplied an invalid touch sample count.");
+                }
 #if DESKTOP_PLATFORM
                 if (KeyboardIsActive) {
                     keyboardState = backendFrame.Keyboard;
@@ -836,6 +849,7 @@ namespace helengine {
             updatedFrame.Mouse = mouseState;
             updatedFrame.Pointer = new InputPointerState {
                 Connected = true,
+                IsTouch = CurrentFrame.Pointer.IsTouch,
                 X = mouseState.X,
                 Y = mouseState.Y,
                 DeltaX = mouseDelta.X,

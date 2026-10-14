@@ -2,7 +2,9 @@ namespace helengine {
     /// <summary>
     /// Routes pointer hover and press interactions to 2D interactables using the current raw input frame.
     /// </summary>
-    public sealed class PointerInteractionSystem {
+    public sealed class PointerInteractionSystem : IDisposable {
+        /// <summary>Owns capture records; their scene target and camera references remain borrowed.</summary>
+        [NativeOwnedMember] List<TouchInteractionCapture> TouchCaptures;
         /// <summary>Tracks the coordinate space owning cached hover and capture state across host focus changes.</summary>
         IntPtr PreviousInputWindowHandle;
 
@@ -14,6 +16,7 @@ namespace helengine {
         public PointerInteractionSystem(Core core, InputSystem inputSystem) {
             Core = core ?? throw new ArgumentNullException(nameof(core));
             Input = inputSystem ?? throw new ArgumentNullException(nameof(inputSystem));
+            TouchCaptures = new List<TouchInteractionCapture>();
         }
 
         /// <summary>
@@ -175,6 +178,25 @@ namespace helengine {
                 Highlighted = null;
                 CapturedCamera = null;
             }
+            if (TouchCaptures != null) {
+                for (int index = TouchCaptures.Count - 1; index >= 0; index--) {
+                    if (index < TouchCaptures.Count && ReferenceEquals(TouchCaptures[index].Target, interactable)) {
+                        CancelTouchAt(index);
+                    }
+                }
+            }
+        }
+
+        /// <summary>Abandons captures before a scene-owned camera is removed or disposed.</summary>
+        public void ClearInteractionsForCamera(ICamera camera) {
+            if (camera == null) { throw new ArgumentNullException(nameof(camera)); }
+            if (ReferenceEquals(CapturedCamera, camera)) { CancelPointerInteraction(); }
+            if (TouchCaptures == null) { return; }
+            for (int index = TouchCaptures.Count - 1; index >= 0; index--) {
+                if (index < TouchCaptures.Count && ReferenceEquals(TouchCaptures[index].Camera, camera)) {
+                    CancelTouchAt(index);
+                }
+            }
         }
 
         /// <summary>
@@ -191,6 +213,12 @@ namespace helengine {
             if (CapturedCamera != null && !IsCameraAvailableForInput(CapturedCamera)) {
                 CancelWindowInteraction();
             }
+            if (Input.CurrentFrame.Pointer.IsTouch) {
+                CancelPointerInteraction();
+                UpdateTouches();
+                return;
+            }
+            UpdateTouches();
             ObjectManager objectManager = Core.ObjectManager;
             List<IInteractable2D> interactables = objectManager.Interactables;
             List<IDrawable2D> drawables2D = objectManager.Drawables2D;
@@ -371,6 +399,12 @@ namespace helengine {
 
         /// <summary>Cancels transient pointer state when its view changes, sending Leave without triggering an activation on another view.</summary>
         void CancelWindowInteraction() {
+            CancelAllTouches();
+            CancelPointerInteraction();
+        }
+
+        /// <summary>Clears the legacy single-pointer capture without disturbing independently captured fingers.</summary>
+        void CancelPointerInteraction() {
             IInteractable2D captured = Highlighted;
             IInteractable2D hovered = Hovering;
             Highlighted = null;
@@ -384,6 +418,91 @@ namespace helengine {
             if (hovered != null && !ReferenceEquals(hovered, captured)) {
                 hovered.OnCursor(new int2(0, 0), new int2(0, 0), PointerInteraction.Leave);
             }
+        }
+
+        /// <summary>Cancels transient control state and releases native capture storage before the scene is destroyed.</summary>
+        public void Dispose() {
+            CancelWindowInteraction();
+            NativeOwnership.Release(ref TouchCaptures);
+        }
+
+        /// <summary>Routes samples in event order, retaining a separate control and camera for each finger.</summary>
+        void UpdateTouches() {
+            for (int index = TouchCaptures.Count - 1; index >= 0; index--) {
+                if (index >= TouchCaptures.Count) { continue; }
+                TouchInteractionCapture capture = TouchCaptures[index];
+                if (capture.Target.Parent == null || !capture.Target.Parent.IsHierarchyEnabled ||
+                    !Core.ObjectManager.Interactables.Contains(capture.Target) ||
+                    !Core.ObjectManager.Cameras.Contains(capture.Camera) || !IsCameraAvailableForInput(capture.Camera)) {
+                    CancelTouchAt(index);
+                } else {
+                    capture.SeenThisFrame = false;
+                    TouchCaptures[index] = capture;
+                }
+            }
+            for (int sampleIndex = 0; sampleIndex < Input.TouchCount; sampleIndex++) {
+                InputTouchState touch = Input.GetTouch(sampleIndex);
+                int captureIndex = FindTouchCapture(touch.Id);
+                if (touch.Phase == InputTouchPhase.Began) {
+                    if (captureIndex >= 0) { CancelTouchAt(captureIndex); }
+                    ResolveTopInteractableAt(Core.ObjectManager.Interactables, Core.ObjectManager.Drawables2D,
+                        touch.X, touch.Y, out IInteractable2D hit, out ICamera camera);
+                    if (hit is ITouchInteractable2D target) {
+                        TouchInteractionCapture capture = new TouchInteractionCapture {
+                            Id = touch.Id, Target = target, Camera = camera, LastSample = touch, SeenThisFrame = true
+                        };
+                        TouchCaptures.Add(capture);
+                        DispatchTouch(capture, touch);
+                    }
+                } else if (captureIndex >= 0) {
+                    TouchInteractionCapture capture = TouchCaptures[captureIndex];
+                    capture.LastSample = touch;
+                    capture.SeenThisFrame = true;
+                    if (touch.Phase == InputTouchPhase.Ended || touch.Phase == InputTouchPhase.Canceled) {
+                        TouchCaptures.RemoveAt(captureIndex);
+                    } else {
+                        TouchCaptures[captureIndex] = capture;
+                    }
+                    DispatchTouch(capture, touch);
+                }
+            }
+            for (int index = TouchCaptures.Count - 1; index >= 0; index--) {
+                if (index < TouchCaptures.Count && !TouchCaptures[index].SeenThisFrame) { CancelTouchAt(index); }
+            }
+        }
+
+        /// <summary>Finds the capture associated with a stable contact ID.</summary>
+        int FindTouchCapture(int id) {
+            for (int index = 0; index < TouchCaptures.Count; index++) {
+                if (TouchCaptures[index].Id == id) { return index; }
+            }
+            return -1;
+        }
+
+        /// <summary>Converts a sample through the same viewport space used by pointer hit testing.</summary>
+        void DispatchTouch(TouchInteractionCapture capture, InputTouchState touch) {
+            PointerInteractableHitResolver.GetRelativePointerForInteractable(capture.Target, touch.X, touch.Y,
+                capture.Camera, out int relativeX, out int relativeY);
+            touch.X = relativeX;
+            touch.Y = relativeY;
+            capture.Target.OnTouch(touch);
+        }
+
+        /// <summary>Removes capture before notifying the control, allowing callbacks to detach other controls safely.</summary>
+        void CancelTouchAt(int index) {
+            TouchInteractionCapture capture = TouchCaptures[index];
+            TouchCaptures.RemoveAt(index);
+            InputTouchState canceled = capture.LastSample;
+            canceled.Phase = InputTouchPhase.Canceled;
+            canceled.DeltaX = 0;
+            canceled.DeltaY = 0;
+            DispatchTouch(capture, canceled);
+        }
+
+        /// <summary>Abandons every held contact on a host view switch or disposal without synthesizing release clicks.</summary>
+        void CancelAllTouches() {
+            if (TouchCaptures == null) { return; }
+            while (TouchCaptures.Count > 0) { CancelTouchAt(TouchCaptures.Count - 1); }
         }
 
         /// <summary>
