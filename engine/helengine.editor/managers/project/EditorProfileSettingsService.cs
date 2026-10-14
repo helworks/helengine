@@ -42,10 +42,25 @@ namespace helengine.editor {
 
         /// <summary>
         /// Loads the profile settings document, seeding one normalized platform file for each requested platform.
+        /// Files whose normalized content already matches disk are left untouched (see <see cref="Save"/>).
         /// </summary>
         /// <param name="supportedPlatforms">Supported platform identifiers declared by the current project.</param>
         /// <returns>Validated platform profile settings document for the current project.</returns>
         public EditorProfileSettingsDocument Load(IReadOnlyList<string> supportedPlatforms) {
+            EditorProfileSettingsDocument document = Resolve(supportedPlatforms);
+            Save(document);
+            return document;
+        }
+
+        /// <summary>
+        /// Resolves the normalized profile settings document for the requested platforms without writing anything to disk.
+        /// Produces the same in-memory result as <see cref="Load"/>: existing platform files are normalized, and platforms
+        /// without a file receive in-memory defaults that are only persisted by a later explicit <see cref="Save"/>.
+        /// Read-only consumers such as the asset cook must use this instead of <see cref="Load"/>.
+        /// </summary>
+        /// <param name="supportedPlatforms">Platform identifiers whose profiles should be resolved.</param>
+        /// <returns>Normalized platform profile settings document containing one record per requested platform.</returns>
+        public EditorProfileSettingsDocument Resolve(IReadOnlyList<string> supportedPlatforms) {
             if (supportedPlatforms == null) {
                 throw new ArgumentNullException(nameof(supportedPlatforms));
             }
@@ -64,7 +79,6 @@ namespace helengine.editor {
                 document.Platforms.Add(platform);
             }
 
-            Save(document);
             return document;
         }
 
@@ -83,6 +97,8 @@ namespace helengine.editor {
 
         /// <summary>
         /// Persists the supplied profile settings document to one file per platform under `settings`.
+        /// A platform file is only written when its serialized content differs from the text already on disk,
+        /// so saving unchanged settings never touches the file or its modification time.
         /// </summary>
         /// <param name="document">Validated platform profile settings to persist.</param>
         public void Save(EditorProfileSettingsDocument document) {
@@ -100,7 +116,12 @@ namespace helengine.editor {
 
                 NormalizePlatform(platform, platform.PlatformId);
                 string json = JsonSerializer.Serialize(platform, JsonSerializerOptions);
-                File.WriteAllText(GetPlatformFilePath(platform.PlatformId), json);
+                string filePath = GetPlatformFilePath(platform.PlatformId);
+                if (File.Exists(filePath) && string.Equals(File.ReadAllText(filePath), json, StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                File.WriteAllText(filePath, json);
             }
         }
 

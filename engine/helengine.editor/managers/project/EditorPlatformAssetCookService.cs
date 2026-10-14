@@ -92,8 +92,9 @@ namespace helengine.editor {
             Directory.CreateDirectory(effectiveExecutionRootPath);
             IPlatformAssetBuilder effectiveMaterialBuilder = ResolveEffectiveMaterialBuilder(materialBuilder);
             string platformName = ResolvePlatformName(platformDefinition, materialBuilder);
-            string platformVersion = ResolvePlatformVersion(platformName);
-            StandardPlatformInputConfiguration standardInputConfiguration = ResolveStandardPlatformInputConfiguration(platformName);
+            EditorPlatformProfileSettingsDocument platformProfile = ResolvePlatformProfile(platformName);
+            string platformVersion = ResolvePlatformVersion(platformProfile);
+            StandardPlatformInputConfiguration standardInputConfiguration = StandardPlatformInputConfigurationFactory.Create(platformProfile);
 
             List<string> orderedCanonicalScenePaths = ResolveOrderedCanonicalScenePaths(orderedSceneIds);
             List<string> orderedSceneIdentityPaths = ResolvePackagedSceneIdentityPaths(orderedSceneIds, orderedCanonicalScenePaths);
@@ -296,25 +297,17 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the runtime standard platform input configuration for the supplied platform id from project-shared profile settings.
+        /// Resolves the normalized profile for one platform without writing project settings.
+        /// The cook only reads profiles; persisting them belongs to explicit profile saves.
         /// </summary>
-        /// <param name="platformId">Stable platform identifier whose shared input settings should be loaded.</param>
-        /// <returns>Runtime standard platform input configuration resolved from project settings.</returns>
-        StandardPlatformInputConfiguration ResolveStandardPlatformInputConfiguration(string platformId) {
-            return StandardPlatformInputConfigurationFactory.Create(ResolvePlatformProfile(platformId));
-        }
-
-        /// <summary>
-        /// Resolves the normalized persisted profile for one platform.
-        /// </summary>
-        /// <param name="platformId">Stable platform identifier whose profile should be loaded.</param>
-        /// <returns>Normalized profile document for the requested platform.</returns>
+        /// <param name="platformId">Stable platform identifier whose profile should be resolved.</param>
+        /// <returns>Normalized profile document for the requested platform, with in-memory defaults when no file exists.</returns>
         EditorPlatformProfileSettingsDocument ResolvePlatformProfile(string platformId) {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            EditorProfileSettingsDocument profileSettings = ProfileSettingsService.Load(new[] { platformId });
+            EditorProfileSettingsDocument profileSettings = ProfileSettingsService.Resolve(new[] { platformId });
             for (int index = 0; index < profileSettings.Platforms.Count; index++) {
                 EditorPlatformProfileSettingsDocument platformSettings = profileSettings.Platforms[index];
                 if (platformSettings != null
@@ -367,10 +360,13 @@ namespace helengine.editor {
         /// <summary>
         /// Resolves the profile-stamped platform version that should be reported by the running artifact.
         /// </summary>
-        /// <param name="platformId">Stable platform identifier whose profile owns the version.</param>
+        /// <param name="platform">Resolved profile of the platform being cooked.</param>
         /// <returns>Profile-stamped runtime platform version string.</returns>
-        string ResolvePlatformVersion(string platformId) {
-            EditorPlatformProfileSettingsDocument platform = ResolvePlatformProfile(platformId);
+        static string ResolvePlatformVersion(EditorPlatformProfileSettingsDocument platform) {
+            if (platform == null) {
+                throw new ArgumentNullException(nameof(platform));
+            }
+
             return string.IsNullOrWhiteSpace(platform.Version)
                 ? EditorPlatformProfileSettingsDocument.DefaultVersion
                 : platform.Version.Trim();

@@ -274,6 +274,103 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures read-only resolution (used by the asset cook) leaves an existing platform file byte-identical
+        /// and keeps its modification time, even when normalization adds in-memory defaults.
+        /// </summary>
+        [Fact]
+        public void Resolve_WhenPlatformFileExists_DoesNotWriteTheFile() {
+            SeedPlatformProfileFile("ps2", "75");
+            string filePath = Path.Combine(TempRootPath, "settings", "platform.ps2.json");
+            DateTime pinnedWriteTimeUtc = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            File.SetLastWriteTimeUtc(filePath, pinnedWriteTimeUtc);
+            byte[] originalBytes = File.ReadAllBytes(filePath);
+            EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
+
+            EditorProfileSettingsDocument document = service.Resolve(new[] { "ps2" });
+
+            EditorPlatformProfileSettingsDocument platform = Assert.Single(document.Platforms);
+            Assert.Equal(75, platform.Build.TextureScalePercent);
+            Assert.NotNull(platform.RuntimeSettings);
+            Assert.Equal(originalBytes, File.ReadAllBytes(filePath));
+            Assert.Equal(pinnedWriteTimeUtc, File.GetLastWriteTimeUtc(filePath));
+        }
+
+        /// <summary>
+        /// Ensures read-only resolution of a platform without a settings file returns in-memory defaults and creates nothing.
+        /// </summary>
+        [Fact]
+        public void Resolve_WhenPlatformFileIsMissing_ReturnsDefaultsWithoutCreatingTheFile() {
+            EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
+
+            EditorProfileSettingsDocument document = service.Resolve(new[] { "ps2" });
+
+            EditorPlatformProfileSettingsDocument platform = Assert.Single(document.Platforms);
+            Assert.Equal("ps2", platform.PlatformId);
+            Assert.Equal(EditorPlatformProfileSettingsDocument.DefaultVersion, platform.Version);
+            Assert.False(Directory.Exists(Path.Combine(TempRootPath, "settings")));
+        }
+
+        /// <summary>
+        /// Ensures read-only resolution yields the same normalized profile that the persisting load produces.
+        /// </summary>
+        [Fact]
+        public void Resolve_ProducesTheSameNormalizedProfileAsLoad() {
+            Directory.CreateDirectory(Path.Combine(TempRootPath, "settings"));
+            File.WriteAllText(
+                Path.Combine(TempRootPath, "settings", "platform.ps2.json"),
+                "{\"platformId\":\"ps2\",\"build\":{\"textureScalePercent\":40},\"graphics\":{},\"codegen\":{},\"input\":{}}");
+            EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
+
+            EditorProfileSettingsDocument resolved = service.Resolve(new[] { "ps2", "psp" });
+            EditorProfileSettingsDocument loaded = service.Load(new[] { "ps2", "psp" });
+
+            Assert.Equal(loaded.Platforms.Count, resolved.Platforms.Count);
+            for (int index = 0; index < loaded.Platforms.Count; index++) {
+                Assert.Equal(
+                    System.Text.Json.JsonSerializer.Serialize(loaded.Platforms[index]),
+                    System.Text.Json.JsonSerializer.Serialize(resolved.Platforms[index]));
+            }
+        }
+
+        /// <summary>
+        /// Ensures saving content identical to what is already on disk does not rewrite the file.
+        /// </summary>
+        [Fact]
+        public void Save_WhenContentIsUnchanged_DoesNotTouchTheFile() {
+            EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
+            service.Save(CreateProfileDocument("ps2"));
+            string filePath = Path.Combine(TempRootPath, "settings", "platform.ps2.json");
+            DateTime pinnedWriteTimeUtc = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            File.SetLastWriteTimeUtc(filePath, pinnedWriteTimeUtc);
+            byte[] originalBytes = File.ReadAllBytes(filePath);
+
+            service.Save(CreateProfileDocument("ps2"));
+            service.Load(new[] { "ps2" });
+
+            Assert.Equal(originalBytes, File.ReadAllBytes(filePath));
+            Assert.Equal(pinnedWriteTimeUtc, File.GetLastWriteTimeUtc(filePath));
+        }
+
+        /// <summary>
+        /// Ensures saving changed content still persists it.
+        /// </summary>
+        [Fact]
+        public void Save_WhenContentChanges_WritesTheFile() {
+            EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
+            service.Save(CreateProfileDocument("ps2"));
+            string filePath = Path.Combine(TempRootPath, "settings", "platform.ps2.json");
+            DateTime pinnedWriteTimeUtc = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            File.SetLastWriteTimeUtc(filePath, pinnedWriteTimeUtc);
+            EditorProfileSettingsDocument changed = CreateProfileDocument("ps2");
+            changed.Platforms[0].Build.TextureScalePercent = 33;
+
+            service.Save(changed);
+
+            Assert.NotEqual(pinnedWriteTimeUtc, File.GetLastWriteTimeUtc(filePath));
+            Assert.Equal(33, service.Resolve(new[] { "ps2" }).Platforms[0].Build.TextureScalePercent);
+        }
+
+        /// <summary>
         /// Creates one multi-platform profile document with stable values for the supplied platforms.
         /// </summary>
         /// <param name="platformIds">Platform identifiers that should be included in the document.</param>
