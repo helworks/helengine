@@ -4,7 +4,7 @@
 
 **Goal:** Give editor Play its own per-user settings (common plus per-platform, stored in `user_settings/play.json`, edited from the Play platform selector). Then use that foundation to let a PS2 project choose its console video mode, which the PS2 runtime boots into and the desktop player reproduces.
 
-**Architecture:** Phase A adds the Play settings foundation. The engine declares five common Play settings, and `PlatformPlayerCapability` declares per-platform ones (both use the `PlatformSettingDefinition` shape). The editor loads `play.json`, validates it against those declarations, snapshots the values when Play is pressed and resolves them after the cook (`project` values come from the cooked queue item's graphics options). It writes one `--play-settings` JSON file that replaces `--target-fps`, `--shadows-enabled` and `--wait-for-debugger`. The player renders into an offscreen target of the adapter-declared render size and point-magnifies it into an integer-scaled window. Phase B adds the generic `PlatformVideoMode` contract, which PS2 implements with its 12 modes: the PS2 builder writes a versioned boot record, `Ps2BootHost` initialises gsKit from that record, and the PS2 Play `video-mode` setting (default `project`) picks the player's render size and frame rate.
+**Architecture:** Phase A adds the Play settings foundation. The engine declares five common Play settings, and `PlatformPlayerCapability` declares per-platform ones (both use the `PlatformSettingDefinition` shape). The editor loads `play.json`, validates it against those declarations, snapshots the values when Play is pressed and resolves them after the cook (`project` values come from the cooked queue item's graphics options). It writes one `--play-settings` JSON file that replaces `--target-fps`, `--shadows-enabled` and `--wait-for-debugger`. The player renders into an offscreen target of the adapter-declared render size and point-magnifies it into an integer-scaled window. Phase B adds the generic `PlatformVideoMode` contract, which PS2 implements with its 12 modes: the PS2 builder writes a versioned boot record, `Ps2BootHost` initialises gsKit from that record, and the PS2 Play `video-mode` setting (default `project`) picks the player's render size and frame rate. Every output window also carries a display pixel aspect, supplied by the video mode, that camera projections and reference-canvas fits use, so every PS2 mode is shown 4:3 on the console and in the Play window; square-pixel windows are unchanged.
 
 **Tech Stack:** C# (.NET 9, xUnit, System.Text.Json, WinForms, SharpDX/DirectX 11), C++20 for the PS2 runtime (gsKit, ps2sdk, host g++ for native tests in the `helengine-ps2` Docker image).
 
@@ -13,7 +13,7 @@
 **Repositories touched (all on `main`, shared trees):**
 - `C:\dev\helworks\helengine` (engine, editor, player)
 - `C:\dev\helworks\helengine-ps2` (builder, player adapter, native runtime)
-- `C:\dev\helprojs\demodisc` (Phase B Task B10 only)
+- `C:\dev\helprojs\demodisc` (Phase B Task B8 only)
 - `C:\dev\helworks\helengine-windows` (Task A14 only, coordination-gated)
 
 Phase B depends on Phase A. After Phase A every existing Play platform must still play. Today that is PS2 (committed) and Windows (in-flight, uncommitted work by another session; see Task A14).
@@ -61,7 +61,9 @@ Phase B depends on Phase A. After Phase A every existing Play platform must stil
 - A small monitor work area (1366x728 laptop) or an explicit scale bigger than the monitor: `fit` gives 1x, never 0. `4x` opens at 4x at the work-area origin and reports that it exceeds. Pinned in Task A9 (`PlayerWindowLayoutTests`).
 - Editing Play settings while a preparation is still cooking: the running Play uses the press-time values and the next Play uses the edit. Pinned in Task A8 (`Play_UsesSettingsCapturedWhenPressed`).
 - A `play.json` section for a platform that is not installed or not selected: it is never validated against another platform's declarations and is preserved untouched when the dialog saves a different platform. Pinned in Task A5 (round trip) and Task A11 (`CreateSavedDocument_PreservesOtherPlatformSections`).
-- An old `platform.ps2.json` that still has `default-width`/`default-height`, or that lacks `video-mode`: Play and the PS2 build fail and name the field and the file. They never silently run at 640x448. Pinned in Task B5 (resolver test) and Task B7 (builder test).
+- An old `platform.ps2.json` that still has `default-width`/`default-height`, or that lacks `video-mode`: Play and the PS2 build fail and name the field and the file. They never silently run at 640x448. Pinned in Task B6 (resolver test) and Task B11 (builder test).
+- Square-pixel windows (every platform without a non-square video mode, and the editor) must project and fit UI exactly as before the pixel-aspect work. Pinned in Task B2 (`ResolveProjectionAspect_WithSquarePixels_IsExactlyWidthOverHeight`, `WindowWithoutPixelAspect_ProjectsWithSquarePixels`), Task B3 (`Update_WhenWindowReportsSquarePixels_FitsExactlyAsBefore` plus the unchanged existing fit tests) and Task B10 (the unchanged square fixed-render-size tests).
+- A PS2 mode with very non-square pixels (`ntsc-640x224p`, pixel aspect 0.467) at `window-scale: 1x`: the window is raised to 3x (896x672) so no rendered column is dropped. Pinned in Task B10 (`Compute_ExplicitScaleBelowMinimum_IsRaisedToTheMinimum`).
 
 ---
 
@@ -103,28 +105,35 @@ Phase B depends on Phase A. After Phase A every existing Play platform must stil
 
 | File | Responsibility |
 |---|---|
-| `engine/helengine.baseplatform/Definitions/PlatformVideoMode.cs`, `PlatformVideoModeCapability.cs` (new) | Generic mode contract |
-| `engine/helengine.baseplatform/Definitions/PlatformDefinition.cs`, `PlatformPlayerCapability.cs` (modify) | Video-mode validation; frame-rate source rule |
-| `engine/helengine.baseplatform/Player/PlayerPlaySettings.cs`, `PlayerPlaySettingsFile.cs` (modify) | Carry the resolved `PlatformVideoMode` |
-| `engine/helengine.editor/managers/play/EditorPlaySettingsSnapshot.cs`, `EditorPlayLaunchSettingsResolver.cs`, `EditorPlayPlatformOption.cs`, `EditorSession.cs` (modify) | Resolve the Play video mode |
-| `engine/helengine.player/PlayerWindowTitle.cs`, `PlayerHost.cs` (modify) | Title shows the mode |
+| `engine/helengine.core/managers/rendering/RenderManager3D.cs`, `engine/helengine.core/utils/CameraProjectionUtils.cs` (modify) | Per-window display pixel aspect; shared projection aspect (B2) |
+| `engine/helengine.directx11/DirectX11Renderer3D.cs` (modify) | Projects with the pixel aspect (B2); fixed-size window reports it (B10) |
+| `engine/helengine.core/utils/DisplayAspectFitUtils.cs` (new), `CameraWindowLayoutUtils.cs`, `components/ReferenceCanvasFitComponent.cs`, `ReferenceCanvasFitSnapshot.cs`, `ViewportComponent.cs`, `ViewportLayoutSnapshot.cs` (modify) | Reference-canvas fits in display space (B3) |
+| `engine/helengine.baseplatform/Definitions/PlatformVideoMode.cs`, `PlatformVideoModeCapability.cs` (new) | Generic mode contract, including the display aspect (B4) |
+| `engine/helengine.baseplatform/Definitions/PlatformDefinition.cs`, `PlatformPlayerCapability.cs` (modify) | Video-mode validation; frame-rate source rule (B5) |
+| `engine/helengine.baseplatform/Player/PlayerPlaySettings.cs`, `PlayerPlaySettingsFile.cs` (modify) | Carry the resolved `PlatformVideoMode` (B6) |
+| `engine/helengine.editor/managers/play/EditorPlaySettingsSnapshot.cs`, `EditorPlaySettingsCapture.cs`, `EditorPlayLaunchSettingsResolver.cs`, `EditorPlayPlatformOption.cs`, `EditorSession.cs` (modify) | Resolve the Play video mode (B6) |
+| `engine/helengine.player/PlayerWindowTitle.cs`, `PlayerWindow.cs`, `PlayerHost.cs` (modify) | Title shows the mode (B9) |
+| `engine/helengine.baseplatform/Player/PlayerRenderSize.cs`, `engine/helengine.directx11/DirectX11FixedRenderSize.cs`, `engine/helengine.player/PlayerWindowLayout.cs`, `PlayerHost.cs` (modify) | 4:3 Play window with a minimum multiple (B10) |
 
 ### Phase B — helengine-ps2
 
 | File | Responsibility |
 |---|---|
-| `builder/Ps2VideoModes.cs` (new) | The 12 PS2 modes plus capability |
-| `builder/Ps2VideoModeBootRecord.cs`, `builder/Ps2VideoModeBootRecordWriter.cs` (new) | Boot record format plus staging writer |
-| `builder/Ps2PlatformDefinitionFactory.cs`, `builder/Ps2PlatformAssetBuilder.cs`, `builder/player/Ps2PlayerAdapter.cs` (modify) | Declare, write, apply |
-| `src/platform/ps2/Ps2VideoModeBootRecordReader.hpp/.cpp` (new) | Native parse plus gsKit field mapping |
-| `src/platform/ps2/Ps2BootHost.cpp/.hpp` (modify) | Read the record before `gsKit_init_screen` |
-| `tests/native/Ps2VideoModeBootRecordTests.cpp` (new), `Makefile` (modify) | Native host test target `ps2-video-mode-tests` |
+| `builder/Ps2VideoModes.cs` (new) | The 12 PS2 modes, all shown 4:3, plus capability (B7) |
+| `builder/Ps2VideoModeBootRecord.cs`, `Ps2VideoModeBootRecordContents.cs`, `Ps2VideoModeBootRecordWriter.cs` (new) | Boot record format plus staging writer (B11) |
+| `builder/Ps2PlatformDefinitionFactory.cs`, `builder/Ps2PlatformAssetBuilder.cs`, `builder/player/Ps2PlayerAdapter.cs` (modify) | Declare (B7), write (B11, B12), apply (B9, B10) |
+| `builder/Ps2DiscLayoutWriter.cs` (modify) | `VMODE = NTSC/PAL` in SYSTEM.CNF (B12) |
+| `src/platform/ps2/Ps2VideoModeBootRecordReader.hpp/.cpp` (new) | Native parse, gsKit field mapping, pixel aspect, page-grid buffer size (B13) |
+| `src/platform/ps2/rendering/Ps2RenderManager3D.cpp` (modify) | PS2 projection uses the window pixel aspect (B14) |
+| `src/platform/ps2/Ps2BootHost.cpp/.hpp` (modify; `.cpp` is shared with another session's uncommitted work) | Read the record before `gsKit_init_screen`; report the pixel aspect (B15) |
+| `tests/native/Ps2VideoModeBootRecordTests.cpp` (new), `Makefile` (modify; shared with another session's uncommitted work) | Native host test target `ps2-video-mode-tests` (B13) |
+| `builder.tests/Ps2NativeBuildInputsTests.cs`, `builder.tests/Ps2RenderManager3DSourceTests.cs` (modify) | Delete the two source-string pins of 640x448 (B15) |
 
 ### Phase B — demodisc
 
 | File | Responsibility |
 |---|---|
-| `C:\dev\helprojs\demodisc\settings\platform.ps2.json` (modify) | `video-mode` replaces `default-width`/`default-height` in `graphics.selectedOptionValues` |
+| `C:\dev\helprojs\demodisc\settings\platform.ps2.json` (modify) | `video-mode` replaces `default-width`/`default-height` in `graphics.selectedOptionValues` (B8) |
 
 ---
 
@@ -4785,21 +4794,43 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 Phase B starts only after the Phase A exit check passes.
 
-**Execution order:** B1, B2, B3, **B5, B4**, B6, B7, B8, **B10, B9**, B11.
-- B5 (the editor resolves video modes) depends only on B3, so it runs before B4 declares the PS2 modes. Otherwise PS2 Play would break between the B4 and B5 commits: B4 sets the capability frame rate to 0, and only B5 teaches the resolver to take it from the mode.
-- B9's disc-build check needs demodisc's B10 settings.
-- PS2 Play still renders 640x448 between B4 and B6. Do B4-B6 in one sitting.
+**Phase B rulings (Helena, 2026-10-14).** They supersede the B1 "open" rows and the earlier "keep Aspect, pixel aspect is open" note in this plan.
+- Every PS2 video mode is displayed 4:3, for 3D and for UI. The engine gains a per-output-window **pixel aspect** (the displayed width of one framebuffer pixel divided by its displayed height), supplied by the platform's video mode. 3D projection uses it, and `ReferenceCanvasFitComponent` and `ViewportComponent` fit the authored canvas in display space. A window whose host never reports a pixel aspect has square pixels (1) and behaves exactly as before; tests pin that.
+- The PS2 runtime's own projection (`Ps2RenderManager3D.cpp:1260-1266`) and the DirectX11 renderer (`DirectX11Renderer3D.cs:901`/`1025`) use the same mechanism.
+- The Play window for a non-square mode is `round(k*H*4/3)` x `k*H`, with the smallest k that drops no pixel column (carry M3).
+- `Ps2DiscLayoutWriter` writes `VMODE = NTSC` or `VMODE = PAL` to SYSTEM.CNF.
+- The PAL 640x512 VRAM reduction (245,760 fewer texture bytes than today) is accepted.
+- The 224-row gsKit buffer allocation is verified from the gsKit source (Task B13 Step 1) and fixed explicitly if needed (Task B15 Step 6). A PCSX2 run still needs Helena's permission (Task B16).
+
+**Decisions this revision makes where the rulings are silent (flagged for Helena):**
+1. **The display aspect lives on each `PlatformVideoMode`** (`DisplayAspectWidth`/`DisplayAspectHeight`, all 12 PS2 modes 4:3), and `PixelAspect` is derived from it. The PS2 boot record keeps its 16-byte layout: the native side derives the same 4:3 from the constant `GsGlobal->Aspect = GS_ASPECT_4_3`, and the builder refuses to encode a mode that is not 4:3 (Task B11).
+2. **An explicit `window-scale` below the minimum multiple is raised to it**, and the player logs one line saying so. `fit` starts at the minimum multiple. Example: `1x` on `ntsc-640x224p` opens at 3x.
+3. **Glyphs follow the display-uniform scale** `min(widthScale * pixelAspect, heightScale)`. Glyph height on the TV is correct. Glyph width is still drawn in square framebuffer pixels, because `TextComponent.FontScale` is one number; see the open item in Task B3.
+4. **Client width rounds half away from zero** (`DirectX11FixedRenderSize.ResolveClientWidth` is the only implementation; `PlayerWindowLayout` calls it). No PS2 mode lands on a half pixel.
+5. **The DirectX11 projection gets one seam,** `protected virtual CreateCameraProjection`, used by both projection sites, so a test can read the projection a real frame used (the same pattern as A10's `PresentSurface`).
+6. **demodisc switches to `video-mode` right after the PS2 declares it** (Task B8), so demodisc Play and disc builds keep working through the rest of Phase B.
+
+**Execution order:** B1 to B16 in number order.
+- B2 and B3 are engine-only and change nothing for square-pixel windows. They come first so the PS2 and player tasks can rely on the mechanism.
+- B6 (the editor resolves video modes) runs before B7 declares the PS2 modes. Otherwise PS2 Play would break between the commits: B7 sets the capability frame rate to 0, and only B6 teaches the resolver to take it from the mode.
+- Do B7 and B8 in one sitting: between them demodisc still holds `default-width`/`default-height`, which B7 no longer declares. PS2 Play renders 640x448 square until B9 and B10 land; do B7-B10 in one sitting.
+- B9 and B10 each touch helengine and helengine-ps2 (`PlayerRenderSize` and `PlayerPlaySettings` are engine types the PS2 adapter constructs). Commit both repositories before moving on.
+- B14 and B15 need a PS2 disc build. It compiles the transpiled core, so the build must use an engine that contains B2 and B3 (check the `engineVersion` pin in `user_settings/platforms.json`; see the memory note "helengine platform registry pins").
+- **helengine-ps2 `Ps2BootHost.cpp` (and `Makefile`, `Dockerfile`, `rendering/Ps2NativeTextureUpload.cpp`, `tests/native/*`) carry another session's uncommitted edits.** Tasks B13 and B15 edit two of those files. They stage only their own hunks (`git add -p`), use the audit's HEAD line numbers (`e0901e9`) as a guide and locate code by content, never by working-tree line number. If a hunk of theirs cannot be separated from the other session's edits, stop and ask Helena.
+- Expect PS2 framing to change at B14/B15 even for the default `ntsc-640x448i`: its projection aspect goes from 1.4286 (square pixels) to 1.3333 (4:3), about 7% less horizontal field of view.
 
 ### Task B1: Audit every 640/448 assumption in the PS2 runtime
+
+**Status:** done 2026-10-14 (read-only). The full audit is `.superpowers/sdd/2026-10-14-play-settings-and-ps2-video-mode/task-B1-audit.md`; its findings are recorded below.
 
 **Files:**
 - Read only: `C:\dev\helworks\helengine-ps2\src\platform\ps2\**`, `C:\dev\helworks\helengine\engine\helengine.core\utils\CameraProjectionUtils.cs`
 - Modify: this plan file, section "B1 findings" below (record the confirmed table)
 
 **Interfaces:**
-- Produces: the confirmed findings table. Task B9 implements the "replace" rows. Any row marked "open" is reported to Helena and is not fixed in this plan.
+- Produces: the confirmed findings table. The ownership table after it assigns every "replace" and "ADD" row, and every row the 2026-10-14 rulings decided, to a Phase B task.
 
-- [ ] **Step 1: Search the runtime**
+- [x] **Step 1: Search the runtime**
 
 Run these Grep tool searches over `C:\dev\helworks\helengine-ps2\src` with output mode "content", one at a time:
 - `\b(640|448|480|512|224|256)\b`
@@ -4811,33 +4842,1165 @@ Run these Grep tool searches over `C:\dev\helworks\helengine-ps2\src` with outpu
 
 For each hit that concerns the screen (ignore texture sizes, audio buffers and packet sizes), record the file:line, what it assumes, and whether it already derives from `GsGlobal->Width/Height` or the core's window size.
 
-- [ ] **Step 2: Check projection and VRAM**
+- [x] **Step 2: Check projection and VRAM**
 
 Read `CameraProjectionUtils.cs` around line 79-100 to confirm the projection aspect is viewport width / height (square pixels). Then compute GS VRAM use per mode. The calculation is two CT16 framebuffers plus a Z16 buffer: `3 * W * H * 2` bytes. Compare 640x448 (1,720,320 bytes) with 640x512 (1,966,080 bytes); the GS has 4 MiB. Record how much less VRAM the largest PAL mode leaves for textures than today's mode.
 
-- [ ] **Step 3: Record the findings**
+- [x] **Step 3: Record the findings**
 
 Replace the table below with the confirmed rows (keep the pre-filled rows that the search confirms):
 
 #### B1 findings
 
-| Location | Assumption | Status |
+Audit date 2026-10-14. Read-only. The ruling applied: the PS2 uses a 4:3 display aspect for every video mode, and the
+player window shows that 4:3 view as a non-square-pixel stretch.
+
+Path prefixes: `ps2:` = `C:\dev\helworks\helengine-ps2`, `eng:` = `C:\dev\helworks\helengine`. Engine line numbers are
+at helengine `161addb5`.
+
+**Shared-tree warning.** helengine-ps2 (HEAD `e0901e9`) has **uncommitted work by another session** in
+`Ps2BootHost.cpp` (+350/-105 lines: texture upload, rotated 2D quads), `rendering/Ps2NativeTextureUpload.cpp`,
+`Makefile`, `Dockerfile` and `tests/native/*`. The `Ps2BootHost.cpp` line numbers below are from the **working tree**,
+as are the plan's pre-filled 155-156/3289-3291. HEAD equivalents: constants 146-147; `Mode`..`ZBuffering` 3081-3090;
+`gsKit_init_screen` 3106; `AddWindow` 3109; `sceCdInit` 3001; physics step 3011; `Run` 2952; `InitializeGraphics` 3068;
+`FatalHalt` 1506; `init_scr` callers 780/1224; 2D clip stack 2407-2487; diagnostic `1/60` 3303/3334; the 60-frame
+sample at 179; diagnostic triangles 186-197. The rotated-quad clip (`Ps2TexturedQuadGeometry::Clip`, row 21) exists only
+in the uncommitted work. B9 must stage only its own hunks, or wait for that work to land. All other cited PS2 files are
+clean against HEAD.
+
+Status values:
+- **replace (Bn)**: the plan task that must change it.
+- **ADD (Bn)**: must change, but the plan does not cover it yet.
+- **derived**: already follows the active size or mode; no change.
+- **keep**: does not depend on the mode, or is diagnostic code that is switched off.
+- **open**: Helena must decide.
+
+##### Native PS2 runtime (`ps2:src/platform/ps2`)
+
+| # | Location | What it assumes | What it must become per mode | Status |
+|---|---|---|---|---|
+| 1 | `Ps2BootHost.cpp:155-156` | `Ps2DefaultFramebufferWidth/Height = 640/448` | Delete. Width and height come from the boot record. | replace (B9) |
+| 2 | `Ps2BootHost.cpp:3289` | `GsGlobal->Mode = GS_MODE_NTSC` | `GS_MODE_NTSC` or `GS_MODE_PAL`, from the record | replace (B9) |
+| 3 | `Ps2BootHost.cpp:3290-3291` | `Interlace = GS_INTERLACED`, `Field = GS_FIELD` | `i` modes: `GS_INTERLACED`/`GS_FIELD`. `p` modes: `GS_NONINTERLACED` plus the `Field` value B8 validates against gsKit. | replace (B9) |
+| 4 | `Ps2BootHost.cpp:3293-3294` | `Width/Height = Ps2DefaultFramebuffer*` | `Width/Height` from the record (256/320/512/640 by 224/256/448/512) | replace (B9) |
+| 5 | `Ps2BootHost.cpp:3292` | `Aspect = GS_ASPECT_4_3` | Unchanged. This matches the 4:3 ruling for every mode. | keep |
+| 6 | `Ps2BootHost.cpp:3295-3298` | CT16 colour, Z16, double buffering, Z on | Unchanged. They set the VRAM cost per mode (see the VRAM table). | keep |
+| 7 | `Ps2BootHost.cpp:3156-3164, 3201-3207, 3279, 3314` | Boot order: `InitializeRuntime` (CDVD ready at 3205-3206), then `InitializeGraphics` (`gsKit_init_global` 3279, `gsKit_init_screen` 3314) | Read the boot record after the CDVD is ready and before line 3289. A missing or invalid record halts through `FatalHalt` (1549). | replace (B9) |
+| 8 | `Ps2BootHost.cpp:3279` | `gsKit_init_global()` fills in region defaults (PAL on a PAL console) | Every field is overwritten from the record, so the console region no longer picks the mode | derived (after B9) |
+| 9 | `Ps2BootHost.cpp:3317-3320` | `AddWindow(0, GsGlobal->Width, GsGlobal->Height)` | Unchanged. Also set the window's pixel aspect here (row 16). | derived |
+| 10 | `Ps2BootHost.cpp:809, 1272` (`init_scr`) | The ps2sdk debug console sets its own NTSC 640x448 GS mode | Unchanged. It shows only halt and boot logs, including the missing-record halt, so a PAL TV may show the halt screen in NTSC. | keep |
+| 11 | `Ps2BootHost.cpp:1553, 3174, 3184, 3484, 3608, 3617, 3626` (`gsKit_sync_flip`) | Presents on the active mode's vblank (59.94 or 50 Hz) | Unchanged. Pacing follows `Mode`. | derived |
+| 12 | `Ps2BootHost.cpp:3529, 3560` | `AddElapsedSeconds(1.0 / 60.0)` | These run only in the `AllManual`/`PhysicsOnly` diagnostic modes. Line 187 pins `Full`, which uses the measured `Core::Update()`. | keep |
+| 13 | `Ps2BootHost.cpp:3215-3216` | Physics step 1/20 s, at most 1 step per update | Unchanged. At 60 Hz that is one step every 3 frames. At 50 Hz it alternates 2 and 3 frames, so physics motion beats against the frame rate in PAL modes. | keep (PAL note) |
+| 14 | `Ps2BootHost.cpp:195` | `FrameTimingSampleFrameCount = 60` (benchmark window) | A window of 60 frames is 1.0 s on NTSC and 1.2 s on PAL. This is cosmetic. | keep |
+| 15 | `Ps2BootHost.cpp:211-222`, `rendering/Ps2RenderManager3D.cpp:191-196`, `rendering/vu/Ps2VuVifPacketBuilder.cpp:49-54` | Fixed diagnostic triangles centred for 640x448 (x 211..428, y 115..332) | Gated off (`Ps2BootHost.cpp:163`, `Ps2VuVifPacketBuilder.cpp:46`). They would be clipped in 256-wide and 320-wide modes. | keep (diagnostic) |
+| 16 | `rendering/Ps2RenderManager3D.cpp:1260-1266` | **The PS2 builds its own projection** (not `CameraProjectionUtils`): `CreatePerspectiveFieldOfView__out4(CameraFieldOfViewRadians, viewport.Z / viewport.W, ...)` uses square pixels | Use aspect `(viewport.Z * pixelAspect) / viewport.W` with `pixelAspect = (4 * fbHeight) / (3 * fbWidth)`, giving a 4:3 full-screen aspect in every mode. **This changes the default mode too:** 640x448 goes from 1.4286 to 1.3333. See "Projection: how the 4:3 ruling plugs in". | ADD (B9; the plan's B9 says "keep Aspect, pixel aspect is open", which the ruling supersedes) |
+| 17 | `rendering/Ps2RenderManager3D.cpp:160` | `CameraFieldOfViewRadians = 0.785398185f`, a hard-coded 45 degrees that ignores `camera->get_FieldOfView()` and orthographic mode | Not mode-related. It diverges from `CameraProjectionUtils` (the DX11 player honours the camera's field of view and orthographic mode), so Play and PS2 frame differently whenever a camera is not 45-degree perspective. | open (outside B scope; informational) |
+| 18 | `rendering/Ps2RenderManager3D.cpp:1232-1241, 393-418` | `get_MainWindowSize()` gives the window size; `ResolvePixelViewport` scales normalized camera viewports by it | Unchanged | derived |
+| 19 | `rendering/vu/Ps2VuVifPacketBuilder.cpp:449-454, 2427-2428`, `rendering/vu/Ps2VuOpaqueUntexturedSetupBuilder.cpp:137-138, 225-226` | GS scale `viewport.Z/W * 0.5` and offset `2048 + viewport.XY + half size` | Unchanged | derived |
+| 20 | `rendering/Ps2RenderManager3D.cpp:190, 427-428`, `rendering/vu/Ps2VuVifPacketBuilder.cpp:895-969` | GS primitive coordinate bias of 2048 | The GS coordinate system does not depend on the mode | keep |
+| 21 | `Ps2BootHost.cpp:2494-2640` (2D playback clip stack), `3046-3052` (rotated-quad `Ps2TexturedQuadGeometry::Clip`), `TryClipQuadToRect` | Clip rectangles come only from the core's `ClipPush` | Unchanged. Unclipped 2D relies on the GS SCISSOR that `gsKit_init_screen` sets from `Width/Height`. | derived |
+| 22 | `rendering/Ps2NativeTextureUpload.cpp:88-92` | Texture VRAM is allocated from `CurrentPointer` (set after `gsKit_init_screen` reserves the frame and Z buffers) with a hard 4 MiB ceiling | Unchanged in code. The texture headroom changes per mode (VRAM table). | derived |
+| 23 | `rendering/Ps2RenderManager3D.cpp:362-363` | Logs `CurrentPointer`/`TexturePointer` (diagnostic only; the pre-filled row cited it as the allocator) | Unchanged | keep |
+| 24 | gsKit frame/Z allocation inside `gsKit_init_screen` (no source in the image; `$PS2DEV/gsKit` ships only `include` and `lib`) | 448 and 512 rows are whole CT16/Z16 pages (64x64 pixels). **224 is 3.5 page rows.** | B8/B9 must confirm that gsKit sizes each buffer on the page grid (`ceil(W/64)*ceil(H/64)` pages). If it allocates `W*H*2` bytes, the next buffer starts inside the last half page row and the 224p modes corrupt their bottom 32 lines. Verify on PCSX2 with a 224p mode. | open (verify in B8/B9) |
+| 25 | gsKit `DW/DH`/`MagH/MagV` (`gsInit.h`: `MagH = DW / Width - 1`) | Today: 640 with MAGH 3 | Assuming gsKit's 2560-clock DW for NTSC and PAL, 512 needs MAGH 4, 320 needs 7 and 256 needs 9 (2560/W - 1). Progressive 224/256 needs MAGV 0 with the half-height DH. B8 validates each mode, and the spec removes any mode gsKit cannot produce. | replace (B8) |
+
+##### Engine paths used by the PS2 runtime and the player (`eng:engine`)
+
+| # | Location | What it assumes | What it must become per mode | Status |
+|---|---|---|---|---|
+| 26 | `helengine.core/utils/CameraProjectionUtils.cs:81-109, 206-222` | `CreateProjection(camera, aspectRatio)`. The caller passes viewport width/height (square pixels). | Unchanged signature. Add one shared helper that turns viewport size plus pixel aspect into the projection aspect (see the recommendation), so the PS2 and DX11 paths compute it the same way. | ADD (B6/B9) |
+| 27 | `helengine.directx11/DirectX11Renderer3D.cs:898-901` and `1022-1025` | `CreateProjection(camera, viewport.Z / viewport.W)`: the desktop player projects with square pixels | For a fixed-render-size surface, multiply by the surface's pixel aspect, so Play frames 3D exactly as the PS2 does | ADD (B6) |
+| 28 | `helengine.core/managers/rendering/RenderManager3D.cs:47, 86-102, 188-192` | `MainWindowSize` and the per-window layout size are framebuffer pixels; there is no notion of pixel aspect | Recommended home for a per-window pixel aspect (default 1.0) that the PS2 host and the DX11 fixed-size surface set (see the recommendation) | ADD (B6/B9) |
+| 29 | `helengine.core/components/ReferenceCanvasFitComponent.cs:648-692` | Fits the authored canvas (demodisc: 1280x720, `DemoMenuLayout.cs:14,19`) uniformly in **framebuffer pixels** and letterboxes by `min(scaleX, scaleY)` | With non-square pixels, a uniform fit in framebuffer pixels is non-uniform on the TV. Displayed UI aspect versus authored aspect: 640x448 -7% (true today), 640x224 -53%, 512x224 -42%, 640x256 -47%, 512x256 -33%, 512x448 +17%, 512x512 and 256x256 +33% (the others: 320x224 -7%, 256x224 +17%, 640x512 and 320x256 +7%; the change equals the pixel aspect minus 1). The 4:3 ruling covers only the projection. | **open (Helena)**: should UI fit in display space (pixel-aspect-aware, non-uniform in framebuffer pixels)? |
+| 30 | `helengine.core/components/ViewportComponent.cs:821, 888, 1041-1089` | Same uniform fit and letterbox for `ViewportComponent` subtrees | Same decision as row 29 | **open (Helena)** |
+| 31 | `helengine.core/CoreInitializationOptions.cs:51` | `DefaultUpdateDeltaSeconds = 1/60` | The PS2 `Full` mode uses the measured `Core.Update()` (`Core.cs:796-800`), so this is unused | keep |
+| 32 | `helengine.core/CoreInitializationOptions.cs:56` | `PhysicsFixedStepSeconds = 1/60` default | The PS2 overrides it to 1/20 (row 13) | keep |
+| 33 | `helengine.directx11/DirectX11FixedRenderSize.cs:16-26` | Client = the **same** integer multiple of the render size on both axes; anything else throws | Carry M3: for 4:3 the client is `round(k*H*4/3)` x `k*H`. Validate the vertical integer multiple and that the width equals the 4:3 width of that height. The horizontal ratio is then generally not an integer. | replace (B6; plan B6 does not list this file yet) |
+| 34 | `helengine.player/PlayerWindowLayout.cs:22-68` | `clientWidth = renderSize.Width * multiplier` | Width from the display aspect. **At 1x, 640-wide modes would shrink horizontally** (640x448 to 597 wide; 640x224 to 299 wide, which drops more than half of the columns with point sampling). Choose a minimum multiple whose 4:3 width is at least the render width (640x224 needs k>=3; 640x448, 512x224, 320x224, 640x256 and 512x256 need k>=2; see the pixel-aspect table), or base the 4:3 box on the larger axis. | replace (B6; not in plan B6 yet) |
+| 35 | `helengine.player/PlayerHost.cs:50, 62-72, 99` | Window and `AddWindowWithFixedRenderSize` take `renderSize * multiplier` | Pass the display-aspect client size and the pixel aspect | replace (B6) |
+| 36 | `helengine.directx11/DirectX11Renderer3D.cs:420-461` (`AddWindowWithFixedRenderSize`) | Calls `ValidateMagnification` (row 33) | Takes or derives the pixel aspect and stores it on the surface for rows 27-28 | replace (B6) |
+| 37 | `helengine.directx11/DirectX11PointMagnifyPass.cs:14-27` | Full-target stretch with point sampling | Already handles a non-uniform stretch. With non-integer horizontal ratios, point sampling makes uneven column widths (consider sharp-bilinear later). | derived |
+| 38 | `helengine.directx11/DirectX11Renderer3D.cs:510` | Swap chain `Rational(60, 1)` | The swap chain is windowed with FlipDiscard, so the refresh rate is ignored and pacing comes from the frame limiter | keep |
+| 39 | `helengine.editor/managers/play/EditorPlayLaunchSettingsResolver.cs:47` | `snapshot.Capability.TargetFrameRate` (PS2: 60) | Carry i5: when the capability rate is 0, use `VideoMode.PlayerFrameRate` (60 NTSC, 50 PAL). Plan B5 covers it (plan line 5706). | replace (B5) |
+| 40 | `helengine.player/PlayerFrameLimiterFactory.cs:21`, `PlayerHost.cs:161` | Paces to `settings.TargetFrameRate` | Unchanged once B5 resolves the rate | derived |
+| 41 | `helengine.baseplatform/Player/PlayerRenderSize.cs` | Width/height only | Carries the display aspect (or the pixel aspect) so that rows 33-36 get it from the adapter | ADD (B6) |
+
+##### PS2 builder and player adapter (`ps2:builder`)
+
+| # | Location | What it assumes | What it must become per mode | Status |
+|---|---|---|---|---|
+| 42 | `Ps2PlatformDefinitionFactory.cs:41-54` and `82-95` | `default-width` "640" / `default-height` "448" in both graphics profiles | Replace them with the `video-mode` choice (12 ids, default `ntsc-640x448i`) | replace (B4) |
+| 43 | `Ps2PlatformDefinitionFactory.cs:369-371` (comment), `380` (`60d`) | Player paced at a fixed 60 FPS, with an NTSC-only comment | Rate becomes `0d` plus the video-mode capability (B3 frame-rate source rule). Rewrite the comment for 59.94/50. | replace (B4) |
+| 44 | `player/Ps2PlayerAdapter.cs:11-19` | `FramebufferWidth/Height = 640/448` consts | Delete | replace (B6) |
+| 45 | `player/Ps2PlayerAdapter.cs:81-92` | `ApplyPlaySettings` returns 640x448 | Return the mode's `Width/Height`, plus the 4:3 display aspect (row 41) | replace (B6) |
+| 46 | `Ps2DiscLayoutWriter.cs:10-12` | `SYSTEM.CNF` has `BOOT2` and `VER` only, with no `VMODE` line (real discs carry `VMODE = NTSC` or `PAL`) | Optional: write `VMODE = PAL` for PAL modes. The runtime sets the GS mode itself, so this is metadata for the BIOS and emulators. | open (Helena; optional) |
+| 47 | `ps2:tools/ps2-packaged-scene-probe/ProbeSession.cs:52` | Host probe `AddWindow(IntPtr.Zero, 640, 448)` | Host tool; leave it, or take a mode argument if probes must match a mode | keep |
+| 48 | `ps2:tools/ps2-host-debugger/Ps2HostDebugSession.cpp:74` | Host debugger `AddWindow(0, 640, 448)` | Same as row 47 | keep |
+
+##### Tests that pin 640x448 / 60 Hz
+
+| # | Location | What it pins | Action | Status |
+|---|---|---|---|---|
+| 49 | `ps2:builder.tests/Ps2NativeBuildInputsTests.cs:780-797` `Boot_host_when_graphics_initialize_applies_ps2_framebuffer_defaults_before_screen_init` | Source substrings: the `640`/`448` constants, `GS_INTERLACED`, `GS_FIELD`, `GS_ASPECT_4_3`, `gsKit_init_screen` | **Confirmed: B9 deletes it** (plan line 6582 says 782-797; the doc comment starts at 780 and the method at 785). Note: it reads the **stale worktree copy** `.worktrees\normalize-camera-viewport-core\src\platform\ps2\Ps2BootHost.cpp`, not main, so it would stay green even after B9 and has never guarded main. The neighbouring tests (800-808 and others) read the same stale path. | replace (B9, confirmed) |
+| 50 | `ps2:builder.tests/Ps2RenderManager3DSourceTests.cs:707-717` `Ps2BootHost_AfterTheB21FillRateExperiment_RestoresTheNativeFramebufferResolution` | Source substrings `Ps2DefaultFramebufferWidth = 640;` and `...Height = 448;` in the **real** repo file | **Goes red when B9 deletes the constants.** Plan B9 does not list it. Delete it in B9 (it is a source-string test; B8's native test replaces it). | ADD (B9) |
+| 51 | `ps2:builder.tests/Ps2PlayerAdapterTests.cs:240` | `Assert.Equal(60d, definition.PlayerCapability.TargetFrameRate)` | Becomes `0d` plus a video-mode capability assertion when B4 changes row 43 | replace (B4; check that B4 lists it) |
+| 52 | `ps2:builder.tests/Ps2PlayerAdapterTests.cs:246-257` `ApplyPlaySettings_DeclaresThePs2FramebufferSize` | 640x448 | Plan B6 replaces it with the per-mode theory | replace (B6) |
+| 53 | `ps2:builder.tests/Ps2NativeBuildInputsTests.cs:920` | `FrameTimingSampleFrameCount = 60` (source string, stale worktree) | Not mode-related; leave it | keep |
+| 54 | `ps2:tests/native/Ps2VuClippedTexturedBatchBuilderTests.cpp:165-167, 222-224, 276-279` | Fixture: projection aspect `640/448`, viewport scale and offset `320/224` | A fixture for a mode-agnostic builder; it stays valid. Optionally add one 4:3-aspect, 320x224 case once row 16 lands. | keep |
+| 55 | `ps2:tests/native/Ps2TexturedQuadGeometryTests.cpp:23-46` | Clip rectangle 0,0,640,448 and centre 320,224 | Pure geometry fixture | keep |
+| 56 | `eng:engine/helengine.player.tests/DirectX11FixedRenderSizeTests.cs:14, 23` | Accepts only equal integer multiples and rejects unequal ones | Rewrite for the 4:3 rule (row 33) | replace (B6) |
+| 57 | `eng:engine/helengine.player.tests/PlayerWindowLayoutTests.cs` | Client = render x k | Rewrite for the 4:3 rule (row 34) | replace (B6) |
+
+##### VRAM per mode (Step 2)
+
+GS VRAM is 4 MiB (4,194,304 bytes). Each mode uses two CT16 frame buffers plus one Z16 buffer. CT16 and Z16 pages are
+64x64 pixels, or 8 KiB.
+
+| Mode | 3 x W x H x 2 | Page-grid size (3 x ceil(W/64) x ceil(H/64) x 8 KiB) | Left for textures | vs today |
+|---|---|---|---|---|
+| ntsc-640x448i (today) | 1,720,320 | 1,720,320 | 2,473,984 | 0 |
+| ntsc-512x448i | 1,376,256 | 1,376,256 | 2,818,048 | +344,064 |
+| ntsc-640x224p | 860,160 | 983,040 | 3,211,264 | +737,280 |
+| ntsc-512x224p | 688,128 | 786,432 | 3,407,872 | +933,888 |
+| ntsc-320x224p | 430,080 | 491,520 | 3,702,784 | +1,228,800 |
+| ntsc-256x224p | 344,064 | 393,216 | 3,801,088 | +1,327,104 |
+| pal-640x512i | 1,966,080 | 1,966,080 | 2,228,224 | **-245,760** |
+| pal-512x512i | 1,572,864 | 1,572,864 | 2,621,440 | +147,456 |
+| pal-640x256p | 983,040 | 983,040 | 3,211,264 | +737,280 |
+| pal-512x256p | 786,432 | 786,432 | 3,407,872 | +933,888 |
+| pal-320x256p | 491,520 | 491,520 | 3,702,784 | +1,228,800 |
+| pal-256x256p | 393,216 | 393,216 | 3,801,088 | +1,327,104 |
+
+The largest PAL mode (640x512) leaves 245,760 bytes (about 10%) less for textures than today. When VRAM is full,
+`UploadNativeTexture` returns false (row 22). A scene that just fits at 640x448 can therefore lose textures in
+`pal-640x512i`, and nothing reports it at build time. The 224-row modes differ between the naive size and the page-grid
+size (row 24).
+
+##### Pixel aspect per mode (4:3 display)
+
+`pixelAspect = 4H / 3W`. The projection aspect becomes `(viewportW * pixelAspect) / viewportH`, which is 4/3 for a
+full-screen viewport.
+
+| Mode | Framebuffer W/H (today's projection aspect) | Pixel aspect | 4:3 player client at k=1 / smallest k with no column loss |
+|---|---|---|---|
+| 640x448 | 1.4286 | 0.9333 | 597x448 / k=2: 1195x896 |
+| 512x448 | 1.1429 | 1.1667 | 597x448 / k=1 |
+| 640x224 | 2.8571 | 0.4667 | 299x224 / k=3: 896x672 |
+| 512x224 | 2.2857 | 0.5833 | 299x224 / k=2: 597x448 |
+| 320x224 | 1.4286 | 0.9333 | 299x224 / k=2: 597x448 |
+| 256x224 | 1.1429 | 1.1667 | 299x224 / k=1 |
+| 640x512 | 1.25 | 1.0667 | 683x512 / k=1 |
+| 512x512 | 1.0 | 1.3333 | 683x512 / k=1 |
+| 640x256 | 2.5 | 0.5333 | 341x256 / k=2: 683x512 |
+| 512x256 | 2.0 | 0.6667 | 341x256 / k=2: 683x512 |
+| 320x256 | 1.25 | 1.0667 | 341x256 / k=1 |
+| 256x256 | 1.0 | 1.3333 | 341x256 / k=1 |
+
+(Client width is `round(k * H * 4 / 3)`. "No column loss" means the client width is at least the render width.)
+
+##### Projection: how the 4:3 ruling plugs in (recommendation)
+
+- **Not per camera.** The aspect belongs to the output surface. A camera that renders into a `RenderTarget` keeps square
+  pixels, and split viewports must keep working. The formula `(viewportW * pixelAspect) / viewportH` is correct for any
+  sub-viewport.
+- **One engine-wide mechanism with a platform-supplied value.**
+  1. Contract (B2): `PlatformVideoMode` gains the display aspect, either as `DisplayAspectWidth`/`DisplayAspectHeight`
+     (4 and 3, validated positive) or directly as `PixelAspectRatio => (DisplayAspectWidth * Height) / (DisplayAspectHeight * Width)`.
+     All 12 PS2 modes declare 4:3 (B4). The boot record (B7/B8) carries it, or the native side derives it from the
+     fixed 4:3.
+  2. Engine core: `RenderManager3D` (`eng:engine/helengine.core/managers/rendering/RenderManager3D.cs`) gets a
+     per-window pixel aspect, defaulting to 1.0, for example `SetWindowPixelAspect(IntPtr handle, double pixelAspect)`
+     plus `GetCameraPixelAspect(ICamera camera)`, which returns 1.0 for render-target cameras. It lives next to
+     `MainWindowSize`/`GetCameraLayoutSize`, so the transpiled core on PS2 and the DX11 player share it.
+  3. `CameraProjectionUtils` gets `ResolveProjectionAspect(float viewportWidth, float viewportHeight, double pixelAspect)`.
+     It validates its inputs and returns `viewportWidth * pixelAspect / viewportHeight`. This is host-testable, and
+     both renderers call it.
+  4. PS2 native: `Ps2BootHost::InitializeGraphics` sets the pixel aspect right after `AddWindow` (row 9).
+     `Ps2RenderManager3D.cpp:1263` replaces `viewport.Z / viewport.W` with the shared helper (row 16).
+  5. Desktop player: `PlayerRenderSize` carries the pixel aspect (row 41). `AddWindowWithFixedRenderSize` stores it on
+     the surface and in `RenderManager3D` (row 36), and `DirectX11Renderer3D.cs:901/1025` use the helper (row 27).
+     Windows and other platforms keep 1.0, so nothing changes for them.
+- This changes the default `ntsc-640x448i` framing as well, from 1.4286 to 1.3333 (about 7% less horizontal field of
+  view). Today's PS2 output is already squeezed by about 7% on a 4:3 TV. Expect PS2 captures and demodisc framing
+  to shift.
+- UI and 2D (rows 29-30) are **not** covered by this mechanism unless Helena extends the ruling. The same per-window
+  pixel aspect would let `ReferenceCanvasFitComponent`/`ViewportComponent` fit in display space.
+
+#### B1 ownership after the 2026-10-14 rulings
+
+The audit's status column names the task ids of the earlier Phase B numbering. This table is authoritative for the current numbering. Rows not listed here are "derived" or "keep" and need no change.
+
+| Audit row(s) | What changes | Owner |
 |---|---|---|
-| `src/platform/ps2/Ps2BootHost.cpp:155-156` | `Ps2DefaultFramebufferWidth/Height = 640/448` | replace (B9) |
-| `src/platform/ps2/Ps2BootHost.cpp:3289-3291` | `Mode = GS_MODE_NTSC`, `Interlace = GS_INTERLACED`, `Field = GS_FIELD` | replace (B9) |
-| `src/platform/ps2/Ps2BootHost.cpp:3317-3320` | `AddWindow(0, GsGlobal->Width, GsGlobal->Height)` | already derived |
-| `src/platform/ps2/rendering/vu/Ps2VuVifPacketBuilder.cpp:453,2427`, `Ps2VuOpaqueUntexturedSetupBuilder.cpp:137,225` | GS offset centre `2048 + viewport` | already derived |
-| `src/platform/ps2/Ps2BootHost.cpp:2147-3052` (2D quad clipping) | clip rectangles come from the core canvas | already derived (core window size) |
-| `src/platform/ps2/rendering/Ps2RenderManager3D.cpp:362` | texture VRAM starts at `CurrentPointer` after `gsKit_init_screen` | already derived; PAL 640x512 leaves 245,760 fewer bytes for textures |
-| `helengine.core/utils/CameraProjectionUtils.cs:79-100` | projection aspect = viewport width / height (square pixels) | **open**: 224p/256p/512-wide modes are displayed 4:3 by the TV but rendered with a 2.86:1 or 1.14:1 aspect; Helena decides the pixel-aspect policy |
+| 26, 27, 28 | Per-window pixel aspect in `RenderManager3D`, `CameraProjectionUtils.ResolveProjectionAspect`, DirectX11 projection uses it | B2 |
+| 29, 30 (ruled: fit in display space) | `ReferenceCanvasFitComponent` and `ViewportComponent` fit the reference canvas in display space | B3 |
+| 39 (carry i5) | Frame rate from the resolved video mode when the capability rate is 0 | B6 |
+| 42, 43, 51 | PS2 graphics profiles declare `video-mode`; capability rate 0 plus video modes; the `60d` test pin | B7 |
+| 44, 45, 52 | PS2 adapter renders at the mode's framebuffer size | B9 |
+| 33, 34, 35, 36, 41, 56, 57 (carry M3) | `PlayerRenderSize` carries the pixel aspect; 4:3 window rule with a minimum multiple; fixed-size surface stores the pixel aspect | B10 |
+| 46 (ruled: write it) | `VMODE = NTSC` / `VMODE = PAL` in SYSTEM.CNF | B12 |
+| 24, 25 | gsKit MAGH/DH check and the page-grid allocation check for every mode | B13 (verify), B15 Step 6 (fix if needed) |
+| 16 | PS2 projection uses the window pixel aspect | B14 |
+| 1, 2, 3, 4, 7, 9, 49, 50 | Boot record drives `Mode`/`Interlace`/`Field`/`Width`/`Height`; window pixel aspect after `AddWindow`; delete both source-string pins | B15 |
+| 22 + VRAM table (ruled: accepted) | `pal-640x512i` leaves 245,760 fewer texture bytes; no code change | none |
+| 17 | Hard-coded 45-degree PS2 field of view ignores the camera | open, outside Phase B |
 
-- [ ] **Step 4: Commit nothing; report**
+- [x] **Step 4: Commit nothing; report**
 
-Tell Helena the "open" rows. B9 replaces only the "replace" rows. Do not invent a pixel-aspect fix.
+Tell Helena the "open" rows. (Done; her 2026-10-14 rulings are at the top of Phase B.)
 
 ---
 
-### Task B2: `PlatformVideoMode` and `PlatformVideoModeCapability`
+### Task B2: Per-window pixel aspect and the shared projection aspect
+
+**Files:**
+- Modify: `engine/helengine.core/managers/rendering/RenderManager3D.cs` (constant, two dictionaries, `MainWindowPixelAspect`, `SetWindowPixelAspect`, `GetWindowPixelAspect`, `GetCameraPixelAspect`; `SetWindowTag`, `RemoveWindow` and `Dispose` keep them in step)
+- Modify: `engine/helengine.core/utils/CameraProjectionUtils.cs` (`ResolveProjectionAspect`)
+- Modify: `engine/helengine.directx11/DirectX11Renderer3D.cs` (new `CreateCameraProjection` seam; lines 901 and 1025 call it). This file is CRLF: check `git diff --numstat` after editing.
+- Modify: `engine/helengine.player.tests/CapturingDirectX11Renderer3D.cs` (records the last camera projection)
+- Test: `engine/helengine.core.tests/managers/rendering/WindowPixelAspectTests.cs` (new), `engine/helengine.core.tests/managers/rendering/PixelAspectTestRenderTarget.cs` (new), `engine/helengine.core.tests/CameraProjectionAspectTests.cs` (new), `engine/helengine.player.tests/DirectX11PixelAspectProjectionTests.cs` (new)
+
+**Interfaces:**
+- Produces:
+  - `RenderManager3D.SquarePixelAspect = 1d`
+  - `RenderManager3D.MainWindowPixelAspect: double` (1 until the primary window's host reports another value)
+  - `RenderManager3D.SetWindowPixelAspect(IntPtr handle, double pixelAspect)`; raises `WindowLayoutChanged(tag)` for a tagged window when the value changes
+  - `RenderManager3D.GetWindowPixelAspect(IntPtr handle): double`
+  - `RenderManager3D.GetCameraPixelAspect(ICamera camera): double` (1 for a render-target camera; the primary window's value for an untagged camera; the named view's value otherwise)
+  - `CameraProjectionUtils.ResolveProjectionAspect(float viewportWidth, float viewportHeight, double pixelAspect): float` (exactly `viewportWidth / viewportHeight` when the pixel aspect is 1)
+  - `DirectX11Renderer3D.CreateCameraProjection(ICamera camera, float4 viewport): float4x4` (`protected virtual`)
+  - `CapturingDirectX11Renderer3D.LastCameraProjection: float4x4`
+- Consumed by: B3 (UI fits), B10 (`AddWindowWithFixedRenderSize` sets the pixel aspect), B14 (PS2 projection), B15 (`Ps2BootHost` sets the pixel aspect). The generated C++ names are `SetWindowPixelAspect`, `GetCameraPixelAspect` and `::CameraProjectionUtils::ResolveProjectionAspect` (none of them is overloaded, so the transpiler adds no suffix).
+
+- [ ] **Step 1: Write the failing tests**
+
+`engine/helengine.core.tests/managers/rendering/PixelAspectTestRenderTarget.cs`:
+
+```csharp
+namespace helengine.core.tests {
+    /// <summary>
+    /// Minimal render target that lets a camera render off-window, so pixel-aspect tests can check that render-target
+    /// cameras always project with square pixels.
+    /// </summary>
+    public sealed class PixelAspectTestRenderTarget : RenderTarget {
+    }
+}
+```
+
+`engine/helengine.core.tests/managers/rendering/WindowPixelAspectTests.cs`:
+
+```csharp
+namespace helengine.core.tests {
+    /// <summary>
+    /// Verifies the per-window display pixel aspect: windows are square until their host reports otherwise, named views
+    /// keep their own value, render-target cameras stay square, and invalid reports are refused.
+    /// </summary>
+    public sealed class WindowPixelAspectTests {
+        /// <summary>Windows and cameras have square pixels until a host reports a pixel aspect.</summary>
+        [Fact]
+        public void UnreportedWindowsAndCamerasAreSquare() {
+            using MultiWindowTestRenderManager renderer = CreateRenderer();
+
+            Assert.Equal(RenderManager3D.SquarePixelAspect, renderer.MainWindowPixelAspect);
+            Assert.Equal(1d, renderer.GetWindowPixelAspect(new IntPtr(1)));
+            Assert.Equal(1d, renderer.GetWindowPixelAspect(new IntPtr(2)));
+            Assert.Equal(1d, renderer.GetCameraPixelAspect(new CameraComponent()));
+            Assert.Equal(1d, renderer.GetCameraPixelAspect(new CameraComponent { OutputWindowTag = "glass" }));
+        }
+
+        /// <summary>
+        /// A reported pixel aspect reaches the window, the primary reference and the cameras that draw into that view,
+        /// and each change notifies the view's layout once.
+        /// </summary>
+        [Fact]
+        public void ReportedPixelAspectReachesItsWindowAndCameras() {
+            using MultiWindowTestRenderManager renderer = CreateRenderer();
+            List<string> changes = new List<string>();
+            renderer.WindowLayoutChanged += changes.Add;
+
+            renderer.SetWindowPixelAspect(new IntPtr(1), 0.5d);
+            renderer.SetWindowPixelAspect(new IntPtr(1), 0.5d);
+            renderer.SetWindowPixelAspect(new IntPtr(2), 2d);
+
+            Assert.Equal(0.5d, renderer.MainWindowPixelAspect);
+            Assert.Equal(0.5d, renderer.GetWindowPixelAspect(new IntPtr(1)));
+            Assert.Equal(0.5d, renderer.GetCameraPixelAspect(new CameraComponent()));
+            Assert.Equal(2d, renderer.GetCameraPixelAspect(new CameraComponent { OutputWindowTag = "GLASS" }));
+            Assert.Equal(new[] { "main", "glass" }, changes);
+            Assert.Equal(new int2(1280, 720), renderer.MainWindowSize);
+        }
+
+        /// <summary>A camera rendering into a render target projects with square pixels whatever the window reports.</summary>
+        [Fact]
+        public void RenderTargetCameraIsAlwaysSquare() {
+            using MultiWindowTestRenderManager renderer = CreateRenderer();
+            renderer.SetWindowPixelAspect(new IntPtr(1), 0.5d);
+            using PixelAspectTestRenderTarget target = new PixelAspectTestRenderTarget();
+
+            Assert.Equal(1d, renderer.GetCameraPixelAspect(new CameraComponent { RenderTarget = target }));
+        }
+
+        /// <summary>A named view keeps its pixel aspect when the window is tagged after the report.</summary>
+        [Fact]
+        public void TaggingAWindowCarriesItsPixelAspect() {
+            using MultiWindowTestRenderManager renderer = CreateRenderer();
+            renderer.AddWindow(new IntPtr(3), 320, 240);
+            renderer.SetWindowPixelAspect(new IntPtr(3), 0.75d);
+
+            renderer.SetWindowTag(new IntPtr(3), "preview");
+
+            Assert.Equal(0.75d, renderer.GetCameraPixelAspect(new CameraComponent { OutputWindowTag = "preview" }));
+        }
+
+        /// <summary>Non-finite or non-positive values, unknown windows and unknown views are refused.</summary>
+        [Fact]
+        public void InvalidReportsAndUnknownViewsAreRefused() {
+            using MultiWindowTestRenderManager renderer = CreateRenderer();
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => renderer.SetWindowPixelAspect(new IntPtr(1), 0d));
+            Assert.Throws<ArgumentOutOfRangeException>(() => renderer.SetWindowPixelAspect(new IntPtr(1), -1d));
+            Assert.Throws<ArgumentOutOfRangeException>(() => renderer.SetWindowPixelAspect(new IntPtr(1), double.NaN));
+            Assert.Throws<ArgumentOutOfRangeException>(() => renderer.SetWindowPixelAspect(new IntPtr(1), double.PositiveInfinity));
+            Assert.Throws<ArgumentException>(() => renderer.SetWindowPixelAspect(new IntPtr(99), 0.5d));
+            Assert.Throws<ArgumentException>(() => renderer.GetWindowPixelAspect(new IntPtr(99)));
+            Assert.Throws<InvalidOperationException>(() => renderer.GetCameraPixelAspect(new CameraComponent { OutputWindowTag = "nowhere" }));
+            Assert.Equal(1d, renderer.MainWindowPixelAspect);
+        }
+
+        /// <summary>Disposing the renderer returns the primary reference to square pixels.</summary>
+        [Fact]
+        public void DisposeResetsThePrimaryPixelAspect() {
+            MultiWindowTestRenderManager renderer = CreateRenderer();
+            renderer.SetWindowPixelAspect(new IntPtr(1), 0.5d);
+
+            renderer.Dispose();
+
+            Assert.Equal(1d, renderer.MainWindowPixelAspect);
+        }
+
+        /// <summary>Registers a primary 1280x720 window and a 640x360 window tagged <c>glass</c>.</summary>
+        /// <returns>A disposable renderer with two views.</returns>
+        static MultiWindowTestRenderManager CreateRenderer() {
+            MultiWindowTestRenderManager renderer = new MultiWindowTestRenderManager();
+            renderer.AddWindow(new IntPtr(1), 1280, 720);
+            renderer.AddWindow(new IntPtr(2), 640, 360);
+            renderer.SetWindowTag(new IntPtr(2), "glass");
+            return renderer;
+        }
+    }
+}
+```
+
+`engine/helengine.core.tests/CameraProjectionAspectTests.cs`:
+
+```csharp
+namespace helengine.core.tests {
+    /// <summary>
+    /// Verifies the projection aspect of a viewport on a display with square or non-square pixels.
+    /// </summary>
+    public sealed class CameraProjectionAspectTests {
+        /// <summary>With square pixels the aspect is the single-precision width / height every renderer used before.</summary>
+        [Theory]
+        [InlineData(1280f, 720f)]
+        [InlineData(640f, 448f)]
+        [InlineData(33f, 7f)]
+        [InlineData(320f, 448f)]
+        public void ResolveProjectionAspect_WithSquarePixels_IsExactlyWidthOverHeight(float width, float height) {
+            Assert.Equal(width / height, CameraProjectionUtils.ResolveProjectionAspect(width, height, RenderManager3D.SquarePixelAspect));
+        }
+
+        /// <summary>A full-screen viewport of every PS2 framebuffer projects 4:3 when its pixel aspect shows the mode 4:3.</summary>
+        [Theory]
+        [InlineData(640, 448)]
+        [InlineData(512, 448)]
+        [InlineData(640, 224)]
+        [InlineData(256, 224)]
+        [InlineData(640, 512)]
+        [InlineData(512, 512)]
+        [InlineData(320, 256)]
+        public void ResolveProjectionAspect_ForAFourByThreeMode_IsFourThirds(int width, int height) {
+            double pixelAspect = 4d * height / (3d * width);
+
+            Assert.Equal(4d / 3d, CameraProjectionUtils.ResolveProjectionAspect(width, height, pixelAspect), 5);
+        }
+
+        /// <summary>A sub-viewport scales by the same pixel aspect, so split screens keep their proportions.</summary>
+        [Fact]
+        public void ResolveProjectionAspect_ForAHalfWidthViewport_HalvesTheDisplayedAspect() {
+            double pixelAspect = 4d * 224 / (3d * 640);
+
+            Assert.Equal(2d / 3d, CameraProjectionUtils.ResolveProjectionAspect(320f, 224f, pixelAspect), 5);
+        }
+
+        /// <summary>Non-positive or non-finite inputs are refused.</summary>
+        [Fact]
+        public void ResolveProjectionAspect_RejectsInvalidInputs() {
+            Assert.Throws<ArgumentOutOfRangeException>(() => CameraProjectionUtils.ResolveProjectionAspect(0f, 448f, 1d));
+            Assert.Throws<ArgumentOutOfRangeException>(() => CameraProjectionUtils.ResolveProjectionAspect(640f, 0f, 1d));
+            Assert.Throws<ArgumentOutOfRangeException>(() => CameraProjectionUtils.ResolveProjectionAspect(float.NaN, 448f, 1d));
+            Assert.Throws<ArgumentOutOfRangeException>(() => CameraProjectionUtils.ResolveProjectionAspect(640f, 448f, 0d));
+            Assert.Throws<ArgumentOutOfRangeException>(() => CameraProjectionUtils.ResolveProjectionAspect(640f, 448f, double.NaN));
+        }
+    }
+}
+```
+
+`engine/helengine.player.tests/DirectX11PixelAspectProjectionTests.cs`:
+
+```csharp
+using System.Drawing;
+using System.Runtime.Versioning;
+using System.Windows.Forms;
+
+namespace helengine.player.tests {
+    /// <summary>
+    /// Renders a real DirectX11 frame and reads the projection the camera pass used: a window without a reported pixel
+    /// aspect projects with square pixels exactly as before, and a window whose host reports a pixel aspect projects with
+    /// the displayed aspect, so a framebuffer shown 4:3 keeps the scene's proportions.
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    public sealed class DirectX11PixelAspectProjectionTests {
+        /// <summary>Window client width, which is also the framebuffer width.</summary>
+        const int ClientWidth = 32;
+
+        /// <summary>Window client height, which is also the framebuffer height.</summary>
+        const int ClientHeight = 12;
+
+        /// <summary>An ordinary window projects with its client width / height.</summary>
+        [Fact]
+        public void WindowWithoutPixelAspect_ProjectsWithSquarePixels() {
+            StaTestThread.Run(() => Assert.Equal(32d / 12d, RenderAndReadProjectionAspect(false, 0d), 4));
+        }
+
+        /// <summary>A window reported at pixel aspect 0.5 projects with the displayed 16:12 aspect.</summary>
+        [Fact]
+        public void WindowWithPixelAspect_ProjectsWithTheDisplayedAspect() {
+            StaTestThread.Run(() => Assert.Equal(32d * 0.5d / 12d, RenderAndReadProjectionAspect(true, 0.5d), 4));
+        }
+
+        /// <summary>
+        /// Renders one frame with one full-view perspective camera into an off-desktop window and returns the aspect of
+        /// the projection it used (<c>M22 / M11</c> of a perspective matrix).
+        /// </summary>
+        /// <param name="reportPixelAspect">True to report <paramref name="pixelAspect"/> for the window.</param>
+        /// <param name="pixelAspect">Pixel aspect to report.</param>
+        /// <returns>The projection aspect ratio.</returns>
+        static double RenderAndReadProjectionAspect(bool reportPixelAspect, double pixelAspect) {
+            using CapturingDirectX11Renderer3D renderer = new CapturingDirectX11Renderer3D();
+            using Form window = new Form {
+                FormBorderStyle = FormBorderStyle.None, ClientSize = new Size(ClientWidth, ClientHeight),
+                ShowInTaskbar = false, StartPosition = FormStartPosition.Manual, Location = new Point(-32000, -32000)
+            };
+            window.Show();
+            Application.DoEvents();
+            renderer.AddWindow(window.Handle, ClientWidth, ClientHeight);
+            if (reportPixelAspect) {
+                renderer.SetWindowPixelAspect(window.Handle, pixelAspect);
+            }
+
+            using Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+            });
+            core.Initialize(renderer, renderer.Render2D, null, new PlatformInfo("windows", "test"));
+            Entity cameraEntity = new Entity(core) { LayerMask = 1 };
+            cameraEntity.InitComponents();
+            cameraEntity.InitChildren();
+            cameraEntity.AddComponent(new CameraComponent {
+                LayerMask = 1,
+                ClearSettings = new CameraClearSettings(true, new float4(0, 0, 1, 1), true, 1, false, 0)
+            });
+
+            renderer.Draw();
+
+            float4x4 projection = renderer.LastCameraProjection;
+            return (double)projection.M22 / projection.M11;
+        }
+    }
+}
+```
+
+In `CapturingDirectX11Renderer3D.cs`, add after `LastPresentedDepthBufferSize`:
+
+```csharp
+        /// <summary>
+        /// Gets the projection matrix the most recent camera pass rendered with.
+        /// </summary>
+        public float4x4 LastCameraProjection { get; private set; }
+```
+
+and before `PresentSurface`:
+
+```csharp
+        /// <summary>
+        /// Builds the camera projection through the normal path and records it.
+        /// </summary>
+        /// <param name="camera">Camera being rendered.</param>
+        /// <param name="viewport">Pixel viewport the camera renders into.</param>
+        /// <returns>The projection the camera pass uses.</returns>
+        protected override float4x4 CreateCameraProjection(ICamera camera, float4 viewport) {
+            float4x4 projection = base.CreateCameraProjection(camera, viewport);
+            LastCameraProjection = projection;
+            return projection;
+        }
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `.\dotnetw.cmd test engine\helengine.core.tests\helengine.core.tests.csproj --filter "FullyQualifiedName~WindowPixelAspectTests|FullyQualifiedName~CameraProjectionAspectTests"`
+Expected: build FAIL (`SetWindowPixelAspect`, `SquarePixelAspect` and `ResolveProjectionAspect` not found).
+
+- [ ] **Step 3: Implement the per-window pixel aspect**
+
+In `RenderManager3D.cs`, add the constant first in the class (before `WindowSizes`):
+
+```csharp
+        /// <summary>
+        /// Pixel aspect of a window whose host never reports one: square pixels, so the framebuffer is shown unstretched.
+        /// </summary>
+        public const double SquarePixelAspect = 1d;
+```
+
+Add after the `WindowTags` field:
+
+```csharp
+        /// <summary>Stores the display pixel aspect each host reported for its window; a window without an entry has square pixels.</summary>
+        readonly Dictionary<IntPtr, double> WindowPixelAspects = new Dictionary<IntPtr, double>();
+
+        /// <summary>Retains the pixel aspect of named layout views, including temporarily closed windows.</summary>
+        readonly Dictionary<string, double> NamedWindowPixelAspects = new Dictionary<string, double>();
+```
+
+Add after the `MainWindowSize` property:
+
+```csharp
+        /// <summary>
+        /// Gets the display pixel aspect of the primary window: the width one framebuffer pixel occupies on the display
+        /// divided by its height. It is <see cref="SquarePixelAspect"/> until the host reports another value.
+        /// </summary>
+        public double MainWindowPixelAspect { get; private set; } = SquarePixelAspect;
+```
+
+Add after `GetWindowDensityDpi`:
+
+```csharp
+        /// <summary>
+        /// Records the display pixel aspect of a registered window: the width one framebuffer pixel occupies on the display
+        /// divided by its height. A console video mode shown 4:3 (for example a 640x224 PS2 framebuffer) has non-square
+        /// pixels; camera projections and reference-canvas fits use this value so the picture keeps its proportions on the
+        /// display. Physical render dimensions and input pixels are unchanged.
+        /// </summary>
+        /// <param name="handle">Registered host window.</param>
+        /// <param name="pixelAspect">Finite, positive displayed width of one framebuffer pixel divided by its displayed height.</param>
+        /// <exception cref="ArgumentException">Thrown when the window is not registered.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when the pixel aspect is not finite and positive.</exception>
+        public void SetWindowPixelAspect(IntPtr handle, double pixelAspect) {
+            GetWindowSize(handle);
+            if (!double.IsFinite(pixelAspect) || pixelAspect <= 0d) {
+                throw new ArgumentOutOfRangeException(nameof(pixelAspect), "A window pixel aspect must be finite and positive.");
+            }
+            if (GetWindowPixelAspect(handle) == pixelAspect) {
+                return;
+            }
+            WindowPixelAspects[handle] = pixelAspect;
+            if (handle == MainWindowHandle) {
+                MainWindowPixelAspect = pixelAspect;
+            }
+            string tag = WindowTags[handle];
+            if (tag.Length > 0) {
+                NamedWindowPixelAspects[tag.ToLowerInvariant()] = pixelAspect;
+                WindowLayoutChanged?.Invoke(tag);
+            }
+        }
+
+        /// <summary>Returns a registered window's display pixel aspect; windows whose host reported none have square pixels.</summary>
+        /// <param name="handle">Registered host window.</param>
+        /// <returns>The displayed width of one framebuffer pixel divided by its displayed height.</returns>
+        /// <exception cref="ArgumentException">Thrown when the window is not registered.</exception>
+        public double GetWindowPixelAspect(IntPtr handle) {
+            GetWindowSize(handle);
+            return WindowPixelAspects.ContainsKey(handle) ? WindowPixelAspects[handle] : SquarePixelAspect;
+        }
+
+        /// <summary>
+        /// Resolves the display pixel aspect a camera renders with: square for a render target, the primary window's value
+        /// for a camera without an output tag, and the named view's value otherwise. It follows the same scope as
+        /// <see cref="GetCameraLayoutSize"/>.
+        /// </summary>
+        /// <param name="camera">Camera whose output pixels are described.</param>
+        /// <returns>The displayed width of one output pixel divided by its displayed height.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the camera names a view that was never registered.</exception>
+        public double GetCameraPixelAspect(ICamera camera) {
+            if (camera == null) {
+                throw new ArgumentNullException(nameof(camera));
+            } else if (camera.RenderTarget != null) {
+                return SquarePixelAspect;
+            } else if (camera.OutputWindowTag.Length == 0) {
+                return MainWindowPixelAspect;
+            }
+
+            string tag = camera.OutputWindowTag;
+            RenderWindowTagRules.Validate(tag, false);
+            string key = tag.ToLowerInvariant();
+            if (!NamedWindowLayoutSizes.ContainsKey(key)) {
+                throw new InvalidOperationException("The layout output window has not been registered: " + tag);
+            }
+            return NamedWindowPixelAspects.ContainsKey(key) ? NamedWindowPixelAspects[key] : SquarePixelAspect;
+        }
+```
+
+In `SetWindowTag`, after the density `if / else` block, add:
+
+```csharp
+            if (WindowPixelAspects.ContainsKey(handle)) {
+                NamedWindowPixelAspects[tag.ToLowerInvariant()] = WindowPixelAspects[handle];
+            } else {
+                NamedWindowPixelAspects.Remove(tag.ToLowerInvariant());
+            }
+```
+
+In `RemoveWindow`, after `WindowDensityDpi.Remove(handle);`, add `WindowPixelAspects.Remove(handle);`. In `Dispose`, after `NamedWindowLayoutSizes.Clear();`, add `WindowPixelAspects.Clear();`, `NamedWindowPixelAspects.Clear();` and, after `MainWindowSize = new int2(0, 0);`, `MainWindowPixelAspect = SquarePixelAspect;`.
+
+- [ ] **Step 4: Implement the projection aspect**
+
+In `CameraProjectionUtils.cs`, add after `CreateProjection`:
+
+```csharp
+        /// <summary>
+        /// Resolves the projection aspect ratio of a viewport on a display whose pixels may not be square: the viewport's
+        /// displayed width divided by its displayed height, <c>viewportWidth * pixelAspect / viewportHeight</c>. With square
+        /// pixels it is exactly <c>viewportWidth / viewportHeight</c> in single precision, as every renderer computed it
+        /// before, so square-pixel platforms project bit for bit as they did.
+        /// </summary>
+        /// <param name="viewportWidth">Viewport width in framebuffer pixels.</param>
+        /// <param name="viewportHeight">Viewport height in framebuffer pixels.</param>
+        /// <param name="pixelAspect">Displayed width of one framebuffer pixel divided by its displayed height.</param>
+        /// <returns>The aspect ratio to build the projection with.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown for a non-finite or non-positive input, or an aspect outside single precision.</exception>
+        public static float ResolveProjectionAspect(float viewportWidth, float viewportHeight, double pixelAspect) {
+            if (!float.IsFinite(viewportWidth) || viewportWidth <= 0f) {
+                throw new ArgumentOutOfRangeException(nameof(viewportWidth), "The viewport width must be finite and positive.");
+            } else if (!float.IsFinite(viewportHeight) || viewportHeight <= 0f) {
+                throw new ArgumentOutOfRangeException(nameof(viewportHeight), "The viewport height must be finite and positive.");
+            } else if (!double.IsFinite(pixelAspect) || pixelAspect <= 0d) {
+                throw new ArgumentOutOfRangeException(nameof(pixelAspect), "The pixel aspect must be finite and positive.");
+            } else if (pixelAspect == RenderManager3D.SquarePixelAspect) {
+                return viewportWidth / viewportHeight;
+            }
+
+            double aspect = viewportWidth * pixelAspect / viewportHeight;
+            if (!double.IsFinite(aspect) || aspect > float.MaxValue) {
+                throw new ArgumentOutOfRangeException(nameof(pixelAspect), "The viewport and pixel aspect produce an aspect ratio outside single precision.");
+            }
+            return (float)aspect;
+        }
+```
+
+- [ ] **Step 5: Use it in the DirectX11 renderer**
+
+In `DirectX11Renderer3D.cs`, add after `PrepareCameraFrame`:
+
+```csharp
+        /// <summary>
+        /// Creates the projection one camera renders with into a pixel viewport, using the display pixel aspect of the
+        /// window or render target it draws into, so a framebuffer shown with non-square pixels keeps the scene's
+        /// proportions. Windows that never report a pixel aspect project exactly as before.
+        /// </summary>
+        /// <param name="camera">Camera being rendered.</param>
+        /// <param name="viewport">Pixel viewport the camera renders into.</param>
+        /// <returns>The validated projection matrix.</returns>
+        protected virtual float4x4 CreateCameraProjection(ICamera camera, float4 viewport) {
+            return CameraProjectionUtils.CreateProjection(
+                camera,
+                CameraProjectionUtils.ResolveProjectionAspect(viewport.Z, viewport.W, GetCameraPixelAspect(camera)));
+        }
+```
+
+Replace line 901 (`RenderCustomPass`) and line 1025 (`PrepareCameraFrame`), both `float4x4 projection = CameraProjectionUtils.CreateProjection(camera, viewport.Z / viewport.W);`, with:
+
+```csharp
+            float4x4 projection = CreateCameraProjection(camera, viewport);
+```
+
+(The custom pass always renders into a render target, so it stays square; it uses the seam so both sites compute the aspect the same way.)
+
+- [ ] **Step 6: Run tests to verify they pass**
+
+Run: `.\dotnetw.cmd test engine\helengine.core.tests\helengine.core.tests.csproj` and `.\dotnetw.cmd test engine\helengine.player.tests\helengine.player.tests.csproj`
+Expected: PASS. `DirectX11PixelAspectProjectionTests` passes with the square case at 2.6667 and the reported case at 1.3333, and `DirectX11FixedRenderSizePresentTests` still passes unchanged.
+
+Then run `.\dotnetw.cmd test engine\helengine.editor.tests\helengine.editor.tests.csproj --filter "FullyQualifiedName~CameraProjectionUtilsTests|FullyQualifiedName~DirectX11"` and compare failures by name with the baseline (the 5 `DirectX11RendererPlannedExecutionTests` failures A10 recorded are pre-existing).
+
+- [ ] **Step 7: Commit**
+
+```bash
+cd /c/dev/helworks/helengine
+git add engine/helengine.core/managers/rendering/RenderManager3D.cs engine/helengine.core/utils/CameraProjectionUtils.cs engine/helengine.directx11/DirectX11Renderer3D.cs engine/helengine.player.tests/CapturingDirectX11Renderer3D.cs engine/helengine.player.tests/DirectX11PixelAspectProjectionTests.cs engine/helengine.core.tests/managers/rendering/WindowPixelAspectTests.cs engine/helengine.core.tests/managers/rendering/PixelAspectTestRenderTarget.cs engine/helengine.core.tests/CameraProjectionAspectTests.cs
+git diff --cached --numstat
+git commit -m "feat(core): give each output window a display pixel aspect and project with it
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task B3: Reference-canvas and viewport fits in display space
+
+**Files:**
+- Create: `engine/helengine.core/utils/DisplayAspectFitUtils.cs`
+- Modify: `engine/helengine.core/utils/CameraWindowLayoutUtils.cs` (`ResolveCameraPixelAspect`)
+- Modify: `engine/helengine.core/components/ReferenceCanvasFitComponent.cs` (lines 648-692: `ResolveCurrentAnchorSpaceSize` uses the utility; `LiveWindowMatchesReferenceAspect` is deleted; the pixel aspect reaches the snapshots and `RecordAppliedLayout`)
+- Modify: `engine/helengine.core/components/ReferenceCanvasFitSnapshot.cs` (`Apply` takes the pixel aspect)
+- Modify: `engine/helengine.core/components/ViewportComponent.cs` (lines 1041-1089: same change; new `ResolvedPixelAspect`; `LiveViewportMatchesReferenceAspect` is deleted)
+- Modify: `engine/helengine.core/components/ViewportLayoutSnapshot.cs` (`Apply` takes the pixel aspect)
+- Modify (call sites append `RenderManager3D.SquarePixelAspect` as the new last argument of every snapshot `Apply`): `engine/helengine.core.tests/components/NativeFontPixelsTests.cs:63,65,70,72`, `TextNativePixelEffectSnapTests.cs:68,83`, `ViewportLayoutSnapshotTests.cs:43,44,53`
+- Test: `engine/helengine.core.tests/DisplayAspectFitUtilsTests.cs` (new), `engine/helengine.editor.tests/components/ReferenceCanvasFitComponentTests.cs` (append)
+
+**Interfaces:**
+- Consumes: `RenderManager3D.MainWindowPixelAspect`, `GetCameraPixelAspect`, `SetWindowPixelAspect` (B2)
+- Produces:
+  - `DisplayAspectFitUtils.ResolveFittedSize(double liveWidth, double liveHeight, int referenceWidth, int referenceHeight, double pixelAspect): int2`
+  - `DisplayAspectFitUtils.ResolveGlyphScale(double widthScale, double heightScale, double pixelAspect): double`
+  - `CameraWindowLayoutUtils.ResolveCameraPixelAspect(RenderManager3D renderer, CameraComponent camera): double`
+  - `ViewportComponent.ResolvedPixelAspect: double`
+  - `ReferenceCanvasFitSnapshot.Apply(AnchorSpace anchorSpace, float2 canvasOrigin, int referenceWidth, int referenceHeight, double pixelAspect)`
+  - `ViewportLayoutSnapshot.Apply(AnchorSpace anchorSpace, float2 canvasOrigin, int referenceWidth, int referenceHeight, bool stretchCanvas, double pixelAspect)`
+- Rule: with pixel aspect 1 every expression reduces to the old one operation for operation (`x * 1.0` and `x / 1.0` are exact), so square-pixel layouts are bit-identical. The existing `ReferenceCanvasFitComponentTests` and the new square regression test pin that.
+- The stretch and density viewport modes are unchanged: stretch fills the live bounds on purpose, and density scaling is physical.
+
+**Known limit (open for Helena):** `TextComponent.FontScale` is a single number and every platform's 2D renderer draws glyphs in square framebuffer pixels. After this task glyph height on the display is correct and glyph boxes, sprites, panels and positions keep their authored proportions, but each glyph's width is still stretched by the pixel aspect (narrower by 7% in 640x448, by 53% in 640x224). Correct glyph width needs a horizontal glyph scale in `TextComponent` and in every platform 2D renderer. That is shared infrastructure, so this plan does not change it; ask Helena before adding it.
+
+- [ ] **Step 1: Write the failing tests**
+
+`engine/helengine.core.tests/DisplayAspectFitUtilsTests.cs`:
+
+```csharp
+namespace helengine.core.tests {
+    /// <summary>
+    /// Verifies the reference-canvas fit in display space: square pixels keep the old letterbox exactly, and non-square
+    /// pixels fit the canvas so it keeps its authored shape on the display.
+    /// </summary>
+    public sealed class DisplayAspectFitUtilsTests {
+        /// <summary>With square pixels the fitted size is the old uniform letterbox.</summary>
+        [Theory]
+        [InlineData(640d, 480d, 640, 360)]
+        [InlineData(1280d, 720d, 1280, 720)]
+        [InlineData(1000d, 1000d, 1000, 562)]
+        [InlineData(333d, 250d, 333, 187)]
+        [InlineData(320d, 720d, 320, 180)]
+        public void ResolveFittedSize_WithSquarePixels_IsTheUniformLetterbox(double liveWidth, double liveHeight, int expectedWidth, int expectedHeight) {
+            Assert.Equal(new int2(expectedWidth, expectedHeight), DisplayAspectFitUtils.ResolveFittedSize(liveWidth, liveHeight, 1280, 720, 1d));
+        }
+
+        /// <summary>
+        /// A 640x240 framebuffer shown at pixel aspect 0.5 displays as 320x240 (4:3). The 16:9 canvas letterboxes to a
+        /// displayed 320x180, which is 640x180 framebuffer pixels.
+        /// </summary>
+        [Fact]
+        public void ResolveFittedSize_WithNonSquarePixels_FitsInDisplaySpace() {
+            Assert.Equal(new int2(640, 180), DisplayAspectFitUtils.ResolveFittedSize(640d, 240d, 1280, 720, 0.5d));
+        }
+
+        /// <summary>A surface whose displayed aspect already matches the canvas is used whole.</summary>
+        [Fact]
+        public void ResolveFittedSize_WhenTheDisplayedAspectMatches_UsesTheWholeSurface() {
+            double pixelAspect = 4d * 224 / (3d * 640);
+
+            Assert.Equal(new int2(640, 224), DisplayAspectFitUtils.ResolveFittedSize(640d, 224d, 4, 3, pixelAspect));
+        }
+
+        /// <summary>The glyph scale is the smaller display-axis scale; with square pixels it is the old minimum.</summary>
+        [Fact]
+        public void ResolveGlyphScale_UsesTheDisplayUniformScale() {
+            Assert.Equal(0.5d, DisplayAspectFitUtils.ResolveGlyphScale(0.5d, 0.75d, 1d));
+            Assert.Equal(0.25d, DisplayAspectFitUtils.ResolveGlyphScale(0.5d, 0.25d, 0.5d));
+            Assert.Equal(0.25d, DisplayAspectFitUtils.ResolveGlyphScale(0.25d, 0.5d, 1d));
+        }
+
+        /// <summary>A non-finite or non-positive pixel aspect and an empty reference canvas are refused.</summary>
+        [Fact]
+        public void ResolveFittedSize_RejectsInvalidInputs() {
+            Assert.Throws<ArgumentOutOfRangeException>(() => DisplayAspectFitUtils.ResolveFittedSize(640d, 480d, 1280, 720, 0d));
+            Assert.Throws<ArgumentOutOfRangeException>(() => DisplayAspectFitUtils.ResolveFittedSize(640d, 480d, 1280, 720, double.NaN));
+            Assert.Throws<ArgumentOutOfRangeException>(() => DisplayAspectFitUtils.ResolveFittedSize(640d, 480d, 0, 720, 1d));
+            Assert.Throws<ArgumentOutOfRangeException>(() => DisplayAspectFitUtils.ResolveGlyphScale(0.5d, 0.5d, -1d));
+        }
+    }
+}
+```
+
+Append to `ReferenceCanvasFitComponentTests.cs`, before the private helpers:
+
+```csharp
+        /// <summary>
+        /// On a 640x240 framebuffer shown at pixel aspect 0.5 (a 4:3 display), the 1280x720 reference canvas fits in
+        /// display space: the subtree is scaled 0.5 horizontally and 0.25 vertically in framebuffer pixels. The 560x420
+        /// panel becomes 280x105 framebuffer pixels, which display as 140x105 and keep the authored 4:3 shape; radii,
+        /// outlines, shadows and glyphs follow the display-uniform scale 0.25.
+        /// </summary>
+        [Fact]
+        public void Update_WhenWindowHasNonSquarePixels_FitsTheCanvasInDisplaySpace() {
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
+            Entity panelEntity;
+            RoundedRectComponent panelBackground;
+            Entity headingEntity;
+            TextComponent headingText;
+            ReferenceCanvasFitComponent fit = CreateFittedPanelScene(out panelEntity, out panelBackground, out headingEntity, out headingText);
+
+            renderManager.OnWindowResize(IntPtr.Zero, 640, 240);
+            renderManager.SetWindowPixelAspect(IntPtr.Zero, 0.5d);
+            Core.Instance.Update();
+
+            Assert.Equal(new int2(640, 180), fit.AnchorSpace.Size);
+            Assert.Equal(new float3(44f, 47.5f, 0f), panelEntity.LocalPosition);
+            Assert.Equal(new int2(280, 105), panelBackground.Size);
+            Assert.Equal(4.5f, panelBackground.Radius);
+            Assert.Equal(0.75f, panelBackground.BorderThickness);
+            Assert.Equal(new float3(16f, 7.5f, 0.1f), headingEntity.LocalPosition);
+            Assert.Equal(new int2(210, 9), headingText.Size);
+            Assert.Equal(0.25f, headingText.FontScale);
+            Assert.Equal(0.5f, headingText.OutlineScale);
+            Assert.Equal(new float2(1f, 1.5f), headingText.ShadowOffset);
+        }
+
+        /// <summary>A window reported with square pixels fits exactly as a window that never reported a pixel aspect.</summary>
+        [Fact]
+        public void Update_WhenWindowReportsSquarePixels_FitsExactlyAsBefore() {
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
+            Entity panelEntity;
+            RoundedRectComponent panelBackground;
+            Entity headingEntity;
+            TextComponent headingText;
+            ReferenceCanvasFitComponent fit = CreateFittedPanelScene(out panelEntity, out panelBackground, out headingEntity, out headingText);
+
+            renderManager.OnWindowResize(IntPtr.Zero, 640, 480);
+            renderManager.SetWindowPixelAspect(IntPtr.Zero, RenderManager3D.SquarePixelAspect);
+            Core.Instance.Update();
+
+            Assert.Equal(new int2(640, 360), fit.AnchorSpace.Size);
+            Assert.Equal(new float3(44f, 95f, 0f), panelEntity.LocalPosition);
+            Assert.Equal(new int2(280, 210), panelBackground.Size);
+            Assert.Equal(9f, panelBackground.Radius);
+            Assert.Equal(new float3(16f, 15f, 0.1f), headingEntity.LocalPosition);
+            Assert.Equal(0.5f, headingText.FontScale);
+        }
+
+        /// <summary>
+        /// A reference-canvas viewport on a 640x240 framebuffer shown at pixel aspect 0.5 scales its subtree in display
+        /// space too, and reports the pixel aspect it fitted with.
+        /// </summary>
+        [Fact]
+        public void Update_WhenViewportScalesAWindowWithNonSquarePixels_FitsInDisplaySpace() {
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
+
+            Entity menuRoot = CreateEntity(float3.Zero);
+            ViewportComponent viewport = new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                FixedSize = new int2(1280, 720),
+                ScalingMode = ViewportComponent.ReferenceCanvasScalingMode,
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            };
+            menuRoot.AddComponent(viewport);
+            Entity generatedRoot = CreateEntity(float3.Zero);
+            menuRoot.AddChild(generatedRoot);
+            Entity panelEntity = CreateEntity(new float3(88f, 190f, 0f));
+            RoundedRectComponent panelBackground = new RoundedRectComponent {
+                Size = new int2(560, 420),
+                Radius = 18f,
+                BorderThickness = 3f
+            };
+            panelEntity.AddComponent(panelBackground);
+            generatedRoot.AddChild(panelEntity);
+            menuRoot.InitializeHierarchy();
+
+            renderManager.OnWindowResize(IntPtr.Zero, 640, 240);
+            renderManager.SetWindowPixelAspect(IntPtr.Zero, 0.5d);
+            Core.Instance.Update();
+
+            Assert.Equal(0.5d, viewport.ResolvedPixelAspect);
+            Assert.Equal(new int2(640, 180), viewport.AnchorSpace.Size);
+            Assert.Equal(new float3(44f, 47.5f, 0f), panelEntity.LocalPosition);
+            Assert.Equal(new int2(280, 105), panelBackground.Size);
+            Assert.Equal(4.5f, panelBackground.Radius);
+        }
+
+        /// <summary>
+        /// Builds a screen-bound menu root with a 1280x720 reference-canvas fit, one 560x420 panel at (88, 190) and a
+        /// heading text inside it, and initializes the hierarchy.
+        /// </summary>
+        /// <param name="panelEntity">Receives the panel entity.</param>
+        /// <param name="panelBackground">Receives the panel's rounded rectangle.</param>
+        /// <param name="headingEntity">Receives the heading entity.</param>
+        /// <param name="headingText">Receives the heading text component.</param>
+        /// <returns>The fit component on the menu root.</returns>
+        static ReferenceCanvasFitComponent CreateFittedPanelScene(out Entity panelEntity, out RoundedRectComponent panelBackground, out Entity headingEntity, out TextComponent headingText) {
+            Entity menuRoot = CreateEntity(float3.Zero);
+            menuRoot.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                FixedSize = new int2(1280, 720)
+            });
+            Entity generatedRoot = CreateEntity(float3.Zero);
+            menuRoot.AddChild(generatedRoot);
+
+            panelEntity = CreateEntity(new float3(88f, 190f, 0f));
+            panelBackground = new RoundedRectComponent {
+                Size = new int2(560, 420),
+                Radius = 18f,
+                BorderThickness = 3f
+            };
+            panelEntity.AddComponent(panelBackground);
+            generatedRoot.AddChild(panelEntity);
+
+            headingEntity = CreateEntity(new float3(32f, 30f, 0.1f));
+            headingText = new TextComponent {
+                Font = CreateFont(),
+                Text = "Heading",
+                Size = new int2(420, 36),
+                FontScale = 1f,
+                OutlineScale = 2f,
+                ShadowOffset = new float2(4f, 6f)
+            };
+            headingEntity.AddComponent(headingText);
+            panelEntity.AddChild(headingEntity);
+
+            ReferenceCanvasFitComponent fit = new ReferenceCanvasFitComponent {
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            };
+            menuRoot.AddComponent(fit);
+            menuRoot.InitializeHierarchy();
+            return fit;
+        }
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `.\dotnetw.cmd test engine\helengine.core.tests\helengine.core.tests.csproj --filter "FullyQualifiedName~DisplayAspectFitUtilsTests"`
+Expected: build FAIL (`DisplayAspectFitUtils` not found).
+
+- [ ] **Step 3: Implement the fit utility**
+
+`engine/helengine.core/utils/DisplayAspectFitUtils.cs`:
+
+```csharp
+namespace helengine {
+    /// <summary>
+    /// Fits an authored reference canvas into a live surface in display space. A surface's pixels may not be square (a
+    /// console mode shown 4:3), so the fit compares displayed widths, <c>framebuffer width * pixel aspect</c>, with heights;
+    /// the canvas then keeps its authored shape on the display while its framebuffer size scales differently on each
+    /// axis. With a pixel aspect of 1 every expression reduces exactly to the square-pixel letterbox.
+    /// </summary>
+    public static class DisplayAspectFitUtils {
+        /// <summary>
+        /// Resolves the framebuffer size of the reference canvas fitted, centred and letterboxed, into a live surface.
+        /// </summary>
+        /// <param name="liveWidth">Live surface width in framebuffer pixels.</param>
+        /// <param name="liveHeight">Live surface height in framebuffer pixels.</param>
+        /// <param name="referenceWidth">Authored reference canvas width.</param>
+        /// <param name="referenceHeight">Authored reference canvas height.</param>
+        /// <param name="pixelAspect">Displayed width of one framebuffer pixel divided by its displayed height.</param>
+        /// <returns>The fitted canvas size in framebuffer pixels.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown for an empty reference canvas or a non-finite or non-positive pixel aspect.</exception>
+        public static int2 ResolveFittedSize(double liveWidth, double liveHeight, int referenceWidth, int referenceHeight, double pixelAspect) {
+            if (referenceWidth < 1) {
+                throw new ArgumentOutOfRangeException(nameof(referenceWidth), "The reference canvas width must be at least one.");
+            } else if (referenceHeight < 1) {
+                throw new ArgumentOutOfRangeException(nameof(referenceHeight), "The reference canvas height must be at least one.");
+            }
+            ValidatePixelAspect(pixelAspect);
+
+            double expectedWidth = liveHeight * referenceWidth / (referenceHeight * pixelAspect);
+            double expectedHeight = liveWidth * pixelAspect * referenceHeight / referenceWidth;
+            if (Math.Abs(liveWidth - expectedWidth) <= 0.5d || Math.Abs(liveHeight - expectedHeight) <= 0.5d) {
+                return new int2((int)Math.Round(liveWidth), (int)Math.Round(liveHeight));
+            }
+
+            double widthScale = liveWidth * pixelAspect / referenceWidth;
+            double heightScale = liveHeight / referenceHeight;
+            double scale = Math.Min(widthScale, heightScale);
+            if (scale <= 0d) {
+                return new int2(referenceWidth, referenceHeight);
+            }
+
+            int fittedWidth = Math.Max(1, (int)Math.Round(referenceWidth * scale / pixelAspect));
+            int fittedHeight = Math.Max(1, (int)Math.Round(referenceHeight * scale));
+            return new int2(fittedWidth, fittedHeight);
+        }
+
+        /// <summary>
+        /// Resolves the uniform scale for glyphs, radii, outlines and other single-number layout values: the smaller of the
+        /// two display-axis scales, so they never overflow their fitted boxes on the display.
+        /// </summary>
+        /// <param name="widthScale">Horizontal framebuffer pixels per authored pixel.</param>
+        /// <param name="heightScale">Vertical framebuffer pixels per authored pixel.</param>
+        /// <param name="pixelAspect">Displayed width of one framebuffer pixel divided by its displayed height.</param>
+        /// <returns>The uniform scale.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown for a non-finite or non-positive pixel aspect.</exception>
+        public static double ResolveGlyphScale(double widthScale, double heightScale, double pixelAspect) {
+            ValidatePixelAspect(pixelAspect);
+            return Math.Min(widthScale * pixelAspect, heightScale);
+        }
+
+        /// <summary>
+        /// Validates a pixel aspect.
+        /// </summary>
+        /// <param name="pixelAspect">Displayed width of one framebuffer pixel divided by its displayed height.</param>
+        static void ValidatePixelAspect(double pixelAspect) {
+            if (!double.IsFinite(pixelAspect) || pixelAspect <= 0d) {
+                throw new ArgumentOutOfRangeException(nameof(pixelAspect), "The pixel aspect must be finite and positive.");
+            }
+        }
+    }
+}
+```
+
+In `CameraWindowLayoutUtils.cs`, add after `ResolveCameraSize`:
+
+```csharp
+        /// <summary>Resolves the display pixel aspect a camera's layout surface is shown with.</summary>
+        /// <param name="renderer">Initialized renderer owning the host window registry.</param>
+        /// <param name="camera">Optional camera; null explicitly uses the primary window.</param>
+        /// <returns>The displayed width of one surface pixel divided by its displayed height.</returns>
+        public static double ResolveCameraPixelAspect(RenderManager3D renderer, CameraComponent camera) {
+            if (renderer == null) {
+                throw new ArgumentNullException(nameof(renderer));
+            }
+            return camera == null ? renderer.MainWindowPixelAspect : renderer.GetCameraPixelAspect(camera);
+        }
+```
+
+- [ ] **Step 4: Fit `ReferenceCanvasFitComponent` in display space**
+
+Add the field after `AppliedScalarScaleValue`:
+
+```csharp
+        /// <summary>
+        /// Stores the display pixel aspect the last fit pass used, so the recorded glyph scale matches the one the snapshots applied.
+        /// </summary>
+        double CurrentPixelAspectValue;
+```
+
+In the constructor add `CurrentPixelAspectValue = RenderManager3D.SquarePixelAspect;`.
+
+Add after `ResolveLayoutSurfaceSize`:
+
+```csharp
+        /// <summary>Uses the authored viewport's pixel aspect, or the nearest camera's output pixel aspect.</summary>
+        /// <returns>Displayed width of one layout-surface pixel divided by its displayed height.</returns>
+        double ResolveLayoutPixelAspect() {
+            RefreshLayoutProviders();
+            return LayoutViewport != null ? LayoutViewport.ResolvedPixelAspect
+                : CameraWindowLayoutUtils.ResolveCameraPixelAspect(OwnerCore.RenderManager3D, LayoutCamera);
+        }
+```
+
+Replace the body of `ResolveCurrentAnchorSpaceSize` with:
+
+```csharp
+            int2 mainWindowSize = ResolveLayoutSurfaceSize();
+            double liveWidth = mainWindowSize.X > 0 ? mainWindowSize.X : ReferenceWidthValue;
+            double liveHeight = mainWindowSize.Y > 0 ? mainWindowSize.Y : ReferenceHeightValue;
+            return DisplayAspectFitUtils.ResolveFittedSize(liveWidth, liveHeight, ReferenceWidthValue, ReferenceHeightValue, ResolveLayoutPixelAspect());
+```
+
+Update its XML summary to say the fit is computed in display space. Delete `LiveWindowMatchesReferenceAspect` (its rule now lives in the utility).
+
+In `ApplyCurrentScale`, after `CurrentCanvasOriginValue = resolvedCanvasOrigin;` add `CurrentPixelAspectValue = ResolveLayoutPixelAspect();`, and change the snapshot call to `SnapshotsValue[snapshotIndex].Apply(CurrentAnchorSpaceValue, resolvedCanvasOrigin, ReferenceWidthValue, ReferenceHeightValue, CurrentPixelAspectValue);`.
+
+In `RecordAppliedLayout`, replace `AppliedScalarScaleValue = Math.Min(AppliedWidthScaleValue, AppliedHeightScaleValue);` with:
+
+```csharp
+            AppliedScalarScaleValue = DisplayAspectFitUtils.ResolveGlyphScale(AppliedWidthScaleValue, AppliedHeightScaleValue, CurrentPixelAspectValue);
+```
+
+In `ReferenceCanvasFitSnapshot.Apply`, add the parameter `double pixelAspect` after `referenceHeight` (doc: "Displayed width of one framebuffer pixel divided by its displayed height; 1 for square pixels.") and replace `double scalarScale = Math.Min(widthScale, heightScale);` with:
+
+```csharp
+            double scalarScale = DisplayAspectFitUtils.ResolveGlyphScale(widthScale, heightScale, pixelAspect);
+```
+
+- [ ] **Step 5: Fit `ViewportComponent` in display space**
+
+Add after `ResolvedViewportSize`:
+
+```csharp
+        /// <summary>
+        /// Gets the display pixel aspect of the surface this viewport resolves against: the primary window for screen
+        /// binding, the bound camera's output for camera binding, and square pixels for a fixed size or while the authored
+        /// reference rect is active.
+        /// </summary>
+        public double ResolvedPixelAspect {
+            get {
+                RefreshSubscriptions();
+                return ResolvePixelAspect();
+            }
+        }
+```
+
+Add after `ResolveViewportBounds`:
+
+```csharp
+        /// <summary>
+        /// Resolves the display pixel aspect of the active viewport surface without forcing another subscription refresh.
+        /// </summary>
+        /// <returns>Displayed width of one surface pixel divided by its displayed height.</returns>
+        double ResolvePixelAspect() {
+            if (AuthoredViewportRectSizeValue.X > 0 && AuthoredViewportRectSizeValue.Y > 0) {
+                return RenderManager3D.SquarePixelAspect;
+            } else if (OwnerCore == null || OwnerCore.RenderManager3D == null) {
+                return RenderManager3D.SquarePixelAspect;
+            } else if (BindingModeValue == ScreenBindingMode) {
+                return OwnerCore.RenderManager3D.MainWindowPixelAspect;
+            } else if (BindingModeValue == AncestorCameraBindingMode || BindingModeValue == ExplicitCameraBindingMode) {
+                CameraComponent cameraComponent = ResolveBoundCameraComponent();
+                return cameraComponent != null ? OwnerCore.RenderManager3D.GetCameraPixelAspect(cameraComponent) : RenderManager3D.SquarePixelAspect;
+            }
+
+            return RenderManager3D.SquarePixelAspect;
+        }
+```
+
+In `ResolveCurrentAnchorSpaceSize`, keep the stretch/density early return and replace the rest of the body with:
+
+```csharp
+            double liveWidth = viewportBounds.X > 0 ? viewportBounds.X : ReferenceWidthValue;
+            double liveHeight = viewportBounds.Y > 0 ? viewportBounds.Y : ReferenceHeightValue;
+            return DisplayAspectFitUtils.ResolveFittedSize(liveWidth, liveHeight, ReferenceWidthValue, ReferenceHeightValue, ResolvePixelAspect());
+```
+
+Delete `LiveViewportMatchesReferenceAspect`. In `ApplyCurrentScale`, add `double pixelAspect = ResolvePixelAspect();` before the loop and pass it as the last argument of `LayoutSnapshotsValue[snapshotIndex].Apply(...)`.
+
+In `ViewportLayoutSnapshot.Apply`, add the parameter `double pixelAspect` after `stretchCanvas` (same doc as above) and replace the scalar line with:
+
+```csharp
+            double scalarScale = stretchCanvas ? heightScale : DisplayAspectFitUtils.ResolveGlyphScale(widthScale, heightScale, pixelAspect);
+```
+
+Update the core test call sites listed under **Files** by appending `, RenderManager3D.SquarePixelAspect` to each snapshot `Apply` call.
+
+- [ ] **Step 6: Run tests to verify they pass**
+
+Run: `.\dotnetw.cmd test engine\helengine.core.tests\helengine.core.tests.csproj` and `.\dotnetw.cmd test engine\helengine.editor.tests\helengine.editor.tests.csproj --filter "FullyQualifiedName~ReferenceCanvasFitComponentTests|FullyQualifiedName~Viewport|FullyQualifiedName~PointerInteractableHitResolverTests|FullyQualifiedName~TouchInteractionSystemTests"`
+Expected: PASS, including every existing `ReferenceCanvasFitComponentTests` case (square pixels unchanged). Then run the whole editor suite and compare failures by name with the 2026-09-19 baseline.
+
+- [ ] **Step 7: Commit**
+
+```bash
+cd /c/dev/helworks/helengine
+git add engine/helengine.core/utils/DisplayAspectFitUtils.cs engine/helengine.core/utils/CameraWindowLayoutUtils.cs engine/helengine.core/components/ReferenceCanvasFitComponent.cs engine/helengine.core/components/ReferenceCanvasFitSnapshot.cs engine/helengine.core/components/ViewportComponent.cs engine/helengine.core/components/ViewportLayoutSnapshot.cs engine/helengine.core.tests/DisplayAspectFitUtilsTests.cs engine/helengine.core.tests/components/NativeFontPixelsTests.cs engine/helengine.core.tests/components/TextNativePixelEffectSnapTests.cs engine/helengine.core.tests/components/ViewportLayoutSnapshotTests.cs engine/helengine.editor.tests/components/ReferenceCanvasFitComponentTests.cs
+git diff --cached --numstat
+git commit -m "feat(core): fit reference canvases in display space on non-square-pixel windows
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task B4: `PlatformVideoMode` and `PlatformVideoModeCapability`
 
 **Files:**
 - Create: `engine/helengine.baseplatform/Definitions/PlatformVideoMode.cs`, `engine/helengine.baseplatform/Definitions/PlatformVideoModeCapability.cs`
@@ -4845,7 +6008,7 @@ Tell Helena the "open" rows. B9 replaces only the "replace" rows. Do not invent 
 
 **Interfaces:**
 - Produces:
-  - `PlatformVideoMode(string id, int width, int height, bool isProgressive, double refreshRateHz, double playerFrameRate)` with same-named properties plus `Label` (for example `320×224p`)
+  - `PlatformVideoMode(string id, int width, int height, bool isProgressive, double refreshRateHz, double playerFrameRate, int displayAspectWidth, int displayAspectHeight)` with same-named properties plus `Label` (for example `320×224p`) and `PixelAspect` (`DisplayAspectWidth * Height / (DisplayAspectHeight * Width)`, the value B10 hands to the player window and B15 to the PS2 runtime)
   - `PlatformVideoModeCapability(string settingId, PlatformVideoMode[] modes)` with `SettingId`, `Modes`, `GetModeIds(): string[]`, `Contains(string modeId): bool`, `Resolve(string modeId, string platformId): PlatformVideoMode`
 
 - [ ] **Step 1: Write the failing tests**
@@ -4861,7 +6024,7 @@ namespace helengine.baseplatform.tests.Definitions {
         /// <summary>A valid mode keeps its fields and labels itself by size and scan.</summary>
         [Fact]
         public void Ctor_KeepsFieldsAndLabels() {
-            PlatformVideoMode mode = new PlatformVideoMode("ntsc-320x224p", 320, 224, true, 59.94d, 60d);
+            PlatformVideoMode mode = new PlatformVideoMode("ntsc-320x224p", 320, 224, true, 59.94d, 60d, 4, 3);
 
             Assert.Equal("ntsc-320x224p", mode.Id);
             Assert.Equal(320, mode.Width);
@@ -4869,26 +6032,38 @@ namespace helengine.baseplatform.tests.Definitions {
             Assert.True(mode.IsProgressive);
             Assert.Equal(59.94d, mode.RefreshRateHz);
             Assert.Equal(60d, mode.PlayerFrameRate);
+            Assert.Equal(4, mode.DisplayAspectWidth);
+            Assert.Equal(3, mode.DisplayAspectHeight);
+            Assert.Equal(4d * 224 / (3d * 320), mode.PixelAspect, 12);
             Assert.Equal("320×224p", mode.Label);
-            Assert.Equal("640×448i", new PlatformVideoMode("ntsc-640x448i", 640, 448, false, 59.94d, 60d).Label);
+            Assert.Equal("640×448i", new PlatformVideoMode("ntsc-640x448i", 640, 448, false, 59.94d, 60d, 4, 3).Label);
         }
 
         /// <summary>Every invalid field is rejected.</summary>
         [Fact]
         public void Ctor_RejectsInvalidFields() {
-            Assert.Throws<ArgumentException>(() => new PlatformVideoMode(" ", 320, 224, true, 59.94d, 60d));
-            Assert.Throws<ArgumentOutOfRangeException>(() => new PlatformVideoMode("m", 0, 224, true, 59.94d, 60d));
-            Assert.Throws<ArgumentOutOfRangeException>(() => new PlatformVideoMode("m", 320, 4097, true, 59.94d, 60d));
-            Assert.Throws<ArgumentOutOfRangeException>(() => new PlatformVideoMode("m", 320, 224, true, double.NaN, 60d));
-            Assert.Throws<ArgumentOutOfRangeException>(() => new PlatformVideoMode("m", 320, 224, true, 59.94d, 0d));
+            Assert.Throws<ArgumentException>(() => new PlatformVideoMode(" ", 320, 224, true, 59.94d, 60d, 4, 3));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PlatformVideoMode("m", 0, 224, true, 59.94d, 60d, 4, 3));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PlatformVideoMode("m", 320, 4097, true, 59.94d, 60d, 4, 3));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PlatformVideoMode("m", 320, 224, true, double.NaN, 60d, 4, 3));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PlatformVideoMode("m", 320, 224, true, 59.94d, 0d, 4, 3));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PlatformVideoMode("m", 320, 224, true, 59.94d, 60d, 0, 3));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PlatformVideoMode("m", 320, 224, true, 59.94d, 60d, 4, -3));
+        }
+
+        /// <summary>A square-pixel mode has pixel aspect exactly 1; a 4:3 mode on a 640x448 framebuffer has 14/15.</summary>
+        [Fact]
+        public void PixelAspect_FollowsTheDisplayAspect() {
+            Assert.Equal(1d, new PlatformVideoMode("square", 640, 480, true, 60d, 60d, 4, 3).PixelAspect);
+            Assert.Equal(14d / 15d, new PlatformVideoMode("ntsc-640x448i", 640, 448, false, 59.94d, 60d, 4, 3).PixelAspect, 12);
         }
 
         /// <summary>The capability resolves each id and fails naming an unknown id and the platform.</summary>
         [Fact]
         public void Capability_ResolvesKnownAndRejectsUnknown() {
             PlatformVideoModeCapability capability = new PlatformVideoModeCapability("video-mode", [
-                new PlatformVideoMode("a", 640, 448, false, 59.94d, 60d),
-                new PlatformVideoMode("b", 320, 224, true, 59.94d, 60d)
+                new PlatformVideoMode("a", 640, 448, false, 59.94d, 60d, 4, 3),
+                new PlatformVideoMode("b", 320, 224, true, 59.94d, 60d, 4, 3)
             ]);
 
             Assert.Equal(new[] { "a", "b" }, capability.GetModeIds());
@@ -4903,7 +6078,7 @@ namespace helengine.baseplatform.tests.Definitions {
         /// <summary>The capability needs a setting id, at least one mode and unique ids.</summary>
         [Fact]
         public void Capability_RejectsInvalidDeclarations() {
-            PlatformVideoMode mode = new PlatformVideoMode("a", 640, 448, false, 59.94d, 60d);
+            PlatformVideoMode mode = new PlatformVideoMode("a", 640, 448, false, 59.94d, 60d, 4, 3);
 
             Assert.Throws<ArgumentException>(() => new PlatformVideoModeCapability(" ", [mode]));
             Assert.Throws<ArgumentException>(() => new PlatformVideoModeCapability("video-mode", []));
@@ -4929,7 +6104,9 @@ using System.Globalization;
 namespace helengine.baseplatform.Definitions {
     /// <summary>
     /// One video mode a console's video output really produces: the framebuffer the whole frame (3D, UI and text) renders
-    /// into, its scan, the refresh the console outputs and the frame rate the desktop Play player paces to.
+    /// into, its scan, the refresh the console outputs, the frame rate the desktop Play player paces to, and the display
+    /// aspect the TV shows the framebuffer at. When the display aspect differs from the framebuffer's own shape, its pixels
+    /// are not square (<see cref="PixelAspect"/>).
     /// </summary>
     public sealed class PlatformVideoMode {
         /// <summary>Largest accepted framebuffer width or height.</summary>
@@ -4944,9 +6121,11 @@ namespace helengine.baseplatform.Definitions {
         /// <param name="isProgressive">True for progressive scan, false for interlaced.</param>
         /// <param name="refreshRateHz">Refresh the console outputs (59.94 NTSC, 50 PAL).</param>
         /// <param name="playerFrameRate">Frame rate the desktop player paces to (60 NTSC, 50 PAL).</param>
+        /// <param name="displayAspectWidth">Width term of the aspect the display shows the whole framebuffer at (4 for 4:3).</param>
+        /// <param name="displayAspectHeight">Height term of the aspect the display shows the whole framebuffer at (3 for 4:3).</param>
         /// <exception cref="ArgumentException">Thrown when the id is blank.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown for a dimension outside 1..4096 or a non-positive or non-finite rate.</exception>
-        public PlatformVideoMode(string id, int width, int height, bool isProgressive, double refreshRateHz, double playerFrameRate) {
+        /// <exception cref="ArgumentOutOfRangeException">Thrown for a dimension or aspect term outside 1..4096 or a non-positive or non-finite rate.</exception>
+        public PlatformVideoMode(string id, int width, int height, bool isProgressive, double refreshRateHz, double playerFrameRate, int displayAspectWidth, int displayAspectHeight) {
             if (string.IsNullOrWhiteSpace(id)) {
                 throw new ArgumentException("A video mode needs an id.", nameof(id));
             } else if (width < 1 || width > MaximumDimension) {
@@ -4957,6 +6136,10 @@ namespace helengine.baseplatform.Definitions {
                 throw new ArgumentOutOfRangeException(nameof(refreshRateHz), refreshRateHz, $"Video mode '{id}' needs a positive, finite refresh rate.");
             } else if (!(playerFrameRate > 0d && double.IsFinite(playerFrameRate))) {
                 throw new ArgumentOutOfRangeException(nameof(playerFrameRate), playerFrameRate, $"Video mode '{id}' needs a positive, finite player frame rate.");
+            } else if (displayAspectWidth < 1 || displayAspectWidth > MaximumDimension) {
+                throw new ArgumentOutOfRangeException(nameof(displayAspectWidth), displayAspectWidth, $"Video mode '{id}' needs a display aspect width between 1 and 4096.");
+            } else if (displayAspectHeight < 1 || displayAspectHeight > MaximumDimension) {
+                throw new ArgumentOutOfRangeException(nameof(displayAspectHeight), displayAspectHeight, $"Video mode '{id}' needs a display aspect height between 1 and 4096.");
             }
 
             Id = id;
@@ -4965,6 +6148,8 @@ namespace helengine.baseplatform.Definitions {
             IsProgressive = isProgressive;
             RefreshRateHz = refreshRateHz;
             PlayerFrameRate = playerFrameRate;
+            DisplayAspectWidth = displayAspectWidth;
+            DisplayAspectHeight = displayAspectHeight;
         }
 
         /// <summary>Gets the stable id stored in project settings.</summary>
@@ -4984,6 +6169,19 @@ namespace helengine.baseplatform.Definitions {
 
         /// <summary>Gets the frame rate the desktop Play player paces to.</summary>
         public double PlayerFrameRate { get; }
+
+        /// <summary>Gets the width term of the aspect the display shows the whole framebuffer at.</summary>
+        public int DisplayAspectWidth { get; }
+
+        /// <summary>Gets the height term of the aspect the display shows the whole framebuffer at.</summary>
+        public int DisplayAspectHeight { get; }
+
+        /// <summary>
+        /// Gets the displayed width of one framebuffer pixel divided by its displayed height:
+        /// <c>DisplayAspectWidth * Height / (DisplayAspectHeight * Width)</c>. It is exactly 1 when the framebuffer already
+        /// has the display's shape, and 14/15 for a 640x448 framebuffer shown 4:3.
+        /// </summary>
+        public double PixelAspect => (double)DisplayAspectWidth * Height / ((double)DisplayAspectHeight * Width);
 
         /// <summary>Gets the short label shown in the Play window title, for example <c>320×224p</c>.</summary>
         public string Label => Width.ToString(CultureInfo.InvariantCulture) + "×" + Height.ToString(CultureInfo.InvariantCulture) + (IsProgressive ? "p" : "i");
@@ -5090,7 +6288,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task B3: Platform definitions declare and validate video modes
+### Task B5: Platform definitions declare and validate video modes
 
 **Files:**
 - Modify: `engine/helengine.baseplatform/Definitions/PlatformDefinition.cs` (new optional constructor parameter `videoModeCapability` after `playerCapability`, property, validation)
@@ -5099,7 +6297,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: `engine/helengine.baseplatform.tests/Definitions/PlatformDefinitionVideoModeTests.cs` (new)
 
 **Interfaces:**
-- Consumes: `PlatformVideoModeCapability` (B2), `PlatformPlayerCapability.FindPlaySetting` (A1)
+- Consumes: `PlatformVideoModeCapability` (B4), `PlatformPlayerCapability.FindPlaySetting` (A1)
 - Produces:
   - `PlatformDefinition(..., PlatformPlayerCapability playerCapability = null, PlatformVideoModeCapability videoModeCapability = null)`
   - `PlatformDefinition.VideoModeCapability` (null when not declared) and `HasVideoModes: bool`
@@ -5184,8 +6382,8 @@ namespace helengine.baseplatform.tests.Definitions {
         /// <summary>Creates two modes.</summary>
         static PlatformVideoModeCapability CreateModes() {
             return new PlatformVideoModeCapability("video-mode", [
-                new PlatformVideoMode("a", 640, 448, false, 59.94d, 60d),
-                new PlatformVideoMode("b", 320, 224, true, 59.94d, 60d)
+                new PlatformVideoMode("a", 640, 448, false, 59.94d, 60d, 4, 3),
+                new PlatformVideoMode("b", 320, 224, true, 59.94d, 60d, 4, 3)
             ]);
         }
     }
@@ -5318,15 +6516,238 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task B4: PS2 declares its 12 video modes
+### Task B6: The editor resolves the Play video mode
+
+**Files:**
+- Modify: `engine/helengine.baseplatform/Player/PlayerPlaySettings.cs` (new last parameter `PlatformVideoMode videoMode`, null when the platform has no modes; property `VideoMode`, `HasVideoMode`)
+- Modify: `engine/helengine.baseplatform/Player/PlayerPlaySettingsFile.cs` (`videoMode` object or JSON null)
+- Modify: `engine/helengine.editor/managers/play/EditorPlaySettingsSnapshot.cs` (new parameter `PlatformVideoModeCapability videoModeCapability`, may be null)
+- Modify: `engine/helengine.editor/managers/play/EditorPlaySettingsCapture.cs` (pass it through)
+- Modify: `engine/helengine.editor/managers/play/EditorPlayPlatformOption.cs` (`VideoModeCapability` from `loadedBuilder.Definition.VideoModeCapability`)
+- Modify: `engine/helengine.editor/managers/play/EditorPlayLaunchSettingsResolver.cs`
+- Modify: `engine/helengine.editor/EditorSession.cs` (`HandlePlayRequested` passes `playPlatform.VideoModeCapability`)
+- Modify (call sites gain the new argument): `engine/helengine.baseplatform.tests/Player/PlayerPlaySettingsFileTests.cs`, `C:\dev\helworks\helengine-ps2\builder.tests\Ps2PlayerAdapterTests.cs`, `engine/helengine.player.tests/PlayerFrameLimiterFactoryTests.cs` (pass `null`); `engine/helengine.editor.tests/managers/play/*Tests.cs` and `TestPlaySettings.cs`, `engine/helengine.player.tests/ContractPlaySettings.cs` (snapshot and capture take `null`)
+- Test: `engine/helengine.editor.tests/managers/play/EditorPlayLaunchSettingsResolverTests.cs`, `engine/helengine.baseplatform.tests/Player/PlayerPlaySettingsFileTests.cs`
+
+**Interfaces:**
+- Consumes: `PlatformVideoModeCapability.Resolve` (B4), `PlatformDefinition.VideoModeCapability` (B5)
+- Produces:
+  - `PlayerPlaySettings(..., IReadOnlyDictionary<string,string> platformValues, PlatformVideoMode videoMode)` with `VideoMode` and `HasVideoMode`
+  - `EditorPlaySettingsSnapshot(EditorPlaySettingsEvaluation evaluation, bool waitForDebuggerRequested, PlatformPlayerCapability capability, PlatformVideoModeCapability videoModeCapability, int editorProcessId)` with `VideoModeCapability` and `HasVideoModes`
+  - `EditorPlaySettingsCapture.TryCapture(store, platformId, capability, videoModeCapability, waitForDebuggerRequested, editorProcessId, out snapshot, out failureMessage)`
+  - `EditorPlayPlatformOption.VideoModeCapability`
+  - Resolver rule: with modes, the resolved `video-mode` value selects `VideoMode`, and `frame-rate: platform` uses `VideoMode.PlayerFrameRate`.
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `EditorPlayLaunchSettingsResolverTests.cs`:
+
+```csharp
+    /// <summary>With video modes, project resolves to the project's mode and the frame rate is the mode's player rate.</summary>
+    [Fact]
+    public void Resolve_VideoModeFollowsProjectAndSetsFrameRate() {
+        EditorPlaySettingsSnapshot snapshot = CreateVideoModeSnapshot("project");
+
+        PlayerPlaySettings settings = EditorPlayLaunchSettingsResolver.Resolve(snapshot, CreateCookResult(true, new Dictionary<string, string> { ["video-mode"] = "pal-320x256p" }));
+
+        Assert.Equal("pal-320x256p", settings.VideoMode.Id);
+        Assert.Equal(320, settings.VideoMode.Width);
+        Assert.Equal(50d, settings.TargetFrameRate);
+    }
+
+    /// <summary>An explicit Play mode overrides the project's mode.</summary>
+    [Fact]
+    public void Resolve_ExplicitVideoModeOverridesProject() {
+        EditorPlaySettingsSnapshot snapshot = CreateVideoModeSnapshot("ntsc-256x224p");
+
+        PlayerPlaySettings settings = EditorPlayLaunchSettingsResolver.Resolve(snapshot, CreateCookResult(true, new Dictionary<string, string> { ["video-mode"] = "pal-640x512i" }));
+
+        Assert.Equal("ntsc-256x224p", settings.VideoMode.Id);
+        Assert.Equal(60d, settings.TargetFrameRate);
+    }
+
+    /// <summary>
+    /// An old project file without <c>video-mode</c> (it still holds default-width/default-height) fails Play naming the
+    /// field and the platform settings file instead of silently running at 640x448.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenProjectHasOldSizeFieldsOnly_FailsNamingFieldAndFile() {
+        EditorPlaySettingsSnapshot snapshot = CreateVideoModeSnapshot("project");
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => EditorPlayLaunchSettingsResolver.Resolve(
+            snapshot,
+            CreateCookResult(true, new Dictionary<string, string> { ["default-width"] = "640", ["default-height"] = "448" })));
+
+        Assert.Contains("video-mode", exception.Message);
+        Assert.Contains("settings/platform.ps2.json", exception.Message);
+    }
+
+    /// <summary>Creates a PS2-like snapshot whose Play video mode is the given value.</summary>
+    static EditorPlaySettingsSnapshot CreateVideoModeSnapshot(string playValue) {
+        PlatformVideoModeCapability modes = new PlatformVideoModeCapability("video-mode", [
+            new PlatformVideoMode("ntsc-256x224p", 256, 224, true, 59.94d, 60d, 4, 3),
+            new PlatformVideoMode("pal-320x256p", 320, 256, true, 50d, 50d, 4, 3),
+            new PlatformVideoMode("pal-640x512i", 640, 512, false, 50d, 50d, 4, 3)
+        ]);
+        PlatformPlayerCapability capability = new PlatformPlayerCapability(true, "a.B", "ps2-staging", 0d, PlayerInputDevices.Gamepad, "ps2", "1.0.0",
+            [new PlatformSettingDefinition("video-mode", "Video Mode", PlatformSettingKind.Choice, "project", true, ["project", "ntsc-256x224p", "pal-320x256p", "pal-640x512i"])]);
+        EditorPlaySettingsDocument document = new EditorPlaySettingsDocument();
+        document.PlatformValues["ps2"] = new Dictionary<string, string> { ["video-mode"] = playValue };
+        EditorPlaySettingsEvaluation evaluation = EditorPlaySettingsEvaluator.Evaluate(document, @"C:\p\user_settings\play.json", "ps2", capability);
+        return new EditorPlaySettingsSnapshot(evaluation, false, capability, modes, 55);
+    }
+```
+
+Change the existing `CreateSnapshot` helper in that file to pass `null` for `videoModeCapability`.
+
+Append to `PlayerPlaySettingsFileTests.cs`:
+
+```csharp
+        /// <summary>A resolved video mode round-trips in full.</summary>
+        [Fact]
+        public void WriteThenRead_RoundTripsVideoMode() {
+            string path = Path.Combine(Root, "mode.json");
+            PlatformVideoMode mode = new PlatformVideoMode("pal-320x256p", 320, 256, true, 50d, 50d, 4, 3);
+            PlayerPlaySettingsFile.Write(path, new PlayerPlaySettings(PlayerWindowScale.Fit, PlayerWindowMonitor.Editor, 1, false, true, false, 50d, new Dictionary<string, string>(), mode));
+
+            PlayerPlaySettings read = PlayerPlaySettingsFile.Read(path);
+
+            Assert.True(read.HasVideoMode);
+            Assert.Equal("pal-320x256p", read.VideoMode.Id);
+            Assert.Equal(320, read.VideoMode.Width);
+            Assert.Equal(256, read.VideoMode.Height);
+            Assert.True(read.VideoMode.IsProgressive);
+            Assert.Equal(50d, read.VideoMode.RefreshRateHz);
+            Assert.Equal(50d, read.VideoMode.PlayerFrameRate);
+            Assert.Equal(4, read.VideoMode.DisplayAspectWidth);
+            Assert.Equal(3, read.VideoMode.DisplayAspectHeight);
+        }
+```
+
+(Add `using helengine.baseplatform.Definitions;`, and pass `null` as the last argument of every other `new PlayerPlaySettings(` in the file.)
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `.\dotnetw.cmd test engine\helengine.editor.tests\helengine.editor.tests.csproj --filter "FullyQualifiedName~EditorPlayLaunchSettingsResolverTests"`
+Expected: build FAIL (no 5-argument snapshot constructor, no `VideoMode`).
+
+- [ ] **Step 3: Extend `PlayerPlaySettings` and the file**
+
+Add the constructor parameter `PlatformVideoMode videoMode` (doc: "Resolved console video mode, or null when the platform declares no video modes.") and, when it is not null, check `frameRateUnlimited || targetFrameRate == videoMode.PlayerFrameRate`, else throw `ArgumentException` naming both. Add `public PlatformVideoMode VideoMode { get; }` and `public bool HasVideoMode => VideoMode != null;` (with XML docs). Add `using helengine.baseplatform.Definitions;`.
+
+In `PlayerPlaySettingsFile`, add `"videoMode"` to `PropertyNames`. In `Write`, after `platform`:
+
+```csharp
+            if (settings.HasVideoMode) {
+                writer.WriteStartObject("videoMode");
+                writer.WriteString("id", settings.VideoMode.Id);
+                writer.WriteNumber("width", settings.VideoMode.Width);
+                writer.WriteNumber("height", settings.VideoMode.Height);
+                writer.WriteBoolean("progressive", settings.VideoMode.IsProgressive);
+                writer.WriteNumber("refreshRateHz", settings.VideoMode.RefreshRateHz);
+                writer.WriteNumber("playerFrameRate", settings.VideoMode.PlayerFrameRate);
+                writer.WriteNumber("displayAspectWidth", settings.VideoMode.DisplayAspectWidth);
+                writer.WriteNumber("displayAspectHeight", settings.VideoMode.DisplayAspectHeight);
+                writer.WriteEndObject();
+            } else {
+                writer.WriteNull("videoMode");
+            }
+```
+
+In `Read`, before constructing the settings:
+
+```csharp
+            JsonElement videoModeElement;
+            if (!root.TryGetProperty("videoMode", out videoModeElement)) {
+                throw new InvalidOperationException($"Play settings file '{path}' is missing property 'videoMode'.");
+            }
+
+            PlatformVideoMode videoMode = null;
+            if (videoModeElement.ValueKind == JsonValueKind.Object) {
+                videoMode = new PlatformVideoMode(
+                    RequireProperty(videoModeElement, "id", JsonValueKind.String, path).GetString(),
+                    RequireProperty(videoModeElement, "width", JsonValueKind.Number, path).GetInt32(),
+                    RequireProperty(videoModeElement, "height", JsonValueKind.Number, path).GetInt32(),
+                    RequireBoolean(videoModeElement, "progressive", path),
+                    RequireProperty(videoModeElement, "refreshRateHz", JsonValueKind.Number, path).GetDouble(),
+                    RequireProperty(videoModeElement, "playerFrameRate", JsonValueKind.Number, path).GetDouble(),
+                    RequireProperty(videoModeElement, "displayAspectWidth", JsonValueKind.Number, path).GetInt32(),
+                    RequireProperty(videoModeElement, "displayAspectHeight", JsonValueKind.Number, path).GetInt32());
+            } else if (videoModeElement.ValueKind != JsonValueKind.Null) {
+                throw new InvalidOperationException($"Play settings file '{path}' property 'videoMode' must be an object or null.");
+            }
+```
+
+Then pass `videoMode` as the last constructor argument.
+
+- [ ] **Step 4: Extend the snapshot, capture, option and resolver**
+
+`EditorPlaySettingsSnapshot`: add the parameter `PlatformVideoModeCapability videoModeCapability` after `capability` (doc: "Video modes of the platform, or null when it declares none."), store it, and add `VideoModeCapability` / `HasVideoModes => VideoModeCapability != null` with XML docs.
+
+`EditorPlaySettingsCapture.TryCapture`: add `PlatformVideoModeCapability videoModeCapability` after `capability` and pass it on.
+
+`EditorPlayPlatformOption`: add the following and assign `VideoModeCapability = loadedBuilder.Definition.VideoModeCapability;`:
+
+```csharp
+        /// <summary>
+        /// Gets the video modes the platform declares, or null when it declares none.
+        /// </summary>
+        public PlatformVideoModeCapability VideoModeCapability { get; }
+```
+
+`EditorSession.HandlePlayRequested`: pass `playPlatform.VideoModeCapability` to `TryCapture`.
+
+`EditorPlayLaunchSettingsResolver.Resolve`: after the platform-value loop and before `return`:
+
+```csharp
+            PlatformVideoMode videoMode = null;
+            if (snapshot.HasVideoModes) {
+                videoMode = snapshot.VideoModeCapability.Resolve(platformValues[snapshot.VideoModeCapability.SettingId], snapshot.PlatformId);
+            }
+
+            double targetFrameRate = unlimited ? 0d : (videoMode != null ? videoMode.PlayerFrameRate : snapshot.Capability.TargetFrameRate);
+```
+
+Use `targetFrameRate` in the constructor and pass `videoMode` last. (Moving the `unlimited` computation above this block is fine.)
+
+Update the remaining call sites listed under **Files** by appending `null`. Snapshot and capture call sites take `null` for `videoModeCapability` in the new position.
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `.\dotnetw.cmd test engine\helengine.baseplatform.tests\helengine.baseplatform.tests.csproj`, `.\dotnetw.cmd test engine\helengine.player.tests\helengine.player.tests.csproj`, `.\dotnetw.cmd test engine\helengine.editor.tests\helengine.editor.tests.csproj --filter "FullyQualifiedName~managers.play"`
+Expected: PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+cd /c/dev/helworks/helengine
+git add engine/helengine.baseplatform/Player/PlayerPlaySettings.cs engine/helengine.baseplatform/Player/PlayerPlaySettingsFile.cs engine/helengine.baseplatform.tests/Player/PlayerPlaySettingsFileTests.cs engine/helengine.editor/managers/play/EditorPlaySettingsSnapshot.cs engine/helengine.editor/managers/play/EditorPlaySettingsCapture.cs engine/helengine.editor/managers/play/EditorPlayPlatformOption.cs engine/helengine.editor/managers/play/EditorPlayLaunchSettingsResolver.cs engine/helengine.editor/EditorSession.cs engine/helengine.editor.tests/managers/play engine/helengine.player.tests/ContractPlaySettings.cs engine/helengine.player.tests/PlayerFrameLimiterFactoryTests.cs
+git diff --cached --numstat
+git commit -m "feat(play): resolve the console video mode for Play
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+cd /c/dev/helworks/helengine-ps2
+git add builder.tests/Ps2PlayerAdapterTests.cs
+git diff --cached --numstat
+git commit -m "test(ps2): pass the new video-mode argument to the Play settings
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+(`git add engine/helengine.editor.tests/managers/play` stages only files this task changed. Check `git diff --cached --stat` first and unstage anything that is not yours.)
+
+---
+
+### Task B7: PS2 declares its 12 video modes
 
 **Files:**
 - Create: `C:\dev\helworks\helengine-ps2\builder\Ps2VideoModes.cs`
-- Modify: `C:\dev\helworks\helengine-ps2\builder\Ps2PlatformDefinitionFactory.cs` (both graphics profiles, lines 41-54 and 82-95; player capability 376-384; new `videoModeCapability:` argument)
+- Modify: `C:\dev\helworks\helengine-ps2\builder\Ps2PlatformDefinitionFactory.cs` (both graphics profiles, lines 41-54 and 82-95; the player-capability comment at 369-371 and its frame rate at 380; new `videoModeCapability:` argument)
+- Modify: `C:\dev\helworks\helengine-ps2\builder.tests\Ps2PlayerAdapterTests.cs:240` (the `60d` frame-rate pin; audit row 51)
 - Test: `C:\dev\helworks\helengine-ps2\builder.tests\Ps2PlatformDefinitionFactoryTests.cs`
 
 **Interfaces:**
-- Consumes: `PlatformVideoMode`, `PlatformVideoModeCapability` (B2), the `PlatformDefinition` `videoModeCapability` parameter (B3)
+- Consumes: `PlatformVideoMode`, `PlatformVideoModeCapability` (B4), the `PlatformDefinition` `videoModeCapability` parameter (B5), the resolver that takes the frame rate from the mode (B6)
 - Produces:
   - `Ps2VideoModes.SettingId = "video-mode"` and `Ps2VideoModes.DefaultModeId = "ntsc-640x448i"`
   - `Ps2VideoModes.CreateCapability(): PlatformVideoModeCapability`
@@ -5382,6 +6803,9 @@ Append to `Ps2PlatformDefinitionFactoryTests.cs`:
         Assert.Equal(progressive, mode.IsProgressive);
         Assert.Equal(refresh, mode.RefreshRateHz);
         Assert.Equal(playerRate, mode.PlayerFrameRate);
+        Assert.Equal(4, mode.DisplayAspectWidth);
+        Assert.Equal(3, mode.DisplayAspectHeight);
+        Assert.Equal(4d * height / (3d * width), mode.PixelAspect, 12);
         Assert.Equal(id.StartsWith("pal-", StringComparison.Ordinal), Ps2VideoModes.IsPal(mode));
     }
 
@@ -5439,23 +6863,32 @@ public static class Ps2VideoModes {
     const double PalRate = 50d;
 
     /// <summary>
+    /// Width term of the display aspect. The PS2 runtime shows every mode 4:3 (<c>GS_ASPECT_4_3</c>), so the TV stretches
+    /// each framebuffer to that shape and its pixels are not square unless the framebuffer is itself 4:3.
+    /// </summary>
+    const int DisplayAspectWidth = 4;
+
+    /// <summary>Height term of the 4:3 display aspect every PS2 mode is shown at.</summary>
+    const int DisplayAspectHeight = 3;
+
+    /// <summary>
     /// Creates the capability listing all 12 modes in display order.
     /// </summary>
     /// <returns>New PS2 video-mode capability.</returns>
     public static PlatformVideoModeCapability CreateCapability() {
         return new PlatformVideoModeCapability(SettingId, [
-            new PlatformVideoMode("ntsc-640x448i", 640, 448, false, NtscRefreshHz, NtscPlayerFrameRate),
-            new PlatformVideoMode("ntsc-512x448i", 512, 448, false, NtscRefreshHz, NtscPlayerFrameRate),
-            new PlatformVideoMode("ntsc-640x224p", 640, 224, true, NtscRefreshHz, NtscPlayerFrameRate),
-            new PlatformVideoMode("ntsc-512x224p", 512, 224, true, NtscRefreshHz, NtscPlayerFrameRate),
-            new PlatformVideoMode("ntsc-320x224p", 320, 224, true, NtscRefreshHz, NtscPlayerFrameRate),
-            new PlatformVideoMode("ntsc-256x224p", 256, 224, true, NtscRefreshHz, NtscPlayerFrameRate),
-            new PlatformVideoMode("pal-640x512i", 640, 512, false, PalRate, PalRate),
-            new PlatformVideoMode("pal-512x512i", 512, 512, false, PalRate, PalRate),
-            new PlatformVideoMode("pal-640x256p", 640, 256, true, PalRate, PalRate),
-            new PlatformVideoMode("pal-512x256p", 512, 256, true, PalRate, PalRate),
-            new PlatformVideoMode("pal-320x256p", 320, 256, true, PalRate, PalRate),
-            new PlatformVideoMode("pal-256x256p", 256, 256, true, PalRate, PalRate)
+            new PlatformVideoMode("ntsc-640x448i", 640, 448, false, NtscRefreshHz, NtscPlayerFrameRate, DisplayAspectWidth, DisplayAspectHeight),
+            new PlatformVideoMode("ntsc-512x448i", 512, 448, false, NtscRefreshHz, NtscPlayerFrameRate, DisplayAspectWidth, DisplayAspectHeight),
+            new PlatformVideoMode("ntsc-640x224p", 640, 224, true, NtscRefreshHz, NtscPlayerFrameRate, DisplayAspectWidth, DisplayAspectHeight),
+            new PlatformVideoMode("ntsc-512x224p", 512, 224, true, NtscRefreshHz, NtscPlayerFrameRate, DisplayAspectWidth, DisplayAspectHeight),
+            new PlatformVideoMode("ntsc-320x224p", 320, 224, true, NtscRefreshHz, NtscPlayerFrameRate, DisplayAspectWidth, DisplayAspectHeight),
+            new PlatformVideoMode("ntsc-256x224p", 256, 224, true, NtscRefreshHz, NtscPlayerFrameRate, DisplayAspectWidth, DisplayAspectHeight),
+            new PlatformVideoMode("pal-640x512i", 640, 512, false, PalRate, PalRate, DisplayAspectWidth, DisplayAspectHeight),
+            new PlatformVideoMode("pal-512x512i", 512, 512, false, PalRate, PalRate, DisplayAspectWidth, DisplayAspectHeight),
+            new PlatformVideoMode("pal-640x256p", 640, 256, true, PalRate, PalRate, DisplayAspectWidth, DisplayAspectHeight),
+            new PlatformVideoMode("pal-512x256p", 512, 256, true, PalRate, PalRate, DisplayAspectWidth, DisplayAspectHeight),
+            new PlatformVideoMode("pal-320x256p", 320, 256, true, PalRate, PalRate, DisplayAspectWidth, DisplayAspectHeight),
+            new PlatformVideoMode("pal-256x256p", 256, 256, true, PalRate, PalRate, DisplayAspectWidth, DisplayAspectHeight)
         ]);
     }
 
@@ -5501,7 +6934,14 @@ public static class Ps2VideoModes {
 
 - [ ] **Step 4: Update the factory**
 
-In both graphics profiles, replace the `default-width` and `default-height` `PlatformSettingDefinition`s with `Ps2VideoModes.CreateGraphicsSetting(),`. Change the player capability's frame rate from `60d` to `0d` and its play settings from `[]` to `[Ps2VideoModes.CreatePlaySetting()]`. Add `videoModeCapability: Ps2VideoModes.CreateCapability()` after `playerCapability:`. Rewrite the comment above the capability: the desktop player now takes its frame rate from the selected video mode (60 for NTSC modes, 50 for PAL).
+In both graphics profiles, replace the `default-width` and `default-height` `PlatformSettingDefinition`s with `Ps2VideoModes.CreateGraphicsSetting(),`. Change the player capability's frame rate from `60d` to `0d` and its play settings from `[]` to `[Ps2VideoModes.CreatePlaySetting()]`. Add `videoModeCapability: Ps2VideoModes.CreateCapability()` after `playerCapability:`. Rewrite the comment above the capability (lines 369-371): the desktop player now takes its frame rate from the selected video mode (60 for NTSC modes, 50 for PAL), and the console outputs 59.94 Hz or 50 Hz.
+
+In `Ps2PlayerAdapterTests.Definition_DeclaresPlayerCapability`, replace `Assert.Equal(60d, definition.PlayerCapability.TargetFrameRate);` with:
+
+```csharp
+        Assert.Equal(0d, definition.PlayerCapability.TargetFrameRate);
+        Assert.True(definition.PlayerCapability.FrameRateFromVideoMode);
+```
 
 - [ ] **Step 5: Run tests to verify they pass**
 
@@ -5512,7 +6952,8 @@ Expected: PASS.
 
 ```bash
 cd /c/dev/helworks/helengine-ps2
-git add builder/Ps2VideoModes.cs builder/Ps2PlatformDefinitionFactory.cs builder.tests/Ps2PlatformDefinitionFactoryTests.cs
+git add builder/Ps2VideoModes.cs builder/Ps2PlatformDefinitionFactory.cs builder.tests/Ps2PlatformDefinitionFactoryTests.cs builder.tests/Ps2PlayerAdapterTests.cs
+git diff --cached --numstat
 git commit -m "feat(ps2): declare the PS2 NTSC and PAL video modes
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -5520,216 +6961,34 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task B5: The editor resolves the Play video mode
+### Task B8: demodisc selects its PS2 video mode
 
 **Files:**
-- Modify: `engine/helengine.baseplatform/Player/PlayerPlaySettings.cs` (new last parameter `PlatformVideoMode videoMode`, null when the platform has no modes; property `VideoMode`, `HasVideoMode`)
-- Modify: `engine/helengine.baseplatform/Player/PlayerPlaySettingsFile.cs` (`videoMode` object or JSON null)
-- Modify: `engine/helengine.editor/managers/play/EditorPlaySettingsSnapshot.cs` (new parameter `PlatformVideoModeCapability videoModeCapability`, may be null)
-- Modify: `engine/helengine.editor/managers/play/EditorPlaySettingsCapture.cs` (pass it through)
-- Modify: `engine/helengine.editor/managers/play/EditorPlayPlatformOption.cs` (`VideoModeCapability` from `loadedBuilder.Definition.VideoModeCapability`)
-- Modify: `engine/helengine.editor/managers/play/EditorPlayLaunchSettingsResolver.cs`
-- Modify: `engine/helengine.editor/EditorSession.cs` (`HandlePlayRequested` passes `playPlatform.VideoModeCapability`)
-- Modify (call sites gain the new argument): `engine/helengine.baseplatform.tests/Player/PlayerPlaySettingsFileTests.cs`, `C:\dev\helworks\helengine-ps2\builder.tests\Ps2PlayerAdapterTests.cs`, `engine/helengine.player.tests/PlayerFrameLimiterFactoryTests.cs` (pass `null`); `engine/helengine.editor.tests/managers/play/*Tests.cs` and `TestPlaySettings.cs`, `engine/helengine.player.tests/ContractPlaySettings.cs` (snapshot and capture take `null`)
-- Test: `engine/helengine.editor.tests/managers/play/EditorPlayLaunchSettingsResolverTests.cs`, `engine/helengine.baseplatform.tests/Player/PlayerPlaySettingsFileTests.cs`
+- Modify: `C:\dev\helprojs\demodisc\settings\platform.ps2.json` (`graphics.selectedOptionValues`)
 
 **Interfaces:**
-- Consumes: `PlatformVideoModeCapability.Resolve` (B2), `PlatformDefinition.VideoModeCapability` (B3)
-- Produces:
-  - `PlayerPlaySettings(..., IReadOnlyDictionary<string,string> platformValues, PlatformVideoMode videoMode)` with `VideoMode` and `HasVideoMode`
-  - `EditorPlaySettingsSnapshot(EditorPlaySettingsEvaluation evaluation, bool waitForDebuggerRequested, PlatformPlayerCapability capability, PlatformVideoModeCapability videoModeCapability, int editorProcessId)` with `VideoModeCapability` and `HasVideoModes`
-  - `EditorPlaySettingsCapture.TryCapture(store, platformId, capability, videoModeCapability, waitForDebuggerRequested, editorProcessId, out snapshot, out failureMessage)`
-  - `EditorPlayPlatformOption.VideoModeCapability`
-  - Resolver rule: with modes, the resolved `video-mode` value selects `VideoMode`, and `frame-rate: platform` uses `VideoMode.PlayerFrameRate`.
+- Consumes: the graphics setting `video-mode` (B7)
+- Consumed by: B10 Step 8 (the Play check), B11 (the builder refuses the old `default-width`/`default-height`), B14 and B15 (disc builds)
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Edit the project settings**
 
-Append to `EditorPlayLaunchSettingsResolverTests.cs`:
+In `graphics.selectedOptionValues`, replace `"default-width": "640", "default-height": "448",` with `"video-mode": "ntsc-640x448i",`. Leave the dead top-level `graphics.defaultWidth/defaultHeight` untouched; the spec keeps them out of scope. Check `git -C C:\dev\helprojs\demodisc diff --numstat`: the change must be 2 deletions and 1 insertion, with no line-ending churn.
 
-```csharp
-    /// <summary>With video modes, project resolves to the project's mode and the frame rate is the mode's player rate.</summary>
-    [Fact]
-    public void Resolve_VideoModeFollowsProjectAndSetsFrameRate() {
-        EditorPlaySettingsSnapshot snapshot = CreateVideoModeSnapshot("project");
-
-        PlayerPlaySettings settings = EditorPlayLaunchSettingsResolver.Resolve(snapshot, CreateCookResult(true, new Dictionary<string, string> { ["video-mode"] = "pal-320x256p" }));
-
-        Assert.Equal("pal-320x256p", settings.VideoMode.Id);
-        Assert.Equal(320, settings.VideoMode.Width);
-        Assert.Equal(50d, settings.TargetFrameRate);
-    }
-
-    /// <summary>An explicit Play mode overrides the project's mode.</summary>
-    [Fact]
-    public void Resolve_ExplicitVideoModeOverridesProject() {
-        EditorPlaySettingsSnapshot snapshot = CreateVideoModeSnapshot("ntsc-256x224p");
-
-        PlayerPlaySettings settings = EditorPlayLaunchSettingsResolver.Resolve(snapshot, CreateCookResult(true, new Dictionary<string, string> { ["video-mode"] = "pal-640x512i" }));
-
-        Assert.Equal("ntsc-256x224p", settings.VideoMode.Id);
-        Assert.Equal(60d, settings.TargetFrameRate);
-    }
-
-    /// <summary>
-    /// An old project file without <c>video-mode</c> (it still holds default-width/default-height) fails Play naming the
-    /// field and the platform settings file instead of silently running at 640x448.
-    /// </summary>
-    [Fact]
-    public void Resolve_WhenProjectHasOldSizeFieldsOnly_FailsNamingFieldAndFile() {
-        EditorPlaySettingsSnapshot snapshot = CreateVideoModeSnapshot("project");
-
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => EditorPlayLaunchSettingsResolver.Resolve(
-            snapshot,
-            CreateCookResult(true, new Dictionary<string, string> { ["default-width"] = "640", ["default-height"] = "448" })));
-
-        Assert.Contains("video-mode", exception.Message);
-        Assert.Contains("settings/platform.ps2.json", exception.Message);
-    }
-
-    /// <summary>Creates a PS2-like snapshot whose Play video mode is the given value.</summary>
-    static EditorPlaySettingsSnapshot CreateVideoModeSnapshot(string playValue) {
-        PlatformVideoModeCapability modes = new PlatformVideoModeCapability("video-mode", [
-            new PlatformVideoMode("ntsc-256x224p", 256, 224, true, 59.94d, 60d),
-            new PlatformVideoMode("pal-320x256p", 320, 256, true, 50d, 50d),
-            new PlatformVideoMode("pal-640x512i", 640, 512, false, 50d, 50d)
-        ]);
-        PlatformPlayerCapability capability = new PlatformPlayerCapability(true, "a.B", "ps2-staging", 0d, PlayerInputDevices.Gamepad, "ps2", "1.0.0",
-            [new PlatformSettingDefinition("video-mode", "Video Mode", PlatformSettingKind.Choice, "project", true, ["project", "ntsc-256x224p", "pal-320x256p", "pal-640x512i"])]);
-        EditorPlaySettingsDocument document = new EditorPlaySettingsDocument();
-        document.PlatformValues["ps2"] = new Dictionary<string, string> { ["video-mode"] = playValue };
-        EditorPlaySettingsEvaluation evaluation = EditorPlaySettingsEvaluator.Evaluate(document, @"C:\p\user_settings\play.json", "ps2", capability);
-        return new EditorPlaySettingsSnapshot(evaluation, false, capability, modes, 55);
-    }
-```
-
-Change the existing `CreateSnapshot` helper in that file to pass `null` for `videoModeCapability`.
-
-Append to `PlayerPlaySettingsFileTests.cs`:
-
-```csharp
-        /// <summary>A resolved video mode round-trips in full.</summary>
-        [Fact]
-        public void WriteThenRead_RoundTripsVideoMode() {
-            string path = Path.Combine(Root, "mode.json");
-            PlatformVideoMode mode = new PlatformVideoMode("pal-320x256p", 320, 256, true, 50d, 50d);
-            PlayerPlaySettingsFile.Write(path, new PlayerPlaySettings(PlayerWindowScale.Fit, PlayerWindowMonitor.Editor, 1, false, true, false, 50d, new Dictionary<string, string>(), mode));
-
-            PlayerPlaySettings read = PlayerPlaySettingsFile.Read(path);
-
-            Assert.True(read.HasVideoMode);
-            Assert.Equal("pal-320x256p", read.VideoMode.Id);
-            Assert.Equal(320, read.VideoMode.Width);
-            Assert.Equal(256, read.VideoMode.Height);
-            Assert.True(read.VideoMode.IsProgressive);
-            Assert.Equal(50d, read.VideoMode.RefreshRateHz);
-            Assert.Equal(50d, read.VideoMode.PlayerFrameRate);
-        }
-```
-
-(Add `using helengine.baseplatform.Definitions;`, and pass `null` as the last argument of every other `new PlayerPlaySettings(` in the file.)
-
-- [ ] **Step 2: Run tests to verify they fail**
-
-Run: `.\dotnetw.cmd test engine\helengine.editor.tests\helengine.editor.tests.csproj --filter "FullyQualifiedName~EditorPlayLaunchSettingsResolverTests"`
-Expected: build FAIL (no 5-argument snapshot constructor, no `VideoMode`).
-
-- [ ] **Step 3: Extend `PlayerPlaySettings` and the file**
-
-Add the constructor parameter `PlatformVideoMode videoMode` (doc: "Resolved console video mode, or null when the platform declares no video modes.") and, when it is not null, check `frameRateUnlimited || targetFrameRate == videoMode.PlayerFrameRate`, else throw `ArgumentException` naming both. Add `public PlatformVideoMode VideoMode { get; }` and `public bool HasVideoMode => VideoMode != null;` (with XML docs). Add `using helengine.baseplatform.Definitions;`.
-
-In `PlayerPlaySettingsFile`, add `"videoMode"` to `PropertyNames`. In `Write`, after `platform`:
-
-```csharp
-            if (settings.HasVideoMode) {
-                writer.WriteStartObject("videoMode");
-                writer.WriteString("id", settings.VideoMode.Id);
-                writer.WriteNumber("width", settings.VideoMode.Width);
-                writer.WriteNumber("height", settings.VideoMode.Height);
-                writer.WriteBoolean("progressive", settings.VideoMode.IsProgressive);
-                writer.WriteNumber("refreshRateHz", settings.VideoMode.RefreshRateHz);
-                writer.WriteNumber("playerFrameRate", settings.VideoMode.PlayerFrameRate);
-                writer.WriteEndObject();
-            } else {
-                writer.WriteNull("videoMode");
-            }
-```
-
-In `Read`, before constructing the settings:
-
-```csharp
-            JsonElement videoModeElement;
-            if (!root.TryGetProperty("videoMode", out videoModeElement)) {
-                throw new InvalidOperationException($"Play settings file '{path}' is missing property 'videoMode'.");
-            }
-
-            PlatformVideoMode videoMode = null;
-            if (videoModeElement.ValueKind == JsonValueKind.Object) {
-                videoMode = new PlatformVideoMode(
-                    RequireProperty(videoModeElement, "id", JsonValueKind.String, path).GetString(),
-                    RequireProperty(videoModeElement, "width", JsonValueKind.Number, path).GetInt32(),
-                    RequireProperty(videoModeElement, "height", JsonValueKind.Number, path).GetInt32(),
-                    RequireBoolean(videoModeElement, "progressive", path),
-                    RequireProperty(videoModeElement, "refreshRateHz", JsonValueKind.Number, path).GetDouble(),
-                    RequireProperty(videoModeElement, "playerFrameRate", JsonValueKind.Number, path).GetDouble());
-            } else if (videoModeElement.ValueKind != JsonValueKind.Null) {
-                throw new InvalidOperationException($"Play settings file '{path}' property 'videoMode' must be an object or null.");
-            }
-```
-
-Then pass `videoMode` as the last constructor argument.
-
-- [ ] **Step 4: Extend the snapshot, capture, option and resolver**
-
-`EditorPlaySettingsSnapshot`: add the parameter `PlatformVideoModeCapability videoModeCapability` after `capability` (doc: "Video modes of the platform, or null when it declares none."), store it, and add `VideoModeCapability` / `HasVideoModes => VideoModeCapability != null` with XML docs.
-
-`EditorPlaySettingsCapture.TryCapture`: add `PlatformVideoModeCapability videoModeCapability` after `capability` and pass it on.
-
-`EditorPlayPlatformOption`: add the following and assign `VideoModeCapability = loadedBuilder.Definition.VideoModeCapability;`:
-
-```csharp
-        /// <summary>
-        /// Gets the video modes the platform declares, or null when it declares none.
-        /// </summary>
-        public PlatformVideoModeCapability VideoModeCapability { get; }
-```
-
-`EditorSession.HandlePlayRequested`: pass `playPlatform.VideoModeCapability` to `TryCapture`.
-
-`EditorPlayLaunchSettingsResolver.Resolve`: after the platform-value loop and before `return`:
-
-```csharp
-            PlatformVideoMode videoMode = null;
-            if (snapshot.HasVideoModes) {
-                videoMode = snapshot.VideoModeCapability.Resolve(platformValues[snapshot.VideoModeCapability.SettingId], snapshot.PlatformId);
-            }
-
-            double targetFrameRate = unlimited ? 0d : (videoMode != null ? videoMode.PlayerFrameRate : snapshot.Capability.TargetFrameRate);
-```
-
-Use `targetFrameRate` in the constructor and pass `videoMode` last. (Moving the `unlimited` computation above this block is fine.)
-
-Update the remaining call sites listed under **Files** by appending `null`. Snapshot and capture call sites take `null` for `videoModeCapability` in the new position.
-
-- [ ] **Step 5: Run tests to verify they pass**
-
-Run: `.\dotnetw.cmd test engine\helengine.baseplatform.tests\helengine.baseplatform.tests.csproj`, `.\dotnetw.cmd test engine\helengine.player.tests\helengine.player.tests.csproj`, `.\dotnetw.cmd test engine\helengine.editor.tests\helengine.editor.tests.csproj --filter "FullyQualifiedName~managers.play"`
-Expected: PASS.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 2: Commit**
 
 ```bash
-git add engine/helengine.baseplatform/Player/PlayerPlaySettings.cs engine/helengine.baseplatform/Player/PlayerPlaySettingsFile.cs engine/helengine.baseplatform.tests/Player/PlayerPlaySettingsFileTests.cs engine/helengine.editor/managers/play/EditorPlaySettingsSnapshot.cs engine/helengine.editor/managers/play/EditorPlaySettingsCapture.cs engine/helengine.editor/managers/play/EditorPlayPlatformOption.cs engine/helengine.editor/managers/play/EditorPlayLaunchSettingsResolver.cs engine/helengine.editor/EditorSession.cs engine/helengine.editor.tests/managers/play engine/helengine.player.tests/ContractPlaySettings.cs engine/helengine.player.tests/PlayerFrameLimiterFactoryTests.cs
-git diff --cached --numstat
-git commit -m "feat(play): resolve the console video mode for Play
+cd /c/dev/helprojs/demodisc
+git add settings/platform.ps2.json
+git commit -m "chore(ps2): select the PS2 video mode instead of a free framebuffer size
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-(`git add engine/helengine.editor.tests/managers/play` stages only files this task changed. Check `git diff --cached --stat` first and unstage anything that is not yours.)
+There is no GUI check here: until B9 and B10 land, PS2 Play still renders 640x448 with square pixels. Task B10 Step 8 asks Helena for the Play check.
 
 ---
 
-### Task B6: The PS2 player renders at the selected mode and the title names it
+### Task B9: The PS2 player renders at the selected mode and the title names it
 
 **Files:**
 - Modify: `C:\dev\helworks\helengine-ps2\builder\player\Ps2PlayerAdapter.cs` (`ApplyPlaySettings`; delete `FramebufferWidth/Height`)
@@ -5739,7 +6998,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: `C:\dev\helworks\helengine-ps2\builder.tests\Ps2PlayerAdapterTests.cs`, `engine/helengine.player.tests/PlayerWindowTitleTests.cs`
 
 **Interfaces:**
-- Consumes: `PlayerPlaySettings.VideoMode` (B5)
+- Consumes: `PlayerPlaySettings.VideoMode` (B6), `Ps2VideoModes` (B7)
 - Produces:
   - `PlayerWindowTitle.FormatWithVideoMode(string platformName, PlatformVideoMode videoMode, string sceneId): string` (`helengine player [PlayStation 2 · 320×224p] — scene`)
   - `PlayerWindow(string title, int clientWidth, int clientHeight)`
@@ -5779,7 +7038,7 @@ Append to `PlayerWindowTitleTests.cs`:
         /// <summary>The title names the platform and the video mode in the brackets.</summary>
         [Fact]
         public void FormatWithVideoMode_NamesPlatformAndMode() {
-            PlatformVideoMode mode = new PlatformVideoMode("ntsc-320x224p", 320, 224, true, 59.94d, 60d);
+            PlatformVideoMode mode = new PlatformVideoMode("ntsc-320x224p", 320, 224, true, 59.94d, 60d, 4, 3);
 
             Assert.Equal("helengine player [PlayStation 2 · 320×224p] — DemoDiscMainMenu", PlayerWindowTitle.FormatWithVideoMode("PlayStation 2", mode, "DemoDiscMainMenu"));
         }
@@ -5869,7 +7128,570 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task B7: The PS2 builder writes the video-mode boot record
+### Task B10: The Play window shows the display aspect
+
+Carry M3 and audit rows 33-36, 41, 45, 56 and 57. A PS2 mode is shown 4:3: the client is `round(k*H*4/3)` x `k*H`, which is `round(W * pixelAspect * k)` x `k*H` with the smallest k that drops no rendered column. With pixel aspect 1 the rule is the old equal integer multiple.
+
+**Files:**
+- Modify: `engine/helengine.baseplatform/Player/PlayerRenderSize.cs` (third constructor parameter `pixelAspect`, property `PixelAspect`)
+- Modify: `engine/helengine.directx11/DirectX11FixedRenderSize.cs` (`ResolveClientWidth`; `ValidateMagnification` takes the pixel aspect)
+- Modify: `engine/helengine.directx11/DirectX11Renderer3D.cs` (`AddWindowWithFixedRenderSize` takes the pixel aspect and reports it with `SetWindowPixelAspect`). CRLF file: check `git diff --numstat`.
+- Modify: `engine/helengine.player/PlayerWindowLayout.cs` (`ResolveMinimumMultiplier`; widths from `ResolveClientWidth`)
+- Modify: `engine/helengine.player/PlayerHost.cs` (passes the pixel aspect; log lines)
+- Modify: `engine/helengine.baseplatform.tests/Player/PlayerRenderSizeTests.cs`, `engine/helengine.player.tests/DirectX11FixedRenderSizeTests.cs` (rewritten), `engine/helengine.player.tests/PlayerWindowLayoutTests.cs`
+- Modify (call sites append `, 1d`): `engine/helengine.player.tests/DirectX11FixedRenderSizePresentTests.cs:91`, `engine/helengine.player.tests/DirectX11FixedRenderSizeResizeTests.cs:41,61,83`
+- Test: `engine/helengine.player.tests/DirectX11FixedRenderSizePixelAspectPresentTests.cs` (new)
+- Modify: `C:\dev\helworks\helengine-ps2\builder\player\Ps2PlayerAdapter.cs` (passes `VideoMode.PixelAspect`), `C:\dev\helworks\helengine-ps2\builder.tests\Ps2PlayerAdapterTests.cs` (the B9 theory also checks the pixel aspect)
+
+**Interfaces:**
+- Consumes: `RenderManager3D.SetWindowPixelAspect`, `GetWindowPixelAspect`, `MainWindowPixelAspect` (B2); `CapturingDirectX11Renderer3D.LastCameraProjection` (B2); `PlatformVideoMode.PixelAspect` (B4); `Ps2PlayerAdapter.ApplyPlaySettings` (B9)
+- Produces:
+  - `PlayerRenderSize(int width, int height, double pixelAspect)` with `PixelAspect`
+  - `DirectX11FixedRenderSize.ResolveClientWidth(int renderWidth, int multiplier, double pixelAspect): int` (rounds half away from zero; the only implementation of the width rule)
+  - `DirectX11FixedRenderSize.ValidateMagnification(int clientWidth, int clientHeight, int renderWidth, int renderHeight, double pixelAspect): int`
+  - `DirectX11Renderer3D.AddWindowWithFixedRenderSize(IntPtr handle, int clientWidth, int clientHeight, int renderWidth, int renderHeight, double pixelAspect)`
+  - `PlayerWindowLayout.ResolveMinimumMultiplier(PlayerRenderSize renderSize): int`
+  - Player log: `[player] render <W>x<H> at <k>x, window <cw>x<ch>, pixel aspect <p>`, plus `[player] window-scale <s> raised to <k>x so every rendered pixel column stays visible` when an explicit scale is below the minimum
+
+- [ ] **Step 1: Write the failing tests**
+
+Replace the body of `PlayerRenderSizeTests` with:
+
+```csharp
+        /// <summary>A positive size and pixel aspect are kept.</summary>
+        [Fact]
+        public void Ctor_KeepsPositiveSizeAndPixelAspect() {
+            PlayerRenderSize size = new PlayerRenderSize(320, 224, 14d / 15d);
+
+            Assert.Equal(320, size.Width);
+            Assert.Equal(224, size.Height);
+            Assert.Equal(14d / 15d, size.PixelAspect);
+        }
+
+        /// <summary>Zero, negative and absurd sizes are rejected.</summary>
+        [Theory]
+        [InlineData(0, 224)]
+        [InlineData(320, -1)]
+        [InlineData(8193, 224)]
+        public void Ctor_RejectsInvalidSize(int width, int height) {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PlayerRenderSize(width, height, 1d));
+        }
+
+        /// <summary>A non-finite or non-positive pixel aspect is rejected under its own parameter name.</summary>
+        [Theory]
+        [InlineData(0d)]
+        [InlineData(-1d)]
+        [InlineData(double.NaN)]
+        [InlineData(double.PositiveInfinity)]
+        public void Ctor_RejectsInvalidPixelAspect(double pixelAspect) {
+            ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() => new PlayerRenderSize(320, 224, pixelAspect));
+
+            Assert.Equal("pixelAspect", exception.ParamName);
+        }
+```
+
+Replace `DirectX11FixedRenderSizeTests.cs` with:
+
+```csharp
+using helengine.directx11;
+
+namespace helengine.player.tests {
+    /// <summary>
+    /// Verifies the fixed-render-size rule: the client height is an integer multiple of the render height, and the client
+    /// width is the render width stretched by the display pixel aspect at that multiple. With square pixels this is the
+    /// equal integer multiple that makes point sampling reproduce every pixel as an identical block.
+    /// </summary>
+    public sealed class DirectX11FixedRenderSizeTests {
+        /// <summary>Equal integer multiples on both axes are accepted with square pixels.</summary>
+        [Theory]
+        [InlineData(640, 448, 640, 448, 1)]
+        [InlineData(1280, 896, 640, 448, 2)]
+        [InlineData(1280, 896, 320, 224, 4)]
+        public void ValidateMagnification_WithSquarePixels_AcceptsIntegerMultiples(int clientWidth, int clientHeight, int renderWidth, int renderHeight, int expected) {
+            Assert.Equal(expected, DirectX11FixedRenderSize.ValidateMagnification(clientWidth, clientHeight, renderWidth, renderHeight, 1d));
+        }
+
+        /// <summary>Fractional or mismatched magnification is rejected with square pixels.</summary>
+        [Theory]
+        [InlineData(1000, 700, 640, 448)]
+        [InlineData(1280, 448, 640, 448)]
+        [InlineData(320, 224, 640, 448)]
+        public void ValidateMagnification_WithSquarePixels_RejectsNonIntegerOrUnequalMultiples(int clientWidth, int clientHeight, int renderWidth, int renderHeight) {
+            Assert.Throws<ArgumentException>(() => DirectX11FixedRenderSize.ValidateMagnification(clientWidth, clientHeight, renderWidth, renderHeight, 1d));
+        }
+
+        /// <summary>A 4:3 client of round(k*H*4/3) x k*H is accepted for PS2 framebuffers.</summary>
+        [Theory]
+        [InlineData(1195, 896, 640, 448, 2)]
+        [InlineData(896, 672, 640, 224, 3)]
+        [InlineData(299, 224, 256, 224, 1)]
+        [InlineData(683, 512, 512, 512, 1)]
+        [InlineData(683, 512, 640, 256, 2)]
+        public void ValidateMagnification_ForAFourByThreeDisplay_AcceptsTheStretchedWidth(int clientWidth, int clientHeight, int renderWidth, int renderHeight, int expected) {
+            double pixelAspect = 4d * renderHeight / (3d * renderWidth);
+
+            Assert.Equal(expected, DirectX11FixedRenderSize.ValidateMagnification(clientWidth, clientHeight, renderWidth, renderHeight, pixelAspect));
+        }
+
+        /// <summary>A 4:3 client whose width or height is wrong is rejected.</summary>
+        [Theory]
+        [InlineData(1194, 896, 640, 448)]
+        [InlineData(1196, 896, 640, 448)]
+        [InlineData(1195, 895, 640, 448)]
+        [InlineData(1280, 896, 640, 448)]
+        public void ValidateMagnification_ForAFourByThreeDisplay_RejectsOtherClients(int clientWidth, int clientHeight, int renderWidth, int renderHeight) {
+            double pixelAspect = 4d * renderHeight / (3d * renderWidth);
+
+            Assert.Throws<ArgumentException>(() => DirectX11FixedRenderSize.ValidateMagnification(clientWidth, clientHeight, renderWidth, renderHeight, pixelAspect));
+        }
+
+        /// <summary>At 1x the client width is the 4:3 width of the render height.</summary>
+        [Theory]
+        [InlineData(640, 448, 597)]
+        [InlineData(640, 224, 299)]
+        [InlineData(640, 256, 341)]
+        [InlineData(640, 512, 683)]
+        public void ResolveClientWidth_AtOneTimes_IsTheFourByThreeWidthOfTheHeight(int renderWidth, int renderHeight, int expected) {
+            Assert.Equal(expected, DirectX11FixedRenderSize.ResolveClientWidth(renderWidth, 1, 4d * renderHeight / (3d * renderWidth)));
+        }
+
+        /// <summary>A non-finite or non-positive pixel aspect is rejected.</summary>
+        [Fact]
+        public void ValidateMagnification_RejectsInvalidPixelAspect() {
+            Assert.Throws<ArgumentOutOfRangeException>(() => DirectX11FixedRenderSize.ValidateMagnification(640, 448, 640, 448, 0d));
+            Assert.Throws<ArgumentOutOfRangeException>(() => DirectX11FixedRenderSize.ValidateMagnification(640, 448, 640, 448, double.NaN));
+        }
+    }
+}
+```
+
+In `PlayerWindowLayoutTests.cs`, add `using helengine.directx11;`. Replace the `Ps2` field with the field below and rename its uses from `Ps2` to `SquareRender` (every existing test keeps its expected values):
+
+```csharp
+        /// <summary>A square-pixel 640x448 render size, whose window is an exact integer multiple on both axes.</summary>
+        static readonly PlayerRenderSize SquareRender = new PlayerRenderSize(640, 448, 1d);
+```
+
+Append:
+
+```csharp
+        /// <summary>The smallest multiple that keeps every rendered column visible when each PS2 framebuffer is shown 4:3.</summary>
+        [Theory]
+        [InlineData(640, 448, 2)]
+        [InlineData(512, 448, 1)]
+        [InlineData(640, 224, 3)]
+        [InlineData(512, 224, 2)]
+        [InlineData(320, 224, 2)]
+        [InlineData(256, 224, 1)]
+        [InlineData(640, 512, 1)]
+        [InlineData(512, 512, 1)]
+        [InlineData(640, 256, 2)]
+        [InlineData(512, 256, 2)]
+        [InlineData(320, 256, 1)]
+        [InlineData(256, 256, 1)]
+        public void ResolveMinimumMultiplier_ForAFourByThreeDisplay_DropsNoColumn(int width, int height, int expected) {
+            PlayerRenderSize renderSize = new PlayerRenderSize(width, height, 4d * height / (3d * width));
+
+            int multiplier = PlayerWindowLayout.ResolveMinimumMultiplier(renderSize);
+
+            Assert.Equal(expected, multiplier);
+            Assert.True(DirectX11FixedRenderSize.ResolveClientWidth(width, multiplier, renderSize.PixelAspect) >= width);
+        }
+
+        /// <summary>Square pixels never need more than 1x.</summary>
+        [Fact]
+        public void ResolveMinimumMultiplier_WithSquarePixels_IsOne() {
+            Assert.Equal(1, PlayerWindowLayout.ResolveMinimumMultiplier(SquareRender));
+        }
+
+        /// <summary>Fit on a 1920x1040 work area gives a 4:3 client of round(k*H*4/3) x k*H.</summary>
+        [Theory]
+        [InlineData(640, 448, 2, 1195, 896)]
+        [InlineData(640, 224, 4, 1195, 896)]
+        [InlineData(512, 448, 2, 1195, 896)]
+        [InlineData(256, 224, 4, 1195, 896)]
+        [InlineData(640, 512, 1, 683, 512)]
+        public void Compute_Fit_ForAFourByThreeDisplay_GivesAFourByThreeClient(int width, int height, int expectedMultiplier, int expectedClientWidth, int expectedClientHeight) {
+            PlayerRenderSize renderSize = new PlayerRenderSize(width, height, 4d * height / (3d * width));
+
+            PlayerWindowLayoutResult layout = PlayerWindowLayout.Compute(renderSize, PlayerWindowScale.Fit, new PlayerScreenArea(0, 0, 1920, 1040), FrameWidth, FrameHeight);
+
+            Assert.Equal(expectedMultiplier, layout.Multiplier);
+            Assert.Equal(expectedClientWidth, layout.ClientWidth);
+            Assert.Equal(expectedClientHeight, layout.ClientHeight);
+            Assert.False(layout.ExceedsWorkArea);
+        }
+
+        /// <summary>An explicit scale below the minimum multiple is raised to it, so no column is dropped.</summary>
+        [Fact]
+        public void Compute_ExplicitScaleBelowMinimum_IsRaisedToTheMinimum() {
+            PlayerRenderSize renderSize = new PlayerRenderSize(640, 224, 4d * 224 / (3d * 640));
+
+            PlayerWindowLayoutResult layout = PlayerWindowLayout.Compute(renderSize, PlayerWindowScale.One, new PlayerScreenArea(0, 0, 1920, 1040), FrameWidth, FrameHeight);
+
+            Assert.Equal(3, layout.Multiplier);
+            Assert.Equal(896, layout.ClientWidth);
+            Assert.Equal(672, layout.ClientHeight);
+        }
+```
+
+`engine/helengine.player.tests/DirectX11FixedRenderSizePixelAspectPresentTests.cs`:
+
+```csharp
+using System.Drawing;
+using System.Runtime.Versioning;
+using System.Windows.Forms;
+
+namespace helengine.player.tests {
+    /// <summary>
+    /// Renders a real DirectX11 frame through a fixed-render-size window with a non-square display pixel aspect and checks
+    /// every presented pixel: rows are repeated by the integer multiple and columns are stretched by the pixel aspect, with
+    /// hard point-sampled edges. The core keeps seeing the render size, the window reports its pixel aspect, and the
+    /// camera projects with the displayed 4:3 aspect.
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    public sealed class DirectX11FixedRenderSizePixelAspectPresentTests {
+        /// <summary>Sprite left edge in render pixels.</summary>
+        const int SpriteX = 2;
+
+        /// <summary>Sprite top edge in render pixels.</summary>
+        const int SpriteY = 4;
+
+        /// <summary>Sprite width in render pixels.</summary>
+        const int SpriteWidth = 3;
+
+        /// <summary>Sprite height in render pixels.</summary>
+        const int SpriteHeight = 2;
+
+        /// <summary>Opaque blue camera clear, in the back buffer's BGRA byte order.</summary>
+        static readonly byte4 ClearPixel = new byte4(255, 0, 0, 255);
+
+        /// <summary>Opaque red sprite, in the back buffer's BGRA byte order.</summary>
+        static readonly byte4 SpritePixel = new byte4(0, 0, 255, 255);
+
+        /// <summary>
+        /// A 32x12 render at pixel aspect 0.5 is shown in a 32x24 client (2x): columns keep their width and rows double.
+        /// An 8x12 render at pixel aspect 2 is shown in a 16x12 client (1x): columns double and rows keep their height.
+        /// Both display 16:12, which is 4:3.
+        /// </summary>
+        /// <param name="renderWidth">Fixed render width.</param>
+        /// <param name="renderHeight">Fixed render height.</param>
+        /// <param name="pixelAspect">Display pixel aspect of the rendered pixels.</param>
+        /// <param name="clientWidth">Window client width.</param>
+        /// <param name="clientHeight">Window client height.</param>
+        [Theory]
+        [InlineData(32, 12, 0.5d, 32, 24)]
+        [InlineData(8, 12, 2d, 16, 12)]
+        public void FixedRenderSizeWindow_StretchesColumnsByThePixelAspect(int renderWidth, int renderHeight, double pixelAspect, int clientWidth, int clientHeight) {
+            StaTestThread.Run(() => RenderAndAssert(renderWidth, renderHeight, pixelAspect, clientWidth, clientHeight));
+        }
+
+        /// <summary>
+        /// Renders two frames of a cleared view with one sprite into an off-desktop window added at a fixed render size
+        /// and checks the core sizes, the window pixel aspect, the projection aspect and every presented pixel.
+        /// </summary>
+        /// <param name="renderWidth">Fixed render width.</param>
+        /// <param name="renderHeight">Fixed render height.</param>
+        /// <param name="pixelAspect">Display pixel aspect of the rendered pixels.</param>
+        /// <param name="clientWidth">Window client width.</param>
+        /// <param name="clientHeight">Window client height.</param>
+        static void RenderAndAssert(int renderWidth, int renderHeight, double pixelAspect, int clientWidth, int clientHeight) {
+            using CapturingDirectX11Renderer3D renderer = new CapturingDirectX11Renderer3D();
+            using Form window = new Form {
+                FormBorderStyle = FormBorderStyle.None, ClientSize = new Size(clientWidth, clientHeight),
+                ShowInTaskbar = false, StartPosition = FormStartPosition.Manual, Location = new Point(-32000, -32000)
+            };
+            window.Show();
+            Application.DoEvents();
+            renderer.AddWindowWithFixedRenderSize(window.Handle, clientWidth, clientHeight, renderWidth, renderHeight, pixelAspect);
+
+            using Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+            });
+            core.Initialize(renderer, renderer.Render2D, null, new PlatformInfo("windows", "test"));
+            Entity cameraEntity = CreateEntity(core);
+            cameraEntity.AddComponent(new CameraComponent {
+                LayerMask = 1,
+                ClearSettings = new CameraClearSettings(true, new float4(0, 0, 1, 1), true, 1, false, 0)
+            });
+            RuntimeTexture red = renderer.Render2D.BuildTextureFromRaw(new TextureAsset {
+                Width = 1, Height = 1, Colors = [255, 0, 0, 255]
+            });
+            Entity spriteEntity = CreateEntity(core);
+            spriteEntity.LocalPosition = new float3(SpriteX, SpriteY, 0);
+            spriteEntity.AddComponent(new SpriteComponent {
+                Texture = red, Size = new int2(SpriteWidth, SpriteHeight)
+            });
+
+            renderer.Draw();
+            renderer.Draw();
+
+            Assert.Equal(new int2(renderWidth, renderHeight), renderer.MainWindowSize);
+            Assert.Equal(pixelAspect, renderer.MainWindowPixelAspect);
+            Assert.Equal(pixelAspect, renderer.GetWindowPixelAspect(window.Handle));
+            Assert.Equal(4d / 3d, (double)renderer.LastCameraProjection.M22 / renderer.LastCameraProjection.M11, 4);
+            byte4[,] pixels = renderer.LastPresentedPixels;
+            Assert.Equal(clientHeight, pixels.GetLength(0));
+            Assert.Equal(clientWidth, pixels.GetLength(1));
+            int scaleX = clientWidth / renderWidth;
+            int scaleY = clientHeight / renderHeight;
+            int left = SpriteX * scaleX;
+            int top = SpriteY * scaleY;
+            int right = (SpriteX + SpriteWidth) * scaleX;
+            int bottom = (SpriteY + SpriteHeight) * scaleY;
+            List<string> mismatches = new List<string>();
+            int mismatchCount = 0;
+            for (int y = 0; y < clientHeight; y++) {
+                for (int x = 0; x < clientWidth; x++) {
+                    byte4 expected = x >= left && x < right && y >= top && y < bottom ? SpritePixel : ClearPixel;
+                    if (!pixels[y, x].Equals(expected)) {
+                        mismatchCount++;
+                        if (mismatches.Count < 8) {
+                            mismatches.Add($"({x},{y}) expected {expected} got {pixels[y, x]}");
+                        }
+                    }
+                }
+            }
+
+            Assert.True(mismatchCount == 0,
+                $"{mismatchCount} of {clientWidth * clientHeight} presented pixels differ from a sprite at ({left},{top})-({right},{bottom}): " + string.Join("; ", mismatches));
+        }
+
+        /// <summary>Creates an initialized runtime entity on layer 1.</summary>
+        /// <param name="core">Core that owns the entity.</param>
+        /// <returns>Initialized entity.</returns>
+        static Entity CreateEntity(Core core) {
+            Entity entity = new Entity(core) { LayerMask = 1 };
+            entity.InitComponents();
+            entity.InitChildren();
+            return entity;
+        }
+    }
+}
+```
+
+In `Ps2PlayerAdapterTests.ApplyPlaySettings_RendersAtTheVideoModeSize` (B9), add after the height assertion:
+
+```csharp
+        Assert.Equal(4d * height / (3d * width), size.PixelAspect, 12);
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `.\dotnetw.cmd test engine\helengine.player.tests\helengine.player.tests.csproj --filter "FullyQualifiedName~DirectX11FixedRenderSize|FullyQualifiedName~PlayerWindowLayoutTests"`
+Expected: build FAIL (no three-argument `PlayerRenderSize`, no `ResolveClientWidth`, no `ResolveMinimumMultiplier`).
+
+- [ ] **Step 3: Carry the pixel aspect in `PlayerRenderSize`**
+
+Replace the class summary and constructor with the following, and add the property after `Height`:
+
+```csharp
+    /// <summary>
+    /// The size, in pixels, of the frame a platform renders during Play, and the display pixel aspect it is shown at. The
+    /// player renders into an offscreen target of exactly this size and magnifies it into the window: rows by an integer
+    /// multiple, columns by that multiple times the pixel aspect.
+    /// </summary>
+```
+
+```csharp
+        /// <summary>
+        /// Initializes one render size.
+        /// </summary>
+        /// <param name="width">Width in pixels, 1 to <see cref="MaximumDimension"/>.</param>
+        /// <param name="height">Height in pixels, 1 to <see cref="MaximumDimension"/>.</param>
+        /// <param name="pixelAspect">Displayed width of one rendered pixel divided by its displayed height; 1 for square pixels.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when a dimension is outside the accepted range or the pixel aspect is not finite and positive.</exception>
+        public PlayerRenderSize(int width, int height, double pixelAspect) {
+            if (width < 1 || width > MaximumDimension) {
+                throw new ArgumentOutOfRangeException(nameof(width), width, "The Play render width must be between 1 and 8192 pixels.");
+            } else if (height < 1 || height > MaximumDimension) {
+                throw new ArgumentOutOfRangeException(nameof(height), height, "The Play render height must be between 1 and 8192 pixels.");
+            } else if (!double.IsFinite(pixelAspect) || pixelAspect <= 0d) {
+                throw new ArgumentOutOfRangeException(nameof(pixelAspect), pixelAspect, "The Play pixel aspect must be finite and positive.");
+            }
+
+            Width = width;
+            Height = height;
+            PixelAspect = pixelAspect;
+        }
+```
+
+```csharp
+        /// <summary>Gets the displayed width of one rendered pixel divided by its displayed height.</summary>
+        public double PixelAspect { get; }
+```
+
+In `Ps2PlayerAdapter.ApplyPlaySettings` (B9), return `new PlayerRenderSize(playSettings.VideoMode.Width, playSettings.VideoMode.Height, playSettings.VideoMode.PixelAspect);` and update its `<returns>` to "The mode's framebuffer size and the pixel aspect that shows it 4:3."
+
+- [ ] **Step 4: Implement the fixed-render-size rule**
+
+Replace `DirectX11FixedRenderSize.cs` with:
+
+```csharp
+using System.Globalization;
+
+namespace helengine.directx11 {
+    /// <summary>
+    /// Rules for a window that renders at a fixed size and is magnified on present. The client height is an integer
+    /// multiple k of the render height, and the client width is the render width times the display pixel aspect times k,
+    /// rounded to the nearest pixel. With square pixels both axes use the same integer multiple, so point sampling turns
+    /// every rendered pixel into an identical block; with non-square pixels (a console mode shown 4:3) every rendered row
+    /// is repeated k times and the columns are stretched to the display aspect.
+    /// </summary>
+    public static class DirectX11FixedRenderSize {
+        /// <summary>
+        /// Resolves the client width that shows a render width at one multiple and pixel aspect, rounding half away from
+        /// zero. This is the only implementation of the width rule; the player's window layout calls it too.
+        /// </summary>
+        /// <param name="renderWidth">Fixed render width.</param>
+        /// <param name="multiplier">Integer vertical magnification (at least 1).</param>
+        /// <param name="pixelAspect">Displayed width of one rendered pixel divided by its displayed height.</param>
+        /// <returns>The client width in pixels.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown for a non-positive width or multiplier, or a non-finite or non-positive pixel aspect.</exception>
+        public static int ResolveClientWidth(int renderWidth, int multiplier, double pixelAspect) {
+            if (renderWidth <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(renderWidth), renderWidth, "The render width must be positive.");
+            } else if (multiplier <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(multiplier), multiplier, "The magnification must be positive.");
+            } else if (!double.IsFinite(pixelAspect) || pixelAspect <= 0d) {
+                throw new ArgumentOutOfRangeException(nameof(pixelAspect), pixelAspect, "The pixel aspect must be finite and positive.");
+            }
+
+            return (int)Math.Round(renderWidth * pixelAspect * multiplier, MidpointRounding.AwayFromZero);
+        }
+
+        /// <summary>
+        /// Validates the magnification and returns its integer multiplier.
+        /// </summary>
+        /// <param name="clientWidth">Window client width.</param>
+        /// <param name="clientHeight">Window client height.</param>
+        /// <param name="renderWidth">Fixed render width.</param>
+        /// <param name="renderHeight">Fixed render height.</param>
+        /// <param name="pixelAspect">Displayed width of one rendered pixel divided by its displayed height; 1 for square pixels.</param>
+        /// <returns>The integer multiplier (at least 1).</returns>
+        /// <exception cref="ArgumentException">Thrown when a size is not positive, the height is not an integer multiple, or the width does not match the pixel aspect.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when the pixel aspect is not finite and positive.</exception>
+        public static int ValidateMagnification(int clientWidth, int clientHeight, int renderWidth, int renderHeight, double pixelAspect) {
+            if (clientWidth <= 0 || clientHeight <= 0 || renderWidth <= 0 || renderHeight <= 0) {
+                throw new ArgumentException("Client and render sizes must be positive.");
+            } else if (!double.IsFinite(pixelAspect) || pixelAspect <= 0d) {
+                throw new ArgumentOutOfRangeException(nameof(pixelAspect), pixelAspect, "The pixel aspect must be finite and positive.");
+            } else if (clientHeight % renderHeight != 0) {
+                throw new ArgumentException($"Client height {clientHeight} is not an integer multiple of render height {renderHeight}.");
+            }
+
+            int multiplier = clientHeight / renderHeight;
+            int expectedWidth = ResolveClientWidth(renderWidth, multiplier, pixelAspect);
+            if (clientWidth != expectedWidth) {
+                throw new ArgumentException(
+                    $"Client {clientWidth}x{clientHeight} does not show render size {renderWidth}x{renderHeight} at pixel aspect "
+                    + pixelAspect.ToString("0.####", CultureInfo.InvariantCulture) + $": at {multiplier}x the client width must be {expectedWidth}.");
+            }
+
+            return multiplier;
+        }
+    }
+}
+```
+
+In `DirectX11Renderer3D.AddWindowWithFixedRenderSize`, add the parameter `double pixelAspect` last, pass it to `ValidateMagnification`, and call `SetWindowPixelAspect(handle, pixelAspect);` right after `base.AddWindow(handle, renderWidth, renderHeight);`. Update its XML docs: the client width is "the render width times the pixel aspect times the multiple, rounded"; `pixelAspect` is "Displayed width of one rendered pixel divided by its displayed height; 1 for square pixels. The window reports it to the core so cameras and reference-canvas fits use it."
+
+Append `, 1d` to the four existing test call sites listed under **Files**.
+
+- [ ] **Step 5: Implement the window layout**
+
+In `PlayerWindowLayout.Compute`, replace everything from `int multiplier;` to the `clientHeight` line with:
+
+```csharp
+            int minimumMultiplier = ResolveMinimumMultiplier(renderSize);
+            int multiplier;
+            if (scale == PlayerWindowScale.Fit) {
+                multiplier = minimumMultiplier;
+                for (int candidate = minimumMultiplier + 1; candidate <= MaximumMultiplier; candidate++) {
+                    if (!Fits(renderSize, candidate, workArea, nonClientWidth, nonClientHeight)) {
+                        break;
+                    }
+                    multiplier = candidate;
+                }
+            } else {
+                multiplier = Math.Max(PlayerWindowScaleText.ToMultiplier(scale), minimumMultiplier);
+            }
+
+            int clientWidth = DirectX11FixedRenderSize.ResolveClientWidth(renderSize.Width, multiplier, renderSize.PixelAspect);
+            int clientHeight = renderSize.Height * multiplier;
+```
+
+In `Fits`, replace `renderSize.Width * multiplier` with `DirectX11FixedRenderSize.ResolveClientWidth(renderSize.Width, multiplier, renderSize.PixelAspect)`. Add `using helengine.directx11;`. Update the class summary: the client is `round(W * pixelAspect * k)` x `H * k`, `fit` starts at the minimum multiple, and an explicit scale below it is raised to it. Add:
+
+```csharp
+        /// <summary>
+        /// Resolves the smallest multiple whose client width is at least the render width, so point sampling drops no
+        /// rendered column. Square pixels and pixel aspects of 1 or more always give 1.
+        /// </summary>
+        /// <param name="renderSize">Platform render size and pixel aspect.</param>
+        /// <returns>The minimum multiple.</returns>
+        /// <exception cref="ArgumentException">Thrown when no multiple up to <see cref="MaximumMultiplier"/> is wide enough.</exception>
+        public static int ResolveMinimumMultiplier(PlayerRenderSize renderSize) {
+            if (renderSize == null) {
+                throw new ArgumentNullException(nameof(renderSize));
+            }
+
+            for (int candidate = 1; candidate <= MaximumMultiplier; candidate++) {
+                if (DirectX11FixedRenderSize.ResolveClientWidth(renderSize.Width, candidate, renderSize.PixelAspect) >= renderSize.Width) {
+                    return candidate;
+                }
+            }
+
+            throw new ArgumentException($"Render size {renderSize.Width}x{renderSize.Height} needs more than {MaximumMultiplier}x to show every pixel column at its pixel aspect.", nameof(renderSize));
+        }
+```
+
+- [ ] **Step 6: Pass the pixel aspect from the player**
+
+In `PlayerHost.Run`, replace the `[player] render` line with:
+
+```csharp
+                Console.WriteLine("[player] render " + renderSize.Width + "x" + renderSize.Height + " at " + layout.Multiplier + "x, window "
+                    + layout.ClientWidth + "x" + layout.ClientHeight + ", pixel aspect "
+                    + renderSize.PixelAspect.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture));
+                if (playSettings.WindowScale != PlayerWindowScale.Fit && layout.Multiplier > PlayerWindowScaleText.ToMultiplier(playSettings.WindowScale)) {
+                    Console.WriteLine("[player] window-scale " + PlayerWindowScaleText.Format(playSettings.WindowScale) + " raised to " + layout.Multiplier + "x so every rendered pixel column stays visible");
+                }
+```
+
+and the `AddWindowWithFixedRenderSize` call with:
+
+```csharp
+                renderer3D.AddWindowWithFixedRenderSize(window.Handle, layout.ClientWidth, layout.ClientHeight, renderSize.Width, renderSize.Height, renderSize.PixelAspect);
+```
+
+- [ ] **Step 7: Run tests to verify they pass**
+
+Run: `.\dotnetw.cmd test engine\helengine.baseplatform.tests\helengine.baseplatform.tests.csproj`, `.\dotnetw.cmd test engine\helengine.player.tests\helengine.player.tests.csproj` and `C:\dev\helworks\helengine\dotnetw.cmd test C:\dev\helworks\helengine-ps2\builder.tests\helengine.ps2.builder.tests.csproj --filter "FullyQualifiedName~Ps2PlayerAdapterTests"`
+Expected: PASS (the baseplatform suite apart from the 3 known Assimp failures). `DirectX11FixedRenderSizePresentTests` and `DirectX11FixedRenderSizeResizeTests` pass unchanged at pixel aspect 1. Build the editor (`.\dotnetw.cmd build engine\helengine.editor\helengine.editor.csproj`): 0 errors.
+
+- [ ] **Step 8: Commit, then ask Helena for the Play check**
+
+```bash
+cd /c/dev/helworks/helengine
+git add engine/helengine.baseplatform/Player/PlayerRenderSize.cs engine/helengine.baseplatform.tests/Player/PlayerRenderSizeTests.cs engine/helengine.directx11/DirectX11FixedRenderSize.cs engine/helengine.directx11/DirectX11Renderer3D.cs engine/helengine.player/PlayerWindowLayout.cs engine/helengine.player/PlayerHost.cs engine/helengine.player.tests/DirectX11FixedRenderSizeTests.cs engine/helengine.player.tests/PlayerWindowLayoutTests.cs engine/helengine.player.tests/DirectX11FixedRenderSizePresentTests.cs engine/helengine.player.tests/DirectX11FixedRenderSizeResizeTests.cs engine/helengine.player.tests/DirectX11FixedRenderSizePixelAspectPresentTests.cs
+git diff --cached --numstat
+git commit -m "feat(player): show non-square-pixel render sizes at their display aspect
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+cd /c/dev/helworks/helengine-ps2
+git add builder/player/Ps2PlayerAdapter.cs builder.tests/Ps2PlayerAdapterTests.cs
+git diff --cached --numstat
+git commit -m "feat(ps2): show PS2 Play at the 4:3 display aspect
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+Then ask Helena (no GUI launch by the executor) to press Play on PS2 in demodisc with the Play `video-mode` setting at `project` and `window-scale` at `fit`. Expected: the title reads `helengine player [PlayStation 2 · 640×448i] — <scene>`, the console shows `[player] render 640x448 at 2x, window 1195x896, pixel aspect 0.9333` on a 1920x1080 monitor, the frame loop target is 60 FPS, and round UI elements look round. Then ask her to pick `pal-320x256p` and press Play again. Expected: `[player] render 320x256 at <k>x, window <round(k*256*4/3)>x<k*256>, pixel aspect 1.0667`, 50 FPS, and the title says `320×256p`. Finally `ntsc-640x224p` with `window-scale` `1x`: expected `raised to 3x` and `window 896x672`.
+
+---
+
+### Task B11: The PS2 builder writes the video-mode boot record
 
 **Files:**
 - Create: `C:\dev\helworks\helengine-ps2\builder\Ps2VideoModeBootRecord.cs`, `builder\Ps2VideoModeBootRecordContents.cs`, `builder\Ps2VideoModeBootRecordWriter.cs`
@@ -5879,10 +7701,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: `C:\dev\helworks\helengine-ps2\builder.tests\Ps2VideoModeBootRecordTests.cs` (new)
 
 **Interfaces:**
-- Consumes: `Ps2VideoModes` (B4), `Ps2DiscPathResolver.ResolveRuntimePath`
+- Consumes: `Ps2VideoModes` (B7), `Ps2DiscPathResolver.ResolveRuntimePath`
 - Produces:
   - `Ps2VideoModeBootRecord.LogicalPath = "vidmode.bin"`, `RuntimePath = "cdrom0:\\VIDMODE.BIN;1"`, `Size = 16`, `CurrentVersion = 1`
-  - `Ps2VideoModeBootRecord.Encode(PlatformVideoMode mode): byte[]`
+  - `Ps2VideoModeBootRecord.Encode(PlatformVideoMode mode): byte[]` (refuses a mode that is not shown 4:3, because the native side derives the window pixel aspect from the constant 4:3 output aspect; see Task B13)
   - `Ps2VideoModeBootRecord.Decode(byte[] bytes): Ps2VideoModeBootRecordContents`
   - `Ps2VideoModeBootRecordContents(bool isPal, bool isProgressive, int width, int height)`
   - `Ps2VideoModeBootRecordWriter.Write(string stagingRootPath, PlatformDefinition definition, string selectedGraphicsProfileId, IReadOnlyDictionary<string,string> selectedGraphicsOptionValues): PlatformVideoMode`
@@ -5955,6 +7777,19 @@ public sealed class Ps2VideoModeBootRecordTests : IDisposable {
 
         Assert.Throws<InvalidDataException>(() => Ps2VideoModeBootRecord.Decode(bytes));
         Assert.Throws<InvalidDataException>(() => Ps2VideoModeBootRecord.Decode(new byte[15]));
+    }
+
+    /// <summary>
+    /// A mode the PS2 would not show 4:3 is refused: the runtime outputs every mode with GS_ASPECT_4_3 and derives the
+    /// window pixel aspect from that, so the record cannot describe another display aspect.
+    /// </summary>
+    [Fact]
+    public void Encode_RejectsAModeThatIsNotShownFourByThree() {
+        PlatformVideoMode wide = new PlatformVideoMode("ntsc-640x448i", 640, 448, false, 59.94d, 60d, 16, 9);
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => Ps2VideoModeBootRecord.Encode(wide));
+
+        Assert.Contains("4:3", exception.Message);
     }
 
     /// <summary>The record's staging path is the runtime path the native boot host opens.</summary>
@@ -6107,9 +7942,12 @@ public static class Ps2VideoModeBootRecord {
     /// </summary>
     /// <param name="mode">PS2 video mode.</param>
     /// <returns>The 16-byte record.</returns>
+    /// <exception cref="ArgumentException">Thrown when the mode is not shown 4:3.</exception>
     public static byte[] Encode(PlatformVideoMode mode) {
         if (mode == null) {
             throw new ArgumentNullException(nameof(mode));
+        } else if (mode.DisplayAspectWidth * 3 != mode.DisplayAspectHeight * 4) {
+            throw new ArgumentException($"Video mode '{mode.Id}' is shown {mode.DisplayAspectWidth}:{mode.DisplayAspectHeight}, but the PS2 runtime shows every mode 4:3 (GS_ASPECT_4_3).", nameof(mode));
         }
 
         byte[] bytes = new byte[Size];
@@ -6216,12 +8054,13 @@ public static class Ps2VideoModeBootRecordWriter {
 
 - [ ] **Step 4: Write the record from the builder**
 
-In `Ps2PlatformAssetBuilder.BuildAsync`, insert this between the staging `try/catch` and `if (request.ExecutionScope == PlatformBuildExecutionScope.AssetsOnly)`:
+In `Ps2PlatformAssetBuilder.BuildAsync`, insert this between the staging `try/catch` and `if (request.ExecutionScope == PlatformBuildExecutionScope.AssetsOnly)`. The mode is declared outside the block because Task B12 hands it to the disc layout writer:
 
 ```csharp
+        PlatformVideoMode videoMode = null;
         if (diagnostics.Count == 0) {
             try {
-                PlatformVideoMode videoMode = Ps2VideoModeBootRecordWriter.Write(
+                videoMode = Ps2VideoModeBootRecordWriter.Write(
                     Path.Combine(request.WorkingRoot, "ps2-staging"),
                     Definition,
                     request.SelectedGraphicsProfileId,
@@ -6245,7 +8084,7 @@ In each fixture listed under **Files**, set `selectedGraphicsProfileId: Ps2TestG
 Run: `C:\dev\helworks\helengine\dotnetw.cmd test C:\dev\helworks\helengine-ps2\builder.tests\helengine.ps2.builder.tests.csproj`
 Expected: PASS, apart from failures that were already red before this task. Record those failure names before Step 1, compare by name, and fix any new one.
 
-If `LogicalPath_MapsToTheNativeRuntimePath` fails because the resolver renames `vidmode.bin`, pick an 8.3 lowercase logical name that the resolver maps to itself. Use it for both `LogicalPath` and `RuntimePath` here and in Task B8's `RuntimePath`.
+If `LogicalPath_MapsToTheNativeRuntimePath` fails because the resolver renames `vidmode.bin`, pick an 8.3 lowercase logical name that the resolver maps to itself. Use it for both `LogicalPath` and `RuntimePath` here and in Task B13's `RuntimePath`.
 
 - [ ] **Step 7: Commit**
 
@@ -6260,26 +8099,145 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task B8: Native boot-record reader and gsKit mapping
+### Task B12: SYSTEM.CNF names the video region
+
+Audit row 46, ruled 2026-10-14: real discs carry `VMODE = NTSC` or `VMODE = PAL`. The runtime still programs the GS mode itself from the boot record; this line is metadata for the BIOS and emulators.
+
+**Files:**
+- Modify: `C:\dev\helworks\helengine-ps2\builder\Ps2DiscLayoutWriter.cs` (lines 10-12: the static `BootConfigContents` becomes `BuildBootConfigContents(PlatformVideoMode)`; `Write` takes the mode). Mixed line endings: check `git diff --numstat` against `git diff --ignore-all-space --stat` after editing.
+- Modify: `C:\dev\helworks\helengine-ps2\builder\Ps2PlatformAssetBuilder.cs:137` (`DiscLayoutWriter.Write(workspace, videoMode)`). Mixed line endings, same check.
+- Test: `C:\dev\helworks\helengine-ps2\builder.tests\Ps2DiscLayoutWriterTests.cs`
+
+**Interfaces:**
+- Consumes: `Ps2VideoModes.IsPal` (B7), the `videoMode` local that B11 declares before the boot-record block in `BuildAsync`
+- Produces:
+  - `Ps2DiscLayoutWriter.BuildBootConfigContents(PlatformVideoMode videoMode): string` (`BOOT2 = cdrom0:\<elf>;1`, `VER = 1.00`, `VMODE = NTSC|PAL`, CRLF line ends)
+  - `Ps2DiscLayoutWriter.Write(Ps2BuildWorkspace workspace, PlatformVideoMode videoMode): IReadOnlyDictionary<string, string>`
+
+- [ ] **Step 1: Write the failing tests**
+
+In `Ps2DiscLayoutWriterTests.cs`, add `using helengine.baseplatform.Definitions;`. In `WriteLayout_WritesBootConfigAndBootElfIntoDiscRoot`, change the call to `writer.Write(workspace, Ps2VideoModes.CreateCapability().Resolve("ntsc-640x448i", "ps2"))` and add after the `BOOT2` assertion:
+
+```csharp
+        Assert.Contains("VMODE = NTSC", File.ReadAllText(Path.Combine(rootPath, "artifacts", "disc", "SYSTEM.CNF")));
+```
+
+Append:
+
+```csharp
+    /// <summary>SYSTEM.CNF names the video region of the selected mode on its own CRLF line.</summary>
+    [Theory]
+    [InlineData("ntsc-320x224p", "VMODE = NTSC")]
+    [InlineData("ntsc-640x448i", "VMODE = NTSC")]
+    [InlineData("pal-640x512i", "VMODE = PAL")]
+    [InlineData("pal-256x256p", "VMODE = PAL")]
+    public void BuildBootConfigContents_NamesTheVideoRegion(string modeId, string expectedLine) {
+        PlatformVideoMode mode = Ps2VideoModes.CreateCapability().Resolve(modeId, "ps2");
+
+        string contents = Ps2DiscLayoutWriter.BuildBootConfigContents(mode);
+
+        Assert.Equal("BOOT2 = cdrom0:\\" + Ps2BuildWorkspace.DiscExecutableFileName + ";1\r\nVER = 1.00\r\n" + expectedLine + "\r\n", contents);
+    }
+
+    /// <summary>A disc layout without a video mode is refused.</summary>
+    [Fact]
+    public void BuildBootConfigContents_WithoutVideoMode_Throws() {
+        Assert.Throws<ArgumentNullException>(() => Ps2DiscLayoutWriter.BuildBootConfigContents(null));
+    }
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `C:\dev\helworks\helengine\dotnetw.cmd test C:\dev\helworks\helengine-ps2\builder.tests\helengine.ps2.builder.tests.csproj --filter "FullyQualifiedName~Ps2DiscLayoutWriterTests"`
+Expected: build FAIL (`BuildBootConfigContents` not found, `Write` takes one argument).
+
+- [ ] **Step 3: Implement**
+
+In `Ps2DiscLayoutWriter.cs`, add `using helengine.baseplatform.Definitions;`, delete the `BootConfigContents` field, and add before `BuildLogicalToPhysicalPathMap(Ps2BuildWorkspace)`:
+
+```csharp
+    /// <summary>
+    /// Builds the SYSTEM.CNF contents for one video mode: the boot ELF, the disc version and the video region, which
+    /// tells the BIOS and emulators whether the disc is NTSC or PAL. The runtime still programs the GS mode itself from
+    /// the video-mode boot record.
+    /// </summary>
+    /// <param name="videoMode">The project's PS2 video mode.</param>
+    /// <returns>The SYSTEM.CNF text, with CRLF line ends.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when no video mode is given.</exception>
+    public static string BuildBootConfigContents(PlatformVideoMode videoMode) {
+        if (videoMode == null) {
+            throw new ArgumentNullException(nameof(videoMode));
+        }
+
+        return "BOOT2 = cdrom0:\\" + Ps2BuildWorkspace.DiscExecutableFileName + ";1\r\n"
+            + "VER = 1.00\r\n"
+            + "VMODE = " + (Ps2VideoModes.IsPal(videoMode) ? "PAL" : "NTSC") + "\r\n";
+    }
+```
+
+Change `Write(Ps2BuildWorkspace workspace)` to `Write(Ps2BuildWorkspace workspace, PlatformVideoMode videoMode)`: add `<param name="videoMode">The project's PS2 video mode, named in SYSTEM.CNF.</param>`, throw `ArgumentNullException` for a null mode next to the workspace check, and write `File.WriteAllText(workspace.DiscBootConfigPath, BuildBootConfigContents(videoMode));`.
+
+In `Ps2PlatformAssetBuilder.BuildAsync`, change `DiscLayoutWriter.Write(workspace);` to `DiscLayoutWriter.Write(workspace, videoMode);`. (The full build only reaches this line when `diagnostics.Count == 0`, so B11's block has resolved `videoMode`.)
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `C:\dev\helworks\helengine\dotnetw.cmd test C:\dev\helworks\helengine-ps2\builder.tests\helengine.ps2.builder.tests.csproj`
+Expected: PASS, apart from the failure names recorded before B11; compare by name.
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd /c/dev/helworks/helengine-ps2
+git add builder/Ps2DiscLayoutWriter.cs builder/Ps2PlatformAssetBuilder.cs builder.tests/Ps2DiscLayoutWriterTests.cs
+git diff --cached --numstat
+git commit -m "feat(ps2): name the video region in SYSTEM.CNF
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task B13: Native boot-record reader, gsKit mapping and buffer check
 
 **Files:**
 - Create: `C:\dev\helworks\helengine-ps2\src\platform\ps2\Ps2VideoModeBootRecordReader.hpp`, `src\platform\ps2\Ps2VideoModeBootRecordReader.cpp`
 - Create: `C:\dev\helworks\helengine-ps2\tests\native\Ps2VideoModeBootRecordTests.cpp`
-- Modify: `C:\dev\helworks\helengine-ps2\Makefile`. Add the reader to `PS2_SOURCES` (lines 33-61). Add the `ps2-video-mode-tests` target next to `ps2-rendering-tests` (lines 127-133 and 200-205). Exempt the new target in the guard at line 17 and in `.PHONY` at line 184.
+- Modify: `C:\dev\helworks\helengine-ps2\Makefile`. Add the reader to `PS2_SOURCES` (lines 33-61). Add the `ps2-video-mode-tests` target next to `ps2-rendering-tests` (lines 127-133 and 200-205). Exempt the new target in the guard at line 17 and in `.PHONY` at line 184. **The Makefile carries another session's uncommitted edits:** the line numbers are a guide only, locate each place by its content, and stage only this task's hunks (Step 6).
+- Read only: the gsKit source checkout under `C:\dev\helworks\builds\helengine-ps2\gskit-source` (Step 1)
 
 **Interfaces:**
-- Consumes: the record layout from Task B7
+- Consumes: the record layout from Task B11
 - Produces:
   - `helengine::ps2::Ps2VideoModeBootRecord { bool IsPal; bool IsProgressive; std::uint16_t Width; std::uint16_t Height; }`
-  - `helengine::ps2::Ps2GsVideoSettings { bool IsPal; bool IsInterlaced; bool IsFrameMode; int Width; int Height; }`
+  - `helengine::ps2::Ps2GsVideoSettings { bool IsPal; bool IsInterlaced; bool IsFrameMode; int Width; int Height; double PixelAspect; }` (`PixelAspect = 4H / 3W`, the value Task B15 hands to `RenderManager3D::SetWindowPixelAspect`)
   - `Ps2VideoModeBootRecordReader::TryParse(const std::uint8_t* bytes, std::size_t length, Ps2VideoModeBootRecord& record, const char*& error): bool`
   - `Ps2VideoModeBootRecordReader::ResolveGsSettings(const Ps2VideoModeBootRecord& record): Ps2GsVideoSettings`
-  - `Ps2VideoModeBootRecordReader::RuntimePath = "cdrom0:\\VIDMODE.BIN;1"`, `RecordSize = 16`
+  - `Ps2VideoModeBootRecordReader::ResolvePageGridBufferBytes(int width, int height): std::uint32_t` (`ceil(W/64) * ceil(H/64) * 8192`, the VRAM one CT16 frame buffer or Z16 buffer occupies on the GS page grid)
+  - `Ps2VideoModeBootRecordReader::RuntimePath = "cdrom0:\\VIDMODE.BIN;1"`, `RecordSize = 16`, `DisplayAspectWidth = 4`, `DisplayAspectHeight = 3`
+  - The gsKit findings table and outcome A or B (Step 1), which Task B15 Step 6 consumes
 
-- [ ] **Step 1: Confirm gsKit can produce each mode**
+- [ ] **Step 1: Verify gsKit's display setup and buffer allocation for each mode (audit rows 24 and 25)**
 
-Read gsKit's screen setup in the `helengine-ps2` image. It is usually `gsKit/ee/gs/src/gsInit.c`, `gsKit_init_screen` and its `gsKit_set_display_offset` / MAGH logic: `docker run --rm helengine-ps2 sh -c "find / -name gsInit.c 2>/dev/null | head -1 | xargs sed -n '1,400p'" | head -c 20000`. For each mode, check two things. First, that `Width` divides the NTSC/PAL 2560-wide pixel clock into an integer MAGH (2560/640=4, 2560/512=5, 2560/320=8, 2560/256=10). Second, that `Interlace=GS_NONINTERLACED`, `Field=GS_FRAME` with Height 224/256 are standard progressive setups. If gsKit cannot produce a mode with its standard init, remove that mode in every place: the `Ps2VideoModes.CreateCapability` list, the B4 tests, the B7 round-trip test, the native table below and the constraint list at the top of this plan. Tell Helena which mode was removed. Do not patch gsKit.
+The image's `$GSKIT` holds only `include` and `lib` (the Dockerfile installs the unpinned `ps2dev` "latest" release), so read the matching gsKit source from a checkout. Do this read-only; nothing here is committed.
 
+1. Find the gsKit version the image carries. Run `docker image inspect helengine-ps2 --format "{{.Created}}"`. Clone gsKit into the workspace with `git clone https://github.com/ps2dev/gsKit C:\dev\helworks\builds\helengine-ps2\gskit-source`, then check out the newest commit before that date: `git -C C:\dev\helworks\builds\helengine-ps2\gskit-source checkout (git -C C:\dev\helworks\builds\helengine-ps2\gskit-source rev-list -1 --before="<Created>" HEAD)`.
+2. Confirm the checkout matches the image: `docker run --rm -v "C:\dev\helworks\builds\helengine-ps2\gskit-source:/gskit:ro" helengine-ps2 sh -c 'for f in /gskit/ee/gs/include/*.h; do cmp -s "$f" "$GSKIT/include/$(basename "$f")" || echo "differs: $f"; done'`. If any header differs, step back one commit at a time until none does. If several consecutive commits match, also read the three functions in step 3 at the oldest matching commit; if they differ from the newest, treat the allocation as unverified (step 5 outcome B).
+3. Read `gsKit_init_screen` (`ee/gs/src/gsInit.c`), `gsKit_vram_alloc` and `gsKit_vram_clear` (`grep -rn "gsKit_vram_alloc\|gsKit_vram_clear" ee/gs/src`), `gsKit_texture_size` (`ee/gs/src/gsTexture.c`) and `gsKit_setactive`. Record in the task report:
+   - the byte size `gsKit_init_screen` requests for each of `ScreenBuffer[0]`, `ScreenBuffer[1]` and `ZBuffer`, and the allocation type flag it passes;
+   - the rounding `gsKit_vram_alloc` applies for that flag;
+   - where `CurrentPointer` starts and whether `TexturePointer` is set to `CurrentPointer` at the end (the runtime's `FlushReleasedTextures` calls `gsKit_vram_clear`, which must reset to the first texture byte, never to 0);
+   - which registers `gsKit_setactive` writes (expected: `FRAME_1`/`FRAME_2` and `ZBUF_1`/`ZBUF_2` for the active buffer);
+   - how `DW`/`DH`, `MAGH`/`MAGV` and `DX`/`DY` are derived for `GS_MODE_NTSC`/`GS_MODE_PAL` with `GS_INTERLACED`+`GS_FIELD` and with `GS_NONINTERLACED`+`GS_FRAME`.
+4. For each of the 12 modes, fill this table in the task report. "Page grid" is `ResolvePageGridBufferBytes` from Step 5 (`ceil(W/64) * ceil(H/64) * 8192`; CT16 and Z16 pages are both 64x64 pixels):
+
+   | Mode | gsKit frame bytes | gsKit Z bytes | Page grid | Frame/Z OK | MAGH, MAGV, DH | Display OK |
+   |---|---|---|---|---|---|---|
+
+   "Frame/Z OK" means every one of the three buffers is at least the page-grid size and starts on an 8192-byte boundary. "Display OK" means gsKit's derivation gives an integer MAGH for the width (2560/640=4, 2560/512=5, 2560/320=8, 2560/256=10, so MAGH = 3, 4, 7, 9), MAGV 0 and a DH that covers the height for progressive modes, and the field setup for interlaced ones.
+5. Outcome:
+   - **A. Every row is "Frame/Z OK".** Write "gsKit page-grid allocation verified at commit `<sha>`" in the report. Task B15 skips its Step 6.
+   - **B. Any row is not "Frame/Z OK", or the allocation is unverified (step 2).** Task B15 Step 6 applies: the boot host re-places the three buffers on the page grid. Record in the report the exact field names and allocation flag found in step 3, so B15 Step 6 matches them.
+   - **A row is not "Display OK".** gsKit's standard init cannot produce that mode. Remove the mode everywhere: the `Ps2VideoModes.CreateCapability` list, the B7 tests, the B11 round-trip test, the native tables below, the constraint list at the top of this plan and the B16 mode list. Tell Helena which mode was removed. Do not patch gsKit.
 - [ ] **Step 2: Write the failing native test**
 
 `tests/native/Ps2VideoModeBootRecordTests.cpp`:
@@ -6288,6 +8246,7 @@ Read gsKit's screen setup in the `helengine-ps2` image. It is usually `gsKit/ee/
 #include "platform/ps2/Ps2VideoModeBootRecordReader.hpp"
 
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
@@ -6316,21 +8275,22 @@ namespace {
         return bytes;
     }
 
-    /// One PS2 mode and the gsKit fields it must produce.
+    /// One PS2 mode, the gsKit fields it must produce and the VRAM one of its buffers occupies on the page grid.
     struct ExpectedMode {
         bool IsPal;
         bool IsProgressive;
         std::uint16_t Width;
         std::uint16_t Height;
+        std::uint32_t PageGridBufferBytes;
     };
 }
 
 int main() {
     const ExpectedMode modes[] = {
-        { false, false, 640, 448 }, { false, false, 512, 448 }, { false, true, 640, 224 },
-        { false, true, 512, 224 }, { false, true, 320, 224 }, { false, true, 256, 224 },
-        { true, false, 640, 512 }, { true, false, 512, 512 }, { true, true, 640, 256 },
-        { true, true, 512, 256 }, { true, true, 320, 256 }, { true, true, 256, 256 }
+        { false, false, 640, 448, 573440u }, { false, false, 512, 448, 458752u }, { false, true, 640, 224, 327680u },
+        { false, true, 512, 224, 262144u }, { false, true, 320, 224, 163840u }, { false, true, 256, 224, 131072u },
+        { true, false, 640, 512, 655360u }, { true, false, 512, 512, 524288u }, { true, true, 640, 256, 327680u },
+        { true, true, 512, 256, 262144u }, { true, true, 320, 256, 163840u }, { true, true, 256, 256, 131072u }
     };
 
     for (const ExpectedMode& mode : modes) {
@@ -6344,7 +8304,14 @@ int main() {
         Check(settings.IsInterlaced == !mode.IsProgressive, "scan maps to GS_INTERLACED/NONINTERLACED");
         Check(settings.IsFrameMode == mode.IsProgressive, "progressive uses GS_FRAME, interlaced GS_FIELD");
         Check(settings.Width == mode.Width && settings.Height == mode.Height, "size maps to GsGlobal Width/Height");
+        Check(std::fabs(settings.PixelAspect - (4.0 * mode.Height) / (3.0 * mode.Width)) < 1e-12, "pixel aspect shows the mode 4:3");
+        Check(helengine::ps2::Ps2VideoModeBootRecordReader::ResolvePageGridBufferBytes(mode.Width, mode.Height) == mode.PageGridBufferBytes,
+            "buffers occupy whole 64x64 pages (224 rows round up to 256)");
     }
+
+    helengine::ps2::Ps2VideoModeBootRecord defaultMode{ false, false, 640, 448 };
+    Check(std::fabs(helengine::ps2::Ps2VideoModeBootRecordReader::ResolveGsSettings(defaultMode).PixelAspect - 14.0 / 15.0) < 1e-12,
+        "640x448 shown 4:3 has pixel aspect 14/15");
 
     helengine::ps2::Ps2VideoModeBootRecord record{};
     const char* error = nullptr;
@@ -6438,6 +8405,11 @@ namespace helengine::ps2 {
         int Width;
         /// <summary>GsGlobal Height.</summary>
         int Height;
+        /// <summary>
+        /// Displayed width of one framebuffer pixel divided by its displayed height. The GS shows every mode 4:3
+        /// (GS_ASPECT_4_3), so it is 4H / 3W.
+        /// </summary>
+        double PixelAspect;
     };
 
     /// <summary>
@@ -6456,6 +8428,18 @@ namespace helengine::ps2 {
         /// <summary>Disc path of the record (matches the builder's Ps2VideoModeBootRecord.RuntimePath).</summary>
         static constexpr const char* RuntimePath = "cdrom0:\\VIDMODE.BIN;1";
 
+        /// <summary>Width term of the 4:3 aspect the GS shows every mode at (matches the builder's Ps2VideoModes).</summary>
+        static constexpr int DisplayAspectWidth = 4;
+
+        /// <summary>Height term of the 4:3 aspect the GS shows every mode at.</summary>
+        static constexpr int DisplayAspectHeight = 3;
+
+        /// <summary>Width and height, in pixels, of one CT16 or Z16 VRAM page.</summary>
+        static constexpr int PageDimension = 64;
+
+        /// <summary>Bytes in one GS VRAM page.</summary>
+        static constexpr std::uint32_t PageBytes = 8192u;
+
         /// <summary>
         /// Parses and validates one record.
         /// </summary>
@@ -6473,6 +8457,15 @@ namespace helengine::ps2 {
         /// <param name="record">Validated record.</param>
         /// <returns>gsKit screen fields.</returns>
         static Ps2GsVideoSettings ResolveGsSettings(const Ps2VideoModeBootRecord& record);
+
+        /// <summary>
+        /// Returns the VRAM one CT16 frame buffer or Z16 depth buffer of the given size occupies on the GS page grid: whole
+        /// 64x64-pixel pages, so a 224-row buffer takes four page rows, not three and a half.
+        /// </summary>
+        /// <param name="width">Buffer width in pixels.</param>
+        /// <param name="height">Buffer height in pixels.</param>
+        /// <returns>Bytes from the buffer's first page to the end of its last page.</returns>
+        static std::uint32_t ResolvePageGridBufferBytes(int width, int height);
     };
 }
 ```
@@ -6481,6 +8474,8 @@ namespace helengine::ps2 {
 
 ```cpp
 #include "platform/ps2/Ps2VideoModeBootRecordReader.hpp"
+
+#include <stdexcept>
 
 namespace helengine::ps2 {
     namespace {
@@ -6548,8 +8543,19 @@ namespace helengine::ps2 {
             !record.IsProgressive,
             record.IsProgressive,
             static_cast<int>(record.Width),
-            static_cast<int>(record.Height)
+            static_cast<int>(record.Height),
+            (static_cast<double>(DisplayAspectWidth) * record.Height) / (static_cast<double>(DisplayAspectHeight) * record.Width)
         };
+    }
+
+    std::uint32_t Ps2VideoModeBootRecordReader::ResolvePageGridBufferBytes(int width, int height) {
+        if (width <= 0 || height <= 0) {
+            throw std::invalid_argument("buffer size must be positive");
+        }
+
+        const std::uint32_t pageColumns = static_cast<std::uint32_t>((width + PageDimension - 1) / PageDimension);
+        const std::uint32_t pageRows = static_cast<std::uint32_t>((height + PageDimension - 1) / PageDimension);
+        return pageColumns * pageRows * PageBytes;
     }
 }
 ```
@@ -6565,8 +8571,13 @@ Expected: `ps2-video-mode-tests: all checks passed`, exit 0.
 
 ```bash
 cd /c/dev/helworks/helengine-ps2
-git add src/platform/ps2/Ps2VideoModeBootRecordReader.hpp src/platform/ps2/Ps2VideoModeBootRecordReader.cpp tests/native/Ps2VideoModeBootRecordTests.cpp Makefile
+git add src/platform/ps2/Ps2VideoModeBootRecordReader.hpp src/platform/ps2/Ps2VideoModeBootRecordReader.cpp tests/native/Ps2VideoModeBootRecordTests.cpp
+git diff Makefile > /c/dev/helworks/builds/helengine-ps2/b13-makefile.patch
+# Edit the patch: delete every hunk that is not this task's (keep only the PS2_SOURCES line, the
+# ps2-video-mode-tests variables and rules, the line-17 guard and the .PHONY entry), then:
+git apply --cached /c/dev/helworks/builds/helengine-ps2/b13-makefile.patch
 git diff --cached --numstat
+git diff --cached Makefile
 git commit -m "feat(ps2): read the video-mode boot record and map it to gsKit fields
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -6574,24 +8585,96 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task B9: `Ps2BootHost` boots into the recorded mode
+### Task B14: The PS2 projection uses the window pixel aspect
+
+Audit row 16. The PS2 runtime builds its own projection instead of calling `CameraProjectionUtils.CreateProjection`. It must compute the aspect the same way as the DirectX11 renderer, through the transpiled `CameraProjectionUtils::ResolveProjectionAspect` and the core's `GetCameraPixelAspect`. Until Task B15 reports a pixel aspect, the window is square and the PS2 frames exactly as before (`ResolveProjectionAspect` returns `viewport.Z / viewport.W` for a pixel aspect of 1).
+
+**Files:**
+- Modify: `C:\dev\helworks\helengine-ps2\src\platform\ps2\rendering\Ps2RenderManager3D.cpp` (include; the projection at lines 1260-1266). This file has no foreign edits (audit), so stage it whole.
+
+**Interfaces:**
+- Consumes: `::CameraProjectionUtils::ResolveProjectionAspect(float, float, double)` and `RenderManager3D::GetCameraPixelAspect(::ICamera*)` from the transpiled core (B2)
+- Out of scope: the hard-coded 45-degree `CameraFieldOfViewRadians` (audit row 17) stays; it ignores the camera's field of view and orthographic mode, which is an open item for Helena.
+
+- [ ] **Step 1: Record the builder-test baseline**
+
+Run `C:\dev\helworks\helengine\dotnetw.cmd test C:\dev\helworks\helengine-ps2\builder.tests\helengine.ps2.builder.tests.csproj` and record the failure names. Several builder tests read `Ps2RenderManager3D.cpp` as text (`Ps2DirectGifUntexturedBatchingSourceTests`, `Ps2DirectionalLight*SourceTests`, `Ps2NativeBuildExecutorTests`, `Ps2NativeBuildInputsTests`); this task must not turn any of them red.
+
+- [ ] **Step 2: Use the shared projection aspect**
+
+Add `#include "CameraProjectionUtils.hpp"` after `#include "CameraComponent.hpp"`. Replace the projection call with:
+
+```cpp
+        ::float4x4 projection;
+        ::float4x4::CreatePerspectiveFieldOfView__out4(
+            CameraFieldOfViewRadians,
+            ::CameraProjectionUtils::ResolveProjectionAspect(viewport.Z, viewport.W, GetCameraPixelAspect(camera)),
+            camera->get_NearPlaneDistance(),
+            camera->get_FarPlaneDistance(),
+            projection);
+```
+
+`camera` is a `::CameraComponent*`, which converts to the generated `::ICamera*` parameter. The early return above (`viewport.Z <= 0.0f || viewport.W <= 0.0f`) keeps `ResolveProjectionAspect` from ever seeing a non-positive size.
+
+- [ ] **Step 3: Verify**
+
+There is no host-runnable test for this line: `Ps2RenderManager3D.cpp` needs gsKit and the generated core. The formula itself is pinned by B2's `CameraProjectionAspectTests`, which run on the C# source the PS2 core is transpiled from.
+1. Re-run the builder tests and compare failure names with Step 1. Fix any new failure; never add a source-string assertion.
+2. Build the demodisc PS2 disc headlessly (it needs B8's settings and an engine containing B2). Follow the memory notes "Editor builds use vendored codegen" and "helengine platform registry pins", and write the outputs under `C:\dev\helworks\builds\helengine-ps2\ps2\<build-id>`. Expected: the native build compiles and links (`native build completed` in `ps2-build-phase.txt`).
+
+- [ ] **Step 4: Commit**
+
+```bash
+cd /c/dev/helworks/helengine-ps2
+git add src/platform/ps2/rendering/Ps2RenderManager3D.cpp
+git diff --cached --numstat
+git commit -m "feat(ps2): project with the window's display pixel aspect
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task B15: `Ps2BootHost` boots into the recorded mode
+
+Audit rows 1-4, 7, 9, 49 and 50, plus the conditional allocation fix for row 24.
+
+**Shared file.** `Ps2BootHost.cpp` carries another session's uncommitted edits (+350/-105 lines at the time of the audit). Line numbers below are HEAD `e0901e9` numbers from the audit; find each place by its content in the working tree. Stage only this task's hunks (Step 8). If one of this task's hunks cannot be separated from the other session's lines, stop and ask Helena, or wait until that work is committed. `Ps2BootHost.hpp` has no foreign edits.
 
 **Files:**
 - Modify: `C:\dev\helworks\helengine-ps2\src\platform\ps2\Ps2BootHost.hpp` (include, member, method)
-- Modify: `C:\dev\helworks\helengine-ps2\src\platform\ps2\Ps2BootHost.cpp`. Delete lines 155-156. In `Run` (3156-3166), load the record between `InitializeRuntime` and `InitializeGraphics`. In `InitializeGraphics` (3288-3294), set the gsKit fields from the record. Add `LoadVideoModeBootRecord`.
-- Modify: `C:\dev\helworks\helengine-ps2\builder.tests\Ps2NativeBuildInputsTests.cs:782-797` (delete the source-string test that pins the removed constants; see the global constraint on source-string tests)
+- Modify: `C:\dev\helworks\helengine-ps2\src\platform\ps2\Ps2BootHost.cpp`:
+  - delete `Ps2DefaultFramebufferWidth/Height` (HEAD 146-147);
+  - add `ActiveVideoSettings{}` to the constructor initializer list after `GsGlobal(0)` (HEAD 2948);
+  - `Run` (HEAD 2952-2960): load the record between `InitializeRuntime` and `InitializeGraphics`;
+  - add `LoadVideoModeBootRecord` after `InitializeRuntime` (HEAD 2997);
+  - `InitializeGraphics` (HEAD 3068): the `Mode`/`Interlace`/`Field`/`Width`/`Height` assignments (HEAD 3081-3086) come from the record; after `AddWindow` (HEAD 3109-3112) report the window pixel aspect and log the VRAM layout; Step 6 only when B13 found outcome B.
+- Modify: `C:\dev\helworks\helengine-ps2\builder.tests\Ps2NativeBuildInputsTests.cs:780-797` (delete `Boot_host_when_graphics_initialize_applies_ps2_framebuffer_defaults_before_screen_init`)
+- Modify: `C:\dev\helworks\helengine-ps2\builder.tests\Ps2RenderManager3DSourceTests.cs:707-717` (delete `Ps2BootHost_AfterTheB21FillRateExperiment_RestoresTheNativeFramebufferResolution`)
 
 **Interfaces:**
-- Consumes: `Ps2VideoModeBootRecordReader` (B8), the B1 "replace" rows
-- Produces: the boot log line `video mode: <NTSC|PAL> <W>x<H><i|p>`. When the record is missing or invalid, boot calls `FatalHalt("video mode boot record ...")`.
+- Consumes: `Ps2VideoModeBootRecordReader` with `PixelAspect` and `ResolvePageGridBufferBytes` (B13), B13's gsKit findings (outcome A or B), `RenderManager3D::SetWindowPixelAspect` from the transpiled core (B2)
+- Produces:
+  - boot log `video mode: <NTSC|PAL> <W>x<H><i|p>`, then `vram frame0=<a> frame1=<b> z=<c> textures=<d> page-grid-bytes=<n>` after the screen is set up;
+  - a missing or invalid record halts through `FatalHalt("video mode boot record ...")`, never falling back to 640x448 (the ps2sdk debug console that shows the halt keeps its own NTSC mode, audit row 10);
+  - the core's main window has pixel aspect `4H / 3W` before the startup scene loads, so B2's projection, B3's fits and B14's PS2 projection all show the mode 4:3.
 
-- [ ] **Step 1: Remove the pinned source-string test**
+- [ ] **Step 1: Record the builder-test baseline**
 
-Delete `Boot_host_when_graphics_initialize_applies_ps2_framebuffer_defaults_before_screen_init` from `Ps2NativeBuildInputsTests.cs`. It asserts substrings of hand-written source, which the global constraints forbid, and pins exactly the lines this task replaces. Its replacement is the host-runnable native test from Task B8. Add no new source-string assertion.
+Run `C:\dev\helworks\helengine\dotnetw.cmd test C:\dev\helworks\helengine-ps2\builder.tests\helengine.ps2.builder.tests.csproj` and record the failure names.
 
-- [ ] **Step 2: Add the member and loader**
+- [ ] **Step 2: Remove the two source-string pins**
 
-In `Ps2BootHost.hpp` add `#include "platform/ps2/Ps2VideoModeBootRecordReader.hpp"`, the private method `bool LoadVideoModeBootRecord();` and the member `Ps2GsVideoSettings ActiveVideoSettings;`. In the constructor's initializer list in `Ps2BootHost.cpp`, add `ActiveVideoSettings{}` after `GsGlobal(0)`. This zero-initializes it. `InitializeGraphics` never reads the value before `LoadVideoModeBootRecord` sets it, because `Run` halts first when loading fails.
+Delete `Boot_host_when_graphics_initialize_applies_ps2_framebuffer_defaults_before_screen_init` (doc comment from line 780, method from 785) from `Ps2NativeBuildInputsTests.cs`, and `Ps2BootHost_AfterTheB21FillRateExperiment_RestoresTheNativeFramebufferResolution` (707-717, with its doc comment) from `Ps2RenderManager3DSourceTests.cs`. Both assert substrings of hand-written source, which the global constraints forbid. The first reads a stale `.worktrees\normalize-camera-viewport-core` copy and never guarded main; the second reads the real file and would go red when Step 4 deletes the constants. Their behaviour is covered by host-runnable tests instead:
+- the default mode is 640x448 interlaced NTSC: B7 `Create_DeclaresTheTwelvePs2VideoModes` (graphics default `ntsc-640x448i`) and `VideoModes_ResolveEveryId`;
+- the builder stages exactly that mode for the GS: B11 `EncodeThenDecode_RoundTripsEveryMode` and `Write_StagesTheSelectedMode`;
+- the record maps to `GS_MODE_NTSC`, `GS_INTERLACED`, `GS_FIELD`, 640x448 and pixel aspect 14/15: B13's `ps2-video-mode-tests`.
+
+Add no new source-string assertion. The neighbouring `Ps2NativeBuildInputsTests` that read the same stale worktree path are left as they are (outside this task; see the open items).
+
+- [ ] **Step 3: Add the member and loader**
+
+In `Ps2BootHost.hpp` add `#include "platform/ps2/Ps2VideoModeBootRecordReader.hpp"`, the private method `bool LoadVideoModeBootRecord();` next to `InitializeGraphics`, and the member `Ps2GsVideoSettings ActiveVideoSettings;` after `GsGlobal`. In the constructor's initializer list in `Ps2BootHost.cpp`, add `ActiveVideoSettings{}` after `GsGlobal(0)`. This zero-initializes it; `InitializeGraphics` never reads it before `LoadVideoModeBootRecord` sets it, because `Run` halts first when loading fails.
 
 Add the method after `InitializeRuntime`:
 
@@ -6620,9 +8703,11 @@ Add the method after `InitializeRuntime`:
     }
 ```
 
-- [ ] **Step 3: Use it**
+(`FatalHalt` is the `[[noreturn]]` free function at HEAD 1516 that takes `const std::string&`.)
 
-In `Run`, between the `InitializeRuntime` and `InitializeGraphics` blocks:
+- [ ] **Step 4: Boot into the recorded mode**
+
+In `Run`, between the `InitializeRuntime` and `InitializeGraphics` blocks (the CDVD is ready by then, HEAD 3001-3003):
 
 ```cpp
             if (!LoadVideoModeBootRecord()) {
@@ -6630,7 +8715,7 @@ In `Run`, between the `InitializeRuntime` and `InitializeGraphics` blocks:
             }
 ```
 
-In `InitializeGraphics`, replace the `Mode`, `Interlace`, `Field`, `Width` and `Height` assignments with the code below. Keep `Aspect = GS_ASPECT_4_3`; pixel aspect is the B1 open question. Delete `Ps2DefaultFramebufferWidth/Height` (lines 155-156).
+In `InitializeGraphics`, replace the `Mode`, `Interlace`, `Field`, `Width` and `Height` assignments with the code below. Keep `Aspect = GS_ASPECT_4_3` (audit row 5: it is the 4:3 the ruling asks for, and the reader's `PixelAspect` derives from it) and the CT16/Z16/double-buffer/Z settings. Delete `Ps2DefaultFramebufferWidth/Height`.
 
 ```cpp
         GsGlobal->Mode = ActiveVideoSettings.IsPal ? GS_MODE_PAL : GS_MODE_NTSC;
@@ -6640,77 +8725,105 @@ In `InitializeGraphics`, replace the `Mode`, `Interlace`, `Field`, `Width` and `
         GsGlobal->Height = ActiveVideoSettings.Height;
 ```
 
-- [ ] **Step 4: Build the PS2 runtime and the tests**
+`gsKit_init_global` (HEAD 3071) fills in region defaults, but every field above is overwritten, so the console's region no longer picks the mode (audit row 8).
 
-Run the native test target again (expected: pass). Run the builder tests (`C:\dev\helworks\helengine\dotnetw.cmd test C:\dev\helworks\helengine-ps2\builder.tests\helengine.ps2.builder.tests.csproj`); compare failure names with the list recorded in B7 and fix any new one. Then build the demodisc PS2 disc headlessly. The editor CLI build path needs Task B10's settings change, so run this step after B10 when done in order. Follow the memory notes "Editor builds use vendored codegen" and "helengine platform registry pins", writing the outputs under `C:\dev\helworks\builds\helengine-ps2\ps2\<build-id>`. Expected: build success. The phase marker file shows `video mode boot record written: ntsc-640x448i`, and the disc contains `VIDMODE.BIN`.
+- [ ] **Step 5: Report the pixel aspect and log the VRAM layout**
 
-- [ ] **Step 5: Commit**
+Right after the existing `EngineRenderManager3D->AddWindow(0, ...)` call:
+
+```cpp
+        EngineRenderManager3D->SetWindowPixelAspect(0, ActiveVideoSettings.PixelAspect);
+        BootLog(std::string("vram frame0=") + std::to_string(GsGlobal->ScreenBuffer[0])
+            + " frame1=" + std::to_string(GsGlobal->ScreenBuffer[1])
+            + " z=" + std::to_string(GsGlobal->ZBuffer)
+            + " textures=" + std::to_string(GsGlobal->TexturePointer)
+            + " page-grid-bytes=" + std::to_string(Ps2VideoModeBootRecordReader::ResolvePageGridBufferBytes(GsGlobal->Width, GsGlobal->Height)));
+```
+
+The startup scene loads after `InitializeGraphics`, so every camera and reference-canvas fit sees the pixel aspect from the first frame. The log line lets B16 confirm on PCSX2 that the buffers sit at least `page-grid-bytes` apart.
+
+- [ ] **Step 6: Re-place the buffers on the page grid (only for B13 outcome B)**
+
+Skip this step when B13 recorded outcome A. For outcome B, insert right after `gsKit_init_screen(GsGlobal);` (HEAD 3106), before `gsKit_set_clamp`:
+
+```cpp
+        // gsKit sized the frame and Z buffers below the 64x64-page grid this mode needs (Task B13 Step 1), so the next
+        // buffer would start inside the last page row of the previous one. Re-place all three on whole pages, starting
+        // where gsKit started, and move the first texture byte behind them.
+        const std::uint32_t pageGridBytes = Ps2VideoModeBootRecordReader::ResolvePageGridBufferBytes(GsGlobal->Width, GsGlobal->Height);
+        GsGlobal->CurrentPointer = 0;
+        GsGlobal->ScreenBuffer[0] = gsKit_vram_alloc(GsGlobal, pageGridBytes, GSKIT_ALLOC_SYSBUFFER);
+        GsGlobal->ScreenBuffer[1] = gsKit_vram_alloc(GsGlobal, pageGridBytes, GSKIT_ALLOC_SYSBUFFER);
+        GsGlobal->ZBuffer = gsKit_vram_alloc(GsGlobal, pageGridBytes, GSKIT_ALLOC_SYSBUFFER);
+        GsGlobal->TexturePointer = GsGlobal->CurrentPointer;
+        gsKit_setactive(GsGlobal);
+```
+
+Before compiling, check every name and value against the B13 report: the start address `gsKit_init_screen` used (0 above), the allocation flag, the buffer order, that `gsKit_vram_clear` resets `CurrentPointer` to `TexturePointer`, and that `gsKit_setactive` re-sends `FRAME_1`/`FRAME_2` and `ZBUF_1`/`ZBUF_2`. Where the gsKit source differs, follow the source and record the difference in the task report. Do not patch gsKit itself.
+
+- [ ] **Step 7: Build and test**
+
+1. Run `make ps2-video-mode-tests` as in B13 Step 5 (expected: pass).
+2. Re-run the builder tests and compare failure names with Step 1; fix any new one.
+3. Build the demodisc PS2 disc headlessly as in B14 Step 3. Expected: build success; `ps2-build-phase.txt` shows `video mode boot record written: ntsc-640x448i`; the disc root contains `VIDMODE.BIN` and `SYSTEM.CNF` contains `VMODE = NTSC`.
+
+- [ ] **Step 8: Commit (own hunks only)**
 
 ```bash
 cd /c/dev/helworks/helengine-ps2
-git add src/platform/ps2/Ps2BootHost.hpp src/platform/ps2/Ps2BootHost.cpp builder.tests/Ps2NativeBuildInputsTests.cs
+git add src/platform/ps2/Ps2BootHost.hpp builder.tests/Ps2NativeBuildInputsTests.cs builder.tests/Ps2RenderManager3DSourceTests.cs
+git diff src/platform/ps2/Ps2BootHost.cpp > /c/dev/helworks/builds/helengine-ps2/b15-boothost.patch
+# Edit the patch: delete every hunk that is not this task's (keep only the constant deletion, the initializer,
+# LoadVideoModeBootRecord, the Run call, the GsGlobal assignments, the SetWindowPixelAspect + vram log lines and,
+# for outcome B, the page-grid block), then:
+git apply --cached /c/dev/helworks/builds/helengine-ps2/b15-boothost.patch
 git diff --cached --numstat
-git commit -m "feat(ps2): boot gsKit into the project's video mode
+git diff --cached src/platform/ps2/Ps2BootHost.cpp
+git commit -m "feat(ps2): boot gsKit into the project's video mode and show it 4:3
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+git status --short
 ```
+
+`git status --short` must still list the other session's `Ps2BootHost.cpp` changes as unstaged, untouched.
 
 ---
 
-### Task B10: demodisc selects its PS2 video mode
-
-**Files:**
-- Modify: `C:\dev\helprojs\demodisc\settings\platform.ps2.json` (`graphics.selectedOptionValues`)
-
-**Interfaces:**
-- Consumes: the graphics setting `video-mode` (B4) and the builder's undeclared-option refusal (B7)
-
-- [ ] **Step 1: Edit the project settings**
-
-In `graphics.selectedOptionValues`, replace `"default-width": "640", "default-height": "448",` with `"video-mode": "ntsc-640x448i",`. Leave the dead top-level `graphics.defaultWidth/defaultHeight` untouched; the spec keeps them out of scope. Check `git -C C:\dev\helprojs\demodisc diff --numstat`: the change must be 2 deletions and 1 insertion, with no line-ending churn.
-
-- [ ] **Step 2: Verify through Play (announce first)**
-
-Ask Helena to press Play on PS2 in demodisc with the Play `video-mode` setting at `project`. Expected: the title reads `helengine player [PlayStation 2 · 640×448i] — <scene>`, the console shows `[player] render 640x448 at <n>x`, and the frame loop target is 60 FPS. Then ask her to pick `pal-320x256p` in Play Settings and press Play again. Expected: `[player] render 320x256 at <n>x`, 50 FPS, and the title says `320×256p`.
-
-- [ ] **Step 3: Commit**
-
-```bash
-cd /c/dev/helprojs/demodisc
-git add settings/platform.ps2.json
-git commit -m "chore(ps2): select the PS2 video mode instead of a free framebuffer size
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-```
-
----
-
-### Task B11: Phase B verification and optional PCSX2 run
+### Task B16: Phase B verification and optional PCSX2 run
 
 **Files:**
 - None (verification only)
 
 - [ ] **Step 1: Run every suite**
 
-Run all four .NET suites from the Phase A exit check plus `make ps2-video-mode-tests`. Compare failures by name with the recorded baselines.
+Run `.\dotnetw.cmd test` on `engine\helengine.core.tests\helengine.core.tests.csproj`, `engine\helengine.baseplatform.tests\helengine.baseplatform.tests.csproj`, `engine\helengine.player.tests\helengine.player.tests.csproj` and `engine\helengine.editor.tests\helengine.editor.tests.csproj`, then the PS2 builder tests and `make ps2-video-mode-tests`. Compare failures by name with the recorded baselines (editor: the 2026-09-19 list; baseplatform: the 3 Assimp failures; builder: the names recorded before B11).
 
 - [ ] **Step 2: Ask Helena before any emulator run**
 
-Ask: "May I boot demodisc in PCSX2 for `ntsc-640x448i`, `ntsc-512x448i`, `ntsc-320x224p` and `pal-640x256p` to confirm from the boot log that gsKit was initialised with each mode and the menu renders?" Without a yes, stop here and report.
+Ask: "May I boot demodisc in PCSX2 for `ntsc-640x448i`, `ntsc-512x448i`, `ntsc-320x224p` and `pal-640x256p` to confirm from the boot log that gsKit was initialised with each mode, that the frame and Z buffers sit on the page grid, and that the menu renders? May I also capture the PCSX2 window with PrintWindow to check that round UI elements and the 3D scene look 4:3?" Without a yes, stop here and report.
 
 - [ ] **Step 3: With her yes, run the four boots**
 
 For each mode:
-1. Set `video-mode` in `platform.ps2.json`.
+1. Set `video-mode` in `C:\dev\helprojs\demodisc\settings\platform.ps2.json`.
 2. Rebuild the disc and boot it in PCSX2 (from `C:\dev\helworks\emus`), following the PS2 build memory notes.
-3. Read the PCSX2 log for `video mode: NTSC 640x448i` (or the matching line), then `graphics ready` and `startup scene load succeeded`.
+3. Read the PCSX2 log for:
+   - `video mode: NTSC 640x448i` (or the matching line);
+   - the `vram` line: `frame1 - frame0` and `z - frame1` must each be at least `page-grid-bytes` (for `ntsc-320x224p` that is 163840, not the 143360 a naive 320x224x2 would give), and `textures` at least `z + page-grid-bytes`;
+   - then `graphics ready` and `startup scene load succeeded`.
 
-Take no screenshots unless Helena allows it. If a menu check is wanted, use window capture with PrintWindow only. Restore `ntsc-640x448i` afterwards, and commit nothing from these runs.
+Take no screenshots unless Helena allows it; if she does, capture only the PCSX2 window, with PrintWindow. Restore `ntsc-640x448i` afterwards and commit nothing from these runs.
 
 ---
 
 ## Self-review notes (for the executor)
 
-- Spec coverage: the Play-settings spec decisions map to Tasks A1-A13: storage (A5), flow (A6-A9, A13), common settings (A1, A7, A9), platform settings (A1, A2), dialog (A11-A13) and testing (every task). The video-mode spec maps to Phase B: contract (B2, B3), editor→player (B5), player (A10, B6), builder (B4, B7), runtime (B8, B9), projects (B10), error handling (B5, B7, B8, B9) and testing (B2-B8, B11).
+- Spec coverage: the Play-settings spec decisions map to Tasks A1-A13: storage (A5), flow (A6-A9, A13), common settings (A1, A7, A9), platform settings (A1, A2), dialog (A11-A13) and testing (every task). The video-mode spec maps to Phase B: contract (B4, B5), editor→player (B6), player (A10, B9, B10), builder (B7, B11, B12), runtime (B13, B14, B15), projects (B8), error handling (B6, B11, B13, B15) and testing (B2-B13, B16). The 2026-10-14 display-aspect rulings map to B2 (engine pixel aspect and projection), B3 (UI fits), B10 (player window) and B13-B15 (PS2 runtime).
 - The video-mode spec's CLI flags (`--video-mode`, `--video-width`, ...) are intentionally replaced by the `videoMode` object in the `--play-settings` file (Play-settings spec flow step 2).
-- Known open item: pixel aspect for non-640x448 modes (B1 "open" row), for both the PS2 runtime and the desktop player.
+- Every B1 "replace" and "ADD" row has an owner in the "B1 ownership" table.
+- Open items for Helena after Phase B:
+  - Glyph width on non-square-pixel displays (Task B3 "Known limit"): needs a horizontal glyph scale in `TextComponent` and every platform 2D renderer.
+  - The PS2 runtime's hard-coded 45-degree field of view (audit row 17) ignores the camera's field of view and orthographic mode.
+  - Stale-worktree source-string tests remain in `Ps2NativeBuildInputsTests` (the neighbours of the one B15 deletes).
+  - Carry I2 (Windows rollout): pointer coordinates must map window pixels to render pixels per axis, now that the horizontal and vertical magnifications differ.
+  - In PAL modes the 1/20 s physics step alternates 2 and 3 frames (audit row 13).
