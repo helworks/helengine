@@ -3569,6 +3569,12 @@ namespace helengine.editor {
         /// Builds the generated scripting solution and reloads the resulting assembly.
         /// </summary>
         void HandleBuildScriptsRequested() {
+            // A reload unloads the script assemblies the background Play cook may be resolving types from.
+            if (IsPlayPreparationActive()) {
+                Logger.WriteWarning("Play is preparing; build the scripts again once the player has started or Play was stopped.");
+                return;
+            }
+
             // The manual command is the escape hatch for changes the build fingerprint cannot see, so it always builds.
             EditorBuildExecutionResult result = scriptHotReloadService.BuildAndReload(forceBuild: true);
             ProjectScriptLoadResult = result;
@@ -3725,6 +3731,18 @@ namespace helengine.editor {
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Reports whether a Play preparation still has background work running. While it does, the editor refuses the
+        /// authoring operations that would race the background cook: saving the scene (the cook reads the scene as it was
+        /// saved when Play was pressed), building and reloading scripts (the cook resolves script types), and running the
+        /// build queue (it writes the same caches). Scene edits themselves stay allowed and go into the next Play.
+        /// </summary>
+        /// <returns>True while a Play preparation is active.</returns>
+        bool IsPlayPreparationActive() {
+            // Lightweight fixtures that bypass the public constructor own no Play session.
+            return PlaySession != null && PlaySession.IsPreparationActive;
         }
 
         /// <summary>
@@ -4166,6 +4184,12 @@ namespace helengine.editor {
         /// Executes all pending queued builds sequentially and refreshes the dialog with persisted results.
         /// </summary>
         void HandleBuildDialogBuildQueueRequested() {
+            // A build writes the same scene-package cache and staged content the background Play cook is writing.
+            if (IsPlayPreparationActive()) {
+                Logger.WriteWarning("Play is preparing; run the build queue again once the player has started or Play was stopped.");
+                return;
+            }
+
             IReadOnlyList<string> visiblePlatformIds = ResolveVisibleSupportedPlatforms();
             EditorBuildConfigDocument buildConfig = ResolveCurrentBuildConfig();
             buildConfigService.Save(buildConfig);
@@ -4326,6 +4350,13 @@ namespace helengine.editor {
         void HandleSceneSaveRequested(string fullPath) {
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Scene path must be provided.", nameof(fullPath));
+            }
+
+            if (IsPlayPreparationActive()) {
+                string message = "Play is preparing the scene as it was saved when Play was pressed; save again once the player has started or Play was stopped. Unsaved edits stay in the editor and go into the next Play.";
+                Logger.WriteWarning(message);
+                saveFileDialog.ShowError(message);
+                return;
             }
 
             if (saveFileDialogExportsScene) {

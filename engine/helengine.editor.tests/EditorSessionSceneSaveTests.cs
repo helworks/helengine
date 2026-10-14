@@ -332,6 +332,84 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the concurrent-edit policy for a Play preparing in the background: a save requested while Play is
+        /// preparing is refused, so the file the background cook reads stays the scene as it was saved when Play was
+        /// pressed, and the edit stays unsaved in the editor; once the preparation completed, the same save goes through
+        /// and reaches the next Play.
+        /// </summary>
+        [Fact]
+        public void HandleSceneSaveRequested_WhilePlayIsPreparing_KeepsThePressTimeSceneOnDisk() {
+            EditorSession session = CreateSessionForSceneSave();
+            string scenePath = SaveSceneThenChangeSettings(session, "PlayPreparing.helen");
+            EditorSceneLifecycleService lifecycle = GetPrivateField<EditorSceneLifecycleService>(session, "SceneLifecycleService");
+            lifecycle.IsSceneDirty = true;
+            EditorMainThreadActionQueue queue = new EditorMainThreadActionQueue();
+            EditorPlaySessionService playSession = StartPreparingPlay(session, scenePath, queue);
+            Assert.True(playSession.IsPreparationActive);
+
+            InvokePrivate(session, "HandleSceneSaveRequested", scenePath);
+
+            Assert.False(ReadSavedDontUnload(scenePath));
+            Assert.True(lifecycle.IsSceneDirty);
+
+            queue.ProcessPending();
+            Assert.False(playSession.IsPreparationActive);
+            InvokePrivate(session, "HandleSceneSaveRequested", scenePath);
+
+            Assert.True(ReadSavedDontUnload(scenePath));
+            Assert.False(lifecycle.IsSceneDirty);
+        }
+
+        /// <summary>
+        /// Ensures building and reloading scripts is refused while Play is preparing, because a reload unloads the script
+        /// assemblies the background cook may be resolving types from. The fixture owns no hot-reload service, so a
+        /// build that was not refused would fail on it.
+        /// </summary>
+        [Fact]
+        public void HandleBuildScriptsRequested_WhilePlayIsPreparing_IsRefused() {
+            EditorSession session = CreateSessionForSceneSave();
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "PlayScripts.helen");
+            InvokePrivate(session, "HandleSceneSaveRequested", scenePath);
+            StartPreparingPlay(session, scenePath, new EditorMainThreadActionQueue());
+            List<string> warnings = new List<string>();
+            Action<LogEntry> captureWarning = entry => warnings.Add(entry.Message);
+
+            Logger.WarningLogged += captureWarning;
+            try {
+                InvokePrivate(session, "HandleBuildScriptsRequested");
+            } finally {
+                Logger.WarningLogged -= captureWarning;
+            }
+
+            Assert.Contains("Play is preparing; build the scripts again once the player has started or Play was stopped.", warnings);
+        }
+
+        /// <summary>
+        /// Gives the lightweight session a Play session whose preparation already ran inline but whose completion was not
+        /// yet delivered to the frame thread, so the session sees a Play that is still preparing.
+        /// </summary>
+        /// <param name="session">Session under test.</param>
+        /// <param name="scenePath">Saved scene path Play prepares.</param>
+        /// <param name="queue">Main-thread queue the preparation reports through; left undrained.</param>
+        /// <returns>The Play session, preparing.</returns>
+        EditorPlaySessionService StartPreparingPlay(EditorSession session, string scenePath, EditorMainThreadActionQueue queue) {
+            EditorPlaySessionService playSession = new EditorPlaySessionService(
+                new managers.play.FakePlayCookRunner(new EditorPlayCookResult(true, "Cooked.", @"C:\project\cache\play\ps2-staging", "scene", "scenes/scene.helen")),
+                new managers.play.FakePlayScriptBuilder(EditorBuildExecutionResult.Success("Scripts built."), @"C:\project\cache\play\modules"),
+                new managers.play.FakePlayProcessLauncher(),
+                @"C:\player\helengine.player.exe",
+                queue,
+                new managers.play.InlinePlayPreparationScheduler());
+            SetPrivateField(session, "PlaySession", playSession);
+            EditorBuildExecutionResult result = playSession.Play(
+                "ps2", "PlayStation 2", scenePath, () => true,
+                @"C:\platforms\ps2\helengine.ps2.player.dll", "helengine.ps2.player.Ps2PlayerAdapter",
+                60d, helengine.baseplatform.Definitions.PlayerInputDevices.Gamepad, false, launchResult => { });
+            Assert.True(result.Succeeded, result.Message);
+            return playSession;
+        }
+
+        /// <summary>
         /// Saves the session's scene through the regular save path, which leaves it clean, then changes the in-memory
         /// scene settings so a later save is visible in the file.
         /// </summary>
