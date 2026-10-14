@@ -8,19 +8,25 @@ namespace helengine.editor {
     /// polls <see cref="IsCancellationRequested"/> before it starts a process, attaches each process it starts, and a
     /// process attached after cancellation is killed at once and refused. All members are thread-safe.
     /// <para>
-    /// On Windows each attached process is put into its own job object created with
-    /// <c>JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE</c>. Every process it starts afterwards (MSBuild worker nodes, the compiler
-    /// server) joins the job, so <see cref="Cancel"/> kills the whole tree with one <c>TerminateJobObject</c> call:
-    /// no process enumeration and no exceptions, unlike <see cref="Process.Kill(bool)"/>, which raises a first-chance
-    /// exception for every system process it may not open. <see cref="Detach"/> closes the job, which also ends
-    /// processes the build left running, and an editor crash closes it too, so no build process outlives the editor.
+    /// On Windows each attached process gets its own job object, and every process it starts afterwards joins it, so
+    /// <see cref="Cancel"/> kills the whole tree with one <c>TerminateJobObject</c> call: no process enumeration and no
+    /// exceptions, unlike <see cref="Process.Kill(bool)"/>, which raises a first-chance exception for every system process
+    /// it may not open.
+    /// </para>
+    /// <para>
+    /// With an <see cref="EditorSessionProcessJob"/> (the editor's Play builds) the process first joins the session job
+    /// and then its own job, which Windows nests inside the session job. The per-build job does not kill on close:
+    /// <see cref="Detach"/> after a build that finished leaves the MSBuild nodes and compiler server it started warm for
+    /// the next Play, and the session job ends them with the editor. <see cref="Cancel"/> terminates only the per-build
+    /// job: the cancelled <c>dotnet</c> and the processes it started; nodes still warm from earlier builds live in their
+    /// own builds' jobs and survive. Without a session job the per-build job kills on close, so nothing outlives
+    /// <see cref="Detach"/>.
     /// </para>
     /// <para>
     /// Race: <see cref="Process.Start()"/> cannot start a process suspended, so the process runs for the moment between
-    /// its start and <see cref="TryAttach"/>. A child it starts in that window would not be in the job. The caller
-    /// attaches immediately after the start returns, and <c>dotnet build</c> only starts child processes after resolving
-    /// the SDK and evaluating the projects, far later than that window; the window is accepted rather than replacing the
-    /// process start with a hand-written suspended <c>CreateProcess</c>.
+    /// its start and <see cref="TryAttach(Process, EditorSessionProcessJob)"/>. A child it starts in that window would not
+    /// be in the jobs. The caller attaches immediately after the start returns, and <c>dotnet build</c> only starts
+    /// child processes after resolving the SDK and evaluating the projects, far later than that window.
     /// </para>
     /// </summary>
     public sealed class EditorProcessCancellation {
@@ -45,9 +51,15 @@ namespace helengine.editor {
         Process RunningProcess;
 
         /// <summary>
-        /// Job holding <see cref="RunningProcess"/> and its descendants on Windows, or null.
+        /// Per-build job holding <see cref="RunningProcess"/> and its descendants on Windows, or null.
         /// </summary>
         EditorJobObjectHandle RunningJob;
+
+        /// <summary>
+        /// Gets or sets a Win32 error the next per-build job assignment reports instead of assigning, so tests can
+        /// exercise the failure path; zero leaves assignment alone.
+        /// </summary>
+        internal int SimulatedAssignErrorForTests { get; set; }
 
         /// <summary>
         /// Gets whether the operation was cancelled.
@@ -72,21 +84,41 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Records a process the operation just started, putting it into a kill-on-close job on Windows, so
-        /// <see cref="Cancel"/> can kill its tree. When the operation was already cancelled, the process is killed
-        /// instead and false is returned.
+        /// Records a process the operation just started, in a per-build job that kills on close. Used where no session
+        /// job keeps build nodes warm.
         /// </summary>
         /// <param name="process">Started process; attach it immediately after the start.</param>
         /// <returns>True when the process may run; false when it was killed because the operation is cancelled.</returns>
-        /// <exception cref="ArgumentNullException">Thrown when the process is null.</exception>
-        /// <exception cref="InvalidOperationException">Thrown when the job cannot be created or the running process cannot join it.</exception>
         public bool TryAttach(Process process) {
+            return TryAttach(process, null);
+        }
+
+        /// <summary>
+        /// Records a process the operation just started, so <see cref="Cancel"/> can kill its tree. On Windows the process
+        /// joins the session job (when one is given) and then its own per-build job. When the operation was already
+        /// cancelled, the process is killed instead and false is returned. When a job cannot be created or joined, the
+        /// process is killed and waited for before the error is raised, so a build is never left running unmanaged.
+        /// </summary>
+        /// <param name="process">Started process; attach it immediately after the start.</param>
+        /// <param name="sessionJob">Session job that keeps build nodes warm, or null.</param>
+        /// <returns>True when the process may run; false when it was killed because the operation is cancelled.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when the process is null.</exception>
+        /// <exception cref="InvalidOperationException">Thrown, after the process was killed, when it could not join its jobs.</exception>
+        public bool TryAttach(Process process, EditorSessionProcessJob sessionJob) {
             if (process == null) {
                 throw new ArgumentNullException(nameof(process));
             }
 
             lock (Sync) {
-                EditorJobObjectHandle job = OperatingSystem.IsWindows() ? CreateJob(process) : null;
+                EditorJobObjectHandle job = null;
+                if (OperatingSystem.IsWindows()) {
+                    int error = TryContain(process, sessionJob, out job);
+                    if (error != 0) {
+                        KillUnmanaged(process);
+                        throw new InvalidOperationException($"The build process could not join its job object (Win32 error {error}); it was stopped.");
+                    }
+                }
+
                 if (CancellationRequested) {
                     KillTree(process, job);
                     job?.Dispose();
@@ -100,8 +132,8 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Forgets the attached process once it exited, before its owner disposes it, and closes its job, which ends any
-        /// process the build left behind.
+        /// Forgets the attached process once it exited, before its owner disposes it, and closes its per-build job.
+        /// Without a session job that ends any process the build left behind; with one, those processes stay warm.
         /// </summary>
         public void Detach() {
             lock (Sync) {
@@ -112,42 +144,52 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Creates a kill-on-close job and puts the process into it.
+        /// Puts the process into the session job (when given) and then into a new per-build job, which Windows nests
+        /// inside the session job.
         /// </summary>
         /// <param name="process">Process to contain.</param>
-        /// <returns>Job containing the process, or null when the process exited before it could join.</returns>
-        /// <exception cref="InvalidOperationException">Thrown when the job cannot be created or configured, or a running process cannot join it.</exception>
-        static EditorJobObjectHandle CreateJob(Process process) {
-            EditorJobObjectHandle job = EditorJobObjectNativeMethods.CreateJobObjectW(IntPtr.Zero, null);
-            if (job.IsInvalid) {
-                int error = Marshal.GetLastWin32Error();
-                job.Dispose();
-                throw new InvalidOperationException($"A job object for the build process could not be created (Win32 error {error}).");
-            }
-
-            EditorJobObjectExtendedLimitInformation limits = new EditorJobObjectExtendedLimitInformation();
-            limits.BasicLimitInformation.LimitFlags = EditorJobObjectNativeMethods.JobObjectLimitKillOnJobClose;
-            if (!EditorJobObjectNativeMethods.SetInformationJobObject(
-                    job,
-                    EditorJobObjectNativeMethods.JobObjectExtendedLimitInformationClass,
-                    ref limits,
-                    (uint)Marshal.SizeOf<EditorJobObjectExtendedLimitInformation>())) {
-                int error = Marshal.GetLastWin32Error();
-                job.Dispose();
-                throw new InvalidOperationException($"The build job object could not be set to kill its processes on close (Win32 error {error}).");
-            }
-
-            if (!EditorJobObjectNativeMethods.AssignProcessToJobObject(job, process.SafeHandle)) {
-                int error = Marshal.GetLastWin32Error();
-                job.Dispose();
-                if (process.HasExited) {
-                    return null;
+        /// <param name="sessionJob">Session job, or null.</param>
+        /// <param name="job">Receives the per-build job, or null when the process exited before it could join.</param>
+        /// <returns>Zero on success, otherwise the Win32 error.</returns>
+        int TryContain(Process process, EditorSessionProcessJob sessionJob, out EditorJobObjectHandle job) {
+            job = null;
+            if (sessionJob != null) {
+                int sessionError = sessionJob.TryAssign(process);
+                if (sessionError != 0) {
+                    return process.HasExited ? 0 : sessionError;
                 }
-
-                throw new InvalidOperationException($"The build process could not join its job object (Win32 error {error}).");
             }
 
-            return job;
+            int createError = EditorJobObjectFactory.TryCreate(sessionJob == null, out EditorJobObjectHandle created);
+            if (createError != 0) {
+                return createError;
+            }
+
+            int assignError = SimulatedAssignErrorForTests;
+            if (assignError == 0 && !EditorJobObjectNativeMethods.AssignProcessToJobObject(created, process.SafeHandle)) {
+                assignError = Marshal.GetLastWin32Error();
+            }
+
+            if (assignError != 0) {
+                created.Dispose();
+                return process.HasExited ? 0 : assignError;
+            }
+
+            job = created;
+            return 0;
+        }
+
+        /// <summary>
+        /// Stops a process that could not be contained and waits for it, so it never keeps running unmanaged. Only the
+        /// process itself is terminated; that uses no process enumeration and raises no exception for a running process.
+        /// </summary>
+        /// <param name="process">Process to stop.</param>
+        static void KillUnmanaged(Process process) {
+            if (!process.HasExited) {
+                process.Kill();
+            }
+
+            process.WaitForExit();
         }
 
         /// <summary>

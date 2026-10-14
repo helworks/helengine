@@ -90,6 +90,104 @@ public sealed class EditorProcessCancellationTests {
     }
 
     /// <summary>
+    /// Ensures a process a finished build left running (standing in for a warm MSBuild node) survives the build's
+    /// detach while the session job lives, and ends when the session job closes.
+    /// </summary>
+    [Fact]
+    public void Detach_WithASessionJob_KeepsWarmProcessesUntilTheSessionEnds() {
+        using EditorSessionProcessJob sessionJob = new EditorSessionProcessJob();
+        using Process warm = RunBuildThatLeavesAPingRunning(sessionJob, new EditorProcessCancellation());
+
+        Assert.False(warm.WaitForExit(500));
+        Assert.True(sessionJob.IsCreated);
+
+        sessionJob.Dispose();
+
+        Assert.True(warm.WaitForExit((int)Timeout.TotalMilliseconds));
+    }
+
+    /// <summary>
+    /// Ensures cancelling one build kills that build's tree but not processes an earlier build left warm in the same
+    /// session job.
+    /// </summary>
+    [Fact]
+    public void Cancel_WithASessionJob_KillsOnlyThisBuildsTree() {
+        using EditorSessionProcessJob sessionJob = new EditorSessionProcessJob();
+        using Process warm = RunBuildThatLeavesAPingRunning(sessionJob, new EditorProcessCancellation());
+        EditorProcessCancellation cancellation = new EditorProcessCancellation();
+        using Process shell = StartShell();
+        Assert.True(cancellation.TryAttach(shell, sessionJob));
+        HashSet<int> pingsBefore = GetPingProcessIds();
+        shell.StandardInput.WriteLine("ping -n 60 127.0.0.1");
+        shell.StandardInput.Flush();
+        using Process child = WaitForNewPing(pingsBefore);
+
+        cancellation.Cancel();
+
+        Assert.True(shell.WaitForExit((int)Timeout.TotalMilliseconds));
+        Assert.True(child.WaitForExit((int)Timeout.TotalMilliseconds));
+        Assert.False(warm.HasExited);
+        cancellation.Detach();
+        sessionJob.Dispose();
+        Assert.True(warm.WaitForExit((int)Timeout.TotalMilliseconds));
+    }
+
+    /// <summary>
+    /// Ensures a process that cannot join its job is stopped before the error is raised, so a build never keeps
+    /// running unmanaged.
+    /// </summary>
+    [Fact]
+    public void TryAttach_WhenTheJobCannotBeJoined_StopsTheProcessAndReportsTheError() {
+        EditorProcessCancellation cancellation = new EditorProcessCancellation {
+            SimulatedAssignErrorForTests = 5
+        };
+        using Process process = Process.Start(new ProcessStartInfo("ping.exe", "-n 60 127.0.0.1") {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true
+        });
+
+        InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => cancellation.TryAttach(process));
+
+        Assert.Contains("Win32 error 5", failure.Message, StringComparison.Ordinal);
+        Assert.True(process.HasExited);
+    }
+
+    /// <summary>
+    /// Runs a "build" (a command shell) in the session job that starts a background ping and exits, then detaches it
+    /// the way a finished build is detached; the ping is what a warm build node looks like afterwards.
+    /// </summary>
+    /// <param name="sessionJob">Session job the build joins.</param>
+    /// <param name="cancellation">Cancellation of that build.</param>
+    /// <returns>The ping the build left running.</returns>
+    static Process RunBuildThatLeavesAPingRunning(EditorSessionProcessJob sessionJob, EditorProcessCancellation cancellation) {
+        using Process shell = StartShell();
+        Assert.True(cancellation.TryAttach(shell, sessionJob));
+        HashSet<int> pingsBefore = GetPingProcessIds();
+        shell.StandardInput.WriteLine("start \"\" /b ping -n 60 127.0.0.1 >nul");
+        shell.StandardInput.Flush();
+        Process warm = WaitForNewPing(pingsBefore);
+        shell.StandardInput.WriteLine("exit");
+        shell.StandardInput.Flush();
+        Assert.True(shell.WaitForExit((int)Timeout.TotalMilliseconds));
+        cancellation.Detach();
+        return warm;
+    }
+
+    /// <summary>
+    /// Starts a command shell that reads its commands from standard input.
+    /// </summary>
+    /// <returns>Started shell.</returns>
+    static Process StartShell() {
+        return Process.Start(new ProcessStartInfo("cmd.exe", "/q /k") {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true
+        });
+    }
+
+    /// <summary>
     /// Reads the ids of the ping processes running now.
     /// </summary>
     /// <returns>Ids of every running ping process.</returns>

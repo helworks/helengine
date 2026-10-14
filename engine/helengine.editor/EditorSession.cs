@@ -948,11 +948,16 @@ namespace helengine.editor {
                 ResolvePlayPlatformSelectionModel,
                 CreatePlayPlatformBuildExecutor,
                 ResolvePlayScenePath);
+            // Every Play script build joins this job, so its MSBuild nodes and compiler server stay warm between Plays.
+            // Registered before the Play shutdown, so the ledger (which runs disposal in reverse) closes it afterwards:
+            // closing the job ends the warm nodes once no preparation can start another build.
+            EditorSessionProcessJob playBuildProcessJob = new EditorSessionProcessJob();
+            constructionLedger.Register(playBuildProcessJob.Dispose, EditorSessionCleanupPhase.Dispose);
             PlaySession = new EditorPlaySessionService(
                 playCookRunner,
                 new EditorPlayScriptBuilder(
                     this.projectPath,
-                    new EditorPlayScriptBuildService(this.projectPath, ProjectName),
+                    new EditorPlayScriptBuildService(this.projectPath, ProjectName, playBuildProcessJob),
                     playCookRunner.ResolveEnvironmentId),
                 new EditorPlayProcessLauncher(MainThreadActions),
                 Path.Combine(AppContext.BaseDirectory, PlayerDirectoryName, PlayerExecutableFileName),

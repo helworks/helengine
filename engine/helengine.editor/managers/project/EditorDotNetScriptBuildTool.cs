@@ -89,6 +89,27 @@ namespace helengine.editor {
         internal static Action<string, string> PublicationMoveHookForTests { get; set; }
 
         /// <summary>
+        /// Session job the cancellable builds' processes join so their MSBuild nodes and compiler server stay warm until
+        /// the editor closes, or null for a tool whose builds are not cancellable.
+        /// </summary>
+        readonly EditorSessionProcessJob SessionJob;
+
+        /// <summary>
+        /// Initializes a build tool whose builds run without a session job.
+        /// </summary>
+        public EditorDotNetScriptBuildTool() {
+        }
+
+        /// <summary>
+        /// Initializes a build tool whose cancellable builds join the given session job.
+        /// </summary>
+        /// <param name="sessionJob">Session job that keeps build nodes warm until the editor closes.</param>
+        /// <exception cref="ArgumentNullException">Thrown when the session job is null.</exception>
+        public EditorDotNetScriptBuildTool(EditorSessionProcessJob sessionJob) {
+            SessionJob = sessionJob ?? throw new ArgumentNullException(nameof(sessionJob));
+        }
+
+        /// <summary>
         /// Builds one solution file and returns the captured process outcome.
         /// </summary>
         /// <param name="solutionPath">Absolute path to the generated solution file.</param>
@@ -371,7 +392,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Failed to launch '{DotNetExecutableName}'.");
             }
 
-            if (cancellation != null && !cancellation.TryAttach(process)) {
+            if (cancellation != null && !cancellation.TryAttach(process, SessionJob)) {
                 process.WaitForExit();
                 return EditorBuildExecutionResult.Failure(CancelledMessage);
             }

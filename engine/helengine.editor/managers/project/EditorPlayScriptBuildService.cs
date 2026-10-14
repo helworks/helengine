@@ -37,7 +37,28 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative authored project root path.</param>
         /// <param name="projectName">Display name of the project.</param>
-        public EditorPlayScriptBuildService(string projectRootPath, string projectName) {
+        public EditorPlayScriptBuildService(string projectRootPath, string projectName)
+            : this(projectRootPath, projectName, new EditorDotNetScriptBuildTool()) {
+        }
+
+        /// <summary>
+        /// Initializes one Play script builder whose builds join the editor session's job, so the MSBuild nodes and
+        /// compiler server stay warm between Plays and end with the editor.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative authored project root path.</param>
+        /// <param name="projectName">Display name of the project.</param>
+        /// <param name="sessionJob">Session job every Play build joins.</param>
+        public EditorPlayScriptBuildService(string projectRootPath, string projectName, EditorSessionProcessJob sessionJob)
+            : this(projectRootPath, projectName, new EditorDotNetScriptBuildTool(sessionJob)) {
+        }
+
+        /// <summary>
+        /// Initializes one Play script builder with the build tool its compiles run through.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative authored project root path.</param>
+        /// <param name="projectName">Display name of the project.</param>
+        /// <param name="buildTool">Tool that runs <c>dotnet build</c>.</param>
+        EditorPlayScriptBuildService(string projectRootPath, string projectName, EditorDotNetScriptBuildTool buildTool) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             } else if (string.IsNullOrWhiteSpace(projectName)) {
@@ -46,7 +67,7 @@ namespace helengine.editor {
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             ProjectName = projectName;
-            BuildTool = new EditorDotNetScriptBuildTool();
+            BuildTool = buildTool;
         }
 
         /// <summary>
