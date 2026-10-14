@@ -43,6 +43,8 @@ namespace helengine.video {
                     result.Diagnostics.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Pending, "estimated_duration", span.Scene.Id, $"scenes[{span.Index}].duration", "The scene length is still an estimate; choose a take or a fixed length."));
                 }
             }
+            VideoOverlayHold.Check(state);
+            result.Overlays.AddRange(state.OverlayPlacements);
             VideoCaptionBuilder.Build(state);
             VideoEntryCompiler.Compile(state);
             VideoAudioBuilder.Build(state);

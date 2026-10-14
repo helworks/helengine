@@ -202,6 +202,7 @@ namespace helengine.video {
             Measure();
             Layout();
             VisualLayer group = new VisualLayer { Id = Span.Scene.Id + "-overlay-" + Overlay.Id, Kind = "group", MediaId = "", Order = VideoSceneCompiler.OverlayOrder, Start = Start, End = End };
+            State.OverlayBounds[group.Id] = Box.Bounds;
             foreach (VideoTimelineElement element in Elements) {
                 VisualLayer layer = Layer(group.Id, element);
                 if (layer != null) {
@@ -260,11 +261,16 @@ namespace helengine.video {
             }
             MediaTime timelineEnd = Origin + MediaTime.FromSeconds(Flat.DurationSeconds);
             Start = Origin < Span.Start ? Span.Start : Origin;
+            // The reading time keeps the timeline on screen after its last element appears, past until and the scene end
+            // (never past the timeline's own end); the fade-out then happens at the held end.
+            MediaTime last = LastAppearance();
+            MediaTime limit = VideoOverlayHold.End(State, Overlay, last, Span.End);
             MediaTime until = Overlay.Until == null ? Span.End : State.Global(Span, Overlay.Until, OverlayPath + ".until");
+            until = VideoOverlayHold.End(State, Overlay, last, until);
             CutShort = until < timelineEnd;
             End = CutShort ? until : timelineEnd;
-            if (End > Span.End) {
-                End = Span.End;
+            if (End > limit) {
+                End = limit;
                 CutShort = true;
             }
             if (End <= Start) {
@@ -274,6 +280,22 @@ namespace helengine.video {
             VisibleFrom = (Start - Origin).ToSeconds();
             VisibleTo = (End - Origin).ToSeconds();
             return true;
+        }
+
+        /// <summary>
+        /// Finds the instant the last bound slot first becomes active (the overlay start for slots active throughout).
+        /// </summary>
+        /// <returns>Absolute instant, never before the overlay start.</returns>
+        MediaTime LastAppearance() {
+            double latest = 0;
+            foreach (TimelineSlotAsset slot in Asset.Slots.Where(slot => Overlay.Timeline.Bindings.ContainsKey(slot.Name))) {
+                IReadOnlyList<FlattenedInterval> intervals = new VideoTimelineSlotMotion(Flat, slot.Name).Intervals;
+                if (intervals is { Count: > 0 }) {
+                    latest = Math.Max(latest, intervals[0].StartSeconds);
+                }
+            }
+            MediaTime last = Origin + MediaTime.FromSeconds(latest);
+            return last < Start ? Start : last;
         }
 
         /// <summary>

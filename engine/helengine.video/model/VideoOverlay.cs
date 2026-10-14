@@ -51,5 +51,13 @@ namespace helengine.video {
         /// </summary>
         public VideoOverlayTimeline Timeline { get; set; }
 
+        /// <summary>
+        /// Optional reading time in seconds (0 to 10): the overlay stays visible at least this long after its last item
+        /// appears (last graphic item, last timeline element, or the overlay start for plain text), even past an earlier
+        /// <see cref="Until"/> or the scene end. An overlay held past its scene keeps the box laid out in its own scene and
+        /// is drawn over the following scenes, at most up to the end of the video.
+        /// </summary>
+        public double? HoldSec { get; set; }
+
     }
 }

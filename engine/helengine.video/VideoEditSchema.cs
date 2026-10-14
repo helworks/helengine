@@ -35,7 +35,8 @@ namespace helengine.video {
         /// Numeric ranges, keyed by declaring type and C# property name.
         /// </summary>
         static readonly Dictionary<string, (double Minimum, double Maximum)> Ranges = new Dictionary<string, (double, double)>(StringComparer.Ordinal) {
-            [Key(typeof(VideoTake), nameof(VideoTake.Speed))] = (VideoEditValidator.MinimumTakeSpeed, VideoEditValidator.MaximumTakeSpeed)
+            [Key(typeof(VideoTake), nameof(VideoTake.Speed))] = (VideoEditValidator.MinimumTakeSpeed, VideoEditValidator.MaximumTakeSpeed),
+            [Key(typeof(VideoOverlay), nameof(VideoOverlay.HoldSec))] = (0, VideoOverlayHold.MaximumHoldSec)
         };
 
         /// <summary>

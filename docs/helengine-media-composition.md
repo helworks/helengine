@@ -150,6 +150,19 @@ scene without an arrangement is `full`, so only `main` is accepted there); two p
 one region raise the warning `region_shared`. The schema lists the presets and every region name as enums. Spec:
 `docs/superpowers/specs/2026-10-08-helengine-scene-arrangements-design.md`.
 
+## Overlay reading time (`hold_sec`)
+
+Any overlay (plain, graphic or timeline) may set `"hold_sec": <0..10>`: it stays visible at least that long after its
+last item appears (the last graphic item `at`, the first activation of the last timeline slot, or the overlay start for
+plain text), even when `until` or the scene ends sooner; without it nothing changes. A held overlay that outlives its
+scene is emitted as a document-level layer (not a member of its scene group, absolute times, overlay order, caption lift)
+so the scene group does not cut it: it keeps the box laid out in its own scene and draws above the following scenes, up
+to the end of the video at most. A timeline never runs past its own end, and its cut-short fade happens at the held end;
+a graphic's exit fade likewise. Simultaneous plain overlays are stacked with their held ends. Out of range is
+`invalid_overlay` (path `...overlays[i].hold_sec`); the schema bounds it; `VideoEditMerge` keeps it with a locked
+overlay. When a held overlay is on screen together with an overlay of a later scene whose box intersects its own, the
+later overlay gets the warning `overlay_hold_overlap`.
+
 ## Speaker background (blur and replacement)
 
 A scene with a take may declare `"background": {"mode": "original"|"blur"|"replace", "radius"?: 24, "media"?: "<id>", "by"?: "human"|"ai"}`
@@ -222,8 +235,8 @@ timeline: {
   (by moment) on its moment (the scene start when no cue is mapped). Every mapped cue moves to its moment; clips anchored
   on it shift with it and keep their length (never stretched); the timeline grows by the largest later shift, and
   activation clips that lasted until the authored end last until the new end. The overlay ends when the timeline ends,
-  at `until` or at the scene end, whichever is first; when `until` or the scene end cuts the timeline short the group
-  fades out over 0.25 s.
+  at `until` or at the scene end, whichever is first (`hold_sec` may push the last two later); when `until` or the
+  scene end cuts the timeline short the group fades out over 0.25 s.
 - **Output**: one group layer per overlay (`<scene>-overlay-<id>`, overlay order, caption lift) owning one layer per bound
   slot (`<scene>-overlay-<id>-<slot>`, drawn in slot order, first slot at the back) that exists while the slot is active,
   with `position_x`, `position_y`, `scale_x`, `scale_y`, `rotation_deg` and `opacity` animations. Segments driving one

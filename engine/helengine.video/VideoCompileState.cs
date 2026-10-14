@@ -41,6 +41,21 @@ namespace helengine.video {
         public Dictionary<string, VisualLayer> Groups { get; } = new Dictionary<string, VisualLayer>(StringComparer.Ordinal);
 
         /// <summary>
+        /// Gets the screen box (output pixels) graphic and timeline overlays were laid out in, by overlay layer id.
+        /// </summary>
+        public Dictionary<string, VideoGraphicRectangle> OverlayBounds { get; } = new Dictionary<string, VideoGraphicRectangle>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// Gets every compiled overlay with its interval and screen box, in compilation order.
+        /// </summary>
+        public List<VideoOverlayPlacement> OverlayPlacements { get; } = new List<VideoOverlayPlacement>();
+
+        /// <summary>
+        /// Gets the overlays each stacked list overlay stands for, with their own intervals, by stacked overlay.
+        /// </summary>
+        public Dictionary<VideoOverlay, List<VideoOverlayTiming>> Stacks { get; } = new Dictionary<VideoOverlay, List<VideoOverlayTiming>>();
+
+        /// <summary>
         /// Creates the shared state.
         /// </summary>
         /// <param name="edit">Edit.</param>
@@ -76,6 +91,15 @@ namespace helengine.video {
         public void AddMember(VideoSceneSpan span, VisualLayer layer) {
             Document.Layers.Add(layer);
             Groups[span.Scene.Id].Members.Add(layer.Id);
+        }
+
+        /// <summary>
+        /// Adds a layer drawn above every scene on the document timeline, owned by no scene group so its scene's end does
+        /// not cut it (an overlay held past its scene).
+        /// </summary>
+        /// <param name="layer">Layer with absolute times.</param>
+        public void AddRoot(VisualLayer layer) {
+            Document.Layers.Add(layer);
         }
     }
 }

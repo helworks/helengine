@@ -16,6 +16,12 @@ namespace helengine.video {
         public List<VideoDiagnostic> Diagnostics { get; set; } = [];
 
         /// <summary>
+        /// Gets every compiled overlay with its absolute interval (reading time included) and screen box, in scene order,
+        /// so hosts can check what is on screen together; empty when validation failed.
+        /// </summary>
+        public List<VideoOverlayPlacement> Overlays { get; } = [];
+
+        /// <summary>
         /// Gets whether the edit could not be compiled.
         /// </summary>
         public bool HasErrors {

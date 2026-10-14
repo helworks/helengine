@@ -157,6 +157,8 @@ namespace helengine.video {
             }
             Layout();
             VisualLayer group = new VisualLayer { Id = Span.Scene.Id + "-overlay-" + Overlay.Id, Kind = "group", MediaId = "", Order = VideoSceneCompiler.OverlayOrder, Start = Start, End = End };
+            State.OverlayBounds[group.Id] = new VideoGraphicRectangle(Blocks.Min(block => block.CenterX - block.Width / 2), Blocks.Min(block => block.CenterY - block.Height / 2),
+                Blocks.Max(block => block.CenterX + block.Width / 2), Blocks.Max(block => block.CenterY + block.Height / 2));
             foreach (GraphicTemplateElementAsset element in Elements.OrderBy(element => element.Order)) {
                 for (int index = 0; index < Overlay.Graphic.Items.Count; index++) {
                     if (!Applies(element.Repeat, index)) {
@@ -193,6 +195,8 @@ namespace helengine.video {
             bool explicitStart = Overlay.At != null && (Overlay.At.Sec.HasValue || Overlay.At.FromEnd.HasValue || Overlay.At.Fraction.HasValue || !string.IsNullOrWhiteSpace(Overlay.At.Word));
             Start = explicitStart ? State.Global(Span, Overlay.At, OverlayPath + ".at") : Moments.Min();
             End = Overlay.Until == null ? Span.End : State.Global(Span, Overlay.Until, OverlayPath + ".until");
+            MediaTime last = Moments.Count == 0 ? Start : Moments.Max();
+            End = VideoOverlayHold.End(State, Overlay, last < Start ? Start : last, End);
             if (End <= Start) {
                 State.Diagnostics.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Warning, "overlay_skipped", Span.Scene.Id, OverlayPath, "The overlay ends before it starts and was skipped."));
                 return false;

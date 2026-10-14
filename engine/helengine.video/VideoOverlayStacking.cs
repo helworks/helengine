@@ -40,6 +40,7 @@ namespace helengine.video {
                 }
                 MediaTime start = state.Global(span, overlay.At, entry.Path + ".at");
                 MediaTime end = overlay.Until == null ? span.End : state.Global(span, overlay.Until, entry.Path + ".until");
+                end = VideoOverlayHold.End(state, overlay, start, end);
                 if (end > start) {
                     plain.Add(new VideoOverlayTiming(entry, start, end));
                 }
@@ -82,6 +83,7 @@ namespace helengine.video {
                 Style = lead.Style,
                 Region = lead.Region,
                 Until = longest.Entry.Overlay.Until,
+                HoldSec = cluster.Max(timing => timing.Entry.Overlay.HoldSec),
                 Graphic = new VideoGraphic {
                     Template = Template,
                     Version = 1,
@@ -89,6 +91,7 @@ namespace helengine.video {
                     At = cluster.Select(timing => timing.Entry.Overlay.At ?? new VideoMoment { Sec = 0 }).ToList()
                 }
             };
+            state.Stacks[stacked] = cluster;
             int position = result.FindIndex(entry => entry.Overlay == lead);
             string path = result[position].Path;
             foreach (VideoOverlayTiming timing in cluster) {

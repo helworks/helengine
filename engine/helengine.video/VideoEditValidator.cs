@@ -170,6 +170,9 @@ namespace helengine.video {
                     Moment(scene, overlay.At, overlayPath + ".at", true, errors);
                 }
                 Moment(scene, overlay.Until, overlayPath + ".until", false, errors);
+                if (overlay.HoldSec is double hold && (!double.IsFinite(hold) || hold < 0 || hold > VideoOverlayHold.MaximumHoldSec)) {
+                    Error(errors, "invalid_overlay", scene.Id, overlayPath + ".hold_sec", $"The overlay reading time must be between 0 and {VideoOverlayHold.MaximumHoldSec} seconds.");
+                }
                 if (overlay.Graphic != null) {
                     ValidateGraphic(scene, overlay.Graphic, overlayPath + ".graphic", capabilities, errors);
                 }

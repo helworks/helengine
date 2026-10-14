@@ -47,8 +47,24 @@ namespace helengine.video {
             // Simultaneous plain overlays in one place become a stacked list instead of overprinting each other.
             foreach (VideoOverlayEntry entry in VideoOverlayStacking.Arrange(state, span, path)) {
                 VisualLayer overlay = Overlay(state, span, entry.Overlay, entry.Path);
-                if (overlay != null) {
+                if (overlay == null) {
+                    continue;
+                }
+                if (overlay.End > span.End) {
+                    // Held past the scene for its reading time: a document-level layer with absolute times, so the scene
+                    // group does not cut it, drawn above the following scenes with the box laid out in this scene.
+                    state.AddRoot(overlay);
+                } else {
                     state.AddMember(span, overlay);
+                }
+                VideoGraphicRectangle bounds = state.OverlayBounds.GetValueOrDefault(overlay.Id) ?? PlainBounds(state, span, entry.Overlay, overlay);
+                if (state.Stacks.TryGetValue(entry.Overlay, out List<VideoOverlayTiming> stacked)) {
+                    // A stacked list stands for its overlays: each keeps its own interval inside the list's box.
+                    foreach (VideoOverlayTiming timing in stacked) {
+                        state.OverlayPlacements.Add(new VideoOverlayPlacement(span, timing.Entry.Overlay, timing.Entry.Path, overlay, timing.Start, timing.End, bounds));
+                    }
+                } else {
+                    state.OverlayPlacements.Add(new VideoOverlayPlacement(span, entry.Overlay, entry.Path, overlay, overlay.Start, overlay.End, bounds));
                 }
             }
             if (scene.Entry?.Effect == "appear") {
@@ -281,6 +297,8 @@ namespace helengine.video {
             }
             MediaTime start = state.Global(span, overlay.At, path + ".at");
             MediaTime end = overlay.Until == null ? span.End : state.Global(span, overlay.Until, path + ".until");
+            // Plain text shows everything at once, so its reading time runs from the start; it wins over an earlier until.
+            end = VideoOverlayHold.End(state, overlay, start, end);
             if (end <= start) {
                 state.Diagnostics.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Warning, "overlay_skipped", span.Scene.Id, path, "The overlay ends before it starts and was skipped."));
                 return null;
@@ -295,6 +313,36 @@ namespace helengine.video {
             };
             VideoAnimationBuilder.AddLift(layer, state.Edit.Tracks.Captions);
             return layer;
+        }
+
+        /// <summary>
+        /// Estimates the screen box of a compiled plain overlay: its region box when it claims one, otherwise its text
+        /// measured at the style font size, wrapped to the style width and centered on the style placement.
+        /// </summary>
+        /// <param name="state">Compilation state.</param>
+        /// <param name="span">Scene span.</param>
+        /// <param name="overlay">Overlay.</param>
+        /// <param name="layer">Compiled overlay layer.</param>
+        /// <returns>Box in output pixels, or null when the layer is not plain text.</returns>
+        static VideoGraphicRectangle PlainBounds(VideoCompileState state, VideoSceneSpan span, VideoOverlay overlay, VisualLayer layer) {
+            if (layer.Kind != "text" || layer.Text == null) {
+                return null;
+            }
+            double width = state.Edit.Format.Width, height = state.Edit.Format.Height;
+            if (overlay.Region != null) {
+                return VideoGraphicSafeArea.ForRegion(state.Edit, VideoArrangementPresets.Region(state.Edit, span.Scene, overlay.Region).Rectangle(width, height)).Bounds;
+            }
+            System.Text.Json.JsonElement style = layer.Text.Style;
+            if (style.ValueKind != System.Text.Json.JsonValueKind.Object) {
+                return null;
+            }
+            double size = VideoTextStyles.Number(style, "FontSize", VideoTextStyles.DefaultFontSize);
+            double maxWidth = width * Math.Clamp(VideoTextStyles.Number(style, "MaxWidth", VideoTextStyles.DefaultMaxWidth), 0.1, 1);
+            double advance = (state.Context.TextMeasurer ?? new VideoTextEstimator()).Measure(style, overlay.Text ?? "", size).Width;
+            double lines = Math.Max(1, Math.Ceiling(advance / maxWidth));
+            double boxWidth = Math.Min(advance, maxWidth), boxHeight = lines * size * VideoTextStyles.LineHeight;
+            double centerX = VideoTextStyles.Number(style, "CenterX", 0.5) * width, centerY = VideoTextStyles.Number(style, "CenterY", VideoTextStyles.DefaultCenterY) * height;
+            return new VideoGraphicRectangle(centerX - boxWidth / 2, centerY - boxHeight / 2, centerX + boxWidth / 2, centerY + boxHeight / 2);
         }
 
         /// <summary>
