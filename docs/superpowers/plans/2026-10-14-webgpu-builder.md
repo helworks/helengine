@@ -10,7 +10,7 @@
 
 **Spec:** `C:\dev\helworks\helengine\docs\superpowers\specs\2026-10-14-webgpu-builder-design.md`.
 
-**Execution status:** aguardando revisão do plano e escolha do método de execução. Nenhum código de produto foi implementado.
+**Execution status:** concluído em 2026-10-14, por execução Native aprovada por Helena. Implementação, revisão independente e aceite do wrapper/cache concluídos. Evidências: `C:\dev\helworks\builds\helengine-webgpu\cube-test\validation.md`. Decisões de execução: `C:\dev\helworks\helengine\docs\superpowers\reports\2026-10-14-webgpu-builder-execution.md`.
 
 ## Global Constraints
 
@@ -220,3 +220,9 @@ dotnet run --project C:\dev\helworks\helengine\tools\build-waiter\helengine.buil
 Cobertura conferida: definição/cooking (1), execução/cache/artefatos (2/7), portabilidade/device/lifecycle (3), mesh/material/luz (4), UI/input/scripts (5), áudio (6), registro/página/cena real (7). As cinco condições do Review Focus têm testes explícitos nas tarefas indicadas. Falhas que demandem uma arquitetura diferente continuam sujeitas a feedback de Helena.
 
 Recomendação de execução: **Native**, implementando as tarefas sequencialmente nesta sessão. Elas dependem fortemente das mesmas interfaces de core, build e recursos GPU; a sequência reduz retrabalho entre tarefas. Uma revisão independente final só é iniciada após escolha explícita desse método, conforme as instruções de execução aplicáveis. Para subagentes eventualmente autorizados, usar `gpt-6.1-sol` com raciocínio `high`, conforme as instruções de Helena.
+
+## Registro da execução
+
+As sete áreas foram implementadas. O aceite usa core e módulo DemoDisc reais, sem editar cena/scripts authored. Resultado final: 20/20 testes do builder, 27/27 navegador, GPU NVIDIA Lovelace sem fallback, debug/release compilados e três exportações oficiais bem-sucedidas após as correções. Build Waiter confirmou arquivos frescos/não vazios e estado terminal succeeded/exit0. A repetição reutilizou 11/13 objetos nativos; dois foram atualizados pelo ajuste de DPI.
+
+Os checklists acima preservam o roteiro original. A execução consolidou cenários em testes de comportamento da cena real e consumiu manifests do produtor oficial em vez de duplicar um writer. Casos sintéticos sem prova independente (família errada, id conflitante e combinações de clear/clip) estão explicitamente listados no relatório, sem alegação de testes executados. Revisão independente identificou seis falhas concretas, corrigidas e reconferidas; as regressões de PCM/input/GPU/DPI receberam provas executadas.
