@@ -1262,9 +1262,18 @@ namespace helengine.editor {
         /// matched in every processing context the project can cook: the current one plus every candidate platform
         /// (see <see cref="BuildProcessedAssetIdCandidatePlatformIds"/>) with its base settings and each of its
         /// environment overrides. When identical sources produce the same id, the first enumerated source wins.
+        /// The lookup is read-only (it runs during scene save): it never creates, repairs or rewrites a sidecar, takes
+        /// source checksums from the session hash cache (remembered by length and timestamp), and skips a sidecar that
+        /// is not current model import settings with a logged warning instead of failing.
         /// </summary>
+        /// <param name="hashCache">Session hash cache that supplies each model source's content hash.</param>
         /// <returns>Absolute authored model source paths keyed by processed model asset id (case-sensitive).</returns>
-        public Dictionary<string, string> BuildImportedModelSourcePathsByProcessedAssetId() {
+        public Dictionary<string, string> BuildImportedModelSourcePathsByProcessedAssetId(EditorAssetHashCache hashCache) {
+            if (hashCache == null) {
+                throw new ArgumentNullException(nameof(hashCache));
+            }
+
+
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(assetsRootPath, projectRootPath);
             Dictionary<string, string> sourcePathsByProcessedAssetId = new Dictionary<string, string>(StringComparer.Ordinal);
             if (!Directory.Exists(assetsRootPath)) {
@@ -1279,10 +1288,13 @@ namespace helengine.editor {
                 }
 
                 ModelAssetImportSettings settings;
-                if (!TryLoadOrCreateModelImportSettings(sourcePath, out settings) || settings == null) {
+                if (!TryReadModelImportSettingsForLookup(sourcePath, out settings)) {
                     continue;
                 }
 
+                string sourceChecksum = ResolveSourceChecksum(hashCache, sourcePath);
+                settings.Importer.SourceChecksum = sourceChecksum;
+                settings.Importer.ProcessedAssetId = BuildModelAssetId(settings, sourceChecksum);
                 sourcePathsByProcessedAssetId.TryAdd(settings.Importer.ProcessedAssetId, sourcePath);
                 List<string> candidatePlatformIds = BuildProcessedAssetIdCandidatePlatformIds(settings.Processor?.Platforms?.Keys, projectPlatformIds);
                 for (int index = 0; index < candidatePlatformIds.Count; index++) {
@@ -1305,6 +1317,66 @@ namespace helengine.editor {
             }
 
             return sourcePathsByProcessedAssetId;
+        }
+
+        /// <summary>
+        /// Reads one model source's import settings for a reverse lookup without any side effect. A missing sidecar
+        /// yields the defaults an import would create (nothing is written); an unusable importer id is replaced in
+        /// memory exactly as an import would repair it (nothing is written). A sidecar that is not current model import
+        /// settings (an older version, another settings kind or not HELE at all) is recognised through a header probe,
+        /// without an exception, and skipped with a warning naming the file.
+        /// </summary>
+        /// <param name="sourcePath">Absolute model source path.</param>
+        /// <param name="settings">Settings to recompute processed ids from, when usable.</param>
+        /// <returns>True when settings were resolved; false when the sidecar was skipped.</returns>
+        bool TryReadModelImportSettingsForLookup(string sourcePath, out ModelAssetImportSettings settings) {
+            string settingsPath = GetSettingsPath(sourcePath);
+            if (!File.Exists(settingsPath)) {
+                if (!TryCreateDefaultModelImportSettings(sourcePath, out settings)) {
+                    settings = new ModelAssetImportSettings();
+                }
+
+                return true;
+            }
+
+            using MemoryStream stream = OpenVerifiedRead(settingsPath);
+            if (!EngineBinaryHeaderSerializer.TryRead(stream, out EngineBinaryHeader header)
+                || header.FormatId != EditorAssetBinarySerializer.FormatId
+                || header.RecordKind != (ushort)ModelAssetImportSettingsBinarySerializer.RecordKind
+                || header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.ModelAssetImportSettings
+                || header.Version != ModelAssetImportSettingsBinarySerializer.CurrentVersion) {
+                string found = header == null
+                    ? "no HELE header"
+                    : $"record kind {header.RecordKind}, value kind {header.ValueKind}, version {header.Version}";
+                Logger.WriteWarning(
+                    $"Model import settings sidecar '{settingsPath}' is not current model import settings ({found}; current version " +
+                    $"{ModelAssetImportSettingsBinarySerializer.CurrentVersion}). It is skipped while resolving runtime model ids. " +
+                    "Regenerate the model import settings sidecar.");
+                settings = null;
+                return false;
+            }
+
+            stream.Position = 0;
+            settings = ModelAssetImportSettingsBinarySerializer.Deserialize(stream);
+            RepairModelImporterId(sourcePath, settings);
+            return true;
+        }
+
+        /// <summary>
+        /// Resolves one source's checksum in the import-settings format (lowercase hex, no prefix) through the session
+        /// hash cache, which only rehashes a file whose length or timestamp changed.
+        /// </summary>
+        /// <param name="hashCache">Session hash cache.</param>
+        /// <param name="sourcePath">Absolute source path.</param>
+        /// <returns>Source checksum identical to the one an import computes.</returns>
+        static string ResolveSourceChecksum(EditorAssetHashCache hashCache, string sourcePath) {
+            const string ContentHashPrefix = "sha256:";
+            string contentHash = hashCache.GetContentHash(sourcePath);
+            if (!contentHash.StartsWith(ContentHashPrefix, StringComparison.Ordinal)) {
+                throw new InvalidOperationException($"Hash cache returned an unexpected content hash '{contentHash}' for '{sourcePath}'.");
+            }
+
+            return contentHash.Substring(ContentHashPrefix.Length);
         }
 
         /// <summary>

@@ -353,12 +353,13 @@ namespace helengine.editor {
 
         /// <summary>
         /// Maps every processed model id the project's model sources can produce back to its assets-relative source
-        /// path, by recomputing the ids through this session's import manager.
+        /// path, by recomputing the ids through this session's import manager (read-only; checksums come from the
+        /// session hash cache).
         /// </summary>
         /// <returns>Assets-relative model source paths (forward slashes) keyed by processed model asset id.</returns>
         public IReadOnlyDictionary<string, string> BuildImportedModelRelativePathsByProcessedAssetId() {
             EnsureNotDisposed();
-            Dictionary<string, string> sourcePaths = AssetImportManagerValue.BuildImportedModelSourcePathsByProcessedAssetId();
+            Dictionary<string, string> sourcePaths = AssetImportManagerValue.BuildImportedModelSourcePathsByProcessedAssetId(HashCache);
             Dictionary<string, string> relativePaths = new Dictionary<string, string>(sourcePaths.Count, StringComparer.Ordinal);
             foreach (KeyValuePair<string, string> entry in sourcePaths) {
                 relativePaths.Add(entry.Key, Path.GetRelativePath(AssetsRootPath, entry.Value).Replace('\\', '/'));

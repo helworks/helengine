@@ -495,6 +495,79 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures model inference during scene save is read-only and tolerant: a model sidecar whose importer id an
+        /// import would repair is neither repaired nor rewritten (bytes and timestamp unchanged), and an obsolete model
+        /// sidecar elsewhere in the project is skipped without failing the save or raising an exception about it.
+        /// </summary>
+        [Fact]
+        public void Save_WhenModelSidecarsNeedRepairOrAreObsolete_InfersWithoutWritingOrFailing() {
+            string modelSourcePath = Path.Combine(TempProjectRootPath, "assets", "Models", "Arrow.obj");
+            string obsoleteSourcePath = Path.Combine(TempProjectRootPath, "assets", "Models", "Obsolete.obj");
+            Directory.CreateDirectory(Path.GetDirectoryName(modelSourcePath));
+            File.WriteAllText(modelSourcePath, "# arrow");
+            File.WriteAllText(obsoleteSourcePath, "# obsolete");
+            string processedModelId = ResolveProcessedModelId(modelSourcePath, "windows");
+
+            ModelAssetImportSettings staleSettings = new ModelAssetImportSettings();
+            staleSettings.Importer.ImporterId = "unregistered-importer";
+            string settingsPath = modelSourcePath + ".hasset";
+            using (FileStream stream = File.Create(settingsPath)) {
+                ModelAssetImportSettingsBinarySerializer.Serialize(stream, staleSettings);
+            }
+            byte[] obsoleteBytes;
+            using (MemoryStream stream = new MemoryStream()) {
+                ModelAssetImportSettingsBinarySerializer.Serialize(stream, staleSettings);
+                obsoleteBytes = stream.ToArray();
+            }
+            obsoleteBytes[5] = (byte)(ModelAssetImportSettingsBinarySerializer.CurrentVersion - 1);
+            string obsoleteSettingsPath = obsoleteSourcePath + ".hasset";
+            File.WriteAllBytes(obsoleteSettingsPath, obsoleteBytes);
+            DateTime pinnedWriteTime = new DateTime(2020, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+            File.SetLastWriteTimeUtc(settingsPath, pinnedWriteTime);
+            byte[] settingsBytes = File.ReadAllBytes(settingsPath);
+
+            IEditorProjectAuthoringSession session = GeneratedAssetGraph.CreateAuthoringSession(
+                TempProjectRootPath,
+                [new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" })]);
+            SceneSaveService saveService = new SceneSaveService(session, new ComponentPersistenceRegistry());
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "ReadOnlyModelInference.helen");
+            EditorEntity root = CreateUserEntity("Arrow", float3.Zero, float3.One, float4.Identity);
+            TestRuntimeModel runtimeModel = new TestRuntimeModel();
+            runtimeModel.SetId(processedModelId);
+            root.AddComponent(new MeshComponent {
+                Model = runtimeModel,
+                Materials = new RuntimeMaterial[] { GeneratedAssetGraph.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId) },
+                RenderOrder3D = 3
+            });
+            int testThreadId = Environment.CurrentManagedThreadId;
+            int obsoleteExceptionCount = 0;
+            EventHandler<System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs> handler = (sender, args) => {
+                if (Environment.CurrentManagedThreadId == testThreadId && args.Exception.Message.Contains("Obsolete.obj", StringComparison.Ordinal)) {
+                    obsoleteExceptionCount++;
+                }
+            };
+
+            AppDomain.CurrentDomain.FirstChanceException += handler;
+            try {
+                saveService.Save(scenePath);
+            } finally {
+                AppDomain.CurrentDomain.FirstChanceException -= handler;
+            }
+
+            Assert.Equal(0, obsoleteExceptionCount);
+            Assert.Equal(settingsBytes, File.ReadAllBytes(settingsPath));
+            Assert.Equal(pinnedWriteTime, File.GetLastWriteTimeUtc(settingsPath));
+            Assert.Equal(obsoleteBytes, File.ReadAllBytes(obsoleteSettingsPath));
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+            Assert.Contains(asset.AssetReferences, reference =>
+                reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem &&
+                reference.RelativePath == "Models/Arrow.obj");
+        }
+
+        /// <summary>
         /// Recomputes the processed id one platform's import gives a model source, as a runtime model imported for that
         /// platform would carry it.
         /// </summary>
