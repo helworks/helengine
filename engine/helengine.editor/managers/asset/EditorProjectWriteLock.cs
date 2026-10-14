@@ -10,6 +10,12 @@ namespace helengine.editor {
         const int RetryDelayMilliseconds = 10;
 
         /// <summary>
+        /// Mutation-hook point raised in <see cref="Dispose"/> after the lock file closed and before the directory scope
+        /// is released, so tests can make that release fail.
+        /// </summary>
+        internal const string ScopeReleaseHookPoint = "WriteLock.BeforeScopeRelease";
+
+        /// <summary>
         /// In-process gates keyed by canonical lock-file path. A thread takes the gate before it opens the lock file and
         /// gives it back after closing the file, so threads of this editor (the frame thread and a background Play cook)
         /// queue on the gate, a plain kernel wait with no exceptions and no polling. Only another process holding the
@@ -43,6 +49,11 @@ namespace helengine.editor {
         /// never took it.
         /// </summary>
         readonly SemaphoreSlim InProcessGate;
+
+        /// <summary>
+        /// Set once <see cref="InProcessGate"/> was given back.
+        /// </summary>
+        bool GateReleased;
         bool IsDisposed;
 
         EditorProjectWriteLock(
@@ -112,7 +123,11 @@ namespace helengine.editor {
                     fullProjectRootPath,
                     lockDirectoryPath);
                 EditorAuthoringVerifiedFile verifiedLockFile = null;
-                while (DateTime.UtcNow <= deadlineUtc) {
+                // The gate wait may have used most of the deadline; the file is still tried at least once, so a free
+                // file is never reported as unavailable.
+                bool firstAttempt = true;
+                while (firstAttempt || DateTime.UtcNow <= deadlineUtc) {
+                    firstAttempt = false;
                     try {
                         EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(lockPath, fullProjectRootPath);
                         verifiedLockFile = mutationScope.OpenVerifiedFile(
@@ -224,19 +239,28 @@ namespace helengine.editor {
             // Remove ambient ownership only after all underlying handles have
             // closed successfully, so a failed release can be retried safely.
             List<Exception> failures = null;
+            bool lockFileClosed = false;
             try {
                 if (VerifiedLockFile != null) {
                     VerifiedLockFile.Dispose();
                 } else {
                     LockStream.Dispose();
                 }
+                lockFileClosed = true;
             } catch (Exception exception) {
                 failures = new List<Exception> { exception };
             }
             try {
+                EditorAuthoringMutationScope.InvokeMutationHook(ScopeReleaseHookPoint);
                 MutationScope?.Dispose();
             } catch (Exception exception) {
                 (failures ??= new List<Exception>()).Add(exception);
+            }
+            // Once the lock file is closed no other process or thread is excluded by this acquisition any more, so the
+            // gate goes back even when releasing the directory scope failed; otherwise every other thread of the editor
+            // would wait out its full deadline on a lock nobody holds.
+            if (lockFileClosed) {
+                ReleaseGateOnce();
             }
             if (failures != null) {
                 throw new AggregateException("The project authoring write lock could not be released.", failures);
@@ -248,10 +272,21 @@ namespace helengine.editor {
             if (HeldProjectRootKey != null && HeldVersionsByProjectRoot != null) {
                 HeldVersionsByProjectRoot.Remove(HeldProjectRootKey);
             }
-            // The file is closed; only now may the next thread of this editor take the gate. A failed release above
-            // keeps the gate, so the retried Dispose releases it exactly once.
             IsDisposed = true;
-            InProcessGate?.Release();
+            ReleaseGateOnce();
+        }
+
+        /// <summary>
+        /// Gives the in-process gate back the first time it is called for an owning acquisition, so a retried
+        /// <see cref="Dispose"/> after a partial failure never releases it twice.
+        /// </summary>
+        void ReleaseGateOnce() {
+            if (InProcessGate == null || GateReleased) {
+                return;
+            }
+
+            GateReleased = true;
+            InProcessGate.Release();
         }
 
         /// <summary>

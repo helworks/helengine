@@ -179,6 +179,50 @@ public sealed class EditorProjectWriteLockTests : IDisposable {
         Assert.True(otherThread.Result);
     }
 
+    /// <summary>
+    /// Ensures a free lock file is always tried at least once, even when the deadline has already passed by the time the
+    /// in-process gate was taken.
+    /// </summary>
+    [Fact]
+    public void Acquire_WhenTheDeadlineIsUsedUpBeforeTheFileAttempt_StillTriesTheFreeFileOnce() {
+        using EditorProjectWriteLock acquired = EditorProjectWriteLock.Acquire(ProjectRootPath, TimeSpan.FromTicks(1));
+
+        Assert.NotNull(acquired);
+    }
+
+    /// <summary>
+    /// Ensures a release that fails after the lock file was closed still gives the in-process gate back, so another
+    /// thread of the editor can take the free lock at once instead of waiting out its deadline.
+    /// </summary>
+    [Fact]
+    public void Dispose_WhenTheScopeReleaseFailsAfterTheFileClosed_StillReleasesTheGate() {
+        int testThreadId = Environment.CurrentManagedThreadId;
+        bool armed = true;
+        Action<string> previousHook = EditorAuthoringMutationScope.MutationHookForTests;
+        EditorAuthoringMutationScope.MutationHookForTests = point => {
+            previousHook?.Invoke(point);
+            if (armed && point == EditorProjectWriteLock.ScopeReleaseHookPoint && Environment.CurrentManagedThreadId == testThreadId) {
+                throw new IOException("Simulated scope release failure.");
+            }
+        };
+        try {
+            EditorProjectWriteLock held = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            Assert.Throws<AggregateException>(() => held.Dispose());
+
+            Task<bool> otherThread = Task.Run(() => {
+                using EditorProjectWriteLock acquired = EditorProjectWriteLock.Acquire(ProjectRootPath, TimeSpan.FromSeconds(5));
+                return acquired != null;
+            });
+            Assert.True(otherThread.Wait(TimeSpan.FromSeconds(10)));
+            Assert.True(otherThread.Result);
+
+            armed = false;
+            held.Dispose();
+        } finally {
+            EditorAuthoringMutationScope.MutationHookForTests = previousHook;
+        }
+    }
+
     [Fact]
     public async Task Acquire_WhenLockIsHeldForSeveralSeconds_WaitsAndSucceeds() {
         using EditorProjectWriteLock heldLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
