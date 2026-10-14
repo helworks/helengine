@@ -76,6 +76,10 @@
 		"published tool in a folder beside the editor" layout the codegen tool uses. The player keeps its own deps.json,
 		runtimeconfig.json and shader folders there instead of mixing them into the editor's output.
 	-->
+	<!-- The separately built player must restore into the same isolated artifacts root before a no-restore publish. -->
+	<Target Name="RestoreHelenginePlayer" AfterTargets="Restore">
+		<MSBuild Projects="..\..\engine\helengine.player\helengine.player.csproj" Targets="Restore" Properties="Configuration=$(Configuration)" />
+	</Target>
 	<Target Name="CopyHelenginePlayer" AfterTargets="Build">
 		<MSBuild Projects="..\..\engine\helengine.player\helengine.player.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
 			<Output TaskParameter="TargetOutputs" ItemName="HelenginePlayerTargetPath" />
