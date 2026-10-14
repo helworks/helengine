@@ -120,6 +120,11 @@ namespace helengine {
         double AppliedScalarScaleValue;
 
         /// <summary>
+        /// Stores the display pixel aspect the last scale pass used, so the recorded glyph scale matches the one the snapshots applied.
+        /// </summary>
+        double CurrentPixelAspectValue;
+
+        /// <summary>
         /// Authored canvas size that the full-viewport anchor space resolves to while a layout owner re-anchors its subtree in
         /// authored space (editor restore only), with a zero origin; (0, 0) when the live viewport bounds apply.
         /// </summary>
@@ -173,6 +178,7 @@ namespace helengine {
             CurrentAnchorSpaceValue = new AnchorSpace(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
             CurrentViewportAnchorSpaceValue = new AnchorSpace(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
             CurrentCanvasOriginValue = new float2(0f, 0f);
+            CurrentPixelAspectValue = RenderManager3D.SquarePixelAspect;
         }
 
         /// <summary>
@@ -355,6 +361,18 @@ namespace helengine {
                 return new int2(
                     Math.Max(1, (int)Math.Round(viewport.Z)),
                     Math.Max(1, (int)Math.Round(viewport.W)));
+            }
+        }
+
+        /// <summary>
+        /// Gets the display pixel aspect of the surface this viewport resolves against: the primary window for screen
+        /// binding, the bound camera's output for camera binding, and square pixels for a fixed size or while the authored
+        /// reference rect is active.
+        /// </summary>
+        public double ResolvedPixelAspect {
+            get {
+                RefreshSubscriptions();
+                return ResolvePixelAspect();
             }
         }
 
@@ -599,7 +617,7 @@ namespace helengine {
             AppliedHeightScaleValue = (double)CurrentAnchorSpaceValue.Size.Y / ReferenceHeightValue;
             AppliedScalarScaleValue = ScalingModeValue == ReferenceCanvasStretchScalingMode
                 ? AppliedHeightScaleValue
-                : Math.Min(AppliedWidthScaleValue, AppliedHeightScaleValue);
+                : DisplayAspectFitUtils.ResolveGlyphScale(AppliedWidthScaleValue, AppliedHeightScaleValue, CurrentPixelAspectValue);
         }
 
         /// <summary>
@@ -839,6 +857,25 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Resolves the display pixel aspect of the active viewport surface without forcing another subscription refresh.
+        /// </summary>
+        /// <returns>Displayed width of one surface pixel divided by its displayed height.</returns>
+        double ResolvePixelAspect() {
+            if (AuthoredViewportRectSizeValue.X > 0 && AuthoredViewportRectSizeValue.Y > 0) {
+                return RenderManager3D.SquarePixelAspect;
+            } else if (OwnerCore == null || OwnerCore.RenderManager3D == null) {
+                return RenderManager3D.SquarePixelAspect;
+            } else if (BindingModeValue == ScreenBindingMode) {
+                return OwnerCore.RenderManager3D.MainWindowPixelAspect;
+            } else if (BindingModeValue == AncestorCameraBindingMode || BindingModeValue == ExplicitCameraBindingMode) {
+                CameraComponent cameraComponent = ResolveBoundCameraComponent();
+                return cameraComponent != null ? OwnerCore.RenderManager3D.GetCameraPixelAspect(cameraComponent) : RenderManager3D.SquarePixelAspect;
+            }
+
+            return RenderManager3D.SquarePixelAspect;
+        }
+
+        /// <summary>
         /// Resolves the active camera that should currently drive this viewport.
         /// </summary>
         /// <returns>A hierarchy-owned camera borrowed by the viewport, or null when no binding is available.</returns>
@@ -1012,6 +1049,8 @@ namespace helengine {
             CurrentAnchorSpaceValue.Update(resolvedAnchorSpaceSize, resolvedAnchorSpaceOrigin);
             CurrentCanvasOriginValue = resolvedCanvasOrigin;
             double densityScale = ScalingModeValue == DensityScalingMode ? DensityScale : 1d;
+            double pixelAspect = ResolvePixelAspect();
+            CurrentPixelAspectValue = pixelAspect;
             for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
                 if (ScalingModeValue == DensityScalingMode) {
                     LayoutSnapshotsValue[snapshotIndex].ApplyDensityScale(densityScale);
@@ -1022,7 +1061,8 @@ namespace helengine {
                     resolvedCanvasOrigin,
                     ReferenceWidthValue,
                     ReferenceHeightValue,
-                    ScalingModeValue == ReferenceCanvasStretchScalingMode);
+                    ScalingModeValue == ReferenceCanvasStretchScalingMode,
+                    pixelAspect);
             }
 
             for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
@@ -1046,20 +1086,7 @@ namespace helengine {
 
             double liveWidth = viewportBounds.X > 0 ? viewportBounds.X : ReferenceWidthValue;
             double liveHeight = viewportBounds.Y > 0 ? viewportBounds.Y : ReferenceHeightValue;
-            if (LiveViewportMatchesReferenceAspect(liveWidth, liveHeight)) {
-                return new int2((int)Math.Round(liveWidth), (int)Math.Round(liveHeight));
-            }
-
-            double widthScale = liveWidth / ReferenceWidthValue;
-            double heightScale = liveHeight / ReferenceHeightValue;
-            double scale = Math.Min(widthScale, heightScale);
-            if (scale <= 0d) {
-                return new int2(ReferenceWidthValue, ReferenceHeightValue);
-            }
-
-            int fittedWidth = Math.Max(1, (int)Math.Round(ReferenceWidthValue * scale));
-            int fittedHeight = Math.Max(1, (int)Math.Round(ReferenceHeightValue * scale));
-            return new int2(fittedWidth, fittedHeight);
+            return DisplayAspectFitUtils.ResolveFittedSize(liveWidth, liveHeight, ReferenceWidthValue, ReferenceHeightValue, ResolvePixelAspect());
         }
 
         /// <summary>
@@ -1074,18 +1101,6 @@ namespace helengine {
             float originX = (float)((liveWidth - anchorSpaceSize.X) * 0.5d);
             float originY = (float)((liveHeight - anchorSpaceSize.Y) * 0.5d);
             return new float2(originX, originY);
-        }
-
-        /// <summary>
-        /// Determines whether the live viewport aspect matches the authored reference aspect closely enough to skip letterboxing.
-        /// </summary>
-        /// <param name="liveWidth">Live viewport width.</param>
-        /// <param name="liveHeight">Live viewport height.</param>
-        /// <returns>True when the viewport aspect is effectively the same as the reference aspect.</returns>
-        bool LiveViewportMatchesReferenceAspect(double liveWidth, double liveHeight) {
-            double expectedWidth = liveHeight * ReferenceWidthValue / ReferenceHeightValue;
-            double expectedHeight = liveWidth * ReferenceHeightValue / ReferenceWidthValue;
-            return Math.Abs(liveWidth - expectedWidth) <= 0.5d || Math.Abs(liveHeight - expectedHeight) <= 0.5d;
         }
 
         /// <summary>

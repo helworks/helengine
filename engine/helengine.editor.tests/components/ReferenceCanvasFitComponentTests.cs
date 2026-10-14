@@ -449,6 +449,150 @@ namespace helengine.editor.tests.components {
         }
 
         /// <summary>
+        /// On a 640x240 framebuffer shown at pixel aspect 0.5 (a 4:3 display), the 1280x720 reference canvas fits in
+        /// display space: the subtree is scaled 0.5 horizontally and 0.25 vertically in framebuffer pixels. The 560x420
+        /// panel becomes 280x105 framebuffer pixels, which display as 140x105 and keep the authored 4:3 shape; radii,
+        /// outlines, shadows and glyphs follow the display-uniform scale 0.25.
+        /// </summary>
+        [Fact]
+        public void Update_WhenWindowHasNonSquarePixels_FitsTheCanvasInDisplaySpace() {
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
+            Entity panelEntity;
+            RoundedRectComponent panelBackground;
+            Entity headingEntity;
+            TextComponent headingText;
+            ReferenceCanvasFitComponent fit = CreateFittedPanelScene(out panelEntity, out panelBackground, out headingEntity, out headingText);
+
+            renderManager.OnWindowResize(IntPtr.Zero, 640, 240);
+            renderManager.SetWindowPixelAspect(IntPtr.Zero, 0.5d);
+            Core.Instance.Update();
+
+            Assert.Equal(new int2(640, 180), fit.AnchorSpace.Size);
+            Assert.Equal(new float3(44f, 47.5f, 0f), panelEntity.LocalPosition);
+            Assert.Equal(new int2(280, 105), panelBackground.Size);
+            Assert.Equal(4.5f, panelBackground.Radius);
+            Assert.Equal(0.75f, panelBackground.BorderThickness);
+            Assert.Equal(new float3(16f, 7.5f, 0.1f), headingEntity.LocalPosition);
+            Assert.Equal(new int2(210, 9), headingText.Size);
+            Assert.Equal(0.25f, headingText.FontScale);
+            Assert.Equal(0.5f, headingText.OutlineScale);
+            Assert.Equal(new float2(1f, 1.5f), headingText.ShadowOffset);
+        }
+
+        /// <summary>A window reported with square pixels fits exactly as a window that never reported a pixel aspect.</summary>
+        [Fact]
+        public void Update_WhenWindowReportsSquarePixels_FitsExactlyAsBefore() {
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
+            Entity panelEntity;
+            RoundedRectComponent panelBackground;
+            Entity headingEntity;
+            TextComponent headingText;
+            ReferenceCanvasFitComponent fit = CreateFittedPanelScene(out panelEntity, out panelBackground, out headingEntity, out headingText);
+
+            renderManager.OnWindowResize(IntPtr.Zero, 640, 480);
+            renderManager.SetWindowPixelAspect(IntPtr.Zero, RenderManager3D.SquarePixelAspect);
+            Core.Instance.Update();
+
+            Assert.Equal(new int2(640, 360), fit.AnchorSpace.Size);
+            Assert.Equal(new float3(44f, 95f, 0f), panelEntity.LocalPosition);
+            Assert.Equal(new int2(280, 210), panelBackground.Size);
+            Assert.Equal(9f, panelBackground.Radius);
+            Assert.Equal(new float3(16f, 15f, 0.1f), headingEntity.LocalPosition);
+            Assert.Equal(0.5f, headingText.FontScale);
+        }
+
+        /// <summary>
+        /// A reference-canvas viewport on a 640x240 framebuffer shown at pixel aspect 0.5 scales its subtree in display
+        /// space too, and reports the pixel aspect it fitted with.
+        /// </summary>
+        [Fact]
+        public void Update_WhenViewportScalesAWindowWithNonSquarePixels_FitsInDisplaySpace() {
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
+
+            Entity menuRoot = CreateEntity(float3.Zero);
+            ViewportComponent viewport = new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                FixedSize = new int2(1280, 720),
+                ScalingMode = ViewportComponent.ReferenceCanvasScalingMode,
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            };
+            menuRoot.AddComponent(viewport);
+            Entity generatedRoot = CreateEntity(float3.Zero);
+            menuRoot.AddChild(generatedRoot);
+            Entity panelEntity = CreateEntity(new float3(88f, 190f, 0f));
+            RoundedRectComponent panelBackground = new RoundedRectComponent {
+                Size = new int2(560, 420),
+                Radius = 18f,
+                BorderThickness = 3f
+            };
+            panelEntity.AddComponent(panelBackground);
+            generatedRoot.AddChild(panelEntity);
+            menuRoot.InitializeHierarchy();
+
+            renderManager.OnWindowResize(IntPtr.Zero, 640, 240);
+            renderManager.SetWindowPixelAspect(IntPtr.Zero, 0.5d);
+            Core.Instance.Update();
+
+            Assert.Equal(0.5d, viewport.ResolvedPixelAspect);
+            Assert.Equal(new int2(640, 180), viewport.AnchorSpace.Size);
+            Assert.Equal(new float3(44f, 47.5f, 0f), panelEntity.LocalPosition);
+            Assert.Equal(new int2(280, 105), panelBackground.Size);
+            Assert.Equal(4.5f, panelBackground.Radius);
+        }
+
+        /// <summary>
+        /// Builds a screen-bound menu root with a 1280x720 reference-canvas fit, one 560x420 panel at (88, 190) and a
+        /// heading text inside it, and initializes the hierarchy.
+        /// </summary>
+        /// <param name="panelEntity">Receives the panel entity.</param>
+        /// <param name="panelBackground">Receives the panel's rounded rectangle.</param>
+        /// <param name="headingEntity">Receives the heading entity.</param>
+        /// <param name="headingText">Receives the heading text component.</param>
+        /// <returns>The fit component on the menu root.</returns>
+        static ReferenceCanvasFitComponent CreateFittedPanelScene(out Entity panelEntity, out RoundedRectComponent panelBackground, out Entity headingEntity, out TextComponent headingText) {
+            Entity menuRoot = CreateEntity(float3.Zero);
+            menuRoot.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                FixedSize = new int2(1280, 720)
+            });
+            Entity generatedRoot = CreateEntity(float3.Zero);
+            menuRoot.AddChild(generatedRoot);
+
+            panelEntity = CreateEntity(new float3(88f, 190f, 0f));
+            panelBackground = new RoundedRectComponent {
+                Size = new int2(560, 420),
+                Radius = 18f,
+                BorderThickness = 3f
+            };
+            panelEntity.AddComponent(panelBackground);
+            generatedRoot.AddChild(panelEntity);
+
+            headingEntity = CreateEntity(new float3(32f, 30f, 0.1f));
+            headingText = new TextComponent {
+                Font = CreateFont(),
+                Text = "Heading",
+                Size = new int2(420, 36),
+                FontScale = 1f,
+                OutlineScale = 2f,
+                ShadowOffset = new float2(4f, 6f)
+            };
+            headingEntity.AddComponent(headingText);
+            panelEntity.AddChild(headingEntity);
+
+            ReferenceCanvasFitComponent fit = new ReferenceCanvasFitComponent {
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            };
+            menuRoot.AddComponent(fit);
+            menuRoot.InitializeHierarchy();
+            return fit;
+        }
+
+        /// <summary>
         /// Creates one initialized entity with the supplied local position.
         /// </summary>
         /// <param name="localPosition">Local position assigned to the entity.</param>

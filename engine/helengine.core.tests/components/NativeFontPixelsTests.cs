@@ -60,16 +60,16 @@ namespace helengine.core.tests.components {
             ViewportLayoutSnapshot viewport = new ViewportLayoutSnapshot(entity, false);
             ReferenceCanvasFitSnapshot canvas = new ReferenceCanvasFitSnapshot(entity, false);
             if (referenceCanvas) {
-                canvas.Apply(reduced, new float2(), 1280, 720);
+                canvas.Apply(reduced, new float2(), 1280, 720, RenderManager3D.SquarePixelAspect);
             } else {
-                viewport.Apply(reduced, new float2(), 1280, 720, false);
+                viewport.Apply(reduced, new float2(), 1280, 720, false, RenderManager3D.SquarePixelAspect);
             }
             Assert.Equal(nativePixels ? 1f : 0.5f, text.FontScale);
             Assert.Equal(new int2(100, 50), text.Size);
             if (referenceCanvas) {
-                canvas.Apply(new AnchorSpace(new int2(1280, 720), new float2()), new float2(), 1280, 720);
+                canvas.Apply(new AnchorSpace(new int2(1280, 720), new float2()), new float2(), 1280, 720, RenderManager3D.SquarePixelAspect);
             } else {
-                viewport.Apply(new AnchorSpace(new int2(1280, 720), new float2()), new float2(), 1280, 720, false);
+                viewport.Apply(new AnchorSpace(new int2(1280, 720), new float2()), new float2(), 1280, 720, false, RenderManager3D.SquarePixelAspect);
             }
             Assert.Equal(nativePixels ? 1f : 2f, text.FontScale);
             Assert.Equal(new int2(400, 100), text.Size);

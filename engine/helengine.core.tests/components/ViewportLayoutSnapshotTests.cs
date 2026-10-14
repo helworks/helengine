@@ -40,8 +40,8 @@ namespace helengine.core.tests.components {
             ViewportLayoutSnapshot snapshot = new ViewportLayoutSnapshot(entity, false);
             AnchorSpace reduced = new AnchorSpace(new int2(viewportWidth, viewportHeight), new float2(0f, 0f));
 
-            snapshot.Apply(reduced, new float2(0f, 0f), 1280, 720, stretchCanvas);
-            snapshot.Apply(reduced, new float2(0f, 0f), 1280, 720, stretchCanvas);
+            snapshot.Apply(reduced, new float2(0f, 0f), 1280, 720, stretchCanvas, RenderManager3D.SquarePixelAspect);
+            snapshot.Apply(reduced, new float2(0f, 0f), 1280, 720, stretchCanvas, RenderManager3D.SquarePixelAspect);
 
             Assert.Equal(2f * expectedScale, text.FontScale);
             Assert.Equal(2f * expectedScale, text.OutlineScale);
@@ -51,7 +51,7 @@ namespace helengine.core.tests.components {
             Assert.Equal((int)Math.Round(100d * viewportHeight / 720d), text.Size.Y);
 
             snapshot.Apply(new AnchorSpace(new int2(1280, 720), new float2(0f, 0f)),
-                new float2(0f, 0f), 1280, 720, stretchCanvas);
+                new float2(0f, 0f), 1280, 720, stretchCanvas, RenderManager3D.SquarePixelAspect);
 
             Assert.Equal(2f, text.FontScale);
             Assert.Equal(2f, text.OutlineScale);

@@ -65,7 +65,7 @@ namespace helengine.core.tests {
             TextComponent text = CreateMenuText(core, mode, out Entity entity);
             ViewportLayoutSnapshot snapshot = new ViewportLayoutSnapshot(entity, true);
 
-            snapshot.Apply(new AnchorSpace(new int2(640, 448), new float2(0f, 0f)), new float2(0f, 0f), 1280, 720, true);
+            snapshot.Apply(new AnchorSpace(new int2(640, 448), new float2(0f, 0f)), new float2(0f, 0f), 1280, 720, true, RenderManager3D.SquarePixelAspect);
 
             Assert.Equal(expectedOutline, text.OutlineScale, 5);
         }
@@ -80,7 +80,7 @@ namespace helengine.core.tests {
             TextComponent text = CreateMenuText(core, TextNativePixelMode.RoundNearest, out Entity entity);
             ReferenceCanvasFitSnapshot snapshot = new ReferenceCanvasFitSnapshot(entity, true);
 
-            snapshot.Apply(new AnchorSpace(new int2(640, 448), new float2(0f, 0f)), new float2(0f, 0f), 1280, 720);
+            snapshot.Apply(new AnchorSpace(new int2(640, 448), new float2(0f, 0f)), new float2(0f, 0f), 1280, 720, RenderManager3D.SquarePixelAspect);
 
             Assert.Equal(1f, text.OutlineScale);
             Assert.Equal(-1f, text.ShadowOffset.X);

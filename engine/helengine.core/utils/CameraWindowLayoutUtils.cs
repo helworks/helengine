@@ -78,5 +78,16 @@ namespace helengine {
             }
             return renderer.GetCameraLayoutSize(camera);
         }
+
+        /// <summary>Resolves the display pixel aspect a camera's layout surface is shown with.</summary>
+        /// <param name="renderer">Initialized renderer owning the host window registry.</param>
+        /// <param name="camera">Optional camera; null explicitly uses the primary window.</param>
+        /// <returns>The displayed width of one surface pixel divided by its displayed height.</returns>
+        public static double ResolveCameraPixelAspect(RenderManager3D renderer, CameraComponent camera) {
+            if (renderer == null) {
+                throw new ArgumentNullException(nameof(renderer));
+            }
+            return camera == null ? renderer.MainWindowPixelAspect : renderer.GetCameraPixelAspect(camera);
+        }
     }
 }

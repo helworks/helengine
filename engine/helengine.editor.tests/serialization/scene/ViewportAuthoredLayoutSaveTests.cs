@@ -544,6 +544,50 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// On a window with non-square pixels (pixel aspect 2, so the 1904x1041 editor window displays as 3808x1041) both
+        /// letterboxing layout owners fit in display space: the panel radius is previewed at the display-uniform glyph scale
+        /// 1.4453 (925/1280 * 2), not at the framebuffer minimum 0.7227. A radius edited in that preview must be mapped back
+        /// with the same glyph scale, so the save holds the authored value and never a preview-scaled one.
+        /// </summary>
+        /// <param name="useViewport">True for a reference-canvas viewport; false for a reference-canvas fit component.</param>
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void Save_WhenRadiusIsEditedOnANonSquarePixelWindow_PersistsTheEditInAuthoredSpace(bool useViewport) {
+            ((TestRenderManager3D)CoreValue.RenderManager3D).SetWindowPixelAspect(IntPtr.Zero, 2d);
+            EditorEntity root;
+            if (useViewport) {
+                ViewportComponent viewport = new ViewportComponent {
+                    BindingMode = ViewportComponent.ScreenBindingMode,
+                    ScalingMode = ViewportComponent.ReferenceCanvasScalingMode,
+                    ReferenceWidth = 1280,
+                    ReferenceHeight = 720
+                };
+                root = CreateMenu(viewport);
+                viewport.Update();
+            } else {
+                ReferenceCanvasFitComponent fit = new ReferenceCanvasFitComponent { ReferenceWidth = 1280, ReferenceHeight = 720 };
+                root = CreateMenu(fit);
+                fit.Update();
+            }
+            RoundedRectComponent panelRect = GetComponent<RoundedRectComponent>(FindChild(root, "Panel"));
+            double glyphScale = 925d / 1280d * 2d;
+            Assert.Equal((float)(12d * glyphScale), panelRect.Radius);
+            panelRect.Radius = (float)(24d * glyphScale);
+
+            using SceneSaveService saveService = CreateSceneSaveService();
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "NonSquareEdited.helen");
+            saveService.Save(scenePath);
+
+            root.Dispose();
+            EditorEntity reloaded = LoadSingleRoot(scenePath);
+            RoundedRectComponent reloadedRect = GetComponent<RoundedRectComponent>(FindChild(reloaded, "Panel"));
+            Assert.Equal(24f, reloadedRect.Radius, 0.001f);
+            Assert.Equal(new int2(512, 96), reloadedRect.Size);
+            Assert.Equal(2f, reloadedRect.BorderThickness);
+        }
+
+        /// <summary>
         /// Creates the screen-bound stretch viewport used by the DemoDisc main menu (1280x720 reference).
         /// </summary>
         /// <returns>A detached viewport component.</returns>

@@ -193,10 +193,11 @@ namespace helengine {
         /// <param name="referenceWidth">Authored reference canvas width.</param>
         /// <param name="referenceHeight">Authored reference canvas height.</param>
         /// <param name="stretchCanvas">True when the viewport fills the live bounds with independent axis scales.</param>
-        public void Apply(AnchorSpace anchorSpace, float2 canvasOrigin, int referenceWidth, int referenceHeight, bool stretchCanvas) {
+        /// <param name="pixelAspect">Displayed width of one framebuffer pixel divided by its displayed height; 1 for square pixels.</param>
+        public void Apply(AnchorSpace anchorSpace, float2 canvasOrigin, int referenceWidth, int referenceHeight, bool stretchCanvas, double pixelAspect) {
             double widthScale = referenceWidth > 0 ? (double)anchorSpace.Size.X / referenceWidth : 1d;
             double heightScale = referenceHeight > 0 ? (double)anchorSpace.Size.Y / referenceHeight : 1d;
-            double scalarScale = stretchCanvas ? heightScale : Math.Min(widthScale, heightScale);
+            double scalarScale = stretchCanvas ? heightScale : DisplayAspectFitUtils.ResolveGlyphScale(widthScale, heightScale, pixelAspect);
             ApplyScale(canvasOrigin, widthScale, heightScale, scalarScale);
         }
 
