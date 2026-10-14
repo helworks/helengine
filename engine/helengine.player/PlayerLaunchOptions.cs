@@ -3,7 +3,7 @@ using helengine.baseplatform.Definitions;
 namespace helengine.player {
     /// <summary>
     /// Holds the validated command line the editor passes to the Play player:
-    /// <c>--content-root &lt;dir&gt; --scene-id &lt;id&gt; --scene-path &lt;cooked/relative.hasset&gt;
+    /// <c>--content-root &lt;dir&gt; --scene-id &lt;id&gt; --platform-name &lt;display name&gt; --scene-path &lt;cooked/relative.hasset&gt;
     /// --adapter-assembly &lt;dll&gt; --adapter-type &lt;full type name&gt; --script-modules &lt;dir&gt;
     /// --target-fps &lt;frames per second&gt; --input-devices &lt;comma list&gt; [--wait-for-debugger]</c>.
     /// Every value option is required; unknown, repeated or value-less options are rejected so a
@@ -15,6 +15,12 @@ namespace helengine.player {
 
         /// <summary>Option naming the stable id of the scene to load first.</summary>
         public const string SceneIdOption = "--scene-id";
+
+        /// <summary>
+        /// Option naming the display name of the platform being played (for example <c>PlayStation 2</c>), shown in the
+        /// player window title. The value may contain spaces; it is passed as one argument.
+        /// </summary>
+        public const string PlatformNameOption = "--platform-name";
 
         /// <summary>Option naming the cooked scene path relative to the content root.</summary>
         public const string ScenePathOption = "--scene-path";
@@ -45,6 +51,7 @@ namespace helengine.player {
         /// </summary>
         /// <param name="contentRootPath">Directory that holds the cooked platform content.</param>
         /// <param name="sceneId">Stable id of the scene to load first.</param>
+        /// <param name="platformName">Display name of the platform being played.</param>
         /// <param name="sceneCookedRelativePath">Cooked scene path relative to the content root.</param>
         /// <param name="adapterAssemblyPath">Path to the platform builder assembly containing the adapter.</param>
         /// <param name="adapterTypeName">Full type name of the player adapter.</param>
@@ -55,6 +62,7 @@ namespace helengine.player {
         PlayerLaunchOptions(
             string contentRootPath,
             string sceneId,
+            string platformName,
             string sceneCookedRelativePath,
             string adapterAssemblyPath,
             string adapterTypeName,
@@ -64,6 +72,7 @@ namespace helengine.player {
             bool waitForDebugger) {
             ContentRootPath = contentRootPath;
             SceneId = sceneId;
+            PlatformName = platformName;
             SceneCookedRelativePath = sceneCookedRelativePath;
             AdapterAssemblyPath = adapterAssemblyPath;
             AdapterTypeName = adapterTypeName;
@@ -78,6 +87,9 @@ namespace helengine.player {
 
         /// <summary>Gets the stable id of the scene the player loads at startup.</summary>
         public string SceneId { get; }
+
+        /// <summary>Gets the display name of the platform being played, shown in the player window title.</summary>
+        public string PlatformName { get; }
 
         /// <summary>Gets the cooked scene path, relative to <see cref="ContentRootPath"/>.</summary>
         public string SceneCookedRelativePath { get; }
@@ -116,6 +128,7 @@ namespace helengine.player {
 
             string contentRootPath = null;
             string sceneId = null;
+            string platformName = null;
             string sceneCookedRelativePath = null;
             string adapterAssemblyPath = null;
             string adapterTypeName = null;
@@ -138,6 +151,8 @@ namespace helengine.player {
                     contentRootPath = ReadValue(args, i, contentRootPath);
                 } else if (string.Equals(option, SceneIdOption, StringComparison.Ordinal)) {
                     sceneId = ReadValue(args, i, sceneId);
+                } else if (string.Equals(option, PlatformNameOption, StringComparison.Ordinal)) {
+                    platformName = ReadValue(args, i, platformName);
                 } else if (string.Equals(option, ScenePathOption, StringComparison.Ordinal)) {
                     sceneCookedRelativePath = ReadValue(args, i, sceneCookedRelativePath);
                 } else if (string.Equals(option, AdapterAssemblyOption, StringComparison.Ordinal)) {
@@ -159,6 +174,7 @@ namespace helengine.player {
 
             RequireOption(ContentRootOption, contentRootPath);
             RequireOption(SceneIdOption, sceneId);
+            RequireOption(PlatformNameOption, platformName);
             RequireOption(ScenePathOption, sceneCookedRelativePath);
             RequireOption(AdapterAssemblyOption, adapterAssemblyPath);
             RequireOption(AdapterTypeOption, adapterTypeName);
@@ -171,6 +187,7 @@ namespace helengine.player {
             return new PlayerLaunchOptions(
                 contentRootPath,
                 sceneId,
+                platformName,
                 sceneCookedRelativePath,
                 adapterAssemblyPath,
                 adapterTypeName,

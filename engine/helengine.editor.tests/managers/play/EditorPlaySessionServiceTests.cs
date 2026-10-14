@@ -18,6 +18,11 @@ public sealed class EditorPlaySessionServiceTests {
     const string PlatformId = "ps2";
 
     /// <summary>
+    /// Platform display name used for every Play request, as the Play platform selector shows it.
+    /// </summary>
+    const string PlatformDisplayName = "PlayStation 2";
+
+    /// <summary>
     /// Authored scene path representing a scene that has been saved at least once.
     /// </summary>
     const string ScenePath = @"C:\project\assets\scenes\cube_test.hscene";
@@ -58,7 +63,7 @@ public sealed class EditorPlaySessionServiceTests {
         EditorPlaySessionService service = new EditorPlaySessionService(cookRunner, scriptBuilder, launcher, PlayerExecutablePath);
         int saveCount = 0;
 
-        EditorBuildExecutionResult result = service.Play(PlatformId, "  ", () => { saveCount++; return true; }, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
+        EditorBuildExecutionResult result = service.Play(PlatformId, PlatformDisplayName, "  ", () => { saveCount++; return true; }, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
 
         Assert.False(result.Succeeded);
         Assert.Equal("Save the scene before pressing Play.", result.Message);
@@ -80,7 +85,7 @@ public sealed class EditorPlaySessionServiceTests {
         List<EditorPlaySessionState> states = new List<EditorPlaySessionState>();
         service.StateChanged += states.Add;
 
-        EditorBuildExecutionResult result = service.Play(PlatformId, ScenePath, () => false, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
+        EditorBuildExecutionResult result = service.Play(PlatformId, PlatformDisplayName, ScenePath, () => false, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
 
         Assert.False(result.Succeeded);
         Assert.Equal("Scene save failed; Play aborted.", result.Message);
@@ -101,7 +106,7 @@ public sealed class EditorPlaySessionServiceTests {
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
         EditorPlaySessionService service = new EditorPlaySessionService(cookRunner, scriptBuilder, launcher, PlayerExecutablePath);
 
-        EditorBuildExecutionResult result = service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
+        EditorBuildExecutionResult result = service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
 
         Assert.False(result.Succeeded);
         Assert.Equal("Cook exploded.", result.Message);
@@ -121,7 +126,7 @@ public sealed class EditorPlaySessionServiceTests {
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
         EditorPlaySessionService service = new EditorPlaySessionService(cookRunner, scriptBuilder, launcher, PlayerExecutablePath);
 
-        EditorBuildExecutionResult result = service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
+        EditorBuildExecutionResult result = service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
 
         Assert.False(result.Succeeded);
         Assert.Equal("Scripts did not compile.", result.Message);
@@ -141,7 +146,7 @@ public sealed class EditorPlaySessionServiceTests {
         List<EditorPlaySessionState> states = new List<EditorPlaySessionState>();
         service.StateChanged += states.Add;
 
-        EditorBuildExecutionResult result = service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
+        EditorBuildExecutionResult result = service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
 
         Assert.True(result.Succeeded);
         Assert.Equal("Player started (pid 1000).", result.Message);
@@ -152,6 +157,7 @@ public sealed class EditorPlaySessionServiceTests {
         string[] expectedArguments = {
             "--content-root", @"C:\project\cache\play\ps2-staging",
             "--scene-id", "scene-cube-test",
+            "--platform-name", PlatformDisplayName,
             "--scene-path", "scenes/cube_test.hscene",
             "--adapter-assembly", AdapterAssemblyPath,
             "--adapter-type", AdapterTypeName,
@@ -164,7 +170,7 @@ public sealed class EditorPlaySessionServiceTests {
         FakePlayProcessLauncher debugLauncher = new FakePlayProcessLauncher();
         EditorPlaySessionService debugService = new EditorPlaySessionService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), debugLauncher, PlayerExecutablePath);
 
-        debugService.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, true);
+        debugService.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, true);
 
         string[] expectedDebugArguments = expectedArguments.Concat(new[] { "--wait-for-debugger" }).ToArray();
         Assert.Equal(expectedDebugArguments, Assert.Single(debugLauncher.Requests).Arguments);
@@ -182,7 +188,7 @@ public sealed class EditorPlaySessionServiceTests {
         System.Globalization.CultureInfo previousCulture = System.Globalization.CultureInfo.CurrentCulture;
         System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("de-DE");
         try {
-            service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, capability.AdapterTypeName, capability.TargetFrameRate, capability.InputDevices, false);
+            service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, capability.AdapterTypeName, capability.TargetFrameRate, capability.InputDevices, false);
         } finally {
             System.Globalization.CultureInfo.CurrentCulture = previousCulture;
         }
@@ -203,7 +209,7 @@ public sealed class EditorPlaySessionServiceTests {
         EditorPlaySessionService service = new EditorPlaySessionService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath);
         PlatformPlayerCapability capability = new PlatformPlayerCapability(true, AdapterTypeName, "ps2-staging", 60d, PlayerInputDevices.Gamepad | PlayerInputDevices.Keyboard);
 
-        service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, capability.AdapterTypeName, capability.TargetFrameRate, capability.InputDevices, false);
+        service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, capability.AdapterTypeName, capability.TargetFrameRate, capability.InputDevices, false);
 
         IReadOnlyList<string> arguments = Assert.Single(launcher.Requests).Arguments;
         int optionIndex = arguments.ToList().IndexOf("--input-devices");
@@ -222,7 +228,7 @@ public sealed class EditorPlaySessionServiceTests {
         EditorPlaySessionService service = new EditorPlaySessionService(cookRunner, CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath);
 
         ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
-            () => service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, PlayerInputDevices.None, false));
+            () => service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, PlayerInputDevices.None, false));
 
         Assert.Equal("inputDevices", exception.ParamName);
         Assert.Empty(cookRunner.CookedPlatformIds);
@@ -245,7 +251,7 @@ public sealed class EditorPlaySessionServiceTests {
         EditorPlaySessionService service = new EditorPlaySessionService(cookRunner, CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath);
 
         ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
-            () => service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, targetFrameRate, InputDevices, false));
+            () => service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, targetFrameRate, InputDevices, false));
 
         Assert.Equal("targetFrameRate", exception.ParamName);
         Assert.Empty(cookRunner.CookedPlatformIds);
@@ -261,11 +267,11 @@ public sealed class EditorPlaySessionServiceTests {
     public void Play_WhenAlreadyRunning_KillsPreviousBeforeLaunching() {
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
         EditorPlaySessionService service = new EditorPlaySessionService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath);
-        service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
+        service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
         FakePlayProcess firstProcess = launcher.StartedProcesses[0];
         int killCountWhenSaving = -1;
 
-        EditorBuildExecutionResult result = service.Play(PlatformId, ScenePath, () => { killCountWhenSaving = firstProcess.KillCount; return true; }, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
+        EditorBuildExecutionResult result = service.Play(PlatformId, PlatformDisplayName, ScenePath, () => { killCountWhenSaving = firstProcess.KillCount; return true; }, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
         firstProcess.RaiseExit(1);
 
         Assert.True(result.Succeeded);
@@ -284,13 +290,13 @@ public sealed class EditorPlaySessionServiceTests {
     public void Play_WhenKillingPreviousPlayerThrows_EndsStoppedAndRethrows() {
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
         EditorPlaySessionService service = new EditorPlaySessionService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath);
-        service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
+        service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
         InvalidOperationException killFailure = new InvalidOperationException("Player refused to die.");
         launcher.StartedProcesses[0].KillFailure = killFailure;
         int saveCount = 0;
 
         InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(
-            () => service.Play(PlatformId, ScenePath, () => { saveCount++; return true; }, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false));
+            () => service.Play(PlatformId, PlatformDisplayName, ScenePath, () => { saveCount++; return true; }, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false));
 
         Assert.Same(killFailure, thrown);
         Assert.Equal(EditorPlaySessionState.Stopped, service.State);
@@ -305,7 +311,7 @@ public sealed class EditorPlaySessionServiceTests {
     public void Stop_WhenKillThrows_EndsStoppedAndRethrows() {
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
         EditorPlaySessionService service = new EditorPlaySessionService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath);
-        service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
+        service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
         InvalidOperationException killFailure = new InvalidOperationException("Player refused to die.");
         launcher.StartedProcesses[0].KillFailure = killFailure;
 
@@ -323,8 +329,8 @@ public sealed class EditorPlaySessionServiceTests {
     public void ProcessExit_FromReplacedPlayerAfterRelaunch_IsIgnored() {
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
         EditorPlaySessionService service = new EditorPlaySessionService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath);
-        service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
-        service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
+        service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
+        service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
         FakePlayProcess oldProcess = launcher.StartedProcesses[0];
         List<EditorPlaySessionState> states = new List<EditorPlaySessionState>();
         service.StateChanged += states.Add;
@@ -365,7 +371,7 @@ public sealed class EditorPlaySessionServiceTests {
 
         Logger.ErrorLogged += captureError;
         try {
-            service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
+            service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
         } finally {
             Logger.ErrorLogged -= captureError;
         }
@@ -381,7 +387,7 @@ public sealed class EditorPlaySessionServiceTests {
     public void Stop_KillsProcessAndReturnsToStopped() {
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
         EditorPlaySessionService service = new EditorPlaySessionService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath);
-        service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
+        service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
         List<EditorPlaySessionState> states = new List<EditorPlaySessionState>();
         service.StateChanged += states.Add;
 
@@ -400,7 +406,7 @@ public sealed class EditorPlaySessionServiceTests {
     public void ProcessExit_WithNonZeroCode_ReturnsToStoppedAndLogsError() {
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
         EditorPlaySessionService service = new EditorPlaySessionService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath);
-        service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
+        service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false);
         FakePlayProcess process = launcher.StartedProcesses[0];
         List<string> messages = new List<string>();
         List<string> errors = new List<string>();

@@ -9,7 +9,7 @@ namespace helengine.player.tests {
         /// Complete argument list carrying every required option once, used as the baseline for each test.
         /// </summary>
         static readonly string[] ValidArgs = {
-            "--content-root", "C:/c", "--scene-id", "cube_test", "--scene-path", "cooked/scenes/cube_test.hasset",
+            "--content-root", "C:/c", "--scene-id", "cube_test", "--platform-name", "PlayStation 2", "--scene-path", "cooked/scenes/cube_test.hasset",
             "--adapter-assembly", "C:/p/helengine.ps2.builder.dll", "--adapter-type", "helengine.ps2.builder.Ps2PlayerAdapter",
             "--script-modules", "C:/s", "--target-fps", "60", "--input-devices", "gamepad" };
 
@@ -19,6 +19,7 @@ namespace helengine.player.tests {
             PlayerLaunchOptions options = PlayerLaunchOptions.Parse(ValidArgs);
             Assert.Equal("C:/c", options.ContentRootPath);
             Assert.Equal("cube_test", options.SceneId);
+            Assert.Equal("PlayStation 2", options.PlatformName);
             Assert.Equal("cooked/scenes/cube_test.hasset", options.SceneCookedRelativePath);
             Assert.Equal("helengine.ps2.builder.Ps2PlayerAdapter", options.AdapterTypeName);
             Assert.Equal(60d, options.TargetFrameRate);
@@ -36,6 +37,7 @@ namespace helengine.player.tests {
         [Theory]
         [InlineData("--content-root")]
         [InlineData("--scene-id")]
+        [InlineData("--platform-name")]
         [InlineData("--scene-path")]
         [InlineData("--adapter-assembly")]
         [InlineData("--adapter-type")]

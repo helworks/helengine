@@ -13,20 +13,19 @@ namespace helengine.player {
         bool IsClosedValue;
 
         /// <summary>
-        /// Creates the player window titled after the scene being played.
+        /// Creates the player window titled after the platform and scene being played.
         /// </summary>
+        /// <param name="platformName">Display name of the platform shown in square brackets in the title bar.</param>
         /// <param name="sceneId">Stable id of the scene shown in the title bar.</param>
-        public PlayerWindow(string sceneId) {
-            if (string.IsNullOrWhiteSpace(sceneId)) {
-                throw new ArgumentException("Scene id must be provided.", nameof(sceneId));
-            }
-
+        /// <exception cref="ArgumentException">The platform name or scene id is blank.</exception>
+        public PlayerWindow(string platformName, string sceneId) {
+            string title = PlayerWindowTitle.Format(platformName, sceneId);
             ClientSize = new Size(ClientWidth, ClientHeight);
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
             DoubleBuffered = false;
-            Text = "helengine player — " + sceneId;
+            Text = title;
         }
 
         /// <summary>Gets whether the user has closed the window, which ends the player's frame loop.</summary>

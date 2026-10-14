@@ -10,6 +10,9 @@ namespace helengine.player.tests {
         /// <summary>Platform identifier used for the Play request.</summary>
         const string PlatformId = "ps2";
 
+        /// <summary>Platform display name passed through to the player; it contains a space so the single-argument round-trip is exercised.</summary>
+        const string PlatformDisplayName = "PlayStation 2";
+
         /// <summary>Saved scene path handed to the Play request.</summary>
         const string ScenePath = @"C:\project\assets\scenes\cube_test.hscene";
 
@@ -41,12 +44,13 @@ namespace helengine.player.tests {
                 launcher,
                 @"C:\editor\player\helengine.player.exe");
 
-            EditorBuildExecutionResult result = service.Play(PlatformId, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, waitForDebugger);
+            EditorBuildExecutionResult result = service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, waitForDebugger);
             PlayerLaunchOptions options = PlayerLaunchOptions.Parse(launcher.LastRequest.Arguments.ToArray());
 
             Assert.True(result.Succeeded, result.Message);
             Assert.Equal(ContractPlayCookRunner.ContentRootPath, options.ContentRootPath);
             Assert.Equal(ContractPlayCookRunner.StartupSceneId, options.SceneId);
+            Assert.Equal(PlatformDisplayName, options.PlatformName);
             Assert.Equal(ContractPlayCookRunner.StartupSceneCookedRelativePath, options.SceneCookedRelativePath);
             Assert.Equal(AdapterAssemblyPath, options.AdapterAssemblyPath);
             Assert.Equal(AdapterTypeName, options.AdapterTypeName);

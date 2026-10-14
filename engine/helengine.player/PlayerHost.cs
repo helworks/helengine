@@ -55,7 +55,7 @@ namespace helengine.player {
                 // Vsync only prevents tearing; PlayerFramePacer limits the loop to the platform's target frame rate,
                 // which is below the refresh rate of the high-refresh monitors the editor runs on.
                 renderer3D.PresentSyncInterval = 1;
-                window = new PlayerWindow(options.SceneId);
+                window = new PlayerWindow(options.PlatformName, options.SceneId);
                 window.Show();
                 Application.DoEvents();
                 InputBackendWindows desktopInput = new InputBackendWindows(window.Handle);

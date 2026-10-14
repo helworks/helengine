@@ -3609,6 +3609,7 @@ namespace helengine.editor {
 
                 EditorBuildExecutionResult result = PlaySession.Play(
                     playPlatform.PlatformId,
+                    playPlatform.DisplayName,
                     CurrentScenePath,
                     SaveCurrentSceneForPlay,
                     playPlatform.BuilderAssemblyPath,

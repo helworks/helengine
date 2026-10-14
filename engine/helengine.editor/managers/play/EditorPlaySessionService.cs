@@ -19,6 +19,12 @@ namespace helengine.editor {
         public const string SceneIdOption = "--scene-id";
 
         /// <summary>
+        /// Player flag naming the display name of the platform being played, as the Play platform selector shows it;
+        /// the player puts it in square brackets in its window title.
+        /// </summary>
+        public const string PlatformNameOption = "--platform-name";
+
+        /// <summary>
         /// Player flag naming the startup scene's path relative to the cooked content layout.
         /// </summary>
         public const string ScenePathOption = "--scene-path";
@@ -141,6 +147,7 @@ namespace helengine.editor {
         /// <see cref="EditorPlaySessionState.Stopped"/>.
         /// </summary>
         /// <param name="platformId">Identifier of the platform whose content and scripts are prepared.</param>
+        /// <param name="platformDisplayName">Display name of the platform, shown in the player window title.</param>
         /// <param name="currentScenePath">Saved path of the scene open in the editor; blank when it was never saved.</param>
         /// <param name="saveScene">Saves the open scene and returns whether the save succeeded.</param>
         /// <param name="adapterAssemblyPath">Path of the assembly holding the platform's player adapter.</param>
@@ -149,7 +156,9 @@ namespace helengine.editor {
         /// <param name="inputDevices">Input devices the platform's Play capability declares; the player forwards only these to the game.</param>
         /// <param name="waitForDebugger">Whether the player should wait for a debugger before starting the scene.</param>
         /// <returns>Success naming the started player's process id, or the failure that stopped Play.</returns>
-        /// <exception cref="ArgumentException">Thrown when the platform, adapter assembly or adapter type is blank.</exception>
+        /// <exception cref="ArgumentException">
+        /// Thrown when the platform, platform display name, adapter assembly or adapter type is blank.
+        /// </exception>
         /// <exception cref="ArgumentOutOfRangeException">
         /// Thrown when the target frame rate is not a positive, finite number, or the input device set is empty or names
         /// unknown devices.
@@ -157,6 +166,7 @@ namespace helengine.editor {
         /// <exception cref="ArgumentNullException">Thrown when the save callback is null.</exception>
         public EditorBuildExecutionResult Play(
             string platformId,
+            string platformDisplayName,
             string currentScenePath,
             Func<bool> saveScene,
             string adapterAssemblyPath,
@@ -166,6 +176,8 @@ namespace helengine.editor {
             bool waitForDebugger) {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Play requires a platform identifier.", nameof(platformId));
+            } else if (string.IsNullOrWhiteSpace(platformDisplayName)) {
+                throw new ArgumentException("Play requires the platform display name.", nameof(platformDisplayName));
             } else if (saveScene == null) {
                 throw new ArgumentNullException(nameof(saveScene));
             } else if (string.IsNullOrWhiteSpace(adapterAssemblyPath)) {
@@ -185,7 +197,7 @@ namespace helengine.editor {
             SetState(EditorPlaySessionState.Preparing);
             try {
                 KillCurrentProcess();
-                return PrepareAndLaunch(platformId, saveScene, adapterAssemblyPath, adapterTypeName, targetFrameRate, inputDevices, waitForDebugger);
+                return PrepareAndLaunch(platformId, platformDisplayName, saveScene, adapterAssemblyPath, adapterTypeName, targetFrameRate, inputDevices, waitForDebugger);
             } catch {
                 SetState(EditorPlaySessionState.Stopped);
                 throw;
@@ -208,6 +220,7 @@ namespace helengine.editor {
         /// Performs the save, cook, script build and launch steps of Play once the session is preparing.
         /// </summary>
         /// <param name="platformId">Identifier of the platform whose content and scripts are prepared.</param>
+        /// <param name="platformDisplayName">Display name of the platform, shown in the player window title.</param>
         /// <param name="saveScene">Saves the open scene and returns whether the save succeeded.</param>
         /// <param name="adapterAssemblyPath">Path of the assembly holding the platform's player adapter.</param>
         /// <param name="adapterTypeName">Type name of the platform's player adapter.</param>
@@ -217,6 +230,7 @@ namespace helengine.editor {
         /// <returns>Success naming the started player's process id, or the failure that stopped Play.</returns>
         EditorBuildExecutionResult PrepareAndLaunch(
             string platformId,
+            string platformDisplayName,
             Func<bool> saveScene,
             string adapterAssemblyPath,
             string adapterTypeName,
@@ -244,7 +258,7 @@ namespace helengine.editor {
                 return buildResult;
             }
 
-            List<string> arguments = BuildPlayerArguments(cookResult, adapterAssemblyPath, adapterTypeName, runtimeModulesRootPath, targetFrameRate, inputDevices, waitForDebugger);
+            List<string> arguments = BuildPlayerArguments(cookResult, platformDisplayName, adapterAssemblyPath, adapterTypeName, runtimeModulesRootPath, targetFrameRate, inputDevices, waitForDebugger);
             IEditorPlayProcess process = Launcher.Start(new EditorPlayLaunchRequest(PlayerExecutablePath, arguments));
             if (process == null) {
                 throw new InvalidOperationException("The Play process launcher returned no process.");
@@ -268,6 +282,7 @@ namespace helengine.editor {
         /// Builds the ordered player command line from the cook outcome, the platform adapter and the script modules.
         /// </summary>
         /// <param name="cookResult">Successful cook outcome naming the content root and startup scene.</param>
+        /// <param name="platformDisplayName">Display name of the platform, shown in the player window title.</param>
         /// <param name="adapterAssemblyPath">Path of the assembly holding the platform's player adapter.</param>
         /// <param name="adapterTypeName">Type name of the platform's player adapter.</param>
         /// <param name="runtimeModulesRootPath">Directory holding the built runtime script modules.</param>
@@ -278,6 +293,7 @@ namespace helengine.editor {
         /// <exception cref="InvalidOperationException">Thrown when the script builder reported no module root.</exception>
         static List<string> BuildPlayerArguments(
             EditorPlayCookResult cookResult,
+            string platformDisplayName,
             string adapterAssemblyPath,
             string adapterTypeName,
             string runtimeModulesRootPath,
@@ -291,6 +307,7 @@ namespace helengine.editor {
             List<string> arguments = new List<string> {
                 ContentRootOption, cookResult.ContentRootPath,
                 SceneIdOption, cookResult.StartupSceneId,
+                PlatformNameOption, platformDisplayName,
                 ScenePathOption, cookResult.StartupSceneCookedRelativePath,
                 AdapterAssemblyOption, adapterAssemblyPath,
                 AdapterTypeOption, adapterTypeName,
