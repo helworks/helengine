@@ -50,6 +50,20 @@ namespace helengine.player.tests {
             Assert.Contains("primary", error.Message);
         }
 
+        /// <summary>
+        /// An editor that exited before the player resolved its monitor fails with the locator's own message and never
+        /// falls back to the primary monitor.
+        /// </summary>
+        [Fact]
+        public void ResolveWorkArea_WhenEditorProcessGone_ThrowsWithoutFallingBackToPrimary() {
+            StubPlayerMonitorQuery query = new StubPlayerMonitorQuery(PrimaryArea, EditorProcessId, EditorWindow, EditorArea);
+
+            InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => new PlayerMonitorLocator(query).ResolveWorkArea(PlayerWindowMonitor.Editor, 9999));
+
+            Assert.Contains("9999", error.Message);
+            Assert.Equal(0, query.PrimaryLookups);
+        }
+
         /// <summary>An undefined monitor value is rejected instead of silently treated as the editor's monitor.</summary>
         [Fact]
         public void ResolveWorkArea_WhenMonitorUndefined_Throws() {

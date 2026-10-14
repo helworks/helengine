@@ -1,9 +1,7 @@
-using System.Diagnostics;
-
 namespace helengine.player {
     /// <summary>
     /// Reads monitor work areas through WinForms <see cref="Screen"/> and a process's main window through
-    /// <see cref="Process"/>.
+    /// <see cref="Win32ProcessMainWindowFinder"/>.
     /// </summary>
     public sealed class WinFormsPlayerMonitorQuery : IPlayerMonitorQuery {
         /// <summary>
@@ -15,14 +13,12 @@ namespace helengine.player {
         }
 
         /// <summary>
-        /// Returns the main window handle of a running process.
+        /// Returns the main window handle of a process without throwing when it has exited.
         /// </summary>
         /// <param name="processId">Process id.</param>
-        /// <returns>The main window handle, or <see cref="IntPtr.Zero"/> when the process has no main window.</returns>
-        /// <exception cref="ArgumentException">Thrown by <see cref="Process.GetProcessById(int)"/> when the process is not running.</exception>
+        /// <returns>The main window handle, or <see cref="IntPtr.Zero"/> when the process has no main window or is not running.</returns>
         public IntPtr GetProcessMainWindow(int processId) {
-            using Process process = Process.GetProcessById(processId);
-            return process.MainWindowHandle;
+            return Win32ProcessMainWindowFinder.Find(processId);
         }
 
         /// <summary>

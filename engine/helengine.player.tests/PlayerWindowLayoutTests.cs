@@ -20,6 +20,8 @@ namespace helengine.player.tests {
         [InlineData(2560, 1400, 3)]
         [InlineData(3840, 2120, 4)]
         [InlineData(1366, 728, 1)]
+        [InlineData(2560, 1380, 2)]
+        [InlineData(1930, 2000, 2)]
         public void Compute_Fit_PicksLargestFittingMultiplier(int workWidth, int workHeight, int expected) {
             PlayerWindowLayoutResult layout = PlayerWindowLayout.Compute(Ps2, PlayerWindowScale.Fit, new PlayerScreenArea(0, 0, workWidth, workHeight), FrameWidth, FrameHeight);
 
@@ -60,6 +62,18 @@ namespace helengine.player.tests {
             Assert.True(layout.ExceedsWorkArea);
             Assert.Equal(100, layout.Left);
             Assert.Equal(50, layout.Top);
+        }
+
+        /// <summary>A negative border is rejected under the name of the parameter that carries it.</summary>
+        [Fact]
+        public void Compute_NegativeBorders_NameTheOffendingParameter() {
+            PlayerScreenArea area = new PlayerScreenArea(0, 0, 1920, 1040);
+
+            ArgumentOutOfRangeException width = Assert.Throws<ArgumentOutOfRangeException>(() => PlayerWindowLayout.Compute(Ps2, PlayerWindowScale.Fit, area, -1, FrameHeight));
+            ArgumentOutOfRangeException height = Assert.Throws<ArgumentOutOfRangeException>(() => PlayerWindowLayout.Compute(Ps2, PlayerWindowScale.Fit, area, FrameWidth, -1));
+
+            Assert.Equal("nonClientWidth", width.ParamName);
+            Assert.Equal("nonClientHeight", height.ParamName);
         }
     }
 }

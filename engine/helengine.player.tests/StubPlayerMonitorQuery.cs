@@ -33,24 +33,28 @@ namespace helengine.player.tests {
         /// <summary>Gets how many times a process main window was looked up.</summary>
         public int MainWindowLookups { get; private set; }
 
+        /// <summary>Gets how many times the primary work area was read.</summary>
+        public int PrimaryLookups { get; private set; }
+
         /// <summary>
         /// Returns the configured primary work area.
         /// </summary>
         /// <returns>The primary work area.</returns>
         public PlayerScreenArea GetPrimaryWorkArea() {
+            PrimaryLookups++;
             return PrimaryWorkArea;
         }
 
         /// <summary>
-        /// Returns the editor window for the editor process id.
+        /// Returns the editor window for the editor process id. Any other process id behaves like a process that is not
+        /// running, which, like the real query, has no main window.
         /// </summary>
         /// <param name="processId">Process id to look up.</param>
-        /// <returns>The configured handle.</returns>
-        /// <exception cref="InvalidOperationException">Thrown for any other process id, which a test never expects.</exception>
+        /// <returns>The configured handle, or <see cref="IntPtr.Zero"/> for any other process id.</returns>
         public IntPtr GetProcessMainWindow(int processId) {
             MainWindowLookups++;
             if (processId != EditorProcessId) {
-                throw new InvalidOperationException("Unexpected process id " + processId + ".");
+                return IntPtr.Zero;
             }
 
             return EditorWindow;

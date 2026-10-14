@@ -24,8 +24,10 @@ namespace helengine.player {
                 throw new ArgumentNullException(nameof(renderSize));
             } else if (workArea == null) {
                 throw new ArgumentNullException(nameof(workArea));
-            } else if (nonClientWidth < 0 || nonClientHeight < 0) {
-                throw new ArgumentOutOfRangeException(nameof(nonClientWidth), "Window borders cannot be negative.");
+            } else if (nonClientWidth < 0) {
+                throw new ArgumentOutOfRangeException(nameof(nonClientWidth), nonClientWidth, "Window borders cannot be negative.");
+            } else if (nonClientHeight < 0) {
+                throw new ArgumentOutOfRangeException(nameof(nonClientHeight), nonClientHeight, "Window borders cannot be negative.");
             }
 
             int multiplier;
