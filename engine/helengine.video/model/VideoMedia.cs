@@ -48,5 +48,15 @@ namespace helengine.video {
         /// </summary>
         public VideoMediaAnalysis Analysis { get; set; }
 
+        /// <summary>
+        /// Optional id of a grayscale video media, aligned frame by frame with this media, that is white on the speaker.
+        /// </summary>
+        public string Matte { get; set; }
+
+        /// <summary>
+        /// Optional id of a despilled foreground video media, aligned with this media, shown inside the matte instead of this media.
+        /// </summary>
+        public string Foreground { get; set; }
+
     }
 }

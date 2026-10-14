@@ -48,6 +48,11 @@ namespace helengine.video {
                     Error(errors, "invalid_media", null, $"media[{index}].kind", "Media kind must be video, audio, image or font.");
                 }
             }
+            for (int index = 0; index < edit.Media.Count; index++) {
+                if (edit.Media[index] != null) {
+                    ValidateMatte(edit.Media[index], index, media, errors);
+                }
+            }
             HashSet<string> sceneIds = new HashSet<string>(StringComparer.Ordinal);
             for (int index = 0; index < edit.Scenes.Count; index++) {
                 VideoScene scene = edit.Scenes[index];
@@ -110,6 +115,7 @@ namespace helengine.video {
                     ValidateEnvelope(scene, scene.Voice.Envelopes[envelope], $"{path}.voice.envelopes[{envelope}]", errors);
                 }
             }
+            ValidateBackground(scene, path, media, errors);
             HashSet<string> layerIds = new HashSet<string>(StringComparer.Ordinal);
             for (int layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++) {
                 VideoLayer layer = scene.Layers[layerIndex];
@@ -387,6 +393,50 @@ namespace helengine.video {
             }
             if (layer.Mask != null && (!media.ContainsKey(layer.Mask.Media ?? "") || layer.Mask.Channel is not ("alpha" or "luma"))) {
                 Error(errors, "invalid_mask", scene.Id, path + ".mask", "A mask needs existing media and an alpha or luma channel.");
+            }
+        }
+
+        /// <summary>
+        /// Validates the matte and foreground references of one media.
+        /// </summary>
+        /// <param name="item">Media.</param>
+        /// <param name="index">Media index.</param>
+        /// <param name="media">Media by id.</param>
+        /// <param name="errors">Diagnostics sink.</param>
+        static void ValidateMatte(VideoMedia item, int index, Dictionary<string, VideoMedia> media, List<VideoDiagnostic> errors) {
+            if (item.Matte != null && (!media.TryGetValue(item.Matte, out VideoMedia matte) || matte.Kind != "video")) {
+                Error(errors, "invalid_matte", null, $"media[{index}].matte", "The matte must reference an existing video media.");
+            }
+            if (item.Foreground != null && (!media.TryGetValue(item.Foreground, out VideoMedia foreground) || foreground.Kind != "video")) {
+                Error(errors, "invalid_matte", null, $"media[{index}].foreground", "The foreground must reference an existing video media.");
+            }
+        }
+
+        /// <summary>
+        /// Validates the background treatment of one scene.
+        /// </summary>
+        /// <param name="scene">Scene.</param>
+        /// <param name="path">Scene JSON path.</param>
+        /// <param name="media">Media by id.</param>
+        /// <param name="errors">Diagnostics sink.</param>
+        static void ValidateBackground(VideoScene scene, string path, Dictionary<string, VideoMedia> media, List<VideoDiagnostic> errors) {
+            VideoSceneBackground background = scene.Background;
+            if (background == null) {
+                return;
+            }
+            Lock(errors, scene, path + ".background", background.By);
+            if (background.Mode is not ("original" or "blur" or "replace")) {
+                Error(errors, "invalid_background", scene.Id, path + ".background.mode", "Background mode must be original, blur or replace.");
+                return;
+            }
+            if (!double.IsFinite(background.Radius) || background.Radius < 0 || background.Radius > 96) {
+                Error(errors, "invalid_background", scene.Id, path + ".background.radius", "Background radius must be between 0 and 96.");
+            }
+            if (background.Mode == "replace" && (!media.TryGetValue(background.Media ?? "", out VideoMedia source) || source.Kind is not ("image" or "video"))) {
+                Error(errors, "invalid_background", scene.Id, path + ".background.media", "A replaced background must reference an image or video media.");
+            }
+            if (background.Mode != "original" && scene.Take == null) {
+                Error(errors, "background_without_take", scene.Id, path + ".background", "A blurred or replaced background needs a scene take.");
             }
         }
 

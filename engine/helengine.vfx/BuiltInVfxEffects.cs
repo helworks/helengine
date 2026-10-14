@@ -14,7 +14,7 @@ namespace helengine.vfx {
         /// </summary>
         /// <returns>Fresh built-in effect definitions, layer effects first and then the scene transitions.</returns>
         public static EffectAsset[] All() {
-            return new[] { RainbowExpand(), RainbowAura(), DepthComposite() }.Concat(BuiltInVfxTransitions.All()).ToArray();
+            return new[] { RainbowExpand(), RainbowAura(), DepthComposite(), GaussianBlur() }.Concat(BuiltInVfxTransitions.All()).ToArray();
         }
 
         /// <summary>
@@ -72,6 +72,26 @@ namespace helengine.vfx {
                 Passes = new[] { Pass("shaders/effects/DepthComposite.hlsl", "DepthCompositePS", "Subject", "RenderColor", "RenderDepth") },
                 Parameters = new[] {
                     Number("DepthThreshold", "Depth value, in the same units as the RenderDepth sequence, that the subject sits at. Render pixels with a depth greater than this are drawn behind the subject; render pixels with a depth less than or equal to this are drawn in front, fully occluding it.", 0, 0)
+                }
+            };
+        }
+
+        /// <summary>
+        /// Blurs a layer with a separable gaussian: a horizontal pass into a half-resolution target, then a vertical pass.
+        /// </summary>
+        /// <returns>The gaussian-blur effect definition.</returns>
+        public static EffectAsset GaussianBlur() {
+            return new EffectAsset {
+                EffectId = "gaussian-blur",
+                DisplayName = "Gaussian Blur",
+                Inputs = new[] { new EffectInputAsset("Source", false) },
+                Targets = new[] { new EffectTargetAsset("BlurX", 0.5f, EffectTargetFormat.Rgba16Float) },
+                Passes = new[] {
+                    new EffectPassAsset { ShaderPath = "shaders/effects/GaussianBlur.hlsl", PixelEntryPoint = "GaussianBlurHorizontalPS", Reads = new[] { "Source" }, Writes = "BlurX" },
+                    Pass("shaders/effects/GaussianBlur.hlsl", "GaussianBlurVerticalPS", "BlurX", "Source")
+                },
+                Parameters = new[] {
+                    new EffectParameterAsset { Name = "Radius", Description = "Blur radius in output pixels, from 0 (no blur) to 96.", Type = EffectParameterType.Float, DefaultValue = new float4(24, 0, 0, 0), Minimum = 0, Maximum = 96, Slot = 0 }
                 }
             };
         }

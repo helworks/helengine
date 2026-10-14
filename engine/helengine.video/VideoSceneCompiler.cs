@@ -29,7 +29,14 @@ namespace helengine.video {
             }
             string path = $"scenes[{span.Index}]";
             for (int index = 0; index < layers.Count; index++) {
-                state.AddMember(span, Layer(state, span, layers[index], $"{path}.layers[{index}]"));
+                string layerPath = $"{path}.layers[{index}]";
+                VisualLayer front = Layer(state, span, layers[index], layerPath);
+                // The background is added first so it draws under the speaker: members of equal order keep their list order.
+                VisualLayer behind = layers[index].Kind == "take" ? Background(state, span, layers[index], front, layerPath) : null;
+                if (behind != null) {
+                    state.AddMember(span, behind);
+                }
+                state.AddMember(span, front);
             }
             // Simultaneous plain overlays in one place become a stacked list instead of overprinting each other.
             foreach (VideoOverlayEntry entry in VideoOverlayStacking.Arrange(state, span, path)) {
@@ -97,6 +104,68 @@ namespace helengine.video {
                 layer.Mask = new MediaMask { MediaId = source.Mask.Media, Channel = source.Mask.Channel, Inverted = source.Mask.Inverted };
             }
             return layer;
+        }
+
+        /// <summary>
+        /// Applies the scene background to a take layer. When the take media has a matte, the front layer becomes the matted
+        /// speaker (over the despilled foreground when one exists) and the returned layer is drawn under it: a blurred copy of
+        /// the take or the replacement media. Otherwise the layer is left untouched and a diagnostic says why.
+        /// </summary>
+        /// <param name="state">Compilation state.</param>
+        /// <param name="span">Scene span.</param>
+        /// <param name="source">Take edit layer.</param>
+        /// <param name="front">Compiled take layer, matted in place.</param>
+        /// <param name="path">JSON path used in diagnostics.</param>
+        /// <returns>Background layer to draw under the front layer, or null when the layer keeps its original background.</returns>
+        static VisualLayer Background(VideoCompileState state, VideoSceneSpan span, VideoLayer source, VisualLayer front, string path) {
+            VideoScene scene = span.Scene;
+            VideoSceneBackground background = scene.Background;
+            if (background == null || background.Mode is not ("blur" or "replace")) {
+                return null;
+            }
+            if (source.Mask != null) {
+                state.Diagnostics.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Warning, "background_mask_conflict", scene.Id, path + ".mask", "The layer has its own mask, so the scene background was not applied."));
+                return null;
+            }
+            if (!state.Media.TryGetValue(scene.Take.Media, out VideoMedia take) || string.IsNullOrEmpty(take.Matte)) {
+                state.Diagnostics.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Pending, "background_matte_pending", scene.Id, $"scenes[{span.Index}].background", "The take's background needs its matte; it renders with the original background until the matte is ready."));
+                return null;
+            }
+            VisualLayer behind;
+            if (background.Mode == "blur") {
+                // Compile the layer a second time so animations, motion and effects are independent copies; the repeated
+                // diagnostics are dropped because the front layer already reported them.
+                int diagnostics = state.Diagnostics.Count;
+                string fit = source.Fit;
+                source.Fit = "cover";
+                try {
+                    behind = Layer(state, span, source, path);
+                } finally {
+                    source.Fit = fit;
+                    state.Diagnostics.RemoveRange(diagnostics, state.Diagnostics.Count - diagnostics);
+                }
+                behind.Fit = "cover";
+                behind.Effects.Add(new MediaEffect { Id = "gaussian-blur", Version = 1, Parameters = new(StringComparer.Ordinal) { ["Radius"] = System.Text.Json.JsonSerializer.SerializeToElement(background.Radius) } });
+            } else {
+                VideoMedia replacement = state.Media[background.Media];
+                behind = new VisualLayer {
+                    Id = front.Id, Start = span.Start, End = span.End, Order = front.Order, Fit = "cover", MediaId = replacement.Id,
+                    Viewport = front.Viewport, PaddingColor = front.PaddingColor, ClipToViewport = front.ClipToViewport
+                };
+                if (replacement.Kind == "video") {
+                    behind.SourceOut = span.Duration;
+                    if (replacement.DurationSec > 0 && span.Duration.ToSeconds() > replacement.DurationSec) {
+                        behind.SourceOut = MediaTime.FromSeconds(replacement.DurationSec);
+                        behind.HoldLastFrame = true;
+                    }
+                }
+            }
+            behind.Id = front.Id + "-background";
+            front.Mask = new MediaMask { MediaId = take.Matte, Channel = "luma" };
+            if (!string.IsNullOrEmpty(take.Foreground)) {
+                front.MediaId = take.Foreground;
+            }
+            return behind;
         }
 
         /// <summary>

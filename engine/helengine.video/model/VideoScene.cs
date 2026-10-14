@@ -39,6 +39,11 @@ namespace helengine.video {
         public VideoTake Take { get; set; }
 
         /// <summary>
+        /// Optional treatment of the take background (blur or replacement); absent means the original background.
+        /// </summary>
+        public VideoSceneBackground Background { get; set; }
+
+        /// <summary>
         /// How the scene enters; absent means a hard cut.
         /// </summary>
         public VideoEntry Entry { get; set; }

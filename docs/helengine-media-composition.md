@@ -121,6 +121,36 @@ scene without an arrangement is `full`, so only `main` is accepted there); two p
 one region raise the warning `region_shared`. The schema lists the presets and every region name as enums. Spec:
 `docs/superpowers/specs/2026-10-08-helengine-scene-arrangements-design.md`.
 
+## Speaker background (blur and replacement)
+
+A scene with a take may declare `"background": {"mode": "original"|"blur"|"replace", "radius"?: 24, "media"?: "<id>", "by"?: "human"|"ai"}`
+(lockable; `VideoEditMerge` keeps a `by: "human"` background through replans). `radius` is the blur radius in output pixels
+(0 to 96); `media` is the image or video shown behind the speaker for `replace`. A non-original background on a scene without
+a take is `background_without_take`; an unknown mode, a radius outside 0..96 or a `replace` without image/video media is
+`invalid_background`.
+
+The speaker is cut out with a matte declared on the take media: `media[].matte` is the id of a grayscale video aligned frame
+by frame with the media (it may be smaller, same aspect; the mask shader samples it bilinearly), and `media[].foreground` is
+an optional despilled video, also aligned, drawn inside the matte instead of the media. Both must name existing video media
+(`invalid_matte`). For every `take` layer of such a scene the compiler emits two members, background first so it draws under
+the speaker (members of equal `order` keep list order):
+
+- `{scene}-{layer}-background`: for `blur`, a copy of the take layer (same viewport, transform, motion, animations, timing and
+  effects, fit forced to `cover`, no mask) plus the `gaussian-blur` effect; for `replace`, a `cover` media layer of
+  `background.media` over the scene (a video shorter than the scene holds its last frame).
+- `{scene}-{layer}`: the normal take layer with `mask = {media: matte, channel: "luma"}` and `foreground ?? take` as media.
+
+The copy is silent: voice audio comes only from the take's single `voice-{scene}` clip. Without a matte the layer renders with
+its original background and the compiler reports the pending `background_matte_pending`. A take layer that already has its own
+mask keeps it, skips the background and reports the warning `background_mask_conflict`.
+
+## Gaussian blur effect
+
+`gaussian-blur` v1 is a built-in layer effect (one input, `Source`) with parameter `Radius` (float, output pixels, default 24,
+0 to 96). It is a separable gaussian: a horizontal pass into a half-resolution RGBA16F target, then a vertical pass to the
+output; color is blurred premultiplied, edges clamp, and a radius under half a pixel returns the source unchanged.
+Shader: `helengine.vfx.directx11/shaders/effects/GaussianBlur.hlsl`.
+
 ## Overlay timelines
 
 An overlay may carry motion graphics authored as a Helengine Timeline (`helengine.timeline.v1`, format in

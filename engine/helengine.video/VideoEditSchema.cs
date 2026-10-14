@@ -22,6 +22,7 @@ namespace helengine.video {
             [Key(typeof(VideoFocus), nameof(VideoFocus.Type))] = ["center", "point", "text_region"],
             [Key(typeof(VideoEnvelope), nameof(VideoEnvelope.Type))] = ["linear", "equal_power_in", "equal_power_out"],
             [Key(typeof(VideoMask), nameof(VideoMask.Channel))] = ["alpha", "luma"],
+            [Key(typeof(VideoSceneBackground), nameof(VideoSceneBackground.Mode))] = ["original", "blur", "replace"],
             [Key(typeof(VideoCaptionTrack), nameof(VideoCaptionTrack.Source))] = ["voice"],
             [Key(typeof(VideoGraphic), nameof(VideoGraphic.Layout))] = ["auto", "vertical", "horizontal"],
             [Key(typeof(VideoArrangement), nameof(VideoArrangement.Preset))] = VideoArrangementPresets.Ids,
