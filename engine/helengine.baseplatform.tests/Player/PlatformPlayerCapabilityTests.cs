@@ -17,17 +17,22 @@ namespace helengine.baseplatform.tests.Player {
             Assert.Throws<ArgumentException>(() => new PlatformPlayerCapability(true, "a.B", "", 60d, PlayerInputDevices.Gamepad, "ps2", "1.0.0", []));
         }
 
-        /// <summary>A supported capability must declare a positive, finite target frame rate.</summary>
+        /// <summary>A supported capability must declare a non-negative, finite target frame rate.</summary>
         /// <param name="targetFrameRate">Invalid frame rate passed to the constructor.</param>
         [Theory]
-        [InlineData(0d)]
         [InlineData(-60d)]
         [InlineData(double.NaN)]
         [InlineData(double.PositiveInfinity)]
-        public void Ctor_WhenSupportedWithoutPositiveTargetFrameRate_Throws(double targetFrameRate) {
+        public void Ctor_WhenSupportedWithNegativeOrNonFiniteTargetFrameRate_Throws(double targetFrameRate) {
             ArgumentException exception = Assert.Throws<ArgumentOutOfRangeException>(
                 () => new PlatformPlayerCapability(true, "a.B", "staging", targetFrameRate, PlayerInputDevices.Gamepad, "ps2", "1.0.0", []));
             Assert.Equal("targetFrameRate", exception.ParamName);
+        }
+
+        /// <summary>A supported capability may take its frame rate from the platform's video mode (declared as 0).</summary>
+        [Fact]
+        public void Ctor_WhenSupportedWithZeroFrameRate_TakesFrameRateFromVideoMode() {
+            Assert.True(new PlatformPlayerCapability(true, "a.B", "staging", 0d, PlayerInputDevices.Gamepad, "ps2", "1.0.0", []).FrameRateFromVideoMode);
         }
 
         /// <summary>A supported capability exposes the target frame rate it was given.</summary>

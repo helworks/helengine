@@ -13,7 +13,9 @@ namespace helengine.baseplatform.Definitions {
         /// <param name="contentRootRelativePath">Cooked content root, relative to the builder working root (PS2: <c>ps2-staging</c>).</param>
         /// <param name="targetFrameRate">
         /// Frames per second the desktop player paces its frame loop to, matching the frame rate the platform's native
-        /// host runs at (PS2: 60). Must be positive and finite when Play is supported.
+        /// host runs at (for example 60). Must be non-negative and finite when Play is supported. <c>0</c> means the platform's
+        /// selected video mode supplies the rate instead; <c>PlatformDefinition</c> checks that a Play platform has exactly one
+        /// frame-rate source (a positive rate here, or video modes with a rate of <c>0</c> here).
         /// </param>
         /// <param name="inputDevices">
         /// Input devices the platform's real hardware offers (PS2: <see cref="PlayerInputDevices.Gamepad"/> only). The player
@@ -39,7 +41,7 @@ namespace helengine.baseplatform.Definitions {
         /// </exception>
         /// <exception cref="ArgumentNullException">Thrown when the Play settings array is null.</exception>
         /// <exception cref="ArgumentOutOfRangeException">
-        /// Thrown when Play is supported but the target frame rate is not a positive, finite number, or the device set contains
+        /// Thrown when Play is supported but the target frame rate is negative or not finite, or the device set contains
         /// bits that name no known device.
         /// </exception>
         public PlatformPlayerCapability(bool supportsPlay, string adapterTypeName, string contentRootRelativePath, double targetFrameRate, PlayerInputDevices inputDevices, string runtimePlatformName, string runtimePlatformVersion, PlatformSettingDefinition[] playSettings) {
@@ -47,11 +49,11 @@ namespace helengine.baseplatform.Definitions {
                 throw new ArgumentException("A platform that supports Play must name its player adapter type.", nameof(adapterTypeName));
             } else if (supportsPlay && string.IsNullOrWhiteSpace(contentRootRelativePath)) {
                 throw new ArgumentException("A platform that supports Play must name its cooked content root.", nameof(contentRootRelativePath));
-            } else if (supportsPlay && !(targetFrameRate > 0d && double.IsFinite(targetFrameRate))) {
+            } else if (supportsPlay && !(targetFrameRate >= 0d && double.IsFinite(targetFrameRate))) {
                 throw new ArgumentOutOfRangeException(
                     nameof(targetFrameRate),
                     targetFrameRate,
-                    "A platform that supports Play must declare a positive, finite player target frame rate.");
+                    "A platform that supports Play must declare a non-negative, finite player target frame rate (0 = taken from the platform's video mode).");
             } else if (supportsPlay && inputDevices == PlayerInputDevices.None) {
                 throw new ArgumentException("A platform that supports Play must declare at least one player input device.", nameof(inputDevices));
             } else if (supportsPlay && (inputDevices & ~PlayerInputDevicesText.AllDevices) != PlayerInputDevices.None) {
@@ -107,9 +109,16 @@ namespace helengine.baseplatform.Definitions {
 
         /// <summary>
         /// Gets the frames per second the desktop player paces its frame loop to, so Play runs at the platform's own
-        /// frame rate instead of the editor monitor's refresh rate; <c>0</c> when Play is unsupported.
+        /// frame rate instead of the editor monitor's refresh rate; <c>0</c> when Play is unsupported or when the selected
+        /// video mode supplies the rate (see <see cref="FrameRateFromVideoMode"/>).
         /// </summary>
         public double TargetFrameRate { get; }
+
+        /// <summary>
+        /// Gets whether the player frame rate comes from the platform's selected video mode instead of
+        /// <see cref="TargetFrameRate"/>.
+        /// </summary>
+        public bool FrameRateFromVideoMode => SupportsPlay && TargetFrameRate == 0d;
 
         /// <summary>
         /// Gets the input devices the platform's real hardware offers. The desktop player reports every other device as

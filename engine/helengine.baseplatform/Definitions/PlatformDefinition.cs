@@ -24,6 +24,7 @@ namespace helengine.baseplatform.Definitions {
         /// <param name="assetCookCapabilities">Generic asset-kind cook capabilities exposed by the platform.</param>
         /// <param name="componentMemberDefinitions">Platform-specific synthetic component members exposed to editor and runtime packaging flows.</param>
         /// <param name="playerCapability">Editor Play capability exposed by the platform; null means the platform does not support Play.</param>
+        /// <param name="videoModeCapability">Video modes the console produces; null when the platform has none (its output is not mode-based).</param>
         public PlatformDefinition(
             string platformId,
             string displayName,
@@ -39,7 +40,8 @@ namespace helengine.baseplatform.Definitions {
             PlatformHostDebugCapability hostDebugCapability = null,
             PlatformAssetCookCapabilityDefinition[] assetCookCapabilities = null,
             PlatformComponentMemberDefinition[] componentMemberDefinitions = null,
-            PlatformPlayerCapability playerCapability = null) {
+            PlatformPlayerCapability playerCapability = null,
+            PlatformVideoModeCapability videoModeCapability = null) {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id is required.", nameof(platformId));
             } else if (string.IsNullOrWhiteSpace(displayName)) {
@@ -100,6 +102,8 @@ namespace helengine.baseplatform.Definitions {
             ComponentMemberDefinitions = componentMemberDefinitions == null ? Array.Empty<PlatformComponentMemberDefinition>() : [.. componentMemberDefinitions];
             PlayerCapability = playerCapability ?? PlatformPlayerCapability.CreateUnsupported();
             ValidateProjectPlaySettings(PlayerCapability, GraphicsProfiles);
+            VideoModeCapability = videoModeCapability;
+            ValidateVideoModes(PlayerCapability, GraphicsProfiles, videoModeCapability);
         }
 
         /// <summary>
@@ -431,6 +435,55 @@ namespace helengine.baseplatform.Definitions {
         }
 
         /// <summary>
+        /// Checks that video modes agree with the graphics profiles and the Play declarations, and that a Play platform has
+        /// exactly one frame-rate source.
+        /// </summary>
+        /// <param name="playerCapability">Play capability.</param>
+        /// <param name="graphicsProfiles">Graphics profiles.</param>
+        /// <param name="videoModes">Declared video modes, or null.</param>
+        /// <exception cref="ArgumentException">Thrown when the declarations disagree.</exception>
+        static void ValidateVideoModes(PlatformPlayerCapability playerCapability, PlatformGraphicsProfileDefinition[] graphicsProfiles, PlatformVideoModeCapability videoModes) {
+            bool hasModes = videoModes != null;
+            if (playerCapability.SupportsPlay && hasModes == (playerCapability.TargetFrameRate > 0d)) {
+                throw new ArgumentException(
+                    "A platform that supports Play takes its player frame rate from exactly one source: a positive Play capability frame rate, or video modes with a Play capability frame rate of 0.",
+                    "playerCapability");
+            } else if (!hasModes) {
+                return;
+            }
+
+            string[] modeIds = videoModes.GetModeIds();
+            for (int profileIndex = 0; profileIndex < graphicsProfiles.Length; profileIndex++) {
+                PlatformGraphicsProfileDefinition profile = graphicsProfiles[profileIndex];
+                PlatformSettingDefinition setting = Array.Find(profile.Settings, candidate => string.Equals(candidate.SettingId, videoModes.SettingId, StringComparison.Ordinal));
+                if (setting == null) {
+                    throw new ArgumentException($"Graphics profile '{profile.ProfileId}' declares no '{videoModes.SettingId}' setting to select the video mode.", "videoModeCapability");
+                } else if (setting.SettingKind != PlatformSettingKind.Choice || !setting.AllowedValues.SequenceEqual(modeIds, StringComparer.Ordinal)) {
+                    throw new ArgumentException($"Graphics profile '{profile.ProfileId}' setting '{videoModes.SettingId}' must be a choice of exactly: {string.Join(", ", modeIds)}.", "videoModeCapability");
+                } else if (Array.IndexOf(modeIds, setting.DefaultValue) < 0) {
+                    throw new ArgumentException($"Graphics profile '{profile.ProfileId}' setting '{videoModes.SettingId}' defaults to '{setting.DefaultValue}', which is not a video mode.", "videoModeCapability");
+                }
+            }
+
+            if (!playerCapability.SupportsPlay) {
+                return;
+            }
+
+            string[] playValues = new string[modeIds.Length + 1];
+            playValues[0] = PlayerCommonPlaySettings.ProjectValue;
+            Array.Copy(modeIds, 0, playValues, 1, modeIds.Length);
+            PlatformSettingDefinition playSetting = playerCapability.FindPlaySetting(videoModes.SettingId);
+            if (playSetting == null
+                || playSetting.SettingKind != PlatformSettingKind.Choice
+                || !playSetting.AllowedValues.SequenceEqual(playValues, StringComparer.Ordinal)
+                || !string.Equals(playSetting.DefaultValue, PlayerCommonPlaySettings.ProjectValue, StringComparison.Ordinal)) {
+                throw new ArgumentException(
+                    $"A Play platform with video modes must declare Play setting '{videoModes.SettingId}' as a choice of project plus every mode, defaulting to project.",
+                    "videoModeCapability");
+            }
+        }
+
+        /// <summary>
         /// Returns true when a component type id belongs to the engine (the <c>helengine.</c> namespace). Anything else
         /// is a game project's script component, which no platform definition may name.
         /// </summary>
@@ -479,6 +532,16 @@ namespace helengine.baseplatform.Definitions {
         /// Gets the editor Play capability exposed by the platform; unsupported unless the platform opts in.
         /// </summary>
         public PlatformPlayerCapability PlayerCapability { get; }
+
+        /// <summary>
+        /// Gets the video modes the console produces, or null when the platform declares none.
+        /// </summary>
+        public PlatformVideoModeCapability VideoModeCapability { get; }
+
+        /// <summary>
+        /// Gets whether the platform declares video modes.
+        /// </summary>
+        public bool HasVideoModes => VideoModeCapability != null;
     }
 
 
