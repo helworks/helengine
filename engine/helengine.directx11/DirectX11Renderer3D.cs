@@ -419,6 +419,7 @@ namespace helengine.directx11 {
         /// <exception cref="ArgumentException">Thrown when the client is not an equal integer multiple of the render size.</exception>
         public void AddWindowWithFixedRenderSize(IntPtr handle, int clientWidth, int clientHeight, int renderWidth, int renderHeight) {
             DirectX11FixedRenderSize.ValidateMagnification(clientWidth, clientHeight, renderWidth, renderHeight);
+            PointMagnifyPass ??= new DirectX11PointMagnifyPass(Device);
             base.AddWindow(handle, renderWidth, renderHeight);
             DirectX11SwapChainSurface surface = CreateSwapChainSurface(handle, clientWidth, clientHeight);
 
@@ -457,7 +458,35 @@ namespace helengine.directx11 {
             surface.Width = renderWidth;
             surface.Height = renderHeight;
             surface.UsesFixedRenderSize = true;
-            PointMagnifyPass ??= new DirectX11PointMagnifyPass(Device);
+        }
+
+        /// <summary>
+        /// Handles a host resize notification. Ordinary windows go through the base bookkeeping and the swap-chain
+        /// resize. A fixed-render-size window keeps the render size authoritative: the core must keep seeing the render
+        /// size, so the notification is handled here before the base can record the client size. Its own client size
+        /// again and a minimized (zero) size are ignored; any other size is rejected, because the window must keep the
+        /// client size it was added with.
+        /// </summary>
+        /// <param name="handle">Window handle.</param>
+        /// <param name="newWidth">New client width.</param>
+        /// <param name="newHeight">New client height.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when a dimension is negative.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when a fixed-render-size window reports a different non-zero client size.</exception>
+        public override void OnWindowResize(IntPtr handle, int newWidth, int newHeight) {
+            if (!SurfacesByHandle.TryGetValue(handle, out DirectX11SwapChainSurface surface) || !surface.UsesFixedRenderSize) {
+                base.OnWindowResize(handle, newWidth, newHeight);
+                return;
+            }
+
+            if (newWidth < 0 || newHeight < 0) {
+                throw new ArgumentOutOfRangeException(nameof(newWidth), "Window client dimensions cannot be negative.");
+            } else if (newWidth == 0 || newHeight == 0) {
+                return;
+            } else if (newWidth == surface.BackBufferWidth && newHeight == surface.BackBufferHeight) {
+                return;
+            }
+
+            throw new InvalidOperationException($"A fixed-render-size surface cannot be resized from {surface.BackBufferWidth}x{surface.BackBufferHeight} to {newWidth}x{newHeight}; its window must keep the client size it was added with.");
         }
 
         /// <summary>
