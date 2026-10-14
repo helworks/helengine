@@ -9,7 +9,7 @@ Exportar projetos `.heproj` da HelEngine para executar no navegador, preservando
 
 Helena aprovou WebGPU após comparar esse caminho com WebGL 2. A entrega é um destino de build de jogos integrado ao editor e à CLI. O editor continua sendo a ferramenta que prepara o projeto.
 
-O primeiro marco é uma cena real da engine: câmera, mesh texturizado, material básico e componente C# que responde ao input e modifica o estado da cena. Uma demonstração isolada de triângulo comprova o ambiente, mas não cumpre esse marco.
+O primeiro marco usa o Cube Test existente no projeto `C:\dev\helprojs\demodisc\project.heproj`, com a cena `C:\dev\helprojs\demodisc\assets\scenes\rendering\cube_test.helen`. O aceite inclui o cubo de material sólido, sua rotação em C#, câmera orbital controlável, luz direcional e UI desktop da cena. Uma demonstração isolada de triângulo comprova o ambiente, mas não cumpre esse marco. Texturas 3D serão verificadas posteriormente com uma cena existente de cubos texturizados.
 
 ## Base existente e restrições
 
@@ -21,6 +21,7 @@ O primeiro marco é uma cena real da engine: câmera, mesh texturizado, material
 - O backend Vulkan gerenciado usa Silk.NET; ele serve como referência de conceitos e contratos, não como implementação executável no navegador.
 - Há mudanças locais em andamento na engine. A implementação deve preservar essas mudanças e limitar alterações compartilhadas ao necessário para registrar e gerar a plataforma web.
 - Não capturar screenshots sem autorização específica de Helena.
+- A cena de validação foi indicada por Helena. Seus scripts estão no módulo de runtime `DemoDisc`, declarado em `C:\dev\helprojs\demodisc\assets\codebase\code.module.json`. A conversão desse módulo pode trazer dependências de outros scripts do projeto; incompatibilidades devem ser diagnosticadas, sem remover scripts silenciosamente.
 
 O índice estrutural do host Windows estava desatualizado. As conclusões acima foram conferidas no código atual, por leitura dos arquivos.
 
@@ -76,11 +77,11 @@ Resize atualiza o tamanho real do canvas, os attachments e os viewports de câme
 
 ## Renderização do primeiro marco
 
-Implementar os contratos atuais de `RenderManager3D` e visita de drawables com recursos WebGPU. A primeira implementação suporta câmera perspectiva/ortográfica, transformações, meshes indexados ou não, depth test, culling, base color, textura difusa e transparência básica.
+Implementar os contratos atuais de `RenderManager3D`, `RenderManager2D` e visita de drawables com recursos WebGPU. A primeira implementação suporta câmera perspectiva/ortográfica, transformações, meshes indexados ou não, depth test, culling, base color e uma luz direcional sem sombras. A UI desktop do Cube Test exige sprites texturizados, texto com o atlas de fonte preparado, retângulos arredondados, blending, clipping e os contratos atuais de viewport/escala.
 
-O material básico usa WGSL mantido pela plataforma, empacotado pelo builder, com bindings de câmera, objeto, cor, textura e sampler. A integração traduz os campos do material básico existente sem exigir reescrever scripts ou duplicar cenas para a web. Shaders customizados que dependem de outros backends recebem diagnóstico explícito de incompatibilidade.
+O material básico usa WGSL mantido pela plataforma, empacotado pelo builder, com bindings de câmera, objeto, cor e luz direcional. O caminho 2D acrescenta textura e sampler para sprites e atlas de fonte. A integração traduz os campos do material básico existente sem exigir reescrever scripts ou duplicar cenas para a web. Shaders customizados que dependem de outros backends recebem diagnóstico explícito de incompatibilidade.
 
-O perfil declara forward rendering, sem deferred, HDR, normal mapping, luzes ou sombras nessa primeira entrega. Recursos gráficos obrigatórios incompatíveis devem falhar com identificação do material, asset ou configuração. Reduções opcionais respeitam os contratos existentes de capacidades da engine. A ferramenta não deve declarar sucesso enquanto descarta silenciosamente conteúdo necessário.
+O perfil declara forward rendering, uma luz visível e zero luzes com sombras, sem deferred, HDR ou normal mapping nessa primeira entrega. Tipos de luz além da direcional recebem diagnóstico de incompatibilidade. Recursos gráficos obrigatórios incompatíveis devem falhar com identificação do material, asset ou configuração. Reduções opcionais respeitam os contratos existentes de capacidades da engine. A ferramenta não deve declarar sucesso enquanto descarta silenciosamente conteúdo necessário.
 
 Assets e instâncias de runtime mantêm sua identidade. Buffers, texturas e pipelines são reutilizados entre frames e liberados conforme ownership do runtime. O desenho consome os dados preparados pela engine; não cria uma segunda simulação em JavaScript.
 
@@ -88,7 +89,7 @@ Assets e instâncias de runtime mantêm sua identidade. Buffers, texturas e pipe
 
 O primeiro marco inclui teclado e mouse pelo canvas, com conversão para os contratos atuais de input e coordenadas coerentes com o tamanho de renderização. Touch, gamepad e pointer lock são extensões posteriores, não requisitos desse marco.
 
-Áudio básico integra `IAudioBackend` a Web Audio para assets PCM preparados pelo cooker, com reprodução, parada, loop, ganho e controle de buses. A página oferece uma ação de iniciar que permite desbloquear áudio com interação da usuária. Formatos ou operações que o backend não suporta devem produzir diagnóstico explícito.
+Áudio básico integra `IAudioBackend` a Web Audio para assets PCM preparados pelo cooker, com reprodução, parada, loop, ganho e controle de buses. A página oferece uma ação de iniciar que permite desbloquear áudio com interação da usuária. Formatos ou operações que o backend não suporta devem produzir diagnóstico explícito. O Cube Test foi preparado sem áudio; sua execução não comprova esse backend. A validação de áudio usa um asset PCM separado, sem acrescentar música à cena de referência.
 
 A página contém canvas, estado de carregamento, ação de iniciar e área de erro legível. O pacote usa localhost no desenvolvimento ou HTTPS na hospedagem. Falta de WebGPU, adapter indisponível, device perdido, arquivo ausente ou shader inválido interrompem a inicialização/execução com explicação; não ativam outro backend automaticamente.
 
@@ -96,16 +97,18 @@ A página contém canvas, estado de carregamento, ação de iniciar e área de e
 
 Este marco estabelece o builder e um player web real. Paridade com todos os recursos do Windows, física 3D, vídeo, persistência, editor no navegador, iluminação avançada e fallback WebGL 2 exigem marcos posteriores. Projetos que precisem de recursos ausentes recebem diagnósticos, em vez de um pacote apresentado como plenamente compatível.
 
-O primeiro projeto de validação será uma fixture pequena de `.heproj` com câmera, mesh texturizado e componente C# controlado pelo teclado. Isso permite verificar geração e execução sem depender dos recursos de um projeto grande. A exportação de um jogo existente escolhido por Helena é a etapa seguinte de compatibilidade.
+O projeto de validação é o DemoDisc indicado por Helena, em `C:\dev\helprojs\demodisc\project.heproj`, selecionando `cube_test` como cena inicial pelo fluxo atual de configurações da plataforma. A implementação deve preservar as referências ao modelo `Engine/Models/Cube`, ao material `C:\dev\helprojs\demodisc\assets\materials\rendering\cube_test\CubeTestSolid.hasset` e aos componentes `CubeTestSpinComponent` e `DemoDiscOrbitCameraComponent`. A UI desktop e a luz direcional fazem parte do aceite. O build deve selecionar as dependências da cena pelo cooking existente e não abrir o menu completo do DemoDisc para esse teste.
+
+A inscrição da nova plataforma e suas configurações de build no DemoDisc são parte da integração necessária. O conteúdo authored da cena deve ser preservado. Como esse projeto está fora da raiz gravável da sessão, qualquer escrita necessária em `C:\dev\helprojs\demodisc` deve respeitar o mecanismo de aprovação de acesso do ambiente. Saídas e logs da validação ficam em `C:\dev\helworks\builds\helengine-webgpu\cube-test`.
 
 ## Critérios de aceite e validação
 
-1. O editor e a CLI descobrem a plataforma pelo contrato atual e geram um pacote `webgpu` para a fixture.
+1. O editor e a CLI descobrem a plataforma pelo contrato atual e geram um pacote `webgpu` do DemoDisc com o Cube Test selecionado como cena inicial.
 2. A compilação inclui o core gerado e o módulo C# convertido; um bootstrap isolado não satisfaz o aceite.
-3. O navegador carrega a cena pelo manifest e desenha seu mesh e textura com WebGPU.
-4. O componente da fixture responde ao teclado e modifica uma transformação visível da cena.
+3. O navegador carrega o Cube Test pelo manifest e desenha seu cubo de material sólido, luz direcional e UI desktop com WebGPU.
+4. `CubeTestSpinComponent` gira o cubo com o tempo da engine; `DemoDiscOrbitCameraComponent` responde aos controles existentes mapeados para teclado/mouse.
 5. Resize e perda de foco preservam o estado correto do runtime e input.
-6. Áudio PCM funciona depois da ação de iniciar, inclusive parada e ganho de bus.
+6. Áudio PCM funciona depois da ação de iniciar, inclusive parada e ganho de bus, em uma verificação separada porque o Cube Test é silencioso.
 7. Toolchain ausente, asset faltante, material incompatível e falha GPU são comunicados sem sucesso falso.
 8. Uma segunda compilação usa o cache escolhido; nenhum build modifica a saída de outra plataforma.
 
