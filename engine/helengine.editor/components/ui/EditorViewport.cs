@@ -1363,10 +1363,11 @@ namespace helengine.editor {
 
         /// <summary>
         /// Raises <see cref="PlayRequested"/> when the selected Play platform supports Play; otherwise the click does nothing.
+        /// The click also does nothing while a Play is preparing, so a second Play never starts a second preparation.
         /// Holding either Shift key during the activation requests a launch that waits for a debugger.
         /// </summary>
         void ActivatePlayButton() {
-            if (!PresentedPlayAvailable) {
+            if (!PresentedPlayAvailable || PresentedPlayState == EditorPlaySessionState.Preparing) {
                 return;
             }
 
@@ -1387,8 +1388,8 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Applies the Play button colors: dimmed when unavailable, accented while a session is active, and the usual
-        /// hover, focus and press feedback otherwise.
+        /// Applies the Play button colors: dimmed when unavailable, in the warning color while a Play is preparing in the
+        /// background, accented while the player runs, and the usual hover, focus and press feedback otherwise.
         /// </summary>
         void UpdatePlayButtonVisuals() {
             if (PlayButtonBackground == null) {
@@ -1399,6 +1400,8 @@ namespace helengine.editor {
             bool highlighted = PlayButtonHoverState || PlayButtonKeyboardFocusState;
             if (!PresentedPlayAvailable) {
                 PlayButtonBackground.Color = ThemeManager.Colors.SurfaceInput;
+            } else if (PresentedPlayState == EditorPlaySessionState.Preparing) {
+                PlayButtonBackground.Color = ThemeManager.Colors.StateWarning;
             } else if (PlayButtonPressedState) {
                 PlayButtonBackground.Color = ThemeManager.Colors.AccentTertiary;
             } else if (sessionActive) {
