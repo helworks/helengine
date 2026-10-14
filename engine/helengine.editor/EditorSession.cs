@@ -4356,8 +4356,15 @@ namespace helengine.editor {
 
             if (IsPlayPreparationActive()) {
                 string message = "Play is preparing the scene as it was saved when Play was pressed; save again once the player has started or Play was stopped. Unsaved edits stay in the editor and go into the next Play.";
+                // The console always reports the refusal; a dialog that is on screen also says so, so its Save button
+                // never looks like it did nothing. A hidden dialog is left alone so no stale message waits in it.
                 Logger.WriteWarning(message);
-                saveFileDialog.ShowError(message);
+                if (saveFileDialog.IsVisible) {
+                    saveFileDialog.ShowError(message);
+                }
+                if (unsavedChangesDialog != null && unsavedChangesDialog.Enabled) {
+                    unsavedChangesDialog.ShowMessage(UnsavedChangesDialog.PlayPreparingSaveRefusedMessage);
+                }
                 return;
             }
 

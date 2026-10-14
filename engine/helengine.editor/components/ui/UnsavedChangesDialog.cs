@@ -39,6 +39,16 @@ namespace helengine.editor {
         const int FooterButtonSpacing = 8;
 
         /// <summary>
+        /// Question the dialog asks whenever it is shown.
+        /// </summary>
+        public const string DefaultMessage = "Do you want to save changes to the current map?";
+
+        /// <summary>
+        /// Message shown in place of the question when Save was refused because Play is preparing in the background.
+        /// </summary>
+        public const string PlayPreparingSaveRefusedMessage = "Play is preparing; Save is unavailable for a moment.";
+
+        /// <summary>
         /// Fixed size used for the save button.
         /// </summary>
         static readonly int2 SaveButtonSize = new int2(88, 22);
@@ -160,7 +170,7 @@ namespace helengine.editor {
 
             MessageText = new TextComponent {
                 Font = DialogFont,
-                Text = "Do you want to save changes to the current map?",
+                Text = DefaultMessage,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
             };
@@ -222,12 +232,31 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Shows the dialog.
+        /// Gets the message the dialog currently shows.
+        /// </summary>
+        public string Message => MessageText.Text;
+
+        /// <summary>
+        /// Shows the dialog asking its default question.
         /// </summary>
         public void Show() {
+            MessageText.Text = DefaultMessage;
             ResetDialogPositioning();
             Enabled = true;
             ShowDialogImmediately();
+        }
+
+        /// <summary>
+        /// Replaces the dialog's message while it stays open, for example to say why Save did nothing.
+        /// </summary>
+        /// <param name="message">Message to show.</param>
+        /// <exception cref="ArgumentException">Thrown when the message is blank.</exception>
+        public void ShowMessage(string message) {
+            if (string.IsNullOrWhiteSpace(message)) {
+                throw new ArgumentException("A message must be provided.", nameof(message));
+            }
+
+            MessageText.Text = message;
         }
 
         /// <summary>

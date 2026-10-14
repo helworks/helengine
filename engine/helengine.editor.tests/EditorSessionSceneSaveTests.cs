@@ -361,6 +361,31 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures Save in the unsaved-changes dialog, refused because Play is preparing, says so in the dialog, which
+        /// stays open so the user can choose again, and that the dialog asks its normal question the next time it opens.
+        /// </summary>
+        [Fact]
+        public void UnsavedChangesSave_WhilePlayIsPreparing_SaysWhyInTheOpenDialog() {
+            EditorSession session = CreateSessionForSceneSave();
+            string scenePath = SaveSceneThenChangeSettings(session, "PlayPreparingPrompt.helen");
+            GetPrivateField<EditorSceneLifecycleService>(session, "SceneLifecycleService").IsSceneDirty = true;
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CoreValue, InteractionServices, CreateFont());
+            SetPrivateField(session, "unsavedChangesDialog", dialog);
+            dialog.Show();
+            StartPreparingPlay(session, scenePath, new EditorMainThreadActionQueue());
+
+            InvokePrivate(session, "HandleUnsavedChangesSaveRequested");
+
+            Assert.True(dialog.Enabled);
+            Assert.Equal(UnsavedChangesDialog.PlayPreparingSaveRefusedMessage, dialog.Message);
+            Assert.False(ReadSavedDontUnload(scenePath));
+
+            dialog.Hide();
+            dialog.Show();
+            Assert.Equal(UnsavedChangesDialog.DefaultMessage, dialog.Message);
+        }
+
+        /// <summary>
         /// Ensures building and reloading scripts is refused while Play is preparing, because a reload unloads the script
         /// assemblies the background cook may be resolving types from. The fixture owns no hot-reload service, so a
         /// build that was not refused would fail on it.
