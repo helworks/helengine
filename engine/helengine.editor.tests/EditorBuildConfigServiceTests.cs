@@ -588,6 +588,32 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures composing from captured text reads nothing from disk, the text-command budget included: it succeeds
+    /// while both files are held exclusively (as a concurrent editor write would) and reports the budget captured at
+    /// press time, not the one written afterwards.
+    /// </summary>
+    [Fact]
+    public void ComposeSnapshot_ReadsNoFileAndTakesTheBudgetFromTheCapturedText() {
+        EditorBuildConfigService service = CreateService();
+        EditorBuildConfigDocument document = service.Load(["windows"], "Scenes/City.helen");
+        document.Platforms[0].Render2DTextCommandReuseMemoryBudgetBytes = 4096;
+        service.Save(document);
+        EditorBuildConfigFileSnapshot snapshot = service.CaptureFiles();
+        document.Platforms[0].Render2DTextCommandReuseMemoryBudgetBytes = 8192;
+        service.Save(document);
+        string localPath = Path.Combine(TempProjectRootPath, "user_settings", "build_config.json");
+        string projectPath = Path.Combine(TempProjectRootPath, "settings", "build_config.json");
+
+        EditorBuildConfigDocument composed;
+        using (new FileStream(localPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        using (new FileStream(projectPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) {
+            composed = service.ComposeSnapshot(snapshot, ["windows"], "Scenes/City.helen");
+        }
+
+        Assert.Equal(4096, composed.Platforms.Single(platform => platform.PlatformId == "windows").Render2DTextCommandReuseMemoryBudgetBytes);
+    }
+
+    /// <summary>
     /// Ensures a local file that cannot be read is reported as an I/O failure and left untouched, instead of being
     /// treated as missing, seeded with defaults and overwritten.
     /// </summary>

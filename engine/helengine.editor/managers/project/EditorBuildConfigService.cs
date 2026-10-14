@@ -109,13 +109,14 @@ namespace helengine.editor {
         /// <returns>Composed build configuration, or null when neither the project nor the local file is present and readable.</returns>
         public EditorBuildConfigDocument TryLoadExisting() {
             using EditorSharedAssetReferenceResolver sharedResolver = CreateSharedResolver();
-            EditorProjectBuildConfigDocument projectDocument = TryLoadProjectDocument(sharedResolver, out _);
-            EditorBuildConfigDocument localDocument = TryLoadLocalDocument(sharedResolver, out bool localChanged);
+            EditorBuildConfigFileSnapshot files = CaptureFiles();
+            EditorProjectBuildConfigDocument projectDocument = ParseProjectSnapshot(files, sharedResolver, out _);
+            EditorBuildConfigDocument localDocument = ParseLocalSnapshot(files, sharedResolver, out bool localChanged);
             if (projectDocument == null && localDocument == null) {
                 return null;
             }
 
-            EditorBuildConfigDocument document = Compose(projectDocument, localDocument);
+            EditorBuildConfigDocument document = Compose(projectDocument, localDocument, files);
             if (localChanged) {
                 WriteLocalDocument(document);
             }
@@ -144,13 +145,14 @@ namespace helengine.editor {
             }
 
             using EditorSharedAssetReferenceResolver sharedResolver = CreateSharedResolver();
-            EditorProjectBuildConfigDocument projectDocument = TryLoadProjectDocument(sharedResolver, out bool projectMalformed);
-            EditorBuildConfigDocument localDocument = TryLoadLocalDocument(sharedResolver, out bool localChanged);
-            EditorBuildConfigDocument document = Compose(projectDocument, localDocument);
+            EditorBuildConfigFileSnapshot files = CaptureFiles();
+            EditorProjectBuildConfigDocument projectDocument = ParseProjectSnapshot(files, sharedResolver, out bool projectMalformed);
+            EditorBuildConfigDocument localDocument = ParseLocalSnapshot(files, sharedResolver, out bool localChanged);
+            EditorBuildConfigDocument document = Compose(projectDocument, localDocument, files);
 
             bool changed = EnsurePlatformEntries(document, supportedPlatforms, currentSceneId) || localChanged;
-            bool projectFileMissing = !projectMalformed && !File.Exists(ProjectBuildConfigFilePath);
-            if (projectFileMissing || !File.Exists(LocalBuildConfigFilePath) || changed) {
+            bool projectFileMissing = !projectMalformed && files.ProjectJson == null;
+            if (projectFileMissing || files.LocalJson == null || changed) {
                 Save(document, sharedResolver);
             }
 
@@ -188,16 +190,36 @@ namespace helengine.editor {
             }
 
             using EditorSharedAssetReferenceResolver sharedResolver = CreateSharedResolver();
-            EditorProjectBuildConfigDocument projectDocument = snapshot.ProjectJson == null
-                ? null
-                : TryParseProjectDocument(snapshot.ProjectJson, sharedResolver, out _);
-            EditorBuildConfigDocument localDocument = snapshot.LocalJson == null
-                ? null
-                : TryParseLocalDocument(snapshot.LocalJson, sharedResolver, out _);
-            EditorBuildConfigDocument document = Compose(projectDocument, localDocument);
+            EditorProjectBuildConfigDocument projectDocument = ParseProjectSnapshot(snapshot, sharedResolver, out _);
+            EditorBuildConfigDocument localDocument = ParseLocalSnapshot(snapshot, sharedResolver, out _);
+            EditorBuildConfigDocument document = Compose(projectDocument, localDocument, snapshot);
             EnsurePlatformEntries(document, supportedPlatforms, currentSceneId);
             NormalizeDocument(document);
             return document;
+        }
+
+        /// <summary>
+        /// Parses the project scene packages from captured file text.
+        /// </summary>
+        /// <param name="files">Captured text of both build configuration files.</param>
+        /// <param name="sharedResolver">Resolver holder shared by the calling operation.</param>
+        /// <param name="malformed">Set to true when the project text exists but cannot be parsed or resolved.</param>
+        /// <returns>Project scene packages, or null when the file did not exist or is malformed.</returns>
+        EditorProjectBuildConfigDocument ParseProjectSnapshot(EditorBuildConfigFileSnapshot files, EditorSharedAssetReferenceResolver sharedResolver, out bool malformed) {
+            malformed = false;
+            return files.ProjectJson == null ? null : TryParseProjectDocument(files.ProjectJson, sharedResolver, out malformed);
+        }
+
+        /// <summary>
+        /// Parses the local build document from captured file text.
+        /// </summary>
+        /// <param name="files">Captured text of both build configuration files.</param>
+        /// <param name="sharedResolver">Resolver holder shared by the calling operation.</param>
+        /// <param name="changed">Set to true when normalization altered the document and it should be written back.</param>
+        /// <returns>Local build document, or null when the file did not exist or is malformed.</returns>
+        EditorBuildConfigDocument ParseLocalSnapshot(EditorBuildConfigFileSnapshot files, EditorSharedAssetReferenceResolver sharedResolver, out bool changed) {
+            changed = false;
+            return files.LocalJson == null ? null : TryParseLocalDocument(files.LocalJson, sharedResolver, out changed);
         }
 
         /// <summary>
@@ -258,8 +280,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="projectDocument">Project scene packages, or null when the file is absent.</param>
         /// <param name="localDocument">Local build state, or null when the file is absent.</param>
+        /// <param name="files">Text of both files the documents were parsed from; the text-command budgets are read from it, never from disk.</param>
         /// <returns>Composed build configuration.</returns>
-        EditorBuildConfigDocument Compose(EditorProjectBuildConfigDocument projectDocument, EditorBuildConfigDocument localDocument) {
+        EditorBuildConfigDocument Compose(EditorProjectBuildConfigDocument projectDocument, EditorBuildConfigDocument localDocument, EditorBuildConfigFileSnapshot files) {
             EditorBuildConfigDocument document = localDocument ?? new EditorBuildConfigDocument();
             document.Platforms ??= [];
             document.QueueItems ??= [];
@@ -285,7 +308,7 @@ namespace helengine.editor {
                 ApplyProjectScenes(platform, FindProjectPlatformEntry(projectDocument, platform.PlatformId));
             }
 
-            EditorRuntimeTextCommandReuseSettingsResolver.ApplyProjectDefaults(ProjectRootPath, document);
+            EditorRuntimeTextCommandReuseSettingsResolver.ApplyProjectDefaults(document, files.ProjectJson, files.LocalJson);
             return document;
         }
 
@@ -468,21 +491,6 @@ namespace helengine.editor {
                 malformed = true;
                 return null;
             }
-        }
-
-        /// <summary>
-        /// Attempts to load the local build document from disk, normalizing current-format fields.
-        /// </summary>
-        /// <param name="sharedResolver">Resolver holder shared by the calling load.</param>
-        /// <param name="changed">Set to true when normalization altered the document and it should be written back.</param>
-        /// <returns>Local build document, or null when the file is missing or malformed.</returns>
-        EditorBuildConfigDocument TryLoadLocalDocument(EditorSharedAssetReferenceResolver sharedResolver, out bool changed) {
-            changed = false;
-            if (!File.Exists(LocalBuildConfigFilePath)) {
-                return null;
-            }
-
-            return TryParseLocalDocument(File.ReadAllText(LocalBuildConfigFilePath), sharedResolver, out changed);
         }
 
         /// <summary>
