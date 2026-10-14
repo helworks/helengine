@@ -208,6 +208,8 @@ namespace helengine {
         /// </summary>
         /// <param name="camera">Camera whose output pixels are described.</param>
         /// <returns>The displayed width of one output pixel divided by its displayed height.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="camera"/> is null.</exception>
+        /// <exception cref="ArgumentException">Thrown when the camera's output tag is not a valid view tag.</exception>
         /// <exception cref="InvalidOperationException">Thrown when the camera names a view that was never registered.</exception>
         public double GetCameraPixelAspect(ICamera camera) {
             if (camera == null) {
