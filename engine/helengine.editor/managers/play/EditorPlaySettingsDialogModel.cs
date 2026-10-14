@@ -64,8 +64,8 @@ namespace helengine.editor {
             PlatformDefinitions = capability.PlaySettings;
             CommonValues = new Dictionary<string, string>(evaluation.CommonValues, StringComparer.Ordinal);
             PlatformValues = new Dictionary<string, string>(evaluation.PlatformValues, StringComparer.Ordinal);
-            StoredIssues = storedIssues;
-            EditIssues = storedIssues;
+            StoredIssues = storedIssues.AsReadOnly();
+            EditIssues = new List<EditorPlaySettingIssue>(storedIssues).AsReadOnly();
         }
 
         /// <summary>Gets the platform whose Play settings are edited.</summary>
@@ -154,13 +154,16 @@ namespace helengine.editor {
             Dictionary<string, string> platform = ValidateSection(PlatformDefinitions, platformEdits, EditorPlaySettingScope.Platform, issues);
             CommonValues = common;
             PlatformValues = platform;
-            EditIssues = issues;
-            return issues;
+            EditIssues = issues.AsReadOnly();
+            return EditIssues;
         }
 
         /// <summary>
         /// Creates the document to save: a copy of the stored document with the common section and this platform's
-        /// section replaced by the current values. Stored ids the declarations no longer know are therefore left out.
+        /// section replaced by the current values that differ from their declared defaults. A missing key means the
+        /// declared default, so a later change to a default reaches every user who never picked another value. This
+        /// platform's section is left out when every value is the default, and stored ids the declarations no longer
+        /// know are left out too. Other platforms' sections are copied untouched.
         /// </summary>
         /// <returns>Document to save.</returns>
         /// <exception cref="InvalidOperationException">Thrown while any current value is rejected, or before edits were applied to stored issues.</exception>
@@ -171,10 +174,14 @@ namespace helengine.editor {
 
             EditorPlaySettingsDocument saved = Document.Clone();
             saved.CommonValues.Clear();
-            foreach (KeyValuePair<string, string> entry in CommonValues) {
-                saved.CommonValues.Add(entry.Key, entry.Value);
+            CopyNonDefaultValues(CommonDefinitions, CommonValues, saved.CommonValues);
+            Dictionary<string, string> platformSection = new Dictionary<string, string>(StringComparer.Ordinal);
+            CopyNonDefaultValues(PlatformDefinitions, PlatformValues, platformSection);
+            saved.PlatformValues.Remove(PlatformId);
+            if (platformSection.Count > 0) {
+                saved.PlatformValues.Add(PlatformId, platformSection);
             }
-            saved.PlatformValues[PlatformId] = new Dictionary<string, string>(PlatformValues, StringComparer.Ordinal);
+
             return saved;
         }
 
@@ -202,6 +209,22 @@ namespace helengine.editor {
             }
 
             return saved;
+        }
+
+        /// <summary>
+        /// Copies every declared value that differs (ordinally) from its declared default into the target section.
+        /// </summary>
+        /// <param name="definitions">Declarations of the section.</param>
+        /// <param name="values">Current values of the section, one per declaration.</param>
+        /// <param name="target">Section of the document being saved.</param>
+        static void CopyNonDefaultValues(PlatformSettingDefinition[] definitions, Dictionary<string, string> values, Dictionary<string, string> target) {
+            for (int index = 0; index < definitions.Length; index++) {
+                PlatformSettingDefinition definition = definitions[index];
+                string value = values[definition.SettingId];
+                if (!string.Equals(value, definition.DefaultValue, StringComparison.Ordinal)) {
+                    target.Add(definition.SettingId, value);
+                }
+            }
         }
 
         /// <summary>

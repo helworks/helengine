@@ -66,7 +66,7 @@ public sealed class EditorPlaySettingsDialogModelTests : IDisposable {
 
         Assert.Empty(issues);
         Assert.Equal("2x", saved.CommonValues["window-scale"]);
-        Assert.Equal("stacked", saved.PlatformValues["ds"]["screen-layout"]);
+        Assert.False(saved.PlatformValues.ContainsKey("ds"));
         Assert.Equal("pal-320x256p", saved.PlatformValues["ps2"]["video-mode"]);
         Assert.Equal("5x", document.CommonValues["window-scale"]);
     }
@@ -112,7 +112,8 @@ public sealed class EditorPlaySettingsDialogModelTests : IDisposable {
         IReadOnlyList<EditorPlaySettingIssue> issues = model.ApplyEdits(common, model.CreatePlatformEditValues());
 
         Assert.Empty(issues);
-        Assert.Equal("fit", model.CreateSavedDocument().CommonValues["window-scale"]);
+        Assert.Equal("fit", common["window-scale"]);
+        Assert.False(model.CreateSavedDocument().CommonValues.ContainsKey("window-scale"));
         Assert.Equal("stacked", model.GetDefaultValue(EditorPlaySettingScope.Platform, "screen-layout"));
         Assert.Throws<ArgumentException>(() => model.GetDefaultValue(EditorPlaySettingScope.Platform, "video-mode"));
     }
@@ -142,8 +143,7 @@ public sealed class EditorPlaySettingsDialogModelTests : IDisposable {
         EditorPlaySettingsDocument saved = model.CreateSavedDocument();
 
         Assert.Empty(issues);
-        Assert.False(saved.PlatformValues["ds"].ContainsKey("screen-gap"));
-        Assert.Equal("stacked", saved.PlatformValues["ds"]["screen-layout"]);
+        Assert.False(saved.PlatformValues.ContainsKey("ds"));
         Assert.Equal("8", document.PlatformValues["ds"]["screen-gap"]);
         Assert.True(EditorPlaySettingsEvaluator.Evaluate(saved, FilePath, "ds", CreateCapability()).IsValid);
     }
@@ -160,8 +160,79 @@ public sealed class EditorPlaySettingsDialogModelTests : IDisposable {
         model.Save(store);
 
         EditorPlaySettingsDocument loaded = store.Load();
-        Assert.Equal("2x", loaded.CommonValues["window-scale"]);
-        Assert.Equal("stacked", loaded.PlatformValues["ds"]["screen-layout"]);
+        Assert.Equal("2x", Assert.Single(loaded.CommonValues).Value);
+        Assert.Empty(loaded.PlatformValues);
+    }
+
+    /// <summary>
+    /// Save keeps only values that differ from the declared default, so a later change to a default reaches users who
+    /// never touched that setting; a platform section left with only defaults is not written, other platforms are kept.
+    /// </summary>
+    [Fact]
+    public void CreateSavedDocument_KeepsOnlyValuesThatDifferFromTheDefault() {
+        EditorPlaySettingsDocument document = new EditorPlaySettingsDocument();
+        document.CommonValues["window-scale"] = "3x";
+        document.CommonValues["window-monitor"] = "editor";
+        document.PlatformValues["ps2"] = new Dictionary<string, string> { ["video-mode"] = "project" };
+        EditorPlaySettingsDialogModel model = new EditorPlaySettingsDialogModel("ds", "Nintendo DS", CreateCapability(), document, FilePath);
+        Dictionary<string, string> common = model.CreateCommonEditValues();
+        common["window-scale"] = "fit";
+        common["shadows"] = "false";
+
+        model.ApplyEdits(common, model.CreatePlatformEditValues());
+        EditorPlaySettingsDocument saved = model.CreateSavedDocument();
+
+        KeyValuePair<string, string> savedCommon = Assert.Single(saved.CommonValues);
+        Assert.Equal("shadows", savedCommon.Key);
+        Assert.Equal("false", savedCommon.Value);
+        Assert.False(saved.PlatformValues.ContainsKey("ds"));
+        Assert.Equal("project", saved.PlatformValues["ps2"]["video-mode"]);
+
+        Dictionary<string, string> platform = model.CreatePlatformEditValues();
+        platform["screen-layout"] = "side-by-side";
+        model.ApplyEdits(model.CreateCommonEditValues(), platform);
+
+        Assert.Equal("side-by-side", Assert.Single(model.CreateSavedDocument().PlatformValues["ds"]).Value);
+    }
+
+    /// <summary>
+    /// A stored common id the engine no longer declares opens flagged as a Common stored issue (never dropped silently),
+    /// blocks saving until edits are applied, and is left out of the saved document.
+    /// </summary>
+    [Fact]
+    public void StoredUndeclaredCommonSetting_IsFlaggedAndSaveRemovesIt() {
+        EditorPlaySettingsDocument document = new EditorPlaySettingsDocument();
+        document.CommonValues["retired-setting"] = "on";
+
+        EditorPlaySettingsDialogModel model = new EditorPlaySettingsDialogModel("ds", "Nintendo DS", CreateCapability(), document, FilePath);
+
+        EditorPlaySettingIssue issue = Assert.Single(model.StoredIssues);
+        Assert.Equal(EditorPlaySettingScope.Common, issue.Scope);
+        Assert.Equal("retired-setting", issue.SettingId);
+        Assert.Equal("on", issue.StoredValue);
+        Assert.True(model.IsStoredValueInvalid(EditorPlaySettingScope.Common, "retired-setting"));
+        Assert.False(model.CreateCommonEditValues().ContainsKey("retired-setting"));
+        Assert.Throws<InvalidOperationException>(() => model.CreateSavedDocument());
+
+        model.ApplyEdits(model.CreateCommonEditValues(), model.CreatePlatformEditValues());
+
+        Assert.False(model.CreateSavedDocument().CommonValues.ContainsKey("retired-setting"));
+        Assert.Equal("on", document.CommonValues["retired-setting"]);
+    }
+
+    /// <summary>A rejected stored value flags its row only in its own section.</summary>
+    [Fact]
+    public void IsStoredValueInvalid_MatchesTheScope() {
+        EditorPlaySettingsDocument document = new EditorPlaySettingsDocument();
+        document.CommonValues["window-scale"] = "5x";
+        document.PlatformValues["ds"] = new Dictionary<string, string> { ["screen-layout"] = "upside-down" };
+
+        EditorPlaySettingsDialogModel model = new EditorPlaySettingsDialogModel("ds", "Nintendo DS", CreateCapability(), document, FilePath);
+
+        Assert.True(model.IsStoredValueInvalid(EditorPlaySettingScope.Common, "window-scale"));
+        Assert.False(model.IsStoredValueInvalid(EditorPlaySettingScope.Platform, "window-scale"));
+        Assert.True(model.IsStoredValueInvalid(EditorPlaySettingScope.Platform, "screen-layout"));
+        Assert.False(model.IsStoredValueInvalid(EditorPlaySettingScope.Common, "screen-layout"));
     }
 
     /// <summary>A failed save names play.json, and the previous file content survives.</summary>
@@ -198,9 +269,9 @@ public sealed class EditorPlaySettingsDialogModelTests : IDisposable {
         Assert.False(File.Exists(store.FilePath));
     }
 
-    /// <summary>Creates a DS-like capability with one choice Play setting.</summary>
+    /// <summary>Creates a DS-like capability with one choice Play setting (default <c>stacked</c>).</summary>
     static PlatformPlayerCapability CreateCapability() {
         return new PlatformPlayerCapability(true, "a.B", "staging", 60d, PlayerInputDevices.Gamepad, "ds", "1.0.0",
-            [new PlatformSettingDefinition("screen-layout", "Screen Layout", PlatformSettingKind.Choice, "stacked", true, ["stacked"])]);
+            [new PlatformSettingDefinition("screen-layout", "Screen Layout", PlatformSettingKind.Choice, "stacked", true, ["stacked", "side-by-side"])]);
     }
 }
