@@ -226,7 +226,13 @@ namespace helengine.editor {
             return HeldVersionsByProjectRoot.TryGetValue(NormalizeProjectRootKey(projectRootPath), out version);
         }
 
-        static string NormalizeProjectRootKey(string projectRootPath) {
+        /// <summary>
+        /// Normalizes a project root into the key used by every per-root table of the write lock and the write
+        /// generation: the full path without a trailing separator.
+        /// </summary>
+        /// <param name="projectRootPath">Project root to normalize.</param>
+        /// <returns>Full project root path without a trailing separator.</returns>
+        internal static string NormalizeProjectRootKey(string projectRootPath) {
             return Path.GetFullPath(projectRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         }
     }
@@ -370,7 +376,7 @@ namespace helengine.editor {
         /// </summary>
         public static long Read(string projectRootPath) {
             string generationPath = GetPath(projectRootPath);
-            string rootKey = NormalizeVerifiedRootKey(projectRootPath);
+            string rootKey = EditorProjectWriteLock.NormalizeProjectRootKey(projectRootPath);
             bool lockHeld = EditorProjectWriteLock.TryGetHeldVersion(projectRootPath, out long heldVersion);
             if (lockHeld
                 && VerifiedGenerationLockVersionByRoot != null
@@ -386,15 +392,6 @@ namespace helengine.editor {
                 (VerifiedGenerationByRoot ??= new Dictionary<string, long>(PathComparer))[rootKey] = snapshot.CurrentGeneration;
             }
             return snapshot.CurrentGeneration;
-        }
-
-        /// <summary>
-        /// Normalizes a project root into the key used by the verified-generation memo.
-        /// </summary>
-        /// <param name="projectRootPath">Project root to normalize.</param>
-        /// <returns>Full project root path without a trailing separator.</returns>
-        static string NormalizeVerifiedRootKey(string projectRootPath) {
-            return Path.GetFullPath(projectRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         }
 
         /// <summary>
