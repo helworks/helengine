@@ -502,6 +502,7 @@ namespace helengine.directx11 {
                 Surfaces.Add(surface);
                 SurfacesByHandle.Add(handle, surface);
 
+                surface.WindowHandle = handle;
                 surface.Width = width;
                 surface.Height = height;
 
@@ -898,7 +899,7 @@ namespace helengine.directx11 {
             float4 viewport = CameraViewportResolver.ResolveViewport(camera.Viewport, directX11Target.Width, directX11Target.Height);
             context.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
 
-            float4x4 projection = CreateCameraProjection(camera, viewport);
+            float4x4 projection = CreateCameraProjection(camera, viewport, SquarePixelAspect);
 
             float4x4.Multiply(ref view, ref projection, out CurrentViewProjection);
 
@@ -1022,7 +1023,8 @@ namespace helengine.directx11 {
             float4 viewport = ResolveCameraViewport(camera, context.Surface);
             deviceContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
 
-            float4x4 projection = CreateCameraProjection(camera, viewport);
+            double pixelAspect = renderTarget != null ? SquarePixelAspect : GetWindowPixelAspect(context.Surface.WindowHandle);
+            float4x4 projection = CreateCameraProjection(camera, viewport, pixelAspect);
 
             float4x4.Multiply(ref view, ref projection, out CurrentViewProjection);
 
@@ -1040,17 +1042,20 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
-        /// Creates the projection one camera renders with into a pixel viewport, using the display pixel aspect of the
-        /// window or render target it draws into, so a framebuffer shown with non-square pixels keeps the scene's
-        /// proportions. Windows that never report a pixel aspect project exactly as before.
+        /// Creates the projection one camera renders with into a pixel viewport. The caller passes the display pixel
+        /// aspect of the target actually being drawn: square for a render target, and otherwise the value reported for
+        /// the window of the surface being drawn (DirectX11 draws every camera into every surface, whatever output tag
+        /// the camera carries). A framebuffer shown with non-square pixels therefore keeps the scene's proportions, and
+        /// windows that never report a pixel aspect project exactly as before.
         /// </summary>
         /// <param name="camera">Camera being rendered.</param>
         /// <param name="viewport">Pixel viewport the camera renders into.</param>
+        /// <param name="pixelAspect">Display pixel aspect of the render target or window surface being drawn.</param>
         /// <returns>The validated projection matrix.</returns>
-        protected virtual float4x4 CreateCameraProjection(ICamera camera, float4 viewport) {
+        protected virtual float4x4 CreateCameraProjection(ICamera camera, float4 viewport, double pixelAspect) {
             return CameraProjectionUtils.CreateProjection(
                 camera,
-                CameraProjectionUtils.ResolveProjectionAspect(viewport.Z, viewport.W, GetCameraPixelAspect(camera)));
+                CameraProjectionUtils.ResolveProjectionAspect(viewport.Z, viewport.W, pixelAspect));
         }
 
         /// <summary>

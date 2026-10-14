@@ -7,6 +7,12 @@ namespace helengine.directx11 {
     /// </summary>
     public class DirectX11SwapChainSurface : IDisposable {
         /// <summary>
+        /// Gets or sets the host window handle this surface presents to; it is the handle the window was registered with,
+        /// so per-window state such as the display pixel aspect can be looked up for the surface being drawn.
+        /// </summary>
+        public IntPtr WindowHandle { get; set; }
+
+        /// <summary>
         /// Gets or sets the swap chain for the window.
         /// </summary>
         public SwapChain SwapChain { get; set; } = null!;

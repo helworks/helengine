@@ -35,9 +35,10 @@ namespace helengine.player.tests {
         /// </summary>
         /// <param name="camera">Camera being rendered.</param>
         /// <param name="viewport">Pixel viewport the camera renders into.</param>
+        /// <param name="pixelAspect">Display pixel aspect of the render target or window surface being drawn.</param>
         /// <returns>The projection the camera pass uses.</returns>
-        protected override float4x4 CreateCameraProjection(ICamera camera, float4 viewport) {
-            float4x4 projection = base.CreateCameraProjection(camera, viewport);
+        protected override float4x4 CreateCameraProjection(ICamera camera, float4 viewport, double pixelAspect) {
+            float4x4 projection = base.CreateCameraProjection(camera, viewport, pixelAspect);
             LastCameraProjection = projection;
             return projection;
         }
