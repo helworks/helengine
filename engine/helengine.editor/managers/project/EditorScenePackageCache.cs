@@ -161,6 +161,62 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Captures the bytes of every import-settings sidecar the key covers, so a sidecar packaging rewrites can
+        /// later be compared field by field with its state before packaging. Called only on a cache miss, right before
+        /// packaging; the reads go through the verified read path inside one read batch.
+        /// </summary>
+        /// <param name="key">Key computed before packaging.</param>
+        /// <returns>Sidecar bytes keyed by project-relative path.</returns>
+        public IReadOnlyDictionary<string, byte[]> CaptureImportSettingsSidecars(EditorScenePackageKey key) {
+            if (key == null) {
+                throw new ArgumentNullException(nameof(key));
+            }
+
+            Dictionary<string, byte[]> sidecars = new(StringComparer.Ordinal);
+            using EditorAuthoringReadBatch readBatch = EditorAuthoringReadBatch.Begin(ProjectRootPath);
+            foreach (string relativePath in key.InputHashes.Keys) {
+                if (key.IsImportSettingsSidecar(relativePath)) {
+                    sidecars.Add(relativePath, EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, ResolveInputPath(relativePath)));
+                }
+            }
+
+            return sidecars;
+        }
+
+        /// <summary>
+        /// Reports whether an import-settings sidecar that packaging rewrote differs from its captured state only in
+        /// the cook-derived fields (see <see cref="EditorScenePackageSidecarComparer"/>).
+        /// </summary>
+        /// <param name="relativePath">Project-relative sidecar path.</param>
+        /// <param name="sidecarsBeforePackaging">Sidecar bytes from <see cref="CaptureImportSettingsSidecars"/>.</param>
+        /// <returns>True only when the sidecar existed before and after packaging and only cook-derived fields changed.</returns>
+        public bool IsCookDerivedImportSettingsRewrite(string relativePath, IReadOnlyDictionary<string, byte[]> sidecarsBeforePackaging) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            } else if (sidecarsBeforePackaging == null) {
+                throw new ArgumentNullException(nameof(sidecarsBeforePackaging));
+            }
+
+            string fullPath = ResolveInputPath(relativePath);
+            if (!sidecarsBeforePackaging.TryGetValue(relativePath, out byte[] before) || !File.Exists(fullPath)) {
+                return false;
+            }
+
+            return EditorScenePackageSidecarComparer.DiffersOnlyByCookDerivedFields(
+                before,
+                EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, fullPath));
+        }
+
+        /// <summary>
+        /// Resolves a covered project-relative path to an absolute path.
+        /// </summary>
+        /// <param name="relativePath">Project-relative path with forward slashes.</param>
+        /// <returns>Absolute path beneath the project root.</returns>
+        string ResolveInputPath(string relativePath) {
+            return Path.Combine(ProjectRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+        }
+
+        /// <summary>
         /// Restores one validated scene package into a fresh execution root.
         /// </summary>
         /// <param name="key">Content-addressed package key.</param>

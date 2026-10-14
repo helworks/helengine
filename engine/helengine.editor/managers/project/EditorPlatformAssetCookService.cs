@@ -120,6 +120,7 @@ namespace helengine.editor {
                 effectiveExecutionRootPath,
                 out EditorPlatformBuildScenePackagerResult packagerResult);
             if (!scenePackageCacheHit) {
+                IReadOnlyDictionary<string, byte[]> sidecarsBeforePackaging = scenePackageCache.CaptureImportSettingsSidecars(scenePackageKey);
                 using EditorPlatformBuildScenePackager packager = new(
                     ProjectRootPath,
                     Importers,
@@ -141,9 +142,14 @@ namespace helengine.editor {
                 // importer settings (whose derived asset id depends on the cooked platform) into the authored
                 // <source>.hasset sidecar; a fresh identity reconcile can also give a source its <source>.hmeta. The
                 // key above was taken before those writes, so the next Play would never hit it. Re-key after
-                // packaging and also store the entry under the post-packaging key when the only differences are such
-                // sidecars of unchanged sources; any other difference means the project changed during packaging, and
-                // the output is then kept only under the inputs it was packaged from.
+                // packaging and also store the entry under the post-packaging key when the only differences are
+                // rewritten import settings that differ from their captured state only in cook-derived fields, or
+                // newly created identity sidecars, all of unchanged sources. Any other difference, including a real
+                // import-settings edit, means the project changed during packaging, and the output is then kept only
+                // under the inputs it was packaged from.
+                // Behaviour change, intended: the post-packaging key computation runs the same verified reads and
+                // reparse-point rejection as the first one, so if it fails the whole cook fails even though packaging
+                // succeeded. A project that changed into an unsafe state during packaging must not be cooked or cached.
                 EditorScenePackageKey packagedKey = scenePackageCache.ComputeKey(
                     platformDefinition,
                     effectiveMaterialBuilder,
@@ -156,7 +162,9 @@ namespace helengine.editor {
                     DefaultFontAsset,
                     ScriptTypeResolver,
                     BuiltInShaderAssetLibrary);
-                if (scenePackageKey.DiffersOnlyByPackagerSidecars(packagedKey)) {
+                if (scenePackageKey.DiffersOnlyByPackagerSidecars(
+                    packagedKey,
+                    relativePath => scenePackageCache.IsCookDerivedImportSettingsRewrite(relativePath, sidecarsBeforePackaging))) {
                     scenePackageCache.Store(packagedKey.Key, effectiveExecutionRootPath, packagerResult);
                     Console.WriteLine("[cook] scene-package-cache stored-post-packaging-key (packaging wrote asset sidecars)");
                 } else if (!string.Equals(scenePackageKey.Key, packagedKey.Key, StringComparison.Ordinal)) {
