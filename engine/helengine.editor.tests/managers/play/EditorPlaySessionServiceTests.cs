@@ -205,7 +205,7 @@ public sealed class EditorPlaySessionServiceTests {
     public void Play_PassesCapabilityTargetFrameRateAsInvariantTargetFpsArgument() {
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
         EditorPlaySessionService service = CreateService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), launcher);
-        PlatformPlayerCapability capability = new PlatformPlayerCapability(true, AdapterTypeName, "ps2-staging", 59.94d, PlayerInputDevices.Gamepad);
+        PlatformPlayerCapability capability = new PlatformPlayerCapability(true, AdapterTypeName, "ps2-staging", 59.94d, PlayerInputDevices.Gamepad, "ps2", "1.0.0");
         System.Globalization.CultureInfo previousCulture = System.Globalization.CultureInfo.CurrentCulture;
         System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("de-DE");
         try {
@@ -228,7 +228,7 @@ public sealed class EditorPlaySessionServiceTests {
     public void Play_PassesCapabilityInputDevicesAsInputDevicesArgument() {
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
         EditorPlaySessionService service = CreateService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), launcher);
-        PlatformPlayerCapability capability = new PlatformPlayerCapability(true, AdapterTypeName, "ps2-staging", 60d, PlayerInputDevices.Gamepad | PlayerInputDevices.Keyboard);
+        PlatformPlayerCapability capability = new PlatformPlayerCapability(true, AdapterTypeName, "ps2-staging", 60d, PlayerInputDevices.Gamepad | PlayerInputDevices.Keyboard, "ps2", "1.0.0");
 
         PlayToCompletion(service, PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, capability.AdapterTypeName, capability.TargetFrameRate, capability.InputDevices, false);
 
@@ -459,7 +459,7 @@ public sealed class EditorPlaySessionServiceTests {
     public void IsPlayAvailable_FollowsCapability() {
         EditorPlaySessionService service = CreateService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), new FakePlayProcessLauncher());
 
-        Assert.True(service.IsPlayAvailable(new PlatformPlayerCapability(true, AdapterTypeName, "ps2-staging", TargetFrameRate, PlayerInputDevices.Gamepad)));
+        Assert.True(service.IsPlayAvailable(new PlatformPlayerCapability(true, AdapterTypeName, "ps2-staging", TargetFrameRate, PlayerInputDevices.Gamepad, "ps2", "1.0.0")));
         Assert.False(service.IsPlayAvailable(PlatformPlayerCapability.CreateUnsupported()));
     }
 

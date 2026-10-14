@@ -19,12 +19,24 @@ namespace helengine.baseplatform.Definitions {
         /// Input devices the platform's real hardware offers (PS2: <see cref="PlayerInputDevices.Gamepad"/> only). The player
         /// forwards only these devices to the game. Must name at least one known device when Play is supported.
         /// </param>
-        /// <exception cref="ArgumentException">Thrown when Play is supported but the adapter type name or content root is blank, or no input device is declared.</exception>
+        /// <param name="runtimePlatformName">
+        /// Platform name the platform's native runtime reports to the core through <c>PlatformInfo.Name</c> (PS2: <c>ps2</c>).
+        /// The desktop player reports the same name, so game code that branches on the platform behaves as on the console.
+        /// Required when Play is supported.
+        /// </param>
+        /// <param name="runtimePlatformVersion">
+        /// Platform version the platform's native runtime reports to the core through <c>PlatformInfo.Version</c>
+        /// (PS2: <c>1.0.0</c>). The desktop player reports the same version. Required when Play is supported.
+        /// </param>
+        /// <exception cref="ArgumentException">
+        /// Thrown when Play is supported but the adapter type name, content root, runtime platform name or runtime platform
+        /// version is blank, or no input device is declared.
+        /// </exception>
         /// <exception cref="ArgumentOutOfRangeException">
         /// Thrown when Play is supported but the target frame rate is not a positive, finite number, or the device set contains
         /// bits that name no known device.
         /// </exception>
-        public PlatformPlayerCapability(bool supportsPlay, string adapterTypeName, string contentRootRelativePath, double targetFrameRate, PlayerInputDevices inputDevices) {
+        public PlatformPlayerCapability(bool supportsPlay, string adapterTypeName, string contentRootRelativePath, double targetFrameRate, PlayerInputDevices inputDevices, string runtimePlatformName, string runtimePlatformVersion) {
             if (supportsPlay && string.IsNullOrWhiteSpace(adapterTypeName)) {
                 throw new ArgumentException("A platform that supports Play must name its player adapter type.", nameof(adapterTypeName));
             } else if (supportsPlay && string.IsNullOrWhiteSpace(contentRootRelativePath)) {
@@ -41,6 +53,10 @@ namespace helengine.baseplatform.Definitions {
                     nameof(inputDevices),
                     inputDevices,
                     "A platform's player input devices contain bits that name no known device.");
+            } else if (supportsPlay && string.IsNullOrWhiteSpace(runtimePlatformName)) {
+                throw new ArgumentException("A platform that supports Play must name the platform its native runtime reports to the core.", nameof(runtimePlatformName));
+            } else if (supportsPlay && string.IsNullOrWhiteSpace(runtimePlatformVersion)) {
+                throw new ArgumentException("A platform that supports Play must name the platform version its native runtime reports to the core.", nameof(runtimePlatformVersion));
             }
 
             SupportsPlay = supportsPlay;
@@ -48,6 +64,8 @@ namespace helengine.baseplatform.Definitions {
             ContentRootRelativePath = contentRootRelativePath;
             TargetFrameRate = targetFrameRate;
             InputDevices = inputDevices;
+            RuntimePlatformName = runtimePlatformName;
+            RuntimePlatformVersion = runtimePlatformVersion;
         }
 
         /// <summary>
@@ -79,13 +97,25 @@ namespace helengine.baseplatform.Definitions {
         public PlayerInputDevices InputDevices { get; }
 
         /// <summary>
+        /// Gets the platform name the platform's native runtime reports to the core; the desktop player reports the same
+        /// name so game code sees the console's identity during Play. <c>none</c> when Play is unsupported.
+        /// </summary>
+        public string RuntimePlatformName { get; }
+
+        /// <summary>
+        /// Gets the platform version the platform's native runtime reports to the core; the desktop player reports the
+        /// same version. <c>none</c> when Play is unsupported.
+        /// </summary>
+        public string RuntimePlatformVersion { get; }
+
+        /// <summary>
         /// Creates the capability for platforms that do not opt in to editor Play. The adapter and content root are
-        /// <c>none</c>, the target frame rate is <c>0</c> and no input device is declared, because no player is ever
+        /// <c>none</c>, the target frame rate is <c>0</c>, no input device is declared and the runtime platform name and version are <c>none</c>, because no player is ever
         /// launched for such a platform.
         /// </summary>
         /// <returns>Unsupported Play capability.</returns>
         public static PlatformPlayerCapability CreateUnsupported() {
-            return new PlatformPlayerCapability(false, "none", "none", 0d, PlayerInputDevices.None);
+            return new PlatformPlayerCapability(false, "none", "none", 0d, PlayerInputDevices.None, "none", "none");
         }
     }
 }

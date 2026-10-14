@@ -96,7 +96,7 @@ public sealed class EditorPlatformBuildGraphRunnerAssetsOnlyTests : IDisposable 
     /// </summary>
     [Fact]
     public void ExecuteAssetsOnly_PassesAssetsOnlyScopeAndReturnsStagingContentRoot() {
-        RecordingPlayPlatformAssetBuilder builder = new(new PlatformPlayerCapability(true, "x.Adapter", "staging", 60d, PlayerInputDevices.Gamepad));
+        RecordingPlayPlatformAssetBuilder builder = new(new PlatformPlayerCapability(true, "x.Adapter", "staging", 60d, PlayerInputDevices.Gamepad, "ps2", "1.0.0"));
         EditorPlatformBuildGraphRunner runner = CreateRunner(builder);
 
         EditorPlayCookResult result = runner.ExecuteAssetsOnly(CreateQueueItem());
@@ -117,7 +117,7 @@ public sealed class EditorPlatformBuildGraphRunnerAssetsOnlyTests : IDisposable 
     /// </summary>
     [Fact]
     public void ExecuteAssetsOnly_WhenRunTwice_ReusesWorkspaceAndPreservesBuilderWorkingRoot() {
-        RecordingPlayPlatformAssetBuilder builder = new(new PlatformPlayerCapability(true, "x.Adapter", "staging", 60d, PlayerInputDevices.Gamepad));
+        RecordingPlayPlatformAssetBuilder builder = new(new PlatformPlayerCapability(true, "x.Adapter", "staging", 60d, PlayerInputDevices.Gamepad, "ps2", "1.0.0"));
         EditorPlatformBuildGraphRunner runner = CreateRunner(builder);
 
         EditorPlayCookResult firstResult = runner.ExecuteAssetsOnly(CreateQueueItem());
