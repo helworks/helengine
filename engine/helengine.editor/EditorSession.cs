@@ -959,7 +959,7 @@ namespace helengine.editor {
                     this.projectPath,
                     new EditorPlayScriptBuildService(this.projectPath, ProjectName, playBuildProcessJob),
                     playCookRunner.ResolveEnvironmentId),
-                new EditorPlayProcessLauncher(MainThreadActions),
+                new EditorPlayProcessLauncher(MainThreadActions, new EditorPlayWin32ForegroundPermission()),
                 Path.Combine(AppContext.BaseDirectory, PlayerDirectoryName, PlayerExecutableFileName),
                 MainThreadActions,
                 new EditorPlayPreparationThreadScheduler());

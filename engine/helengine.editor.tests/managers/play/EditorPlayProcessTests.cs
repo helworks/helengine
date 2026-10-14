@@ -19,7 +19,7 @@ public sealed class EditorPlayProcessTests {
     [Fact]
     public void Start_DeliversConsoleLinesThenExitOnlyWhenQueueIsDrained() {
         EditorMainThreadActionQueue queue = new EditorMainThreadActionQueue();
-        EditorPlayProcessLauncher launcher = new EditorPlayProcessLauncher(queue);
+        EditorPlayProcessLauncher launcher = new EditorPlayProcessLauncher(queue, new RecordingPlayForegroundPermission(true, 0));
         List<string> outputLines = new List<string>();
         List<string> errorLines = new List<string>();
         List<int> eventThreadIds = new List<int>();
@@ -74,7 +74,7 @@ public sealed class EditorPlayProcessTests {
     [Fact]
     public void Kill_TerminatesRunningProcessAndIgnoresRepeatCalls() {
         EditorMainThreadActionQueue queue = new EditorMainThreadActionQueue();
-        EditorPlayProcessLauncher launcher = new EditorPlayProcessLauncher(queue);
+        EditorPlayProcessLauncher launcher = new EditorPlayProcessLauncher(queue, new RecordingPlayForegroundPermission(true, 0));
         IEditorPlayProcess process = launcher.Start(CreateCommandRequest("ping -n 30 127.0.0.1 >nul"));
         using Process observer = Process.GetProcessById(process.ProcessId);
 
@@ -96,10 +96,72 @@ public sealed class EditorPlayProcessTests {
     /// </summary>
     [Fact]
     public void Start_WhenExecutableIsMissing_ThrowsFileNotFound() {
-        EditorPlayProcessLauncher launcher = new EditorPlayProcessLauncher(new EditorMainThreadActionQueue());
+        RecordingPlayForegroundPermission permission = new RecordingPlayForegroundPermission(true, 0);
+        EditorPlayProcessLauncher launcher = new EditorPlayProcessLauncher(new EditorMainThreadActionQueue(), permission);
         string missingPath = Path.Combine(@"C:\dev\helworks\builds\helengine\play-tests", Guid.NewGuid().ToString("N"), "helengine.player.exe");
 
         Assert.Throws<FileNotFoundException>(() => launcher.Start(new EditorPlayLaunchRequest(missingPath, new List<string>())));
+        Assert.Empty(permission.RequestedProcessIds);
+    }
+
+    /// <summary>
+    /// Ensures the launch grants the foreground to exactly the started process, once, before Start returns, and logs
+    /// nothing when the grant is accepted.
+    /// </summary>
+    [Fact]
+    public void Start_GrantsForegroundToStartedProcessBeforeReturning() {
+        RecordingPlayForegroundPermission permission = new RecordingPlayForegroundPermission(true, 0);
+        EditorPlayProcessLauncher launcher = new EditorPlayProcessLauncher(new EditorMainThreadActionQueue(), permission);
+        List<string> refusalLines = new List<string>();
+        Action<LogEntry> capture = entry => {
+            if (entry.Message.StartsWith(EditorPlayProcessLauncher.ForegroundGrantRefusedPrefix, StringComparison.Ordinal)) {
+                refusalLines.Add(entry.Message);
+            }
+        };
+
+        IEditorPlayProcess process;
+        Logger.MessageLogged += capture;
+        try {
+            process = launcher.Start(CreateCommandRequest("exit /b 0"));
+        } finally {
+            Logger.MessageLogged -= capture;
+        }
+
+        Assert.Equal(new[] { process.ProcessId }, permission.RequestedProcessIds);
+        Assert.Empty(refusalLines);
+        WaitForRealExit(process.ProcessId);
+    }
+
+    /// <summary>
+    /// Ensures a refused grant (the editor was not the foreground app at launch) does not fail the launch and is logged
+    /// once with the Win32 error code.
+    /// </summary>
+    [Fact]
+    public void Start_WhenForegroundGrantIsRefused_LogsErrorCodeAndStillStarts() {
+        const int accessDeniedErrorCode = 5;
+        RecordingPlayForegroundPermission permission = new RecordingPlayForegroundPermission(false, accessDeniedErrorCode);
+        EditorPlayProcessLauncher launcher = new EditorPlayProcessLauncher(new EditorMainThreadActionQueue(), permission);
+        List<string> refusalLines = new List<string>();
+        Action<LogEntry> capture = entry => {
+            if (entry.Message.StartsWith(EditorPlayProcessLauncher.ForegroundGrantRefusedPrefix, StringComparison.Ordinal)) {
+                refusalLines.Add(entry.Message);
+            }
+        };
+
+        IEditorPlayProcess process;
+        Logger.MessageLogged += capture;
+        try {
+            process = launcher.Start(CreateCommandRequest("exit /b 0"));
+        } finally {
+            Logger.MessageLogged -= capture;
+        }
+
+        Assert.NotNull(process);
+        Assert.Equal(new[] { process.ProcessId }, permission.RequestedProcessIds);
+        Assert.Equal(
+            new[] { EditorPlayProcessLauncher.ForegroundGrantRefusedPrefix + accessDeniedErrorCode + EditorPlayProcessLauncher.ForegroundGrantRefusedSuffix },
+            refusalLines);
+        WaitForRealExit(process.ProcessId);
     }
 
     /// <summary>

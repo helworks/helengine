@@ -53,4 +53,13 @@ public sealed class EditorPlayProcessLauncherTests {
     public void CreateStartInfo_WhenRequestIsNull_Throws() {
         Assert.Throws<ArgumentNullException>(() => EditorPlayProcessLauncher.CreateStartInfo(null));
     }
+
+    /// <summary>
+    /// Ensures the launcher requires a foreground grant, so no player is ever started without the step that lets its
+    /// window come to the front.
+    /// </summary>
+    [Fact]
+    public void Constructor_WhenForegroundPermissionIsNull_Throws() {
+        Assert.Throws<ArgumentNullException>(() => new EditorPlayProcessLauncher(new EditorMainThreadActionQueue(), null));
+    }
 }
