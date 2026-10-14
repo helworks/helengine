@@ -18,7 +18,8 @@ namespace helengine.editor {
     /// resolution, so it is re-hashed on the next pass instead of being trusted.
     /// </para>
     /// The memo lives in the project's disposable cache; a missing, unreadable, or other-version memo just means every
-    /// input is hashed again.
+    /// input is hashed again. The key it feeds is a cache identity, not an integrity boundary: anyone who can write the
+    /// project cache can already make a stale entry hit, with or without the memo.
     /// </summary>
     internal sealed class EditorScenePackageInputStampMemo {
         /// <summary>
@@ -166,9 +167,24 @@ namespace helengine.editor {
                 File.Move(stagingPath, MemoPath, true);
             } catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException) {
                 Logger.WriteWarning($"Scene-package input memo was not written: {exception.Message}");
-                if (File.Exists(stagingPath)) {
-                    File.Delete(stagingPath);
-                }
+                DeleteStagingFile(stagingPath);
+            }
+        }
+
+        /// <summary>
+        /// Removes a staging file left by a failed save. The memo is disposable cache state, so a staging file that
+        /// cannot be removed is only logged; it must not turn the logged save failure into a failed cook.
+        /// </summary>
+        /// <param name="stagingPath">Staging file to remove.</param>
+        static void DeleteStagingFile(string stagingPath) {
+            if (!File.Exists(stagingPath)) {
+                return;
+            }
+
+            try {
+                File.Delete(stagingPath);
+            } catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException) {
+                Logger.WriteWarning($"Scene-package input memo staging file '{stagingPath}' was not removed: {exception.Message}");
             }
         }
 
