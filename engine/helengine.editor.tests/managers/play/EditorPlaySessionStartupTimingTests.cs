@@ -296,7 +296,7 @@ public sealed class EditorPlaySessionStartupTimingTests {
         FakePlayCookRunner cookRunner = new FakePlayCookRunner(new EditorPlayCookResult(true, "Cooked.", @"C:\project\cache\play\ps2-staging", "scene-cube-test", "scenes/cube_test.hscene", new Dictionary<string, string>()));
         FakePlayScriptBuilder scriptBuilder = new FakePlayScriptBuilder(EditorBuildExecutionResult.Success("Scripts built."), @"C:\project\cache\play\modules");
         scriptBuilder.CompileSkipped = compileSkipped;
-        return new EditorPlaySessionService(cookRunner, scriptBuilder, launcher, PlayerExecutablePath, Queue, new InlinePlayPreparationScheduler(), clock);
+        return new EditorPlaySessionService(cookRunner, scriptBuilder, launcher, PlayerExecutablePath, Queue, new InlinePlayPreparationScheduler(), TestPlaySettings.CreateWriter(), clock);
     }
 
     /// <summary>
@@ -309,7 +309,7 @@ public sealed class EditorPlaySessionStartupTimingTests {
         EditorBuildExecutionResult result = service.Play(
             "ps2", "PlayStation 2", ScenePath, () => true,
             @"C:\platforms\ps2\helengine.ps2.player.dll", "helengine.ps2.player.Ps2PlayerAdapter",
-            60d, PlayerInputDevices.Gamepad, "ps2", "1.0.0", false, completed => launchResult = completed);
+            PlayerInputDevices.Gamepad, "ps2", "1.0.0", TestPlaySettings.CreateDefaults("ps2", 60d, false), completed => launchResult = completed);
         Assert.True(result.Succeeded);
         Queue.ProcessPending();
         Assert.NotNull(launchResult);

@@ -36,7 +36,7 @@ namespace helengine.player {
             Core core = null;
             PlatformSettingsConfiguration runtimeSettings = null;
             try {
-                if (options.WaitForDebugger) {
+                if (options.PlaySettings.WaitForDebugger) {
                     Console.WriteLine("[player] waiting for debugger, pid " + Environment.ProcessId);
                     while (!Debugger.IsAttached) {
                         Thread.Sleep(DebuggerPollMilliseconds);
@@ -53,7 +53,7 @@ namespace helengine.player {
                 shaders = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
 
                 renderer3D = new PlayerRenderManager3D(adapter, shaders);
-                renderer3D.ShadowsEnabled = options.ShadowsEnabled;
+                renderer3D.ShadowsEnabled = options.PlaySettings.ShadowsEnabled;
                 // Vsync only prevents tearing; PlayerFramePacer limits the loop to the platform's target frame rate,
                 // which is below the refresh rate of the high-refresh monitors the editor runs on.
                 renderer3D.PresentSyncInterval = 1;
@@ -84,7 +84,7 @@ namespace helengine.player {
                 renderer3D.AddWindow(window.Handle, PlayerWindow.ClientWidth, PlayerWindow.ClientHeight);
                 core.SceneManager.LoadScene(options.SceneId, SceneLoadMode.Single);
 
-                RunFrameLoop(core, window, options.TargetFrameRate, startupStopwatch);
+                RunFrameLoop(core, window, options.PlaySettings.TargetFrameRate, startupStopwatch);
             } finally {
                 if (core != null) {
                     core.Dispose();

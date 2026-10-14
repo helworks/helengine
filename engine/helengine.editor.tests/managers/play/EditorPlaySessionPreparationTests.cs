@@ -69,7 +69,7 @@ public sealed class EditorPlaySessionPreparationTests {
         FakePlayCookRunner cookRunner = new FakePlayCookRunner(CreateSucceedingCookResult());
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
         InlinePlayPreparationScheduler scheduler = new InlinePlayPreparationScheduler();
-        EditorPlaySessionService service = new EditorPlaySessionService(cookRunner, CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath, Queue, scheduler);
+        EditorPlaySessionService service = new EditorPlaySessionService(cookRunner, CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath, Queue, scheduler, TestPlaySettings.CreateWriter());
         int saveCount = 0;
         int completionCount = 0;
         StartPlay(service, () => { saveCount++; return true; }, result => completionCount++);
@@ -97,7 +97,7 @@ public sealed class EditorPlaySessionPreparationTests {
         using BlockingPlayCookRunner cookRunner = new BlockingPlayCookRunner(CreateSucceedingCookResult());
         FakePlayScriptBuilder scriptBuilder = CreateSucceedingScriptBuilder();
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
-        EditorPlaySessionService service = new EditorPlaySessionService(cookRunner, scriptBuilder, launcher, PlayerExecutablePath, Queue, new EditorPlayPreparationThreadScheduler());
+        EditorPlaySessionService service = new EditorPlaySessionService(cookRunner, scriptBuilder, launcher, PlayerExecutablePath, Queue, new EditorPlayPreparationThreadScheduler(), TestPlaySettings.CreateWriter());
         int completionCount = 0;
         StartPlay(service, result => completionCount++);
         Assert.True(cookRunner.WaitUntilStarted(WaitTimeout));
@@ -131,7 +131,7 @@ public sealed class EditorPlaySessionPreparationTests {
         using BlockingPlayCookRunner cookRunner = new BlockingPlayCookRunner(CreateSucceedingCookResult());
         FakePlayScriptBuilder scriptBuilder = CreateSucceedingScriptBuilder();
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
-        EditorPlaySessionService service = new EditorPlaySessionService(cookRunner, scriptBuilder, launcher, PlayerExecutablePath, Queue, new EditorPlayPreparationThreadScheduler());
+        EditorPlaySessionService service = new EditorPlaySessionService(cookRunner, scriptBuilder, launcher, PlayerExecutablePath, Queue, new EditorPlayPreparationThreadScheduler(), TestPlaySettings.CreateWriter());
         int completionCount = 0;
         List<int> exceptionThreadIds = new List<int>();
         EventHandler<FirstChanceExceptionEventArgs> handler = (sender, args) => {
@@ -175,7 +175,8 @@ public sealed class EditorPlaySessionPreparationTests {
             new FakePlayProcessLauncher(),
             PlayerExecutablePath,
             Queue,
-            new InlinePlayPreparationScheduler());
+            new InlinePlayPreparationScheduler(),
+            TestPlaySettings.CreateWriter());
         StartPlay(service, result => { });
         Assert.NotNull(scriptBuilder.LastCancellation);
         Assert.False(scriptBuilder.LastCancellation.IsCancellationRequested);
@@ -198,7 +199,8 @@ public sealed class EditorPlaySessionPreparationTests {
             launcher,
             PlayerExecutablePath,
             Queue,
-            new InlinePlayPreparationScheduler());
+            new InlinePlayPreparationScheduler(),
+            TestPlaySettings.CreateWriter());
         StartPlay(service, result => { });
 
         service.Stop();
@@ -224,7 +226,8 @@ public sealed class EditorPlaySessionPreparationTests {
             launcher,
             PlayerExecutablePath,
             Queue,
-            new InlinePlayPreparationScheduler());
+            new InlinePlayPreparationScheduler(),
+            TestPlaySettings.CreateWriter());
         EditorBuildExecutionResult launchResult = null;
 
         Assert.True(StartPlay(service, result => launchResult = result).Succeeded);
@@ -307,7 +310,7 @@ public sealed class EditorPlaySessionPreparationTests {
     /// <param name="launcher">Process launcher fake.</param>
     /// <returns>The service under test.</returns>
     EditorPlaySessionService CreateThreadedService(IEditorPlayCookRunner cookRunner, FakePlayProcessLauncher launcher) {
-        return new EditorPlaySessionService(cookRunner, CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath, Queue, new EditorPlayPreparationThreadScheduler());
+        return new EditorPlaySessionService(cookRunner, CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath, Queue, new EditorPlayPreparationThreadScheduler(), TestPlaySettings.CreateWriter());
     }
 
     /// <summary>
@@ -331,7 +334,7 @@ public sealed class EditorPlaySessionPreparationTests {
         return service.Play(
             "ps2", "PlayStation 2", ScenePath, saveScene,
             @"C:\platforms\ps2\helengine.ps2.player.dll", "helengine.ps2.player.Ps2PlayerAdapter",
-            60d, PlayerInputDevices.Gamepad, "ps2", "1.0.0", false, completed);
+            PlayerInputDevices.Gamepad, "ps2", "1.0.0", TestPlaySettings.CreateDefaults("ps2", 60d, false), completed);
     }
 
     /// <summary>

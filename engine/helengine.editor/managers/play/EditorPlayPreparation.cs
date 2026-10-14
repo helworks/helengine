@@ -29,25 +29,23 @@ namespace helengine.editor {
         /// <param name="platformDisplayName">Display name of the platform, shown in the player window title.</param>
         /// <param name="adapterAssemblyPath">Path of the assembly holding the platform's player adapter.</param>
         /// <param name="adapterTypeName">Type name of the platform's player adapter.</param>
-        /// <param name="targetFrameRate">Frames per second the player paces its frame loop to.</param>
         /// <param name="inputDevices">Input devices the player forwards to the game.</param>
         /// <param name="runtimePlatformName">Platform name the player reports to the core, matching the platform's native runtime.</param>
         /// <param name="runtimePlatformVersion">Platform version the player reports to the core, matching the platform's native runtime.</param>
-        /// <param name="waitForDebugger">Whether the player should wait for a debugger.</param>
+        /// <param name="playSettings">Play settings captured when Play was pressed.</param>
         /// <param name="completed">Receives the launch outcome on the editor frame thread, unless the preparation is cancelled.</param>
         /// <param name="playStartedAt">Clock reading taken when Play was pressed.</param>
         /// <param name="savedAt">Clock reading taken once the scene save finished.</param>
-        /// <exception cref="ArgumentNullException">Thrown when the completion callback is null.</exception>
+        /// <exception cref="ArgumentNullException">Thrown when the Play settings or the completion callback is null.</exception>
         public EditorPlayPreparation(
             string platformId,
             string platformDisplayName,
             string adapterAssemblyPath,
             string adapterTypeName,
-            double targetFrameRate,
             PlayerInputDevices inputDevices,
             string runtimePlatformName,
             string runtimePlatformVersion,
-            bool waitForDebugger,
+            EditorPlaySettingsSnapshot playSettings,
             Action<EditorBuildExecutionResult> completed,
             TimeSpan playStartedAt,
             TimeSpan savedAt) {
@@ -55,11 +53,10 @@ namespace helengine.editor {
             PlatformDisplayName = platformDisplayName;
             AdapterAssemblyPath = adapterAssemblyPath;
             AdapterTypeName = adapterTypeName;
-            TargetFrameRate = targetFrameRate;
             InputDevices = inputDevices;
             RuntimePlatformName = runtimePlatformName;
             RuntimePlatformVersion = runtimePlatformVersion;
-            WaitForDebugger = waitForDebugger;
+            PlaySettings = playSettings ?? throw new ArgumentNullException(nameof(playSettings));
             Completed = completed ?? throw new ArgumentNullException(nameof(completed));
             PlayStartedAt = playStartedAt;
             SavedAt = savedAt;
@@ -86,11 +83,6 @@ namespace helengine.editor {
         public string AdapterTypeName { get; }
 
         /// <summary>
-        /// Gets the frames per second the player paces its frame loop to.
-        /// </summary>
-        public double TargetFrameRate { get; }
-
-        /// <summary>
         /// Gets the input devices the player forwards to the game.
         /// </summary>
         public PlayerInputDevices InputDevices { get; }
@@ -106,9 +98,9 @@ namespace helengine.editor {
         public string RuntimePlatformVersion { get; }
 
         /// <summary>
-        /// Gets whether the player should wait for a debugger before starting the scene.
+        /// Gets the Play settings captured when Play was pressed; the launch resolves them after the cook.
         /// </summary>
-        public bool WaitForDebugger { get; }
+        public EditorPlaySettingsSnapshot PlaySettings { get; }
 
         /// <summary>
         /// Gets the callback that receives the launch outcome on the editor frame thread.

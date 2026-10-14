@@ -962,7 +962,8 @@ namespace helengine.editor {
                 new EditorPlayProcessLauncher(MainThreadActions, new EditorPlayWin32ForegroundPermission()),
                 Path.Combine(AppContext.BaseDirectory, PlayerDirectoryName, PlayerExecutableFileName),
                 MainThreadActions,
-                new EditorPlayPreparationThreadScheduler());
+                new EditorPlayPreparationThreadScheduler(),
+                new EditorPlaySettingsFileWriter(this.projectPath));
             constructionLedger.Register(() => PlaySession.Shutdown(PlayShutdownMaximumWait), EditorSessionCleanupPhase.Dispose);
             RegisterDetacher(constructionLedger, () => PlaySession.StateChanged -= HandlePlaySessionStateChanged);
             PlaySession.StateChanged += HandlePlaySessionStateChanged;
@@ -3643,6 +3644,8 @@ namespace helengine.editor {
                     PlayPreparationInputs = CapturePlayPreparationInputs(playPlatform.PlatformId);
                 }
 
+                EditorPlaySettingsEvaluation defaults = EditorPlaySettingsEvaluator.Evaluate(new EditorPlaySettingsDocument(), "(defaults)", playPlatform.PlatformId, playPlatform.PlayerCapability);
+                EditorPlaySettingsSnapshot playSettings = new EditorPlaySettingsSnapshot(defaults, waitForDebugger, playPlatform.PlayerCapability, Environment.ProcessId);
                 EditorBuildExecutionResult result = PlaySession.Play(
                     playPlatform.PlatformId,
                     playPlatform.DisplayName,
@@ -3650,12 +3653,11 @@ namespace helengine.editor {
                     SaveCurrentSceneForPlay,
                     playPlatform.BuilderAssemblyPath,
                     playPlatform.PlayerCapability.AdapterTypeName,
-                    playPlatform.PlayerCapability.TargetFrameRate,
                     playPlatform.PlayerCapability.InputDevices,
                     playPlatform.PlayerCapability.RuntimePlatformName,
                     playPlatform.PlayerCapability.RuntimePlatformVersion,
-                    waitForDebugger,
-                    launchResult => HandlePlayLaunchCompleted(launchResult, waitForDebugger));
+                    playSettings,
+                    launchResult => HandlePlayLaunchCompleted(launchResult, playSettings.EffectiveWaitForDebugger));
                 if (result.Succeeded) {
                     Logger.WriteLine(result.Message);
                 } else {

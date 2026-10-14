@@ -424,12 +424,13 @@ namespace helengine.editor.tests {
                 new managers.play.FakePlayProcessLauncher(),
                 @"C:\player\helengine.player.exe",
                 queue,
-                new managers.play.InlinePlayPreparationScheduler());
+                new managers.play.InlinePlayPreparationScheduler(),
+                managers.play.TestPlaySettings.CreateWriter());
             SetPrivateField(session, "PlaySession", playSession);
             EditorBuildExecutionResult result = playSession.Play(
                 "ps2", "PlayStation 2", scenePath, () => true,
                 @"C:\platforms\ps2\helengine.ps2.player.dll", "helengine.ps2.player.Ps2PlayerAdapter",
-                60d, helengine.baseplatform.Definitions.PlayerInputDevices.Gamepad, "ps2", "1.0.0", false, launchResult => { });
+                helengine.baseplatform.Definitions.PlayerInputDevices.Gamepad, "ps2", "1.0.0", managers.play.TestPlaySettings.CreateDefaults("ps2", 60d, false), launchResult => { });
             Assert.True(result.Succeeded, result.Message);
             return playSession;
         }

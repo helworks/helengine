@@ -1,12 +1,13 @@
 using helengine.baseplatform.Definitions;
+using helengine.baseplatform.Player;
 
 namespace helengine.player {
     /// <summary>
     /// Holds the validated command line the editor passes to the Play player:
     /// <c>--content-root &lt;dir&gt; --scene-id &lt;id&gt; --platform-name &lt;display name&gt; --scene-path &lt;cooked/relative.hasset&gt;
     /// --adapter-assembly &lt;dll&gt; --adapter-type &lt;full type name&gt; --script-modules &lt;dir&gt;
-    /// --target-fps &lt;frames per second&gt; --input-devices &lt;comma list&gt; --runtime-platform-name &lt;name&gt;
-    /// --runtime-platform-version &lt;version&gt; [--wait-for-debugger]</c>.
+    /// --input-devices &lt;comma list&gt; --runtime-platform-name &lt;name&gt;
+    /// --runtime-platform-version &lt;version&gt; --play-settings &lt;file&gt; [--runtime-settings &lt;file&gt;]</c>.
     /// Every value option is required; unknown, repeated or value-less options are rejected so a
     /// mismatch between the editor and the player fails loudly instead of being ignored.
     /// </summary>
@@ -35,9 +36,6 @@ namespace helengine.player {
         /// <summary>Option naming the root folder that holds one sub-folder per compiled script module.</summary>
         public const string ScriptModulesOption = "--script-modules";
 
-        /// <summary>Option naming the frames per second the player paces its frame loop to, written with the invariant culture.</summary>
-        public const string TargetFpsOption = "--target-fps";
-
         /// <summary>
         /// Option naming the input devices the platform's hardware offers, as the lowercase comma list of
         /// <see cref="PlayerInputDevicesText"/> (for example <c>gamepad</c>).
@@ -56,14 +54,11 @@ namespace helengine.player {
         /// </summary>
         public const string RuntimePlatformVersionOption = "--runtime-platform-version";
 
-        /// <summary>Optional boolean setting carrying the selected platform's renderer-wide shadow policy.</summary>
-        public const string ShadowsEnabledOption = "--shadows-enabled";
-
         /// <summary>Optional portable catalog containing user-authored presets for the selected platform.</summary>
         public const string RuntimeSettingsOption = "--runtime-settings";
 
-        /// <summary>Switch that makes the player block at startup until a debugger attaches.</summary>
-        public const string WaitForDebuggerOption = "--wait-for-debugger";
+        /// <summary>Option naming the resolved Play settings file the editor wrote for this Play.</summary>
+        public const string PlaySettingsOption = "--play-settings";
 
         /// <summary>
         /// Creates one options instance from already validated values; use <see cref="Parse"/> to build one from a command line.
@@ -75,12 +70,10 @@ namespace helengine.player {
         /// <param name="adapterAssemblyPath">Path to the platform builder assembly containing the adapter.</param>
         /// <param name="adapterTypeName">Full type name of the player adapter.</param>
         /// <param name="scriptModulesRootPath">Root folder holding compiled script modules.</param>
-        /// <param name="targetFrameRate">Positive frames per second the player paces its frame loop to.</param>
         /// <param name="inputDevices">Non-empty set of input devices the player forwards to the game.</param>
         /// <param name="runtimePlatformName">Platform name the player reports to the core.</param>
         /// <param name="runtimePlatformVersion">Platform version the player reports to the core.</param>
-        /// <param name="waitForDebugger">Whether the player waits for a debugger before starting.</param>
-        /// <param name="shadowsEnabled">Whether the selected platform permits authored shadows.</param>
+        /// <param name="playSettings">Resolved Play settings read from the <c>--play-settings</c> file.</param>
         /// <param name="runtimeSettingsPath">Portable runtime settings catalog path, or empty when none was supplied.</param>
         PlayerLaunchOptions(
             string contentRootPath,
@@ -90,12 +83,10 @@ namespace helengine.player {
             string adapterAssemblyPath,
             string adapterTypeName,
             string scriptModulesRootPath,
-            double targetFrameRate,
             PlayerInputDevices inputDevices,
             string runtimePlatformName,
             string runtimePlatformVersion,
-            bool waitForDebugger,
-            bool shadowsEnabled,
+            PlayerPlaySettings playSettings,
             string runtimeSettingsPath) {
             ContentRootPath = contentRootPath;
             SceneId = sceneId;
@@ -104,12 +95,10 @@ namespace helengine.player {
             AdapterAssemblyPath = adapterAssemblyPath;
             AdapterTypeName = adapterTypeName;
             ScriptModulesRootPath = scriptModulesRootPath;
-            TargetFrameRate = targetFrameRate;
             InputDevices = inputDevices;
             RuntimePlatformName = runtimePlatformName;
             RuntimePlatformVersion = runtimePlatformVersion;
-            WaitForDebugger = waitForDebugger;
-            ShadowsEnabled = shadowsEnabled;
+            PlaySettings = playSettings;
             RuntimeSettingsPath = runtimeSettingsPath;
         }
 
@@ -134,9 +123,6 @@ namespace helengine.player {
         /// <summary>Gets the root folder laid out as <c>&lt;root&gt;/&lt;moduleId&gt;/&lt;moduleId&gt;.dll</c>.</summary>
         public string ScriptModulesRootPath { get; }
 
-        /// <summary>Gets the frames per second the player paces its frame loop to (the selected platform's frame rate).</summary>
-        public double TargetFrameRate { get; }
-
         /// <summary>
         /// Gets the input devices the selected platform's hardware offers; every other desktop device is reported idle to
         /// the game.
@@ -155,11 +141,8 @@ namespace helengine.player {
         /// </summary>
         public string RuntimePlatformVersion { get; }
 
-        /// <summary>Gets whether the player blocks at startup until a debugger is attached.</summary>
-        public bool WaitForDebugger { get; }
-
-        /// <summary>Gets whether authored shadows are permitted for the selected platform.</summary>
-        public bool ShadowsEnabled { get; }
+        /// <summary>Gets the resolved Play settings of this Play (window, debugger wait, shadows, pacing, platform values).</summary>
+        public PlayerPlaySettings PlaySettings { get; }
 
         /// <summary>Gets the optional portable catalog path supplied by the editor.</summary>
         public string RuntimeSettingsPath { get; }
@@ -179,6 +162,8 @@ namespace helengine.player {
         /// <param name="args">Raw process arguments.</param>
         /// <returns>Validated launch options.</returns>
         /// <exception cref="ArgumentException">An option is unknown, repeated, missing its value, or a required option is absent.</exception>
+        /// <exception cref="FileNotFoundException">The <c>--play-settings</c> file does not exist.</exception>
+        /// <exception cref="InvalidOperationException">The <c>--play-settings</c> file is not a valid current-format Play settings file.</exception>
         public static PlayerLaunchOptions Parse(string[] args) {
             if (args == null) {
                 throw new ArgumentNullException(nameof(args));
@@ -191,24 +176,14 @@ namespace helengine.player {
             string adapterAssemblyPath = null;
             string adapterTypeName = null;
             string scriptModulesRootPath = null;
-            string targetFrameRateText = null;
             string inputDevicesText = null;
             string runtimePlatformName = null;
             string runtimePlatformVersion = null;
-            string shadowsEnabledText = null;
             string runtimeSettingsPath = null;
-            bool waitForDebugger = false;
+            string playSettingsPath = null;
 
             for (int i = 0; i < args.Length; i++) {
                 string option = args[i];
-                if (string.Equals(option, WaitForDebuggerOption, StringComparison.Ordinal)) {
-                    if (waitForDebugger) {
-                        throw new ArgumentException($"Option '{option}' was specified more than once.", nameof(args));
-                    }
-                    waitForDebugger = true;
-                    continue;
-                }
-
                 if (string.Equals(option, ContentRootOption, StringComparison.Ordinal)) {
                     contentRootPath = ReadValue(args, i, contentRootPath);
                 } else if (string.Equals(option, SceneIdOption, StringComparison.Ordinal)) {
@@ -223,18 +198,16 @@ namespace helengine.player {
                     adapterTypeName = ReadValue(args, i, adapterTypeName);
                 } else if (string.Equals(option, ScriptModulesOption, StringComparison.Ordinal)) {
                     scriptModulesRootPath = ReadValue(args, i, scriptModulesRootPath);
-                } else if (string.Equals(option, TargetFpsOption, StringComparison.Ordinal)) {
-                    targetFrameRateText = ReadValue(args, i, targetFrameRateText);
                 } else if (string.Equals(option, InputDevicesOption, StringComparison.Ordinal)) {
                     inputDevicesText = ReadValue(args, i, inputDevicesText);
                 } else if (string.Equals(option, RuntimePlatformNameOption, StringComparison.Ordinal)) {
                     runtimePlatformName = ReadValue(args, i, runtimePlatformName);
                 } else if (string.Equals(option, RuntimePlatformVersionOption, StringComparison.Ordinal)) {
                     runtimePlatformVersion = ReadValue(args, i, runtimePlatformVersion);
-                } else if (string.Equals(option, ShadowsEnabledOption, StringComparison.Ordinal)) {
-                    shadowsEnabledText = ReadValue(args, i, shadowsEnabledText);
                 } else if (string.Equals(option, RuntimeSettingsOption, StringComparison.Ordinal)) {
                     runtimeSettingsPath = ReadValue(args, i, runtimeSettingsPath);
+                } else if (string.Equals(option, PlaySettingsOption, StringComparison.Ordinal)) {
+                    playSettingsPath = ReadValue(args, i, playSettingsPath);
                 } else {
                     throw new ArgumentException($"Unknown player option '{option}'.", nameof(args));
                 }
@@ -249,16 +222,11 @@ namespace helengine.player {
             RequireOption(AdapterAssemblyOption, adapterAssemblyPath);
             RequireOption(AdapterTypeOption, adapterTypeName);
             RequireOption(ScriptModulesOption, scriptModulesRootPath);
-            RequireOption(TargetFpsOption, targetFrameRateText);
             RequireOption(InputDevicesOption, inputDevicesText);
             RequireOption(RuntimePlatformNameOption, runtimePlatformName);
             RequireOption(RuntimePlatformVersionOption, runtimePlatformVersion);
-            double targetFrameRate = ParseTargetFrameRate(targetFrameRateText);
+            RequireOption(PlaySettingsOption, playSettingsPath);
             PlayerInputDevices inputDevices = PlayerInputDevicesText.Parse(inputDevicesText, InputDevicesOption);
-            bool shadowsEnabled = true;
-            if (shadowsEnabledText != null && !bool.TryParse(shadowsEnabledText, out shadowsEnabled)) {
-                throw new ArgumentException("Option '--shadows-enabled' must be true or false.", nameof(args));
-            }
 
             return new PlayerLaunchOptions(
                 contentRootPath,
@@ -268,12 +236,10 @@ namespace helengine.player {
                 adapterAssemblyPath,
                 adapterTypeName,
                 scriptModulesRootPath,
-                targetFrameRate,
                 inputDevices,
                 runtimePlatformName,
                 runtimePlatformVersion,
-                waitForDebugger,
-                shadowsEnabled,
+                PlayerPlaySettingsFile.Read(playSettingsPath),
                 runtimeSettingsPath ?? string.Empty);
         }
 
@@ -302,22 +268,6 @@ namespace helengine.player {
             }
 
             return value;
-        }
-
-        /// <summary>
-        /// Parses the <c>--target-fps</c> value as an invariant-culture number that must be positive and finite.
-        /// </summary>
-        /// <param name="text">Raw option value.</param>
-        /// <returns>Frames per second the player paces its frame loop to.</returns>
-        /// <exception cref="ArgumentException">The value is not an invariant number, or is not positive and finite.</exception>
-        static double ParseTargetFrameRate(string text) {
-            if (!double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double targetFrameRate)) {
-                throw new ArgumentException($"Option '{TargetFpsOption}' requires an invariant-culture number but received '{text}'.", TargetFpsOption);
-            } else if (!(targetFrameRate > 0d && double.IsFinite(targetFrameRate))) {
-                throw new ArgumentException($"Option '{TargetFpsOption}' requires a positive, finite frame rate but received '{text}'.", TargetFpsOption);
-            }
-
-            return targetFrameRate;
         }
 
         /// <summary>

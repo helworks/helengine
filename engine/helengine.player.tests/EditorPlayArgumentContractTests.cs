@@ -1,4 +1,5 @@
 using helengine.baseplatform.Definitions;
+using helengine.baseplatform.Player;
 using helengine.editor;
 
 namespace helengine.player.tests {
@@ -51,10 +52,11 @@ namespace helengine.player.tests {
                 launcher,
                 @"C:\editor\player\helengine.player.exe",
                 queue,
-                new ContractPlayPreparationScheduler());
+                new ContractPlayPreparationScheduler(),
+                ContractPlaySettings.CreateWriter());
             EditorBuildExecutionResult result = null;
 
-            EditorBuildExecutionResult started = service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, RuntimePlatformName, RuntimePlatformVersion, waitForDebugger, completed => result = completed);
+            EditorBuildExecutionResult started = service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, InputDevices, RuntimePlatformName, RuntimePlatformVersion, ContractPlaySettings.CreateDefaults(PlatformId, TargetFrameRate, waitForDebugger), completed => result = completed);
             queue.ProcessPending();
             PlayerLaunchOptions options = PlayerLaunchOptions.Parse(launcher.LastRequest.Arguments.ToArray());
 
@@ -68,11 +70,12 @@ namespace helengine.player.tests {
             Assert.Equal(AdapterAssemblyPath, options.AdapterAssemblyPath);
             Assert.Equal(AdapterTypeName, options.AdapterTypeName);
             Assert.Equal(ContractPlayScriptBuilder.RuntimeModulesRootPath, options.ScriptModulesRootPath);
-            Assert.Equal(TargetFrameRate, options.TargetFrameRate);
             Assert.Equal(InputDevices, options.InputDevices);
             Assert.Equal(RuntimePlatformName, options.RuntimePlatformName);
             Assert.Equal(RuntimePlatformVersion, options.RuntimePlatformVersion);
-            Assert.Equal(waitForDebugger, options.WaitForDebugger);
+            Assert.Equal(TargetFrameRate, options.PlaySettings.TargetFrameRate);
+            Assert.Equal(waitForDebugger, options.PlaySettings.WaitForDebugger);
+            Assert.Equal(PlayerWindowScale.Fit, options.PlaySettings.WindowScale);
         }
     }
 }

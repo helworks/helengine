@@ -1,4 +1,5 @@
 using helengine.baseplatform.Definitions;
+using helengine.baseplatform.Player;
 
 namespace helengine.editor {
     /// <summary>
@@ -52,12 +53,6 @@ namespace helengine.editor {
         public const string ScriptModulesOption = "--script-modules";
 
         /// <summary>
-        /// Player flag naming the frames per second the player paces its frame loop to, taken from the platform's
-        /// Play capability and written with the invariant culture.
-        /// </summary>
-        public const string TargetFpsOption = "--target-fps";
-
-        /// <summary>
         /// Player flag naming the input devices the platform's hardware offers, taken from the platform's Play capability
         /// and written as the lowercase comma list of <see cref="PlayerInputDevicesText"/> (PS2: <c>gamepad</c>).
         /// </summary>
@@ -76,9 +71,10 @@ namespace helengine.editor {
         public const string RuntimePlatformVersionOption = "--runtime-platform-version";
 
         /// <summary>
-        /// Player flag asking the player to wait for a debugger before starting the scene.
+        /// Player flag naming the resolved Play settings file (window scale and monitor, debugger wait, shadows, frame
+        /// pacing and the platform's own Play settings).
         /// </summary>
-        public const string WaitForDebuggerOption = "--wait-for-debugger";
+        public const string PlaySettingsOption = "--play-settings";
 
         /// <summary>
         /// Prefix applied to every editor log line that originates from the player.
@@ -152,6 +148,11 @@ namespace helengine.editor {
         readonly IEditorPlayPreparationScheduler PreparationScheduler;
 
         /// <summary>
+        /// Writes the resolved Play settings file the player reads.
+        /// </summary>
+        readonly EditorPlaySettingsFileWriter PlaySettingsFileWriter;
+
+        /// <summary>
         /// Binding to the player process started by the latest successful Play, or null when none is attached.
         /// Events from any other binding are stale and ignored.
         /// </summary>
@@ -173,6 +174,7 @@ namespace helengine.editor {
         /// <param name="playerExecutablePath">Absolute path of the desktop player executable.</param>
         /// <param name="mainThreadQueue">Queue the editor drains on its frame thread, used to report a finished preparation.</param>
         /// <param name="preparationScheduler">Starts the cook and the script build off the editor frame thread.</param>
+        /// <param name="playSettingsFileWriter">Writes the resolved Play settings file the player reads.</param>
         /// <exception cref="ArgumentNullException">Thrown when any collaborator is null.</exception>
         /// <exception cref="ArgumentException">Thrown when the player executable path is blank.</exception>
         public EditorPlaySessionService(
@@ -181,8 +183,9 @@ namespace helengine.editor {
             IEditorPlayProcessLauncher launcher,
             string playerExecutablePath,
             EditorMainThreadActionQueue mainThreadQueue,
-            IEditorPlayPreparationScheduler preparationScheduler)
-            : this(cookRunner, scriptBuilder, launcher, playerExecutablePath, mainThreadQueue, preparationScheduler, new EditorPlayStopwatchClock()) {
+            IEditorPlayPreparationScheduler preparationScheduler,
+            EditorPlaySettingsFileWriter playSettingsFileWriter)
+            : this(cookRunner, scriptBuilder, launcher, playerExecutablePath, mainThreadQueue, preparationScheduler, playSettingsFileWriter, new EditorPlayStopwatchClock()) {
         }
 
         /// <summary>
@@ -195,6 +198,7 @@ namespace helengine.editor {
         /// <param name="playerExecutablePath">Absolute path of the desktop player executable.</param>
         /// <param name="mainThreadQueue">Queue the editor drains on its frame thread, used to report a finished preparation.</param>
         /// <param name="preparationScheduler">Starts the cook and the script build off the editor frame thread.</param>
+        /// <param name="playSettingsFileWriter">Writes the resolved Play settings file the player reads.</param>
         /// <param name="clock">Monotonic clock timing the Play stages for the startup summary; read from both threads.</param>
         /// <exception cref="ArgumentNullException">Thrown when any collaborator or the clock is null.</exception>
         /// <exception cref="ArgumentException">Thrown when the player executable path is blank.</exception>
@@ -205,6 +209,7 @@ namespace helengine.editor {
             string playerExecutablePath,
             EditorMainThreadActionQueue mainThreadQueue,
             IEditorPlayPreparationScheduler preparationScheduler,
+            EditorPlaySettingsFileWriter playSettingsFileWriter,
             IEditorPlayClock clock) {
             if (string.IsNullOrWhiteSpace(playerExecutablePath)) {
                 throw new ArgumentException("The Play session requires the player executable path.", nameof(playerExecutablePath));
@@ -215,6 +220,7 @@ namespace helengine.editor {
             Launcher = launcher ?? throw new ArgumentNullException(nameof(launcher));
             MainThreadQueue = mainThreadQueue ?? throw new ArgumentNullException(nameof(mainThreadQueue));
             PreparationScheduler = preparationScheduler ?? throw new ArgumentNullException(nameof(preparationScheduler));
+            PlaySettingsFileWriter = playSettingsFileWriter ?? throw new ArgumentNullException(nameof(playSettingsFileWriter));
             Clock = clock ?? throw new ArgumentNullException(nameof(clock));
             PlayerExecutablePath = playerExecutablePath;
             State = EditorPlaySessionState.Stopped;
@@ -266,22 +272,20 @@ namespace helengine.editor {
         /// <param name="saveScene">Saves the open scene and returns whether the save succeeded.</param>
         /// <param name="adapterAssemblyPath">Path of the assembly holding the platform's player adapter.</param>
         /// <param name="adapterTypeName">Type name of the platform's player adapter.</param>
-        /// <param name="targetFrameRate">Frames per second the platform's Play capability asks the player to run at.</param>
         /// <param name="inputDevices">Input devices the platform's Play capability declares; the player forwards only these to the game.</param>
         /// <param name="runtimePlatformName">Platform name the platform's Play capability declares; the player reports it to the core.</param>
         /// <param name="runtimePlatformVersion">Platform version the platform's Play capability declares; the player reports it to the core.</param>
-        /// <param name="waitForDebugger">Whether the player should wait for a debugger before starting the scene.</param>
+        /// <param name="playSettings">Play settings captured when Play was pressed; edits made afterwards apply to the next Play.</param>
         /// <param name="completed">Receives the launch outcome on the frame thread: success naming the started player's process id, or the failure that stopped Play.</param>
         /// <returns>Success once the preparation started in the background, or the failure that stopped or ignored Play.</returns>
         /// <exception cref="ArgumentException">
         /// Thrown when the platform, platform display name, adapter assembly, adapter type, runtime platform name or runtime
-        /// platform version is blank.
+        /// platform version is blank, or the Play settings were captured for another platform.
         /// </exception>
         /// <exception cref="ArgumentOutOfRangeException">
-        /// Thrown when the target frame rate is not a positive, finite number, or the input device set is empty or names
-        /// unknown devices.
+        /// Thrown when the input device set is empty or names unknown devices.
         /// </exception>
-        /// <exception cref="ArgumentNullException">Thrown when the save callback or the completion callback is null.</exception>
+        /// <exception cref="ArgumentNullException">Thrown when the save callback, the completion callback or the Play settings are null.</exception>
         public EditorBuildExecutionResult Play(
             string platformId,
             string platformDisplayName,
@@ -289,11 +293,10 @@ namespace helengine.editor {
             Func<bool> saveScene,
             string adapterAssemblyPath,
             string adapterTypeName,
-            double targetFrameRate,
             PlayerInputDevices inputDevices,
             string runtimePlatformName,
             string runtimePlatformVersion,
-            bool waitForDebugger,
+            EditorPlaySettingsSnapshot playSettings,
             Action<EditorBuildExecutionResult> completed) {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Play requires a platform identifier.", nameof(platformId));
@@ -307,14 +310,16 @@ namespace helengine.editor {
                 throw new ArgumentException("Play requires the player adapter assembly path.", nameof(adapterAssemblyPath));
             } else if (string.IsNullOrWhiteSpace(adapterTypeName)) {
                 throw new ArgumentException("Play requires the player adapter type name.", nameof(adapterTypeName));
-            } else if (!(targetFrameRate > 0d && double.IsFinite(targetFrameRate))) {
-                throw new ArgumentOutOfRangeException(nameof(targetFrameRate), targetFrameRate, "Play requires a positive, finite player target frame rate.");
             } else if (inputDevices == PlayerInputDevices.None || (inputDevices & ~PlayerInputDevicesText.AllDevices) != PlayerInputDevices.None) {
                 throw new ArgumentOutOfRangeException(nameof(inputDevices), inputDevices, "Play requires at least one known player input device.");
             } else if (string.IsNullOrWhiteSpace(runtimePlatformName)) {
                 throw new ArgumentException("Play requires the platform name the native runtime reports.", nameof(runtimePlatformName));
             } else if (string.IsNullOrWhiteSpace(runtimePlatformVersion)) {
                 throw new ArgumentException("Play requires the platform version the native runtime reports.", nameof(runtimePlatformVersion));
+            } else if (playSettings == null) {
+                throw new ArgumentNullException(nameof(playSettings));
+            } else if (!string.Equals(playSettings.PlatformId, platformId, StringComparison.Ordinal)) {
+                throw new ArgumentException($"The Play settings were captured for platform '{playSettings.PlatformId}', not '{platformId}'.", nameof(playSettings));
             }
 
             if (string.IsNullOrWhiteSpace(currentScenePath)) {
@@ -342,11 +347,10 @@ namespace helengine.editor {
                     platformDisplayName,
                     adapterAssemblyPath,
                     adapterTypeName,
-                    targetFrameRate,
                     inputDevices,
                     runtimePlatformName,
                     runtimePlatformVersion,
-                    waitForDebugger,
+                    playSettings,
                     completed,
                     playStartedAt,
                     Clock.Now);
@@ -470,7 +474,8 @@ namespace helengine.editor {
 
         /// <summary>
         /// Turns a finished preparation into a launched player: reports the first failure the preparation recorded, or
-        /// builds the player command line, starts the player, binds its events and enters
+        /// resolves the Play settings captured when Play was pressed against the cook result, writes them to the Play
+        /// settings file, builds the player command line, starts the player, binds its events and enters
         /// <see cref="EditorPlaySessionState.Running"/>.
         /// </summary>
         /// <param name="preparation">Finished, not cancelled preparation.</param>
@@ -490,17 +495,18 @@ namespace helengine.editor {
                 return buildResult;
             }
 
+            PlayerPlaySettings playerSettings = EditorPlayLaunchSettingsResolver.Resolve(preparation.PlaySettings, cookResult);
+            string playSettingsPath = PlaySettingsFileWriter.Write(preparation.PlatformId, playerSettings);
             List<string> arguments = BuildPlayerArguments(
                 cookResult,
                 preparation.PlatformDisplayName,
                 preparation.AdapterAssemblyPath,
                 preparation.AdapterTypeName,
                 preparation.RuntimeModulesRootPath,
-                preparation.TargetFrameRate,
                 preparation.InputDevices,
                 preparation.RuntimePlatformName,
                 preparation.RuntimePlatformVersion,
-                preparation.WaitForDebugger);
+                playSettingsPath);
             IEditorPlayProcess process = Launcher.Start(new EditorPlayLaunchRequest(PlayerExecutablePath, arguments));
             TimeSpan launchedAt = Clock.Now;
             if (process == null) {
@@ -529,18 +535,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the ordered player command line from the cook outcome, the platform adapter and the script modules.
+        /// Builds the ordered player command line from the cook outcome, the platform adapter, the script modules and the
+        /// resolved Play settings file.
         /// </summary>
         /// <param name="cookResult">Successful cook outcome naming the content root and startup scene.</param>
         /// <param name="platformDisplayName">Display name of the platform, shown in the player window title.</param>
         /// <param name="adapterAssemblyPath">Path of the assembly holding the platform's player adapter.</param>
         /// <param name="adapterTypeName">Type name of the platform's player adapter.</param>
         /// <param name="runtimeModulesRootPath">Directory holding the built runtime script modules.</param>
-        /// <param name="targetFrameRate">Frames per second the player paces its frame loop to.</param>
         /// <param name="inputDevices">Input devices the player forwards to the game.</param>
         /// <param name="runtimePlatformName">Platform name the player reports to the core.</param>
         /// <param name="runtimePlatformVersion">Platform version the player reports to the core.</param>
-        /// <param name="waitForDebugger">Whether to append the debugger wait flag.</param>
+        /// <param name="playSettingsPath">Resolved Play settings file.</param>
         /// <returns>Player arguments, one entry per argument, in order.</returns>
         /// <exception cref="InvalidOperationException">Thrown when the script builder reported no module root.</exception>
         static List<string> BuildPlayerArguments(
@@ -549,11 +555,10 @@ namespace helengine.editor {
             string adapterAssemblyPath,
             string adapterTypeName,
             string runtimeModulesRootPath,
-            double targetFrameRate,
             PlayerInputDevices inputDevices,
             string runtimePlatformName,
             string runtimePlatformVersion,
-            bool waitForDebugger) {
+            string playSettingsPath) {
             if (string.IsNullOrWhiteSpace(runtimeModulesRootPath)) {
                 throw new InvalidOperationException("The Play script build succeeded without reporting a runtime module root.");
             }
@@ -566,20 +571,14 @@ namespace helengine.editor {
                 AdapterAssemblyOption, adapterAssemblyPath,
                 AdapterTypeOption, adapterTypeName,
                 ScriptModulesOption, runtimeModulesRootPath,
-                TargetFpsOption, targetFrameRate.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
                 InputDevicesOption, PlayerInputDevicesText.Format(inputDevices),
                 RuntimePlatformNameOption, runtimePlatformName,
-                RuntimePlatformVersionOption, runtimePlatformVersion
+                RuntimePlatformVersionOption, runtimePlatformVersion,
+                PlaySettingsOption, playSettingsPath
             };
-            if (!cookResult.ShadowsEnabled) {
-                arguments.Add("--shadows-enabled");
-                arguments.Add("false");
-            }
             if (cookResult.RuntimeSettingsPath.Length > 0) {
-                arguments.Add("--runtime-settings"); arguments.Add(cookResult.RuntimeSettingsPath);
-            }
-            if (waitForDebugger) {
-                arguments.Add(WaitForDebuggerOption);
+                arguments.Add("--runtime-settings");
+                arguments.Add(cookResult.RuntimeSettingsPath);
             }
 
             return arguments;
