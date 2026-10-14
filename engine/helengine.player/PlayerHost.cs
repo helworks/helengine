@@ -96,7 +96,7 @@ namespace helengine.player {
                 core = new Core(coreOptions);
                 core.Initialize(renderer3D, renderer3D.Render2D, input, options.CreateRuntimePlatformInfo(), coreOptions);
 
-                renderer3D.AddWindow(window.Handle, layout.ClientWidth, layout.ClientHeight);
+                renderer3D.AddWindowWithFixedRenderSize(window.Handle, layout.ClientWidth, layout.ClientHeight, renderSize.Width, renderSize.Height);
                 core.SceneManager.LoadScene(options.SceneId, SceneLoadMode.Single);
 
                 RunFrameLoop(core, window, playSettings, startupStopwatch);

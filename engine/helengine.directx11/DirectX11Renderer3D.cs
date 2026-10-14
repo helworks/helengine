@@ -83,6 +83,11 @@ namespace helengine.directx11 {
         /// </summary>
         Dictionary<IntPtr, DirectX11SwapChainSurface> SurfacesByHandle;
         /// <summary>
+        /// Point magnification used by fixed-render-size surfaces; created on first use, so renderers that only add
+        /// ordinary windows (the editor) never create it.
+        /// </summary>
+        DirectX11PointMagnifyPass PointMagnifyPass;
+        /// <summary>
         /// Constant buffer for the built-in standard mesh transform data.
         /// </summary>
         Buffer ConstantBuffer;
@@ -383,6 +388,7 @@ namespace helengine.directx11 {
             DisposeShaderResourceCache();
             DisposeShaderPassCache();
             MaterialsByShaderAssetId.Clear();
+            PointMagnifyPass?.Dispose();
             Device?.Dispose();
             Adapter?.Dispose();
 
@@ -397,7 +403,71 @@ namespace helengine.directx11 {
         /// <param name="height">Window height.</param>
         public override void AddWindow(IntPtr handle, int width, int height) {
             base.AddWindow(handle, width, height);
+            CreateSwapChainSurface(handle, width, height);
+        }
 
+        /// <summary>
+        /// Adds a window that renders at a fixed size and is magnified on present: the core and every camera see the
+        /// window as <paramref name="renderWidth"/> x <paramref name="renderHeight"/>, the scene renders into an offscreen
+        /// target of that size, and Present copies it into the client-sized back buffer with point sampling.
+        /// </summary>
+        /// <param name="handle">Native window handle.</param>
+        /// <param name="clientWidth">Window client width; an integer multiple of the render width.</param>
+        /// <param name="clientHeight">Window client height; the same integer multiple of the render height.</param>
+        /// <param name="renderWidth">Fixed render width.</param>
+        /// <param name="renderHeight">Fixed render height.</param>
+        /// <exception cref="ArgumentException">Thrown when the client is not an equal integer multiple of the render size.</exception>
+        public void AddWindowWithFixedRenderSize(IntPtr handle, int clientWidth, int clientHeight, int renderWidth, int renderHeight) {
+            DirectX11FixedRenderSize.ValidateMagnification(clientWidth, clientHeight, renderWidth, renderHeight);
+            base.AddWindow(handle, renderWidth, renderHeight);
+            DirectX11SwapChainSurface surface = CreateSwapChainSurface(handle, clientWidth, clientHeight);
+
+            surface.BackBufferRenderTargetView = surface.RenderTargetView;
+            surface.BackBufferWidth = clientWidth;
+            surface.BackBufferHeight = clientHeight;
+            surface.RenderColorTexture = new Texture2D(Device, new Texture2DDescription {
+                Format = Format.B8G8R8A8_UNorm,
+                ArraySize = 1,
+                MipLevels = 1,
+                Width = renderWidth,
+                Height = renderHeight,
+                SampleDescription = new SampleDescription(1, 0),
+                Usage = ResourceUsage.Default,
+                BindFlags = BindFlags.RenderTarget | BindFlags.ShaderResource,
+                CpuAccessFlags = CpuAccessFlags.None,
+                OptionFlags = ResourceOptionFlags.None
+            });
+            surface.RenderTargetView = new RenderTargetView(Device, surface.RenderColorTexture);
+            surface.RenderColorShaderResourceView = new ShaderResourceView(Device, surface.RenderColorTexture);
+            surface.DepthStencilView.Dispose();
+            surface.DepthBuffer.Dispose();
+            surface.DepthBuffer = new Texture2D(Device, new Texture2DDescription {
+                Format = Format.D32_Float_S8X24_UInt,
+                ArraySize = 1,
+                MipLevels = 1,
+                Width = renderWidth,
+                Height = renderHeight,
+                SampleDescription = new SampleDescription(1, 0),
+                Usage = ResourceUsage.Default,
+                BindFlags = BindFlags.DepthStencil,
+                CpuAccessFlags = CpuAccessFlags.None,
+                OptionFlags = ResourceOptionFlags.None
+            });
+            surface.DepthStencilView = new DepthStencilView(Device, surface.DepthBuffer);
+            surface.Width = renderWidth;
+            surface.Height = renderHeight;
+            surface.UsesFixedRenderSize = true;
+            PointMagnifyPass ??= new DirectX11PointMagnifyPass(Device);
+        }
+
+        /// <summary>
+        /// Builds the swap chain, back buffer view and depth buffer for one window and registers the surface.
+        /// </summary>
+        /// <param name="handle">Native window handle.</param>
+        /// <param name="width">Back buffer width (the window client width).</param>
+        /// <param name="height">Back buffer height (the window client height).</param>
+        /// <returns>The registered surface.</returns>
+        DirectX11SwapChainSurface CreateSwapChainSurface(IntPtr handle, int width, int height) {
             using (var factory = Adapter.GetParent<Factory>()) {
                 var surface = new DirectX11SwapChainSurface();
                 Surfaces.Add(surface);
@@ -439,6 +509,7 @@ namespace helengine.directx11 {
                 surface.DepthStencilView = new DepthStencilView(Device, surface.DepthBuffer);
 
                 factory.MakeWindowAssociation(handle, WindowAssociationFlags.IgnoreAll);
+                return surface;
             }
         }
 
@@ -455,6 +526,14 @@ namespace helengine.directx11 {
 
             if (!SurfacesByHandle.TryGetValue(handle, out var surface)) {
                 return;
+            }
+
+            if (surface.UsesFixedRenderSize) {
+                if (newWidth == surface.BackBufferWidth && newHeight == surface.BackBufferHeight) {
+                    return;
+                }
+
+                throw new InvalidOperationException($"A fixed-render-size surface cannot be resized from {surface.BackBufferWidth}x{surface.BackBufferHeight} to {newWidth}x{newHeight}; its window must keep the client size it was added with.");
             }
 
             surface.RenderTargetView?.Dispose();
@@ -1790,11 +1869,24 @@ namespace helengine.directx11 {
                         RenderCamera(surface, cameraComponent);
                     }
 
-                    surface.SwapChain.Present(PresentSyncIntervalValue, PresentFlags.None);
+                    if (surface.UsesFixedRenderSize) {
+                        PointMagnifyPass.Execute(Device.ImmediateContext, surface.RenderColorShaderResourceView, surface.BackBufferRenderTargetView, surface.BackBufferWidth, surface.BackBufferHeight);
+                    }
+
+                    PresentSurface(surface);
                 }
             } finally {
                 FrameActive = false;
             }
+        }
+
+        /// <summary>
+        /// Presents one surface's back buffer once every camera (and, for a fixed-render-size surface, the point-magnify
+        /// pass) has drawn into it.
+        /// </summary>
+        /// <param name="surface">Surface whose swap chain is presented.</param>
+        protected virtual void PresentSurface(DirectX11SwapChainSurface surface) {
+            surface.SwapChain.Present(PresentSyncIntervalValue, PresentFlags.None);
         }
 
         /// <summary>
