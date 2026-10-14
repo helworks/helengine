@@ -59,18 +59,21 @@ namespace helengine.player.tests {
             Assert.Equal(60d, options.PlaySettings.TargetFrameRate);
         }
 
-        /// <summary>The removed flags are now unknown options.</summary>
-        /// <param name="removedOption">Flag folded into the Play settings file.</param>
+        /// <summary>
+        /// The removed flags are now unknown options. Each row passes its flag in the exact form the old parser accepted
+        /// (a value option with a valid value, or a bare switch), so the row only passes because the flag is gone.
+        /// </summary>
+        /// <param name="removedArguments">Flag folded into the Play settings file, followed by its old value when it took one.</param>
         [Theory]
-        [InlineData("--target-fps")]
-        [InlineData("--shadows-enabled")]
+        [InlineData("--target-fps", "60")]
+        [InlineData("--shadows-enabled", "false")]
         [InlineData("--wait-for-debugger")]
-        public void Parse_RejectsFoldedFlags(string removedOption) {
+        public void Parse_RejectsFoldedFlags(params string[] removedArguments) {
             List<string> arguments = CreateArguments().ToList();
-            arguments.Add(removedOption);
-            arguments.Add("60");
+            arguments.AddRange(removedArguments);
 
-            Assert.Throws<ArgumentException>(() => PlayerLaunchOptions.Parse(arguments.ToArray()));
+            ArgumentException exception = Assert.Throws<ArgumentException>(() => PlayerLaunchOptions.Parse(arguments.ToArray()));
+            Assert.Contains($"Unknown player option '{removedArguments[0]}'", exception.Message);
         }
 
         /// <summary>The play settings option is required.</summary>

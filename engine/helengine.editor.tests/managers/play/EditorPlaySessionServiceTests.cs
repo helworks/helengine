@@ -211,6 +211,27 @@ public sealed class EditorPlaySessionServiceTests {
         Assert.NotSame(pressed, edited);
     }
 
+    /// <summary>
+    /// A cook whose platform turns shadows off and that produced a runtime settings catalog launches the configured
+    /// player executable, forwards the catalog as the trailing <c>--runtime-settings</c> pair, and writes shadows off
+    /// even though the Play setting <c>shadows</c> defaults to on (Play can only turn shadows off).
+    /// </summary>
+    [Fact]
+    public void Play_WhenCookDisablesShadowsAndHasRuntimeSettings_ForwardsCatalogAndWritesShadowsOff() {
+        FakePlayCookRunner cookRunner = new FakePlayCookRunner(new EditorPlayCookResult(true, "Cooked.", @"C:\project\cache\play\ps2-staging", "scene-cube-test", "scenes/cube_test.hscene", new Dictionary<string, string>(), false, "C:/settings/catalog.bin"));
+        FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
+        EditorPlaySessionService service = CreateService(cookRunner, CreateSucceedingScriptBuilder(), launcher);
+
+        EditorBuildExecutionResult result = PlayToCompletion(service, PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, InputDevices, TestPlaySettings.CreateDefaults(PlatformId, TargetFrameRate, false));
+
+        Assert.True(result.Succeeded, result.Message);
+        EditorPlayLaunchRequest request = Assert.Single(launcher.Requests);
+        Assert.Equal(PlayerExecutablePath, request.PlayerExecutablePath);
+        string settingsPath = TestPlaySettings.CreateWriter().ResolvePath(PlatformId);
+        Assert.Equal(new[] { "--play-settings", settingsPath, "--runtime-settings", "C:/settings/catalog.bin" }, request.Arguments.Skip(request.Arguments.Count - 4).ToArray());
+        Assert.False(PlayerPlaySettingsFile.Read(settingsPath).ShadowsEnabled);
+    }
+
     /// <summary>A settings snapshot taken for another platform is rejected before anything runs.</summary>
     [Fact]
     public void Play_WhenSnapshotIsForAnotherPlatform_Throws() {

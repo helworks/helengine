@@ -6,8 +6,14 @@ namespace helengine.editor.tests.managers.play;
 /// Builds Play settings snapshots and a workspace-owned settings file writer for Play session tests.
 /// </summary>
 public static class TestPlaySettings {
-    /// <summary>Workspace-owned root that holds the Play settings files tests write.</summary>
-    public const string ProjectRoot = @"C:\dev\helworks\builds\helengine\tests\play-session-project";
+    /// <summary>Workspace-owned folder under which every test process gets its own project root.</summary>
+    const string ScratchRoot = @"C:\dev\helworks\builds\helengine\tests\play-session-project";
+
+    /// <summary>
+    /// Project root that holds the Play settings files this test process writes. It is unique to the process, so test
+    /// runs in other sessions or worktrees never read or overwrite these files, and it is deleted when the process exits.
+    /// </summary>
+    public static readonly string ProjectRoot = CreateProcessProjectRoot();
 
     /// <summary>
     /// Creates a snapshot of the declared defaults for a platform whose capability paces at the given frame rate.
@@ -28,5 +34,20 @@ public static class TestPlaySettings {
     /// <returns>Settings file writer.</returns>
     public static EditorPlaySettingsFileWriter CreateWriter() {
         return new EditorPlaySettingsFileWriter(ProjectRoot);
+    }
+
+    /// <summary>
+    /// Chooses this process's project root beneath <see cref="ScratchRoot"/> and arranges for it to be deleted when
+    /// the test process exits.
+    /// </summary>
+    /// <returns>Absolute project root unique to this process.</returns>
+    static string CreateProcessProjectRoot() {
+        string root = Path.Combine(ScratchRoot, Guid.NewGuid().ToString("N"));
+        AppDomain.CurrentDomain.ProcessExit += (sender, args) => {
+            if (Directory.Exists(root)) {
+                Directory.Delete(root, true);
+            }
+        };
+        return root;
     }
 }
