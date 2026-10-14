@@ -66,6 +66,7 @@ namespace helengine.player {
                 window = new PlayerWindow(options.PlatformName, options.SceneId);
                 window.Show();
                 Application.DoEvents();
+                new PlayerWindowActivator(new Win32PlayerForegroundWindow(), Console.Out).Activate(window.Handle);
                 InputBackendWindows desktopInput = new InputBackendWindows(window.Handle);
                 PlayerPlatformInputBackend input = CreatePlatformInput(desktopInput, options.InputDevices);
 
