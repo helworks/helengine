@@ -8,6 +8,16 @@ namespace helengine.editor {
     internal sealed class EditorProjectWriteLock : IDisposable {
         static readonly TimeSpan DefaultMaximumWait = TimeSpan.FromSeconds(60);
         const int RetryDelayMilliseconds = 10;
+
+        /// <summary>
+        /// In-process gates keyed by canonical lock-file path. A thread takes the gate before it opens the lock file and
+        /// gives it back after closing the file, so threads of this editor (the frame thread and a background Play cook)
+        /// queue on the gate, a plain kernel wait with no exceptions and no polling. Only another process holding the
+        /// file still reaches the file retry loop below.
+        /// </summary>
+        static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> InProcessGates =
+            new System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim>(
+                OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
         [ThreadStatic]
         static Dictionary<string, EditorProjectWriteLock> HeldLocks;
         /// <summary>
@@ -27,6 +37,12 @@ namespace helengine.editor {
         readonly EditorAuthoringMutationScope MutationScope;
         readonly string ProjectRootPath;
         readonly bool OwnsHandle;
+
+        /// <summary>
+        /// In-process gate an owning acquisition holds until it is disposed; null for a re-entrant acquisition, which
+        /// never took it.
+        /// </summary>
+        readonly SemaphoreSlim InProcessGate;
         bool IsDisposed;
 
         EditorProjectWriteLock(
@@ -34,12 +50,14 @@ namespace helengine.editor {
             EditorAuthoringVerifiedFile verifiedLockFile,
             EditorAuthoringMutationScope mutationScope,
             string projectRootPath,
-            bool ownsHandle) {
+            bool ownsHandle,
+            SemaphoreSlim inProcessGate) {
             LockStream = lockStream;
             VerifiedLockFile = verifiedLockFile;
             MutationScope = mutationScope;
             ProjectRootPath = projectRootPath;
             OwnsHandle = ownsHandle;
+            InProcessGate = inProcessGate;
         }
 
         /// <summary>
@@ -52,7 +70,10 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Acquires the project lock using a bounded wait supplied by the caller.
+        /// Acquires the project lock using a bounded wait supplied by the caller. A thread that already holds the lock
+        /// re-enters it at once. Otherwise the thread first waits on this process's gate for the lock (other threads of
+        /// the editor wait there, without exceptions), then takes the cross-process lock file, retrying while another
+        /// process holds it. Both waits share one deadline of <paramref name="maximumWait"/>.
         /// </summary>
         /// <param name="projectRootPath">Project root to coordinate.</param>
         /// <param name="maximumWait">Maximum time to wait for another writer.</param>
@@ -72,15 +93,24 @@ namespace helengine.editor {
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(lockDirectoryPath, fullProjectRootPath);
             string canonicalLockPath = CanonicalizeLockPath(lockPath);
             if (HeldLocks != null && HeldLocks.TryGetValue(canonicalLockPath, out EditorProjectWriteLock heldLock)) {
-                return new EditorProjectWriteLock(heldLock.LockStream, null, null, canonicalLockPath, false);
+                return new EditorProjectWriteLock(heldLock.LockStream, null, null, canonicalLockPath, false, null);
             }
 
-            EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
-                fullProjectRootPath,
-                lockDirectoryPath);
+            // One deadline covers the in-process wait and the cross-process file retries, so the overall bound stays
+            // the caller's maximum wait.
+            DateTime deadlineUtc = DateTime.UtcNow + maximumWait;
+            SemaphoreSlim inProcessGate = InProcessGates.GetOrAdd(canonicalLockPath, key => new SemaphoreSlim(1, 1));
+            if (!inProcessGate.Wait(maximumWait)) {
+                throw new IOException($"Could not acquire the project authoring write lock at '{lockPath}': another thread of this editor held it for longer than {maximumWait}.");
+            }
+
+            bool gateHandedToLock = false;
+            EditorAuthoringMutationScope mutationScope = null;
             IOException lastIOException = null;
             try {
-                DateTime deadlineUtc = DateTime.UtcNow + maximumWait;
+                mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
+                    fullProjectRootPath,
+                    lockDirectoryPath);
                 EditorAuthoringVerifiedFile verifiedLockFile = null;
                 while (DateTime.UtcNow <= deadlineUtc) {
                     try {
@@ -99,7 +129,8 @@ namespace helengine.editor {
                             verifiedLockFile,
                             mutationScope,
                             canonicalLockPath,
-                            true);
+                            true,
+                            inProcessGate);
                         (HeldLocks ??= new Dictionary<string, EditorProjectWriteLock>(
                             OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal))[canonicalLockPath] = acquiredLock;
                         acquiredLock.HeldProjectRootKey = NormalizeProjectRootKey(fullProjectRootPath);
@@ -107,6 +138,7 @@ namespace helengine.editor {
                             OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal))[acquiredLock.HeldProjectRootKey] = ++nextHeldVersion;
                         verifiedLockFile = null;
                         mutationScope = null;
+                        gateHandedToLock = true;
                         return acquiredLock;
                     } catch (IOException exception) {
                         verifiedLockFile?.Dispose();
@@ -123,7 +155,15 @@ namespace helengine.editor {
             } finally {
                 // The temporary verified leaf must never survive a failed
                 // acquisition and its parent scope remains retryable.
-                mutationScope?.Dispose();
+                // File state first, gate last: another thread of this editor
+                // may only proceed once nothing of this attempt is left open.
+                try {
+                    mutationScope?.Dispose();
+                } finally {
+                    if (!gateHandedToLock) {
+                        inProcessGate.Release();
+                    }
+                }
             }
         }
 
@@ -208,7 +248,10 @@ namespace helengine.editor {
             if (HeldProjectRootKey != null && HeldVersionsByProjectRoot != null) {
                 HeldVersionsByProjectRoot.Remove(HeldProjectRootKey);
             }
+            // The file is closed; only now may the next thread of this editor take the gate. A failed release above
+            // keeps the gate, so the retried Dispose releases it exactly once.
             IsDisposed = true;
+            InProcessGate?.Release();
         }
 
         /// <summary>

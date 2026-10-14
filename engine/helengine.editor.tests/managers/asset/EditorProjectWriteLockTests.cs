@@ -94,6 +94,91 @@ public sealed class EditorProjectWriteLockTests : IDisposable {
         File.Delete(markerPath);
     }
 
+    /// <summary>
+    /// Ensures two threads of one process contending for the lock exclude each other and wait on the in-process gate
+    /// without a single first-chance exception on either thread.
+    /// </summary>
+    [Fact]
+    public void Acquire_WhenTwoThreadsOfOneProcessContend_ExcludesWithoutFirstChanceExceptions() {
+        using (EditorProjectWriteLock warmUp = EditorProjectWriteLock.Acquire(ProjectRootPath)) {
+        }
+
+        const int Iterations = 25;
+        int inside = 0;
+        int maximumInside = 0;
+        int[] threadIds = new int[2];
+        Exception[] failures = new Exception[2];
+        List<int> exceptionThreadIds = new List<int>();
+        EventHandler<System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs> handler = (sender, args) => {
+            lock (exceptionThreadIds) {
+                exceptionThreadIds.Add(Environment.CurrentManagedThreadId);
+            }
+        };
+        Thread[] threads = new Thread[2];
+        for (int threadIndex = 0; threadIndex < threads.Length; threadIndex++) {
+            int slot = threadIndex;
+            threads[slot] = new Thread(() => {
+                threadIds[slot] = Environment.CurrentManagedThreadId;
+                try {
+                    for (int iteration = 0; iteration < Iterations; iteration++) {
+                        using EditorProjectWriteLock held = EditorProjectWriteLock.Acquire(ProjectRootPath);
+                        int now = Interlocked.Increment(ref inside);
+                        int seen;
+                        do {
+                            seen = Volatile.Read(ref maximumInside);
+                        } while (now > seen && Interlocked.CompareExchange(ref maximumInside, now, seen) != seen);
+                        Thread.Sleep(2);
+                        Interlocked.Decrement(ref inside);
+                    }
+                } catch (Exception exception) {
+                    failures[slot] = exception;
+                }
+            });
+        }
+
+        AppDomain.CurrentDomain.FirstChanceException += handler;
+        try {
+            for (int index = 0; index < threads.Length; index++) {
+                threads[index].Start();
+            }
+            for (int index = 0; index < threads.Length; index++) {
+                threads[index].Join();
+            }
+        } finally {
+            AppDomain.CurrentDomain.FirstChanceException -= handler;
+        }
+
+        Assert.Null(failures[0]);
+        Assert.Null(failures[1]);
+        Assert.Equal(1, maximumInside);
+        lock (exceptionThreadIds) {
+            Assert.DoesNotContain(exceptionThreadIds, threadId => threadId == threadIds[0] || threadId == threadIds[1]);
+        }
+    }
+
+    /// <summary>
+    /// Ensures the cross-process exclusion is unchanged: while another holder (here a separate handle opened like another
+    /// process would) keeps the lock file, acquiring times out with an I/O error, and the in-process gate is given back,
+    /// so the lock is available again once the file is free.
+    /// </summary>
+    [Fact]
+    public void Acquire_WhenAnotherHolderKeepsTheLockFile_TimesOutAndReleasesTheGate() {
+        using (EditorProjectWriteLock warmUp = EditorProjectWriteLock.Acquire(ProjectRootPath)) {
+        }
+
+        string lockPath = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-write.lock");
+        using (FileStream otherHolder = new FileStream(lockPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) {
+            Assert.ThrowsAny<IOException>(() => EditorProjectWriteLock.Acquire(ProjectRootPath, TimeSpan.FromMilliseconds(200)));
+        }
+
+        Task<bool> otherThread = Task.Run(() => {
+            using EditorProjectWriteLock acquired = EditorProjectWriteLock.Acquire(ProjectRootPath, TimeSpan.FromSeconds(5));
+            return acquired != null;
+        });
+        Assert.True(otherThread.Wait(TimeSpan.FromSeconds(10)));
+        Assert.True(otherThread.Result);
+    }
+
     [Fact]
     public async Task Acquire_WhenLockIsHeldForSeveralSeconds_WaitsAndSucceeds() {
         using EditorProjectWriteLock heldLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
