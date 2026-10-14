@@ -40,6 +40,7 @@ namespace helengine.player {
             PlayerWindow window = null;
             RuntimeSceneCatalog sceneCatalog = null;
             Core core = null;
+            PlatformSettingsConfiguration runtimeSettings = null;
             try {
                 if (options.WaitForDebugger) {
                     Console.WriteLine("[player] waiting for debugger, pid " + Environment.ProcessId);
@@ -49,6 +50,7 @@ namespace helengine.player {
                 }
 
                 IPlatformPlayerAdapter adapter = PlayerPlatformAdapterLoader.Load(options.AdapterAssemblyPath, options.AdapterTypeName);
+                if (options.RuntimeSettingsPath.Length > 0) { runtimeSettings = PlatformSettingsSerializer.ReadBytes(File.ReadAllBytes(options.RuntimeSettingsPath)); }
                 adapter.Initialize(options.ContentRootPath);
                 PlayerScriptModuleLoader.LoadAll(options.ScriptModulesRootPath);
 
@@ -57,6 +59,7 @@ namespace helengine.player {
                 shaders = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
 
                 renderer3D = new PlayerRenderManager3D(adapter, shaders);
+                renderer3D.ShadowsEnabled = options.ShadowsEnabled;
                 // Vsync only prevents tearing; PlayerFramePacer limits the loop to the platform's target frame rate,
                 // which is below the refresh rate of the high-refresh monitors the editor runs on.
                 renderer3D.PresentSyncInterval = 1;
@@ -76,7 +79,9 @@ namespace helengine.player {
                     ContentStreamSource = source,
                     AssetContentManagerConfigurator = new PlayerAdapterContentManagerConfigurator(adapter),
                     PackagedAssetPathPolicy = new ContentRootPackagedAssetPathPolicy(),
-                    SceneCatalog = sceneCatalog
+                    SceneCatalog = sceneCatalog,
+                    PlatformSettingsConfiguration = runtimeSettings,
+                    PlatformSettingsBackend = adapter as IPlatformSettingsBackend
                 };
                 core = new Core(coreOptions);
                 core.Initialize(renderer3D, renderer3D.Render2D, input, new PlatformInfo(PlatformName, PlatformVersion), coreOptions);
@@ -94,6 +99,7 @@ namespace helengine.player {
                 if (sceneCatalog != null) {
                     sceneCatalog.Dispose();
                 }
+                runtimeSettings?.Dispose();
                 if (shaders != null) {
                     shaders.Dispose();
                 }

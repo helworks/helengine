@@ -182,6 +182,33 @@ namespace helengine.editor.tests {
             Assert.Equal("1.0.1", selection.ProfileSettingsDocument.Platforms[0].Version);
         }
 
+        /// <summary>Runtime presets can be duplicated, renamed and selected initially without sharing values or mutating the project on cancel.</summary>
+        [Fact]
+        public void RuntimePresetsAreIndependentAndSavedWithTheirPlatform() {
+            ProfilesDialog dialog = new(Core.Instance, new EditorSessionInteractionServices(), CreateFont());
+            EditorProfileSettingsDocument source = CreateProfileDocument();
+            EditorRuntimeSettingsAuthoringService.Initialize(source.Platforms[0], CommonPlatformRuntimeSettings.CreateDefinitions());
+            dialog.Show(source, new[] { "windows", "ps2" }, "windows", CreateSelectionModel());
+            InvokePrivate(dialog, "HandleRuntimeTabClicked");
+            EditorRuntimeSettingsControls controls = GetPrivateField<EditorRuntimeSettingsControls>(dialog, "RuntimeSettingsControls");
+            controls.DuplicatePreset();
+            controls.IdField.Text = "low"; controls.NameField.Text = "Low";
+            controls.Items.Single(item => item.Setting.SettingId == CommonPlatformRuntimeSettings.MaximumVisibleLights).TextBox.Text = "4";
+            controls.SelectInitialPreset();
+            ProfilesDialogSelection selection = null; dialog.ConfirmRequested += value => selection = value;
+            InvokePrivate(dialog, "HandleSaveClicked");
+            Assert.NotNull(selection);
+            EditorRuntimeSettingsDocument saved = selection.ProfileSettingsDocument.Platforms[0].RuntimeSettings;
+            Assert.Equal("low", saved.InitialPresetId);
+            Assert.Equal(2, saved.Presets.Count);
+            Assert.Equal("32", saved.Presets[0].Values[CommonPlatformRuntimeSettings.MaximumVisibleLights]);
+            Assert.Equal("4", saved.Presets[1].Values[CommonPlatformRuntimeSettings.MaximumVisibleLights]);
+            Assert.Single(source.Platforms[0].RuntimeSettings.Presets);
+            Assert.Equal("default", source.Platforms[0].RuntimeSettings.InitialPresetId);
+            controls.DeletePreset();
+            Assert.Single(GetPrivateField<EditorProfileSettingsDocument>(dialog, "CurrentDocument").Platforms[0].RuntimeSettings.Presets);
+        }
+
         /// <summary>
         /// Ensures the platform selector popup renders above its owning field.
         /// </summary>

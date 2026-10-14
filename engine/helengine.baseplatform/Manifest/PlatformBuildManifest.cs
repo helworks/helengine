@@ -110,6 +110,12 @@ namespace helengine.baseplatform.Manifest {
         /// <summary>Gets or sets the resolved platform text-command reuse metadata budget in bytes; zero disables reuse, independently of the existing command payload storage.</summary>
         public int Render2DTextCommandReuseMemoryBudgetBytes { get; set; }
 
+        /// <summary>Gets or sets whether the platform runtime permits authored shadow casting and receiving across all scenes.</summary>
+        public bool ShadowsEnabled { get; set; } = true;
+
+        /// <summary>Gets or sets the complete user-authored runtime settings catalog embedded in the packaged game.</summary>
+        public PlatformSettingsConfiguration PlatformSettingsConfiguration { get; set; }
+
         /// <summary>Gets or sets the optional loading-screen scene id from this manifest's packaged scene catalog.</summary>
         public string LoadingScreenSceneId { get; set; } = string.Empty;
 

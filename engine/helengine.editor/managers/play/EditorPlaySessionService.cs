@@ -359,6 +359,13 @@ namespace helengine.editor {
                 TargetFpsOption, targetFrameRate.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
                 InputDevicesOption, PlayerInputDevicesText.Format(inputDevices)
             };
+            if (!cookResult.ShadowsEnabled) {
+                arguments.Add("--shadows-enabled");
+                arguments.Add("false");
+            }
+            if (cookResult.RuntimeSettingsPath.Length > 0) {
+                arguments.Add("--runtime-settings"); arguments.Add(cookResult.RuntimeSettingsPath);
+            }
             if (waitForDebugger) {
                 arguments.Add(WaitForDebuggerOption);
             }

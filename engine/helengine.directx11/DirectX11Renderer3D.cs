@@ -828,11 +828,14 @@ namespace helengine.directx11 {
                 [camera],
                 drawables,
                 lights,
-                capabilityProfile);
+                capabilityProfile,
+                ShadowsEnabled);
             RenderFrame frame = extractionResult.Frames[0];
-            RenderFrameLightSubmission[] selectedLights = LightSelectionService.SelectVisibleLights(frame.LightSubmissions, capabilityProfile.MaximumVisibleLights);
+            RenderFrameLightSubmission[] selectedLights = LightSelectionService.SelectVisibleLights(frame.LightSubmissions,
+                Math.Min(MaximumVisibleLights, capabilityProfile.MaximumVisibleLights));
             LastSelectedLightCountValue = selectedLights.Length;
-            DirectX11ShadowResourceSet shadowResourceSet = ShadowResourcePlanner.PlanResources(selectedLights, capabilityProfile.MaximumShadowedLights);
+            DirectX11ShadowResourceSet shadowResourceSet = ShadowResourcePlanner.PlanResources(selectedLights,
+                ShadowsEnabled ? capabilityProfile.MaximumShadowedLights : 0);
             LastSelectedShadowLightCountValue = shadowResourceSet.SelectedShadowLights.Count;
             CurrentShadowResourceSet = shadowResourceSet;
             RenderPlan plan = RenderPlanBuilder.Build(frame, extractionResult.BackendCapabilities);

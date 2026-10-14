@@ -176,6 +176,21 @@ public sealed class EditorPlaySessionServiceTests {
         Assert.Equal(expectedDebugArguments, Assert.Single(debugLauncher.Requests).Arguments);
     }
 
+    /// <summary>A platform with shadows disabled passes that policy to the player without altering the scene or input choices.</summary>
+    [Fact]
+    public void Play_WhenPlatformDisablesShadows_PassesSwitchToPlayer() {
+        FakePlayCookRunner cook = new(new EditorPlayCookResult(true, "Cooked.", "C:/content", "cube", "scenes/cube.hasset", false, "C:/settings/catalog.bin"));
+        FakePlayProcessLauncher launcher = new();
+        EditorPlaySessionService service = new(cook, CreateSucceedingScriptBuilder(), launcher, PlayerExecutablePath);
+        Assert.True(service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true,
+            AdapterAssemblyPath, AdapterTypeName, TargetFrameRate, InputDevices, false).Succeeded);
+        IReadOnlyList<string> arguments = Assert.Single(launcher.Requests).Arguments;
+        int optionIndex = arguments.ToList().IndexOf("--shadows-enabled");
+        Assert.True(optionIndex >= 0);
+        Assert.Equal("false", arguments[optionIndex + 1]);
+        Assert.Equal("C:/settings/catalog.bin", arguments[arguments.ToList().IndexOf("--runtime-settings") + 1]);
+    }
+
     /// <summary>
     /// Ensures the target frame rate taken from the platform capability reaches the player as <c>--target-fps</c>,
     /// formatted with the invariant culture even when the editor runs under a comma-decimal culture.

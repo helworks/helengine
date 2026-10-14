@@ -4,6 +4,8 @@ namespace helengine.baseplatform.Definitions {
     /// Describes the typed platform metadata a builder exposes to the editor.
     /// </summary>
     public class PlatformDefinition {
+        /// <summary>Gets or sets runtime setting contracts; platform builders may add or replace definitions before publishing their metadata.</summary>
+        public PlatformRuntimeSettingDefinition[] RuntimeSettings { get; set; } = CommonPlatformRuntimeSettings.CreateDefinitions();
         /// <summary>
         /// Initializes one platform definition.
         /// </summary>

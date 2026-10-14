@@ -5,6 +5,9 @@ namespace helengine.editor {
     /// Represents one persisted queued build entry stored in `user_settings/build_config.json`.
     /// </summary>
     public sealed class EditorBuildQueueItemDocument {
+        /// <summary>Captures the runtime catalog fingerprint used to distinguish native binaries with different authored presets.</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string RuntimeSettingsFingerprint { get; set; } = string.Empty;
         /// <summary>
         /// Gets or sets the stable queue item identifier used to track this entry across reloads.
         /// </summary>

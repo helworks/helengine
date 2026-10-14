@@ -13,7 +13,7 @@ namespace helengine.editor {
         /// <summary>
         /// Fixed panel height used by the dialog.
         /// </summary>
-        public const int PanelHeight = 406;
+        public const int PanelHeight = 480;
 
         /// <summary>
         /// Padding applied inside the dialog panel.
@@ -195,6 +195,13 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity CodegenContentHost;
 
+        /// <summary>Owns the Runtime tab selector.</summary>
+        readonly EditorEntity RuntimeTabButtonHost;
+        /// <summary>Opens user-authored runtime presets for the selected platform.</summary>
+        readonly ButtonComponent RuntimeTabButton;
+        /// <summary>Edits full independent presets through the existing platform settings workflow.</summary>
+        readonly EditorRuntimeSettingsControls RuntimeSettingsControls;
+
         /// <summary>
         /// Host entity for the status text.
         /// </summary>
@@ -335,6 +342,10 @@ namespace helengine.editor {
             CodegenTabButton = new ButtonComponent("Codegen", GetTabButtonSize(), DialogFontValue, HandleCodegenTabClicked, 0f);
             CodegenTabButtonHost.AddComponent(CodegenTabButton);
 
+            RuntimeTabButtonHost = CreateTextHost(); DialogPanelRoot.AddChild(RuntimeTabButtonHost);
+            RuntimeTabButton = new ButtonComponent("Runtime", GetTabButtonSize(), DialogFontValue, HandleRuntimeTabClicked, 0f);
+            RuntimeTabButtonHost.AddComponent(RuntimeTabButton);
+
             BuildContentHost = CreateTextHost();
             DialogPanelRoot.AddChild(BuildContentHost);
 
@@ -364,6 +375,9 @@ namespace helengine.editor {
                 GetLabelColumnWidth(),
                 settingValueWidth);
 
+            RuntimeSettingsControls = new EditorRuntimeSettingsControls(DialogPanelRoot, DialogFontValue,
+                GetLabelColumnWidth(), settingValueWidth, GetFieldRowHeightPixels());
+
             StatusHost = CreateTextHost();
             DialogPanelRoot.AddChild(StatusHost);
             StatusText = new TextComponent {
@@ -373,6 +387,7 @@ namespace helengine.editor {
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFontValue.LineHeight, 1f)))),
             };
             StatusHost.AddComponent(StatusText);
+            RuntimeSettingsControls.ErrorReported += HandleRuntimeSettingsError;
 
             CancelButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
@@ -570,7 +585,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="tabIndex">Zero-based tab index to activate.</param>
         void SwitchTab(int tabIndex) {
-            if (tabIndex < 0 || tabIndex > 2) {
+            if (tabIndex < 0 || tabIndex > 3) {
                 throw new ArgumentOutOfRangeException(nameof(tabIndex));
             }
             if (SelectedTabIndex == tabIndex) {
@@ -621,6 +636,7 @@ namespace helengine.editor {
                 codegenProfile != null ? $"Codegen Profile: {codegenProfile.DisplayName}" : "Codegen Profiles",
                 codegenProfile?.Settings,
                 platform.Codegen.SelectedOptionValues);
+            RuntimeSettingsControls.Load(platform, ActivePlatformSelectionModel?.Definition.RuntimeSettings ?? CommonPlatformRuntimeSettings.CreateDefinitions());
             RefreshTabVisibility();
             LayoutSettingsSections();
         }
@@ -632,9 +648,11 @@ namespace helengine.editor {
             BuildContentHost.Enabled = SelectedTabIndex == 0;
             GraphicsContentHost.Enabled = SelectedTabIndex == 1;
             CodegenContentHost.Enabled = SelectedTabIndex == 2;
+            RuntimeSettingsControls.Root.Enabled = SelectedTabIndex == 3;
             BuildTabButton.SetTargetFocused(SelectedTabIndex == 0);
             GraphicsTabButton.SetTargetFocused(SelectedTabIndex == 1);
             CodegenTabButton.SetTargetFocused(SelectedTabIndex == 2);
+            RuntimeTabButton.SetTargetFocused(SelectedTabIndex == 3);
         }
 
         /// <summary>
@@ -676,6 +694,8 @@ namespace helengine.editor {
             if (!CodegenSettingsSection.TryValidate(out errorMessage)) {
                 return false;
             }
+
+            if (!RuntimeSettingsControls.TryStore(out errorMessage)) { return false; }
 
             return true;
         }
@@ -867,6 +887,7 @@ namespace helengine.editor {
 
             EditorPlatformProfileSettingsDocument clone = new EditorPlatformProfileSettingsDocument {
                 PlatformId = platform.PlatformId,
+                RuntimeSettings = EditorRuntimeSettingsAuthoringService.Clone(platform.RuntimeSettings),
                 Version = string.IsNullOrWhiteSpace(platform.Version)
                     ? EditorPlatformProfileSettingsDocument.DefaultVersion
                     : platform.Version,
@@ -932,6 +953,7 @@ namespace helengine.editor {
             BuildTabButtonHost.Position = new float3(GetPanelPaddingPixels(), rowY, 0.1f);
             GraphicsTabButtonHost.Position = new float3(GetPanelPaddingPixels() + GetTabButtonWidthPixels() + GetTabButtonSpacingPixels(), rowY, 0.1f);
             CodegenTabButtonHost.Position = new float3(GetPanelPaddingPixels() + ((GetTabButtonWidthPixels() + GetTabButtonSpacingPixels()) * 2f), rowY, 0.1f);
+            RuntimeTabButtonHost.Position = new float3(GetPanelPaddingPixels() + ((GetTabButtonWidthPixels() + GetTabButtonSpacingPixels()) * 3f), rowY, 0.1f);
         }
 
         /// <summary>
@@ -948,6 +970,9 @@ namespace helengine.editor {
             GraphicsSettingsSection.Layout();
             CodegenSettingsSection.Root.Position = float3.Zero;
             CodegenSettingsSection.Layout();
+            RuntimeSettingsControls.Root.Position = new float3(GetPanelPaddingPixels(), contentTopY, 0.1f);
+            RuntimeSettingsControls.Layout(DialogWidth - GetPanelPaddingPixels() * 2,
+                Math.Max(1, (int)(DialogHeight - contentTopY - GetFooterHeightPixels() - GetFieldRowHeightPixels() - GetSectionSpacingPixels())));
         }
 
         /// <summary>
@@ -1017,6 +1042,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Content height of the active tab section.</returns>
         float GetActiveSectionContentHeight() {
+            if (SelectedTabIndex == 3) { return RuntimeSettingsControls.ContentHeight; }
             if (SelectedTabIndex == 1) {
                 return GraphicsSettingsSection.ContentHeight;
             }
@@ -1026,6 +1052,12 @@ namespace helengine.editor {
 
             return BuildSettingsSection.ContentHeight;
         }
+
+        /// <summary>Opens independent runtime presets after validating the current tab.</summary>
+        void HandleRuntimeTabClicked() { SwitchTab(3); }
+
+        /// <summary>Displays runtime preset validation errors in the shared status row.</summary>
+        void HandleRuntimeSettingsError(string error) { StatusText.Text = error; }
 
         /// <summary>
         /// Gets the scaled panel padding used by the dialog.

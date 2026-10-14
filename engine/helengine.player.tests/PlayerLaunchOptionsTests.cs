@@ -25,12 +25,38 @@ namespace helengine.player.tests {
             Assert.Equal(60d, options.TargetFrameRate);
             Assert.Equal(PlayerInputDevices.Gamepad, options.InputDevices);
             Assert.False(options.WaitForDebugger);
+            Assert.True(options.ShadowsEnabled);
+            Assert.Empty(options.RuntimeSettingsPath);
         }
 
         /// <summary>The debugger flag is a switch.</summary>
         [Fact]
         public void Parse_WhenWaitForDebuggerPresent_SetsFlag() {
             Assert.True(PlayerLaunchOptions.Parse(ValidArgs.Append("--wait-for-debugger").ToArray()).WaitForDebugger);
+        }
+
+        /// <summary>The platform's global shadow switch survives the editor-to-player command line.</summary>
+        /// <param name="value">Serialized shadow switch.</param>
+        /// <param name="enabled">Expected renderer policy.</param>
+        [Theory]
+        [InlineData("true", true)]
+        [InlineData("false", false)]
+        public void Parse_WhenShadowsOptionPresent_ReadsPolicy(string value, bool enabled) {
+            Assert.Equal(enabled, PlayerLaunchOptions.Parse([.. ValidArgs, "--shadows-enabled", value]).ShadowsEnabled);
+        }
+
+        /// <summary>The complete runtime preset catalog path reaches the player without becoming a required legacy argument.</summary>
+        [Fact]
+        public void Parse_WhenRuntimeCatalogPresent_ReadsPath() {
+            Assert.Equal("C:/settings/catalog.bin", PlayerLaunchOptions.Parse([.. ValidArgs, "--runtime-settings", "C:/settings/catalog.bin"]).RuntimeSettingsPath);
+        }
+
+        /// <summary>Invalid, repeated and valueless shadow switches are rejected before the renderer starts.</summary>
+        [Fact]
+        public void Parse_WhenShadowOptionMalformed_Throws() {
+            Assert.Throws<ArgumentException>(() => PlayerLaunchOptions.Parse([.. ValidArgs, "--shadows-enabled", "off"]));
+            Assert.Throws<ArgumentException>(() => PlayerLaunchOptions.Parse([.. ValidArgs, "--shadows-enabled"]));
+            Assert.Throws<ArgumentException>(() => PlayerLaunchOptions.Parse([.. ValidArgs, "--shadows-enabled", "false", "--shadows-enabled", "true"]));
         }
 
         /// <summary>Missing required options throw and name the option.</summary>

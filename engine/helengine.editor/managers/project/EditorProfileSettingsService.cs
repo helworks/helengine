@@ -225,6 +225,8 @@ namespace helengine.editor {
             platform.Graphics ??= new EditorGraphicsProfileSettingsDocument();
             platform.Codegen ??= new EditorCodegenProfileSettingsDocument();
             platform.Input ??= new EditorInputProfileSettingsDocument();
+            platform.RuntimeSettings ??= new EditorRuntimeSettingsDocument();
+            EditorRuntimeSettingsAuthoringService.ValidateStructure(platform.RuntimeSettings);
             platform.Build.SelectedOptionValues ??= [];
             platform.Graphics.SelectedGraphicsProfileId ??= string.Empty;
             platform.Graphics.SelectedOptionValues ??= [];

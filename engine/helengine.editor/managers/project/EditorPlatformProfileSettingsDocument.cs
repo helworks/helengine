@@ -40,6 +40,9 @@ namespace helengine.editor {
         /// </summary>
         public EditorInputProfileSettingsDocument Input { get; set; } = new EditorInputProfileSettingsDocument();
 
+        /// <summary>Gets or sets complete user-authored runtime presets for this platform.</summary>
+        public EditorRuntimeSettingsDocument RuntimeSettings { get; set; } = new();
+
         /// <summary>
         /// Gets or sets the cached builder metadata for the selected platform.
         /// </summary>

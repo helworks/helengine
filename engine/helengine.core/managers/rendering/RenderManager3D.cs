@@ -35,6 +35,12 @@ namespace helengine {
         /// </summary>
         public Core OwnerCore { get; internal set; }
 
+        /// <summary>Permits authored shadows for this renderer; disabling it suppresses shadow work without changing lights or materials.</summary>
+        public bool ShadowsEnabled { get; set; } = true;
+
+        /// <summary>Gets or sets the user-selected light budget; backends additionally cap this at their supported light count.</summary>
+        public int MaximumVisibleLights { get; set; } = 32;
+
         /// <summary>
         /// Gets the primary layout reference size, retaining its last usable dimensions while that window is minimized.
         /// </summary>

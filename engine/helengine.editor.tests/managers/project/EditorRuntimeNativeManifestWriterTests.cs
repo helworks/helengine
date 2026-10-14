@@ -32,8 +32,11 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
     /// <summary>
         /// Ensures the writer emits native startup, scene-catalog, scene-physics, and code-module source files with the resolved cooked scene path.
         /// </summary>
-        [Fact]
-        public void Write_emits_startup_scene_scene_catalog_scene_physics_and_code_module_cpp_sources() {
+        /// <param name="shadowsEnabled">Platform-wide shadow switch to embed in the native startup contract.</param>
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void Write_emits_startup_scene_scene_catalog_scene_physics_and_code_module_cpp_sources(bool shadowsEnabled) {
         string generatedCoreRootPath = Path.Combine(RootPath, "generated-core");
         Directory.CreateDirectory(generatedCoreRootPath);
 
@@ -68,6 +71,7 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
             new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
             Array.Empty<PlatformCookWorkItem>(),
             PlatformBuildRuntimeFeatureManifest.Empty);
+        manifest.ShadowsEnabled = shadowsEnabled;
         manifest.StandardPlatformInputConfiguration = new StandardPlatformInputConfiguration([
             new StandardPlatformActionBinding(
                 StandardPlatformAction.Accept,
@@ -106,6 +110,11 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
         Assert.False(File.Exists(Path.Combine(runtimeRootPath, "runtime-scene-catalog.json")));
 
         string startupSource = File.ReadAllText(startupSourcePath);
+        Assert.Contains("bool he_get_runtime_shadows_enabled();", File.ReadAllText(startupHeaderPath));
+        Assert.Contains("PlatformSettingsConfiguration* he_create_runtime_platform_settings();", File.ReadAllText(startupHeaderPath));
+        Assert.Contains("PlatformSettingsSerializer::ReadBytes(&bytes)", startupSource);
+        Assert.Contains("static const bool kRuntimeShadowsEnabled = " + (shadowsEnabled ? "true" : "false") + ";", startupSource);
+        Assert.Contains("bool he_get_runtime_shadows_enabled() { return kRuntimeShadowsEnabled; }", startupSource);
         string sceneCatalogSource = File.ReadAllText(sceneCatalogSourcePath);
         string codeModuleSource = File.ReadAllText(codeModuleSourcePath);
         string physicsSource = File.ReadAllText(physicsSourcePath);

@@ -24,7 +24,7 @@ namespace helengine.baseplatform.Definitions {
                 throw new ArgumentException("Setting id is required.", nameof(settingId));
             } else if (string.IsNullOrWhiteSpace(displayName)) {
                 throw new ArgumentException("Setting display name is required.", nameof(displayName));
-            } else if (string.IsNullOrWhiteSpace(defaultValue)) {
+            } else if (defaultValue == null || required && string.IsNullOrWhiteSpace(defaultValue)) {
                 throw new ArgumentException("Setting default value is required.", nameof(defaultValue));
             } else if (allowedValues == null) {
                 throw new ArgumentNullException(nameof(allowedValues), "Allowed values are required.");

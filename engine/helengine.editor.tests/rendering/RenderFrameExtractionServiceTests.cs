@@ -1,4 +1,5 @@
 using helengine.editor.tests.testing;
+using helengine.directx11;
 using Xunit;
 
 namespace helengine.editor.tests.rendering {
@@ -6,6 +7,32 @@ namespace helengine.editor.tests.rendering {
     /// Verifies shared render-frame extraction and backend capability contracts.
     /// </summary>
     public class RenderFrameExtractionServiceTests {
+        /// <summary>Disabling shadows removes caster submissions while leaving scene lighting, drawables and authored values intact.</summary>
+        [Fact]
+        public void DisabledShadowsPreserveLightingAndAuthoredChoices() {
+            using Core core = new(new CoreInitializationOptions {
+                RenderList3DInitialCapacity = 4, RenderList2DInitialCapacity = 4, ContentStreamSource = new FakeContentStreamSource()
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test"));
+            CameraComponent camera = new();
+            TestDrawable3D drawable = new(MaterialBlendMode.Opaque);
+            DirectionalLightComponent light = new() { ShadowsEnabled = true };
+            RenderFrameExtractionService extractor = new();
+            RendererBackendCapabilityProfile capabilities = new(true, false, true, true, 32, 4);
+            RenderFrame disabled = extractor.Extract([camera], [drawable], [light], capabilities, false).Frames[0];
+            Assert.Single(disabled.DrawableSubmissions);
+            Assert.Single(disabled.LightSubmissions);
+            Assert.Empty(disabled.ShadowCasterSubmissions);
+            Assert.True(light.ShadowsEnabled);
+            Assert.True(drawable.Materials[0].CastsShadows);
+            DirectX11RenderPlanBuilder planner = new();
+            Assert.DoesNotContain(RenderPassKind.Shadow, planner.Build(disabled, capabilities).Passes);
+            Assert.Contains(RenderPassKind.OpaqueForward, planner.Build(disabled, capabilities).Passes);
+            RenderFrame enabled = extractor.Extract([camera], [drawable], [light], capabilities, true).Frames[0];
+            Assert.Single(enabled.ShadowCasterSubmissions);
+            Assert.Contains(RenderPassKind.Shadow, planner.Build(enabled, capabilities).Passes);
+        }
+
         /// <summary>
         /// Ensures the extraction service returns one frame entry for one active camera and exposes backend capability metadata through the render manager contract.
         /// </summary>

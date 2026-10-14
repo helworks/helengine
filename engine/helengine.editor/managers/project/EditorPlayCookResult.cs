@@ -12,23 +12,34 @@ namespace helengine.editor {
         /// <param name="contentRootPath">Absolute root of the staged cooked content the player reads; empty on failure.</param>
         /// <param name="startupSceneId">Identifier of the scene the player should load first; empty on failure.</param>
         /// <param name="startupSceneCookedRelativePath">Forward-slash path of the startup scene relative to the cooked content layout; empty on failure.</param>
+        /// <param name="shadowsEnabled">Whether the selected platform permits shadows in the desktop player.</param>
         public EditorPlayCookResult(
             bool succeeded,
             string message,
             string contentRootPath,
             string startupSceneId,
-            string startupSceneCookedRelativePath) {
+            string startupSceneCookedRelativePath,
+            bool shadowsEnabled = true,
+            string runtimeSettingsPath = "") {
             Succeeded = succeeded;
             Message = message ?? throw new ArgumentNullException(nameof(message));
             ContentRootPath = contentRootPath ?? throw new ArgumentNullException(nameof(contentRootPath));
             StartupSceneId = startupSceneId ?? throw new ArgumentNullException(nameof(startupSceneId));
             StartupSceneCookedRelativePath = startupSceneCookedRelativePath ?? throw new ArgumentNullException(nameof(startupSceneCookedRelativePath));
+            ShadowsEnabled = shadowsEnabled;
+            RuntimeSettingsPath = runtimeSettingsPath ?? throw new ArgumentNullException(nameof(runtimeSettingsPath));
         }
 
         /// <summary>
         /// Gets whether the assets-only build completed successfully.
         /// </summary>
         public bool Succeeded { get; }
+
+        /// <summary>Gets the global shadow switch resolved from the selected platform's graphics profile.</summary>
+        public bool ShadowsEnabled { get; }
+
+        /// <summary>Gets the portable catalog path passed to desktop Play, or empty for legacy cook results.</summary>
+        public string RuntimeSettingsPath { get; }
 
         /// <summary>
         /// Gets the human-readable success or failure message.

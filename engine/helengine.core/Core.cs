@@ -70,6 +70,9 @@ namespace helengine {
         readonly RuntimeProfilerMetrics RuntimeProfilerMetricsValue;
 #endif
 
+        /// <summary>Owns this session's active platform configuration independently from project-authored presets.</summary>
+        [NativeOwnedMember] PlatformSettingsService PlatformSettingsValue;
+
         /// <summary>
         /// Initializes a new core instance with default initialization options.
         /// </summary>
@@ -126,6 +129,9 @@ namespace helengine {
         /// Gets the initialization options used to configure core systems.
         /// </summary>
         public CoreInitializationOptions InitializationOptions { get; private set; }
+
+        /// <summary>Gets the API for listing presets and explicitly applying runtime settings for this core's platform.</summary>
+        public PlatformSettingsService PlatformSettings => PlatformSettingsValue;
 
         /// <summary>
         /// Gets the optional CPU profiling sink used by Core and its object manager.
@@ -643,6 +649,10 @@ namespace helengine {
             if (SceneManager != null) {
                 SceneManager.SceneLoadingBudgetMilliseconds = InitializationOptions.SceneLoadingBudgetMilliseconds;
             }
+            NativeOwnership.DisposeAndRelease(ref PlatformSettingsValue);
+            PlatformSettingsValue = new PlatformSettingsService(this,
+                options.PlatformSettingsConfiguration == null ? platformInfo.Name : options.PlatformSettingsConfiguration.PlatformId,
+                options.PlatformSettingsConfiguration, options.PlatformSettingsBackend);
             RuntimeDiagnosticsService = new RuntimeDiagnosticsService(
                 InitializationOptions.RuntimeDiagnosticsProvider,
                 SceneManager,
@@ -892,6 +902,7 @@ namespace helengine {
         /// Releases managed resources for render managers.
         /// </summary>
         public void Dispose() {
+            NativeOwnership.DisposeAndRelease(ref PlatformSettingsValue);
             if (SceneManager != null) {
                 SceneManager.Dispose();
             }

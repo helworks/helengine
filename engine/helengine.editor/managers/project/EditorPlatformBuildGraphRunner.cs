@@ -161,6 +161,8 @@ namespace helengine.editor {
             }
 
             IPlatformAssetBuilder builder = BuilderLoader.Load(PlatformDescriptor.BuilderAssemblyPath);
+            PlatformSettingsConfiguration runtimeSettings = EditorRuntimeSettingsAuthoringService.Load(ProjectRootPath, builder.Definition);
+            queueItem.RuntimeSettingsFingerprint = Convert.ToHexString(SHA256.HashData(PlatformSettingsSerializer.WriteBytes(runtimeSettings)));
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(builder.Definition);
             PlatformBuildProfileDefinition previousBuildProfile = selectionModel.TryResolveBuildProfileExact(queueItem.SelectedBuildProfileId);
             PlatformBuildProfileDefinition selectedBuildProfile = EditorBuildProfileDefaultResolver.ResolveBuildProfile(
@@ -247,6 +249,10 @@ namespace helengine.editor {
             WritePhaseMarker(workspace, "variants-resolved");
             cookedManifest = RunLayoutMedia(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
             WritePhaseMarker(workspace, "media-laid-out");
+            cookedManifest.PlatformSettingsConfiguration = runtimeSettings;
+            PlatformSettingsState initialSettings = runtimeSettings.GetPreset(runtimeSettings.InitialPresetId).Values;
+            cookedManifest.ShadowsEnabled = !initialSettings.Contains(CommonPlatformRuntimeSettings.ShadowsEnabled)
+                || initialSettings.GetValue(CommonPlatformRuntimeSettings.ShadowsEnabled).Boolean;
             WriteRuntimeNativeManifestSources(cookedManifest, workspace.GeneratedCoreRootPath);
             RunWriteContainers(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace,
                 builder.Definition.RuntimeGenerationContract.SupportsSceneCodeModules);
@@ -285,6 +291,8 @@ namespace helengine.editor {
             }
 
             IPlatformAssetBuilder builder = BuilderLoader.Load(PlatformDescriptor.BuilderAssemblyPath);
+            PlatformSettingsConfiguration runtimeSettings = EditorRuntimeSettingsAuthoringService.Load(ProjectRootPath, builder.Definition);
+            queueItem.RuntimeSettingsFingerprint = Convert.ToHexString(SHA256.HashData(PlatformSettingsSerializer.WriteBytes(runtimeSettings)));
             PlatformPlayerCapability playerCapability = builder.Definition.PlayerCapability;
             if (!playerCapability.SupportsPlay) {
                 return EditorPlayCookResult.Failure($"Platform '{PlatformDescriptor.Id}' does not support Play.");
@@ -338,6 +346,10 @@ namespace helengine.editor {
             cookedManifest = RunLayoutMedia(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
             WritePhaseMarker(workspace, "media-laid-out");
             // Play compiles no code modules, so there are no scene-module runtime artifacts to copy (supportsSceneCodeModules: false).
+            cookedManifest.PlatformSettingsConfiguration = runtimeSettings;
+            PlatformSettingsState initialSettings = runtimeSettings.GetPreset(runtimeSettings.InitialPresetId).Values;
+            cookedManifest.ShadowsEnabled = !initialSettings.Contains(CommonPlatformRuntimeSettings.ShadowsEnabled)
+                || initialSettings.GetValue(CommonPlatformRuntimeSettings.ShadowsEnabled).Boolean;
             RunWriteContainers(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace, false);
             WritePhaseMarker(workspace, "containers-written");
 
@@ -359,12 +371,16 @@ namespace helengine.editor {
                 return EditorPlayCookResult.Failure(packageResult.Message);
             }
 
+            string settingsPath = Path.Combine(workspace.BuilderWorkingRootPath, "runtime-platform-settings.bin");
+            File.WriteAllBytes(settingsPath, PlatformSettingsSerializer.WriteBytes(runtimeSettings));
             return new EditorPlayCookResult(
                 true,
                 packageResult.Message,
                 Path.Combine(workspace.BuilderWorkingRootPath, playerCapability.ContentRootRelativePath),
                 cookedManifest.StartupSceneId,
-                ResolveStartupSceneCookedRelativePath(cookedManifest));
+                ResolveStartupSceneCookedRelativePath(cookedManifest),
+                cookedManifest.ShadowsEnabled,
+                settingsPath);
         }
 
         /// <summary>
@@ -1756,6 +1772,8 @@ namespace helengine.editor {
 
             manifest.SceneLoadingBudgetMilliseconds = cookedManifest.SceneLoadingBudgetMilliseconds;
             manifest.Render2DTextCommandReuseMemoryBudgetBytes = cookedManifest.Render2DTextCommandReuseMemoryBudgetBytes;
+            manifest.ShadowsEnabled = cookedManifest.ShadowsEnabled;
+            manifest.PlatformSettingsConfiguration = cookedManifest.PlatformSettingsConfiguration;
             manifest.LoadingScreenSceneId = cookedManifest.LoadingScreenSceneId;
 
             PlatformBuildTargetVariant[] targetVariants = [
@@ -1826,6 +1844,7 @@ namespace helengine.editor {
                 .Append(builderDescriptor.BuilderId).Append('@').Append(builderDescriptor.BuilderVersion).Append('\n');
             AppendFingerprintOptions(fingerprintInput, "build", queueItem.SelectedBuildOptionValues);
             AppendFingerprintOptions(fingerprintInput, "graphics", queueItem.SelectedGraphicsOptionValues);
+            fingerprintInput.AppendLine("runtime-settings=" + queueItem.RuntimeSettingsFingerprint);
             AppendFingerprintOptions(fingerprintInput, "codegen", codegenOptions);
             return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(fingerprintInput.ToString()))).ToLowerInvariant();
         }

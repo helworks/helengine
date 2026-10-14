@@ -65,6 +65,12 @@ namespace helengine {
         /// </summary>
         public RuntimeSceneCatalog SceneCatalog { get; set; }
 
+        /// <summary>Optional user-authored per-platform settings catalog copied into the core-owned runtime settings service.</summary>
+        public PlatformSettingsConfiguration PlatformSettingsConfiguration { get; set; }
+
+        /// <summary>Optional host backend that validates and applies platform-specific settings when requested by the game.</summary>
+        public IPlatformSettingsBackend PlatformSettingsBackend { get; set; }
+
         /// <summary>Gets or sets the native code residency manifest; it must be supplied together with CodeModuleProvider and SceneCatalog.</summary>
         public RuntimeCodeModuleManifest CodeModuleManifest { get; set; }
 

@@ -43,6 +43,12 @@ namespace helengine.player {
         /// </summary>
         public const string InputDevicesOption = "--input-devices";
 
+        /// <summary>Optional boolean setting carrying the selected platform's renderer-wide shadow policy.</summary>
+        public const string ShadowsEnabledOption = "--shadows-enabled";
+
+        /// <summary>Optional portable catalog containing user-authored presets for the selected platform.</summary>
+        public const string RuntimeSettingsOption = "--runtime-settings";
+
         /// <summary>Switch that makes the player block at startup until a debugger attaches.</summary>
         public const string WaitForDebuggerOption = "--wait-for-debugger";
 
@@ -59,6 +65,7 @@ namespace helengine.player {
         /// <param name="targetFrameRate">Positive frames per second the player paces its frame loop to.</param>
         /// <param name="inputDevices">Non-empty set of input devices the player forwards to the game.</param>
         /// <param name="waitForDebugger">Whether the player waits for a debugger before starting.</param>
+        /// <param name="shadowsEnabled">Whether the selected platform permits authored shadows.</param>
         PlayerLaunchOptions(
             string contentRootPath,
             string sceneId,
@@ -69,7 +76,9 @@ namespace helengine.player {
             string scriptModulesRootPath,
             double targetFrameRate,
             PlayerInputDevices inputDevices,
-            bool waitForDebugger) {
+            bool waitForDebugger,
+            bool shadowsEnabled,
+            string runtimeSettingsPath) {
             ContentRootPath = contentRootPath;
             SceneId = sceneId;
             PlatformName = platformName;
@@ -80,6 +89,8 @@ namespace helengine.player {
             TargetFrameRate = targetFrameRate;
             InputDevices = inputDevices;
             WaitForDebugger = waitForDebugger;
+            ShadowsEnabled = shadowsEnabled;
+            RuntimeSettingsPath = runtimeSettingsPath;
         }
 
         /// <summary>Gets the directory that holds the cooked platform content the player reads.</summary>
@@ -115,6 +126,12 @@ namespace helengine.player {
         /// <summary>Gets whether the player blocks at startup until a debugger is attached.</summary>
         public bool WaitForDebugger { get; }
 
+        /// <summary>Gets whether authored shadows are permitted for the selected platform.</summary>
+        public bool ShadowsEnabled { get; }
+
+        /// <summary>Gets the optional portable catalog path supplied by the editor.</summary>
+        public string RuntimeSettingsPath { get; }
+
         /// <summary>
         /// Parses the player command line. Each value option consumes the argument that follows it.
         /// </summary>
@@ -135,6 +152,8 @@ namespace helengine.player {
             string scriptModulesRootPath = null;
             string targetFrameRateText = null;
             string inputDevicesText = null;
+            string shadowsEnabledText = null;
+            string runtimeSettingsPath = null;
             bool waitForDebugger = false;
 
             for (int i = 0; i < args.Length; i++) {
@@ -165,6 +184,10 @@ namespace helengine.player {
                     targetFrameRateText = ReadValue(args, i, targetFrameRateText);
                 } else if (string.Equals(option, InputDevicesOption, StringComparison.Ordinal)) {
                     inputDevicesText = ReadValue(args, i, inputDevicesText);
+                } else if (string.Equals(option, ShadowsEnabledOption, StringComparison.Ordinal)) {
+                    shadowsEnabledText = ReadValue(args, i, shadowsEnabledText);
+                } else if (string.Equals(option, RuntimeSettingsOption, StringComparison.Ordinal)) {
+                    runtimeSettingsPath = ReadValue(args, i, runtimeSettingsPath);
                 } else {
                     throw new ArgumentException($"Unknown player option '{option}'.", nameof(args));
                 }
@@ -183,6 +206,10 @@ namespace helengine.player {
             RequireOption(InputDevicesOption, inputDevicesText);
             double targetFrameRate = ParseTargetFrameRate(targetFrameRateText);
             PlayerInputDevices inputDevices = PlayerInputDevicesText.Parse(inputDevicesText, InputDevicesOption);
+            bool shadowsEnabled = true;
+            if (shadowsEnabledText != null && !bool.TryParse(shadowsEnabledText, out shadowsEnabled)) {
+                throw new ArgumentException("Option '--shadows-enabled' must be true or false.", nameof(args));
+            }
 
             return new PlayerLaunchOptions(
                 contentRootPath,
@@ -194,7 +221,9 @@ namespace helengine.player {
                 scriptModulesRootPath,
                 targetFrameRate,
                 inputDevices,
-                waitForDebugger);
+                waitForDebugger,
+                shadowsEnabled,
+                runtimeSettingsPath ?? string.Empty);
         }
 
         /// <summary>

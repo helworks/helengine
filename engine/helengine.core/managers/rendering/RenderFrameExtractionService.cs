@@ -10,12 +10,14 @@ namespace helengine {
         /// <param name="drawables">Visible drawables.</param>
         /// <param name="lights">Visible lights.</param>
         /// <param name="backendCapabilities">Backend capability profile used for extraction.</param>
+        /// <param name="shadowsEnabled">Whether the platform permits shadow submissions for this frame.</param>
         /// <returns>Extracted render-frame result.</returns>
         public RenderFrameExtractionResult Extract(
             IReadOnlyList<CameraComponent> cameras,
             IReadOnlyList<IDrawable3D> drawables,
             IReadOnlyList<LightComponent> lights,
-            RendererBackendCapabilityProfile backendCapabilities) {
+            RendererBackendCapabilityProfile backendCapabilities,
+            bool shadowsEnabled = true) {
             if (cameras == null) {
                 throw new ArgumentNullException(nameof(cameras));
             } else if (drawables == null) {
@@ -34,7 +36,8 @@ namespace helengine {
                     classifier,
                     drawables[drawableIndex],
                     drawableSubmissions,
-                    shadowCasterSubmissions);
+                    shadowCasterSubmissions,
+                    shadowsEnabled);
             }
 
             RenderFrameLightClassifier lightClassifier = new RenderFrameLightClassifier();
@@ -88,16 +91,18 @@ namespace helengine {
         /// <param name="drawable">Borrowed drawable to classify.</param>
         /// <param name="drawableSubmissions">Borrowed destination list receiving drawable records.</param>
         /// <param name="shadowCasterSubmissions">Borrowed destination list receiving eligible shadow records.</param>
+        /// <param name="shadowsEnabled">Whether the platform permits shadow-caster records.</param>
         static void AppendDrawableSubmissions(
             [NativeNoEscape] RenderFrameDrawableClassifier classifier,
             IDrawable3D drawable,
             [NativeNoEscape] List<RenderFrameDrawableSubmission> drawableSubmissions,
-            [NativeNoEscape] List<RenderFrameShadowCasterSubmission> shadowCasterSubmissions) {
+            [NativeNoEscape] List<RenderFrameShadowCasterSubmission> shadowCasterSubmissions,
+            bool shadowsEnabled) {
             RenderFrameDrawableSubmission[] submissions = classifier.Classify(drawable);
             for (int submissionIndex = 0; submissionIndex < submissions.Length; submissionIndex++) {
                 RenderFrameDrawableSubmission submission = submissions[submissionIndex];
                 drawableSubmissions.Add(submission);
-                if (!submission.IsTransparent && ShouldCastShadows(submission.Material) && SupportsShadowCasting(submission)) {
+                if (shadowsEnabled && !submission.IsTransparent && ShouldCastShadows(submission.Material) && SupportsShadowCasting(submission)) {
                     shadowCasterSubmissions.Add(new RenderFrameShadowCasterSubmission(
                         submission.Drawable,
                         submission.SubmeshIndex,

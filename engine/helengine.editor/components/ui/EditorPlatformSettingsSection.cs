@@ -482,7 +482,8 @@ namespace helengine.editor {
             }
 
             string defaultValue = setting.DefaultValue ?? string.Empty;
-            if (values.TryGetValue(setting.SettingId, out string storedValue) && !string.IsNullOrWhiteSpace(storedValue)) {
+            if (values.TryGetValue(setting.SettingId, out string storedValue) && storedValue != null
+                && (!setting.Required || !string.IsNullOrWhiteSpace(storedValue))) {
                 if (setting.SettingKind == PlatformSettingKind.Choice && setting.AllowedValues.Length > 0) {
                     for (int index = 0; index < setting.AllowedValues.Length; index++) {
                         if (string.Equals(setting.AllowedValues[index], storedValue, StringComparison.OrdinalIgnoreCase)) {
