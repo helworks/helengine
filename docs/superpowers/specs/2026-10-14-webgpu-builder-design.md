@@ -1,7 +1,7 @@
 # HelEngine: builder e runtime WebGPU
 
 Data: 2026-10-14.
-Estado: direção aprovada em conversa; especificação aguardando revisão de Helena.
+Estado: especificação aprovada por Helena, incluindo o Cube Test existente, em 2026-10-14.
 
 ## Objetivo e decisões aprovadas
 
@@ -81,6 +81,8 @@ Implementar os contratos atuais de `RenderManager3D`, `RenderManager2D` e visita
 
 O material básico usa WGSL mantido pela plataforma, empacotado pelo builder, com bindings de câmera, objeto, cor e luz direcional. O caminho 2D acrescenta textura e sampler para sprites e atlas de fonte. A integração traduz os campos do material básico existente sem exigir reescrever scripts ou duplicar cenas para a web. Shaders customizados que dependem de outros backends recebem diagnóstico explícito de incompatibilidade.
 
+O payload de material reutiliza `PlatformMaterialAsset` e o serializador da engine, com `RendererFamilyId` igual a `webgpu`. O contrato de geração usa `CookedPlatformOwned`. O perfil de codegen inclui `DESKTOP_PLATFORM` para preservar os controles de teclado condicionais dos scripts existentes do DemoDisc.
+
 O perfil declara forward rendering, uma luz visível e zero luzes com sombras, sem deferred, HDR ou normal mapping nessa primeira entrega. Tipos de luz além da direcional recebem diagnóstico de incompatibilidade. Recursos gráficos obrigatórios incompatíveis devem falhar com identificação do material, asset ou configuração. Reduções opcionais respeitam os contratos existentes de capacidades da engine. A ferramenta não deve declarar sucesso enquanto descarta silenciosamente conteúdo necessário.
 
 Assets e instâncias de runtime mantêm sua identidade. Buffers, texturas e pipelines são reutilizados entre frames e liberados conforme ownership do runtime. O desenho consome os dados preparados pela engine; não cria uma segunda simulação em JavaScript.
@@ -123,4 +125,4 @@ Rodar testes focados dos novos contratos, um build nativo WASM e a verificação
 
 ## Próxima etapa
 
-Helena revisa esta especificação, especialmente os limites do primeiro marco. Após aprovação, produzir o plano escrito com arquivos, interfaces e validações e submetê-lo à revisão antes da implementação, conforme a skill de brainstorming em uso.
+A especificação foi aprovada. Produzir o plano escrito com arquivos, interfaces e validações e submetê-lo à revisão antes da implementação, conforme a skill de brainstorming em uso.
