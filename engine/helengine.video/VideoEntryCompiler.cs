@@ -54,7 +54,9 @@ namespace helengine.video {
                 if (member.Kind == "text") {
                     member.Text.Cues[^1].End = end;
                 } else if (state.Media.TryGetValue(member.MediaId ?? "", out VideoMedia media) && media.Kind == "video") {
-                    MediaTime wanted = member.SourceOut + extra;
+                    // Only the last piece of a jump-cut take reaches the scene end, so the handle comes after the last segment
+                    // and is consumed at the take speed.
+                    MediaTime wanted = member.SourceOut + extra.AtRate(member.Rate);
                     if (!member.HoldLastFrame && media.DurationSec > 0 && wanted.ToSeconds() <= media.DurationSec) {
                         member.SourceOut = wanted;
                     } else {

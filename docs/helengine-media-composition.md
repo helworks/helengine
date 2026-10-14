@@ -47,6 +47,14 @@ progress as its normalized time. Built-ins: `dissolve`, `dip-to-color`, `blur-di
 pass. Transition parameters are validated against the catalog. A video layer may set `hold_last_frame` so an outgoing take
 without source handles holds its last frame under the overlap; the field is omitted when false.
 
+## Playback rate
+
+Visual layers and audio clips may set `rate` (source seconds per timeline second, 0.25..4, omitted when 1): a layer reads
+`source_in + local * rate`, and validators require `source_out - source_in >= duration * rate`. The mixer time-stretches a
+clip whose rate is not 1 with the pitch preserved (WSOLA: 30 ms Hann frames, 50% overlap, 10 ms cross-correlation search).
+Each clip's whole source span is stretched once and cached, so the samples are deterministic and independent of the block
+size, offline and in realtime playback alike; the first block of a long rate-changed clip pays for its stretch.
+
 ## Video edit format (`helengine.video`)
 
 `helengine.video.edit.v1` is the scene-based editing document compiled to compositions by `VideoEditCompiler`. Scenes take
@@ -55,6 +63,27 @@ fraction, or a spoken word/phrase of the take. Layout and motion presets expand 
 or a catalog transition. Global tracks carry music and caption settings; captions derive from take words (estimated from the
 planned speech in previews). Any lockable object may carry `"by": "human"`; `VideoEditMerge.Replan` keeps locked objects when
 the AI proposes again. Spec: `helengine/docs/superpowers/specs/2026-10-08-helengine-video-edit-format-design.md`.
+
+## Take speed and jump cuts
+
+A take may set `speed` (0.5..2, default 1; the voice keeps its pitch) and `segments: [{in_sec, out_sec}, ...]`: intervals of
+the same media in source order, without overlap, each at least 0.1 s and inside the media, played back to back. With segments,
+`in_sec`/`out_sec` must equal the first segment start and the last segment end. Diagnostics: `invalid_take_speed`,
+`invalid_take_segment`, `take_segment_too_short`, `take_segment_order`, `take_segment_envelope`. A `from_take` scene lasts the
+sum of the segment lengths divided by the speed (each piece rounded down to the nanosecond so it never needs more source than
+its segment). Everything keyed to source seconds maps through the segment table and the speed: caption words (only words
+starting inside a kept segment; a word ends no later than its segment), word anchors, and `VideoSceneFacts` (words, silences,
+`speed`, `segments` with scene and source times, `voiced` and `look_away` spans in scene time; handles come from the first and
+last segment). `media[].analysis` may carry `voiced` and `look_away` source spans (`[[start, end], ...]`) for planners; they do
+not change the compiled video.
+
+Each segment of a take layer compiles to its own member (`{scene}-{layer}`, then `{scene}-{layer}-segment-N`) with the same
+viewport, fit, transform, effects and mask, spanning its slice of the scene at `rate = speed`; the scene-long motion and
+animations are cut into each piece (curved spans sampled per frame) so they run continuously across the cuts. A blurred
+speaker background is split the same way; masks follow because they sample the layer source time. The voice becomes one clip
+per segment (`voice-{scene}`, then `voice-{scene}-segment-N`) at the take speed; at each cut the clips overlap by up to 10 ms
+with equal-power fades (less when the media has no source to spare), and voice gain, mute and envelopes still apply across the
+scene (an envelope a cut splits is divided between the clips). Transition handles extend the last segment.
 
 ## Graphic templates (`.hgraphic`)
 
@@ -140,7 +169,7 @@ the speaker (members of equal `order` keep list order):
   `background.media` over the scene (a video shorter than the scene holds its last frame).
 - `{scene}-{layer}`: the normal take layer with `mask = {media: matte, channel: "luma"}` and `foreground ?? take` as media.
 
-The copy is silent: voice audio comes only from the take's single `voice-{scene}` clip. Without a matte the layer renders with
+The copy is silent: voice audio comes only from the take's `voice-{scene}` clips. Without a matte the layer renders with
 its original background and the compiler reports the pending `background_matte_pending`. A take layer that already has its own
 mask keeps it, skips the background and reports the warning `background_mask_conflict`.
 

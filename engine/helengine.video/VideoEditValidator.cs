@@ -19,6 +19,26 @@ namespace helengine.video {
         static readonly string[] LayoutPresets = ["full_frame", "inset", "side_by_side"];
 
         /// <summary>
+        /// Slowest take speed.
+        /// </summary>
+        public const double MinimumTakeSpeed = 0.5;
+
+        /// <summary>
+        /// Fastest take speed.
+        /// </summary>
+        public const double MaximumTakeSpeed = 2;
+
+        /// <summary>
+        /// Shortest take segment, in source seconds.
+        /// </summary>
+        public const double MinimumSegmentSec = 0.1;
+
+        /// <summary>
+        /// Rounding allowance when comparing segment boundaries, in seconds.
+        /// </summary>
+        const double SegmentTolerance = 1e-6;
+
+        /// <summary>
         /// Validates one edit.
         /// </summary>
         /// <param name="edit">Edit to check.</param>
@@ -51,6 +71,7 @@ namespace helengine.video {
             for (int index = 0; index < edit.Media.Count; index++) {
                 if (edit.Media[index] != null) {
                     ValidateMatte(edit.Media[index], index, media, errors);
+                    ValidateAnalysisSpans(edit.Media[index], index, errors);
                 }
             }
             HashSet<string> sceneIds = new HashSet<string>(StringComparer.Ordinal);
@@ -85,8 +106,8 @@ namespace helengine.video {
                     Error(errors, "missing_media", scene.Id, path + ".take.media", "The take must reference a video or audio media.");
                 } else if (!double.IsFinite(scene.Take.InSec) || !double.IsFinite(scene.Take.OutSec) || scene.Take.InSec < 0 || scene.Take.OutSec <= scene.Take.InSec || (take.DurationSec > 0 && scene.Take.OutSec > take.DurationSec)) {
                     Error(errors, "invalid_take", scene.Id, path + ".take", "The take interval must be positive and inside its media.");
-                } else {
-                    length = scene.Take.OutSec - scene.Take.InSec;
+                } else if (ValidateTakePlayback(scene, path + ".take", take, errors)) {
+                    length = VideoTakeTiming.Duration(scene.Take).ToSeconds();
                 }
             }
             string mode = scene.Duration?.Mode;
@@ -393,6 +414,71 @@ namespace helengine.video {
             }
             if (layer.Mask != null && (!media.ContainsKey(layer.Mask.Media ?? "") || layer.Mask.Channel is not ("alpha" or "luma"))) {
                 Error(errors, "invalid_mask", scene.Id, path + ".mask", "A mask needs existing media and an alpha or luma channel.");
+            }
+        }
+
+        /// <summary>
+        /// Validates the speed and segments of a take whose envelope interval is already known to be inside its media:
+        /// speed within <see cref="MinimumTakeSpeed"/>..<see cref="MaximumTakeSpeed"/>; segments in order, without overlap,
+        /// each at least <see cref="MinimumSegmentSec"/> long and inside the media, with the take interval equal to their
+        /// envelope.
+        /// </summary>
+        /// <param name="scene">Scene.</param>
+        /// <param name="path">Take JSON path.</param>
+        /// <param name="media">Take media.</param>
+        /// <param name="errors">Diagnostics sink.</param>
+        /// <returns>True when the take plays as declared, so its scene length is known.</returns>
+        static bool ValidateTakePlayback(VideoScene scene, string path, VideoMedia media, List<VideoDiagnostic> errors) {
+            VideoTake take = scene.Take;
+            bool valid = true;
+            if (!double.IsFinite(take.Speed) || take.Speed < MinimumTakeSpeed || take.Speed > MaximumTakeSpeed) {
+                Error(errors, "invalid_take_speed", scene.Id, path + ".speed", $"The take speed must be between {MinimumTakeSpeed} and {MaximumTakeSpeed}.");
+                valid = false;
+            }
+            if (take.Segments == null || take.Segments.Count == 0) {
+                return valid;
+            }
+            double previousOut = double.NegativeInfinity;
+            for (int index = 0; index < take.Segments.Count; index++) {
+                VideoTakeSegment segment = take.Segments[index];
+                string segmentPath = $"{path}.segments[{index}]";
+                if (segment == null || !double.IsFinite(segment.InSec) || !double.IsFinite(segment.OutSec) || segment.InSec < 0 || (media.DurationSec > 0 && segment.OutSec > media.DurationSec)) {
+                    Error(errors, "invalid_take_segment", scene.Id, segmentPath, "A take segment must be inside its media.");
+                    valid = false;
+                    continue;
+                }
+                if (segment.OutSec - segment.InSec < MinimumSegmentSec - SegmentTolerance) {
+                    Error(errors, "take_segment_too_short", scene.Id, segmentPath, $"A take segment must last at least {MinimumSegmentSec} s; it lasts {segment.OutSec - segment.InSec:0.###} s.");
+                    valid = false;
+                }
+                if (segment.InSec < previousOut - SegmentTolerance) {
+                    Error(errors, "take_segment_order", scene.Id, segmentPath, "Take segments must be in source order without overlapping the previous one.");
+                    valid = false;
+                }
+                previousOut = Math.Max(previousOut, segment.OutSec);
+            }
+            VideoTakeSegment first = take.Segments[0], last = take.Segments[^1];
+            if (first != null && last != null && (Math.Abs(first.InSec - take.InSec) > SegmentTolerance || Math.Abs(last.OutSec - take.OutSec) > SegmentTolerance)) {
+                Error(errors, "take_segment_envelope", scene.Id, path, $"in_sec and out_sec must equal the first segment start ({first.InSec:0.###} s) and the last segment end ({last.OutSec:0.###} s).");
+                valid = false;
+            }
+            return valid;
+        }
+
+        /// <summary>
+        /// Validates the voiced and look-away spans of one media analysis: each a finite [start, end] pair, start before end.
+        /// </summary>
+        /// <param name="item">Media.</param>
+        /// <param name="index">Media index.</param>
+        /// <param name="errors">Diagnostics sink.</param>
+        static void ValidateAnalysisSpans(VideoMedia item, int index, List<VideoDiagnostic> errors) {
+            foreach ((string name, List<double[]> spans) in new[] { ("voiced", item.Analysis?.Voiced), ("look_away", item.Analysis?.LookAway) }) {
+                for (int span = 0; span < (spans?.Count ?? 0); span++) {
+                    double[] value = spans[span];
+                    if (value is not { Length: 2 } || !double.IsFinite(value[0]) || !double.IsFinite(value[1]) || value[0] < 0 || value[1] < value[0]) {
+                        Error(errors, "invalid_analysis_span", null, $"media[{index}].analysis.{name}[{span}]", "An analysis span must be [start, end] in source seconds with start before end.");
+                    }
+                }
             }
         }
 

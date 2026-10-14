@@ -43,6 +43,44 @@ namespace helengine.video {
         }
 
         /// <summary>
+        /// Cuts the part of a track between <paramref name="from"/> and <paramref name="from"/> + <paramref name="length"/>
+        /// into a track local to a layer that starts at <paramref name="from"/>, so a layer split into consecutive pieces
+        /// (the segments of a jump-cut take) animates continuously across the cuts. Whole curve spans and linear or held
+        /// spans are kept exactly; a curved span cut by the window is sampled every <paramref name="step"/> with linear
+        /// keyframes.
+        /// </summary>
+        /// <param name="animation">Track in the time of the unsplit layer, with strictly ordered keyframes.</param>
+        /// <param name="from">Window start in the time of the unsplit layer.</param>
+        /// <param name="length">Positive window length.</param>
+        /// <param name="step">Positive sampling interval for cut curves, normally one frame.</param>
+        /// <returns>Track in window-local time with keyframes from zero to <paramref name="length"/>.</returns>
+        public static PropertyAnimation Window(PropertyAnimation animation, MediaTime from, MediaTime length, MediaTime step) {
+            List<AnimationKeyframe> source = animation.Keyframes;
+            MediaTime end = from + length;
+            List<MediaTime> breaks = [MediaTime.Zero];
+            breaks.AddRange(source.Where(frame => frame.Time > from && frame.Time < end).Select(frame => frame.Time - from));
+            breaks.Add(length);
+            PropertyAnimation window = new PropertyAnimation { Property = animation.Property };
+            for (int index = 0; index + 1 < breaks.Count; index++) {
+                MediaTime start = breaks[index], stop = breaks[index + 1];
+                // The original keyframe governing this span, or none when the span is held before the first or after the last.
+                int governing = source.FindLastIndex(frame => frame.Time <= from + start);
+                bool held = governing < 0 || governing == source.Count - 1;
+                if (!held && source[governing].Time == from + start && source[governing + 1].Time == from + stop) {
+                    window.Keyframes.Add(new AnimationKeyframe { Time = start, Value = source[governing].Value, Curve = source[governing].Curve });
+                } else if (held || source[governing].Curve == "linear.v1") {
+                    window.Keyframes.Add(new AnimationKeyframe { Time = start, Value = animation.Evaluate(from + start), Curve = "linear.v1" });
+                } else {
+                    for (MediaTime time = start; time < stop; time += step) {
+                        window.Keyframes.Add(new AnimationKeyframe { Time = time, Value = animation.Evaluate(from + time), Curve = "linear.v1" });
+                    }
+                }
+            }
+            window.Keyframes.Add(new AnimationKeyframe { Time = length, Value = animation.Evaluate(end), Curve = "linear.v1" });
+            return window;
+        }
+
+        /// <summary>
         /// Adds the entrance and exit lift used by captions and overlays: the text rises into place, holds, and sinks out.
         /// </summary>
         /// <param name="layer">Text layer.</param>

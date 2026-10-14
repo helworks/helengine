@@ -3,8 +3,8 @@ using helengine.media;
 namespace helengine.video {
     /// <summary>
     /// Lays the scenes end to end on the global timeline. Each scene length comes from its duration source (the take
-    /// interval, a fixed length or an estimate); entries overlap the previous scene instead of moving scene starts, so the
-    /// video length is always the sum of the scene lengths.
+    /// segments played at the take speed, a fixed length or an estimate); entries overlap the previous
+    /// scene instead of moving scene starts, so the video length is always the sum of the scene lengths.
     /// </summary>
     public static class VideoSceneTimeline {
         /// <summary>
@@ -41,7 +41,13 @@ namespace helengine.video {
             string path = $"scenes[{index}].duration";
             double seconds;
             if (scene.Duration?.Mode == "from_take") {
-                seconds = scene.Take == null ? 0 : scene.Take.OutSec - scene.Take.InSec;
+                // The take plays its segments back to back at its speed.
+                MediaTime played = scene.Take == null ? MediaTime.Zero : VideoTakeTiming.Duration(scene.Take);
+                if (played <= MediaTime.Zero) {
+                    diagnostics.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Error, "invalid_duration", scene.Id, path, "The scene has no positive duration from its take, fixed length or estimate."));
+                    return FallbackDuration;
+                }
+                return played;
             } else if (scene.Duration?.Mode is "fixed" or "estimate") {
                 seconds = scene.Duration.Sec ?? 0;
             } else {

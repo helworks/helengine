@@ -18,5 +18,16 @@ namespace helengine.video {
         /// </summary>
         public List<VideoSilence> Silences { get; set; } = [];
 
+        /// <summary>
+        /// Optional source spans, each [start, end] in seconds, where the speaker's voice is heard; planner data only.
+        /// </summary>
+        public List<double[]> Voiced { get; set; }
+
+        /// <summary>
+        /// Optional source spans, each [start, end] in seconds, where the speaker looks away from the camera; planner data
+        /// only.
+        /// </summary>
+        public List<double[]> LookAway { get; set; }
+
     }
 }

@@ -34,9 +34,15 @@ namespace helengine.video {
                 // The background is added first so it draws under the speaker: members of equal order keep their list order.
                 VisualLayer behind = layers[index].Kind == "take" ? Background(state, span, layers[index], front, layerPath) : null;
                 if (behind != null) {
-                    state.AddMember(span, behind);
+                    // A blurred background is a copy of the take, so it cuts and plays at speed with the speaker; a
+                    // replacement plays on undisturbed.
+                    foreach (VisualLayer piece in Segmented(state, span, behind, scene.Background.Mode == "blur")) {
+                        state.AddMember(span, piece);
+                    }
                 }
-                state.AddMember(span, front);
+                foreach (VisualLayer piece in Segmented(state, span, front, layers[index].Kind == "take")) {
+                    state.AddMember(span, piece);
+                }
             }
             // Simultaneous plain overlays in one place become a stacked list instead of overprinting each other.
             foreach (VideoOverlayEntry entry in VideoOverlayStacking.Arrange(state, span, path)) {
@@ -104,6 +110,60 @@ namespace helengine.video {
                 layer.Mask = new MediaMask { MediaId = source.Mask.Media, Channel = source.Mask.Channel, Inverted = source.Mask.Inverted };
             }
             return layer;
+        }
+
+        /// <summary>
+        /// Splits a compiled take layer into one layer per take segment, each spanning its slice of the scene, reading its
+        /// segment at the take speed, and carrying the slice of the scene-long animations so motion stays continuous across
+        /// the cuts. Viewport, fit, transform, effects and mask are copied unchanged; the mask samples the same source time.
+        /// A real-time take without segments keeps its single layer. The first piece keeps the layer id; later pieces add
+        /// <c>-segment-N</c>.
+        /// </summary>
+        /// <param name="state">Compilation state.</param>
+        /// <param name="span">Scene span.</param>
+        /// <param name="layer">Compiled layer spanning the scene.</param>
+        /// <param name="take">Whether the layer plays the scene take.</param>
+        /// <returns>Layers in playback order.</returns>
+        static List<VisualLayer> Segmented(VideoCompileState state, VideoSceneSpan span, VisualLayer layer, bool take) {
+            VideoTake source = span.Scene.Take;
+            List<VideoTakePiece> pieces = take && source != null ? VideoTakeTiming.Pieces(source) : [];
+            double speed = take && source != null ? VideoTakeTiming.Speed(source) : 1;
+            if (pieces.Count == 0 || (pieces.Count == 1 && speed == 1)) {
+                return [layer];
+            }
+            MediaTime step = state.Document.FrameRate.Numerator > 0 ? new MediaTime(state.Document.FrameRate.Denominator, state.Document.FrameRate.Numerator) : new MediaTime(1, 30);
+            List<PropertyAnimation> animations = layer.Animations;
+            List<VisualLayer> result = new List<VisualLayer>();
+            for (int index = 0; index < pieces.Count; index++) {
+                VideoTakePiece piece = pieces[index];
+                MediaTime start = span.Start + piece.Start;
+                if (start >= span.End) {
+                    break;
+                }
+                // The last piece reaches the scene end, so a fixed scene longer than the take still reports its missing source.
+                MediaTime end = index == pieces.Count - 1 || span.Start + piece.End > span.End ? span.End : span.Start + piece.End;
+                VisualLayer copy = index == 0 ? layer : System.Text.Json.JsonSerializer.Deserialize<VisualLayer>(System.Text.Json.JsonSerializer.Serialize(layer));
+                copy.Id = index == 0 ? layer.Id : layer.Id + "-segment-" + index;
+                copy.Start = start;
+                copy.End = end;
+                copy.SourceIn = piece.SourceIn;
+                copy.SourceOut = piece.SourceOut;
+                copy.Rate = speed;
+                // Malformed tracks are copied untouched so the composition validator reports them instead of the compiler throwing.
+                copy.Animations = animations.Select(animation => Ordered(animation) ? VideoAnimationBuilder.Window(animation, piece.Start, end - start, step) : animation).ToList();
+                result.Add(copy);
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Reports whether a track has keyframes in strictly increasing time, the precondition of evaluating it.
+        /// </summary>
+        /// <param name="animation">Track.</param>
+        /// <returns>True when the track can be evaluated.</returns>
+        static bool Ordered(PropertyAnimation animation) {
+            List<AnimationKeyframe> frames = animation?.Keyframes;
+            return frames is { Count: > 0 } && frames.All(frame => frame != null && frame.Time.Denominator > 0 && MediaCurve.Supports(frame.Curve)) && frames.Zip(frames.Skip(1), (left, right) => left.Time < right.Time).All(ordered => ordered);
         }
 
         /// <summary>

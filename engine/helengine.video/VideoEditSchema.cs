@@ -32,6 +32,13 @@ namespace helengine.video {
         };
 
         /// <summary>
+        /// Numeric ranges, keyed by declaring type and C# property name.
+        /// </summary>
+        static readonly Dictionary<string, (double Minimum, double Maximum)> Ranges = new Dictionary<string, (double, double)>(StringComparer.Ordinal) {
+            [Key(typeof(VideoTake), nameof(VideoTake.Speed))] = (VideoEditValidator.MinimumTakeSpeed, VideoEditValidator.MaximumTakeSpeed)
+        };
+
+        /// <summary>
         /// Values allowed for every lock marker.
         /// </summary>
         static readonly string[] LockValues = ["human", "ai"];
@@ -60,6 +67,15 @@ namespace helengine.video {
             }
             if (context.TypeInfo.Kind == System.Text.Json.Serialization.Metadata.JsonTypeInfoKind.Object && schema.ContainsKey("properties")) {
                 schema["additionalProperties"] = false;
+            }
+            if (context.TypeInfo.Type == typeof(double[])) {
+                // Analysis spans are [start, end] pairs.
+                schema["minItems"] = 2;
+                schema["maxItems"] = 2;
+            }
+            if (context.PropertyInfo?.DeclaringType != null && Ranges.TryGetValue(Key(context.PropertyInfo.DeclaringType, PropertyName(context)), out (double Minimum, double Maximum) range)) {
+                schema["minimum"] = range.Minimum;
+                schema["maximum"] = range.Maximum;
             }
             if (context.PropertyInfo != null) {
                 string[] values = null;

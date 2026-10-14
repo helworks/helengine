@@ -1,6 +1,7 @@
 namespace helengine.video {
     /// <summary>
-    /// Derives per-scene facts from an edit: resolved durations, take-relative words and silences, and take handles.
+    /// Derives per-scene facts from an edit: resolved durations, take-relative words and silences, take handles, speed and
+    /// segments, and the voiced and look-away spans of the take, all mapped through the segment table and the take speed.
     /// </summary>
     public static class VideoSceneFacts {
         /// <summary>
@@ -32,10 +33,16 @@ namespace helengine.video {
                     Visual = ResolveVisual(edit, scene)
                 };
                 if (scene.Take != null) {
-                    fact.HandleBeforeSec = Math.Max(0, scene.Take.InSec);
-                    fact.HandleAfterSec = media == null ? 0 : Math.Max(0, media.DurationSec - scene.Take.OutSec);
-                    fact.Words = CollectWords(scene.Take, media);
+                    List<VideoTakePiece> pieces = VideoTakeTiming.Pieces(scene.Take);
+                    IReadOnlyList<VideoTakeSegment> segments = VideoTakeTiming.Segments(scene.Take);
+                    fact.HandleBeforeSec = Math.Max(0, segments[0].InSec);
+                    fact.HandleAfterSec = media == null ? 0 : Math.Max(0, media.DurationSec - segments[^1].OutSec);
+                    fact.Speed = VideoTakeTiming.Speed(scene.Take);
+                    fact.Segments = pieces.Select(piece => new VideoFactSegment { StartSec = piece.Start.ToSeconds(), EndSec = piece.End.ToSeconds(), SourceInSec = piece.Segment.InSec, SourceOutSec = piece.Segment.OutSec }).ToList();
+                    fact.Words = CollectWords(pieces, media);
                     fact.Silences = CollectSilences(fact.Words, duration);
+                    fact.Voiced = VideoTakeTiming.MapSpans(pieces, media?.Analysis?.Voiced);
+                    fact.LookAway = VideoTakeTiming.MapSpans(pieces, media?.Analysis?.LookAway);
                 }
                 facts.Add(fact);
             }
@@ -57,21 +64,27 @@ namespace helengine.video {
         }
 
         /// <summary>
-        /// Converts the analysed words overlapping the take interval to scene-relative seconds, clamped to the interval.
+        /// Converts the analysed words overlapping a kept segment to scene-relative seconds, clamped to that segment. A word
+        /// is reported once, in the segment where it starts or else the first segment it reaches; words that only fall in
+        /// the gaps between segments are not played and are left out.
         /// </summary>
-        /// <param name="take">Scene take.</param>
+        /// <param name="pieces">Take segments placed in scene time.</param>
         /// <param name="media">Take media; may be null or unanalysed.</param>
         /// <returns>Words in scene time.</returns>
-        static List<VideoFactWord> CollectWords(VideoTake take, VideoMedia media) {
+        static List<VideoFactWord> CollectWords(IReadOnlyList<VideoTakePiece> pieces, VideoMedia media) {
             List<VideoFactWord> words = [];
             if (media?.Analysis == null) {
                 return words;
             }
             foreach (VideoWord word in media.Analysis.Words) {
-                double start = Math.Max(word.StartSec, take.InSec);
-                double end = Math.Min(word.EndSec, take.OutSec);
+                VideoTakePiece piece = VideoTakeTiming.PieceAt(pieces, word.StartSec) ?? pieces.FirstOrDefault(item => Math.Min(word.EndSec, item.Segment.OutSec) > Math.Max(word.StartSec, item.Segment.InSec));
+                if (piece == null) {
+                    continue;
+                }
+                double start = piece.SceneSec(Math.Max(word.StartSec, piece.Segment.InSec));
+                double end = piece.SceneSec(Math.Min(word.EndSec, piece.Segment.OutSec));
                 if (end > start) {
-                    words.Add(new VideoFactWord { Text = word.Text, StartSec = start - take.InSec, EndSec = end - take.InSec });
+                    words.Add(new VideoFactWord { Text = word.Text, StartSec = start, EndSec = end });
                 }
             }
             return words;

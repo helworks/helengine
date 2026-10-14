@@ -54,6 +54,23 @@ public sealed class VideoEditGpuTests {
             var masked=Pixel(frame,24,24);Assert.True(masked[2]>40&&masked[0]<230,"Matte-black pixel next to the red/blue edge must show the blurred take, got "+string.Join(",",masked));
         }
     }
+    /// <summary>A take of three jump-cut segments at 2x shows each segment's colour in its slice of the scene: red, then green, then blue.</summary>
+    [Fact] public void SegmentedTakeAtSpeedJumpsBetweenSegments() {
+        Ffmpeg("-f lavfi -i color=c=red:s=32x32:d=1:r=30 -f lavfi -i color=c=lime:s=32x32:d=1:r=30 -f lavfi -i color=c=blue:s=32x32:d=1:r=30 -filter_complex \"[0][1][2]concat=n=3:v=1:a=0\" -pix_fmt yuv420p video-edit-segments.mp4");
+        var edit=new VideoEdit{Id="gpu-segments",Format=new(){Width=32,Height=32,BackgroundColor="#000000FF"},
+            Media=[new(){Id="take",Kind="video",Path="video-edit-segments.mp4",Sha256=Hash("video-edit-segments.mp4"),Width=32,Height=32,DurationSec=3}],
+            Scenes=[new(){Id="scene",Duration=new(){Mode="from_take"},Take=new(){Media="take",InSec=.1,OutSec=2.9,Speed=2,Segments=[new(){InSec=.1,OutSec=.9},new(){InSec=1.1,OutSec=1.5},new(){InSec=2.1,OutSec=2.9}]}}]};
+        var catalog=WindowsMediaCapabilities.Describe();
+        var result=VideoEditCompiler.Compile(edit,new(){Capabilities=catalog});
+        Assert.False(result.HasErrors,string.Join("; ",result.Diagnostics.Select(item=>item.Code+" "+item.Path+" "+item.Message)));
+        Assert.Equal(1,result.Composition.Duration.ToSeconds(),6);
+        Assert.Empty(CompositionValidator.Validate(result.Composition,catalog));
+        using var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport);using var resolver=new WindowsMediaSourceResolver(Root,device);using var compositor=new DirectX11MediaCompositor(device,resolver);
+        // 0.2 s plays source 0.5 (red); 0.5 s is 0.1 s into the second piece, source 1.3 (green); 0.8 s is source 2.5 (blue).
+        foreach((double time,byte[] colour) in new[]{(.2,new byte[]{255,0,0}),(.5,new byte[]{0,255,0}),(.8,new byte[]{0,0,255})}) {
+            using var frame=compositor.Render(result.Composition,MediaTime.FromSeconds(time),new(32,32));AssertNear(colour,Pixel(frame,16,16));
+        }
+    }
     /// <summary>Runs ffmpeg in the fixture folder.</summary>
     static void Ffmpeg(string arguments) {
         using var process=System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("C:/env/ffmpeg-8.1.1-full_build-shared/bin/ffmpeg.exe","-y -loglevel error "+arguments){WorkingDirectory=Root,RedirectStandardError=true})!;

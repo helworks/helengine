@@ -46,7 +46,8 @@ namespace helengine.video {
         }
 
         /// <summary>
-        /// Finds the local start of a spoken word or phrase inside the scene take.
+        /// Finds the local start of a spoken word or phrase inside the kept segments of the scene take, mapped through the
+        /// segment table and the take speed; a phrase may run across a cut.
         /// </summary>
         /// <param name="edit">Edit owning the take media.</param>
         /// <param name="span">Scene span.</param>
@@ -58,7 +59,8 @@ namespace helengine.video {
             VideoTake take = span.Scene.Take;
             VideoMedia media = take == null ? null : edit.Media.FirstOrDefault(item => item.Id == take.Media);
             string[] target = moment.Word.Split((char[])null, StringSplitOptions.RemoveEmptyEntries).Select(Normalize).Where(token => token.Length > 0).ToArray();
-            List<VideoWord> words = (media?.Analysis?.Words ?? []).Where(word => word.StartSec >= take.InSec && word.StartSec < take.OutSec).ToList();
+            List<VideoTakePiece> pieces = take == null ? [] : VideoTakeTiming.Pieces(take);
+            List<VideoWord> words = (media?.Analysis?.Words ?? []).Where(word => VideoTakeTiming.PieceAt(pieces, word.StartSec) != null).ToList();
             int seen = 0;
             for (int index = 0; target.Length > 0 && index + target.Length <= words.Count; index++) {
                 bool matches = true;
@@ -66,7 +68,7 @@ namespace helengine.video {
                     matches = Normalize(words[index + offset].Text) == target[offset];
                 }
                 if (matches && ++seen == Math.Max(1, moment.Occurrence)) {
-                    return words[index].StartSec - take.InSec + moment.OffsetSec;
+                    return VideoTakeTiming.PieceAt(pieces, words[index].StartSec).SceneSec(words[index].StartSec) + moment.OffsetSec;
                 }
             }
             diagnostics.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Pending, "anchor_unresolved", span.Scene.Id, path, $"The word '{moment.Word}' was not found in the scene take."));

@@ -51,7 +51,9 @@ namespace helengine.video {
         }
 
         /// <summary>
-        /// Groups the take words spoken inside the scene into cues, with global word times.
+        /// Groups the take words spoken inside the scene into cues, with global word times. Only words starting inside a
+        /// kept segment are shown; each is placed through the segment table and the take speed, and ends no later than its
+        /// segment.
         /// </summary>
         /// <param name="state">Compilation state.</param>
         /// <param name="span">Scene span.</param>
@@ -62,13 +64,14 @@ namespace helengine.video {
             if (take == null || !state.Media.TryGetValue(take.Media, out VideoMedia media) || media.Analysis == null) {
                 return null;
             }
-            List<CompositionTextWord> words = media.Analysis.Words
-                .Where(word => word.StartSec >= take.InSec && word.StartSec < take.OutSec)
-                .Select(word => new CompositionTextWord {
-                    Text = word.Text,
-                    Start = span.Start + MediaTime.FromSeconds(word.StartSec - take.InSec),
-                    End = span.Start + MediaTime.FromSeconds(Math.Min(word.EndSec, take.OutSec) - take.InSec)
-                }).ToList();
+            List<VideoTakePiece> pieces = VideoTakeTiming.Pieces(take);
+            List<CompositionTextWord> words = new List<CompositionTextWord>();
+            foreach (VideoWord word in media.Analysis.Words) {
+                VideoTakePiece piece = VideoTakeTiming.PieceAt(pieces, word.StartSec);
+                if (piece != null) {
+                    words.Add(new CompositionTextWord { Text = word.Text, Start = span.Start + piece.SceneTime(word.StartSec), End = span.Start + piece.SceneTime(Math.Min(word.EndSec, piece.Segment.OutSec)) });
+                }
+            }
             return words.Count == 0 ? null : SplitCues(state, span, captions, words, word => word.Text);
         }
 
