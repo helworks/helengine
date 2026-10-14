@@ -98,12 +98,14 @@ namespace helengine.editor {
 
         /// <summary>
         /// Resolves the environment the Play cook uses for the platform, so the Play script build compiles with the same
-        /// environment symbols as the cooked content.
+        /// environment symbols as the cooked content. It applies the queue item's environment rule to the platform's
+        /// build settings directly, so it neither creates a queue item nor changes the settings.
         /// </summary>
         /// <param name="platformId">Platform whose Play environment is resolved.</param>
-        /// <returns>Selected environment id of the Play queue item.</returns>
+        /// <returns>Environment id the Play queue item of the platform selects.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the platform has no build settings or selection model.</exception>
         public string ResolveEnvironmentId(string platformId) {
-            return CreateQueueItem(platformId).SelectedEnvironmentId;
+            return EditorBuildQueueItemDocument.ResolveEnvironmentId(ResolvePlatformConfig(platformId), ResolveSelectionModel(platformId));
         }
 
         /// <summary>
@@ -126,20 +128,8 @@ namespace helengine.editor {
         /// <returns>Queue item that selects only the scene open in the editor.</returns>
         /// <exception cref="InvalidOperationException">Thrown when the platform has no build settings or selection model, or the open scene is not a project scene.</exception>
         public EditorBuildQueueItemDocument CreateQueueItem(string platformId) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            }
-
-            EditorBuildPlatformConfigDocument platformConfig = PlatformConfigResolver(platformId);
-            if (platformConfig == null) {
-                throw new InvalidOperationException($"No build settings exist for platform '{platformId}'.");
-            }
-
-            EditorPlatformBuildSelectionModel selectionModel = SelectionModelResolver(platformId);
-            if (selectionModel == null) {
-                throw new InvalidOperationException($"Platform '{platformId}' exposes no builder selection model.");
-            }
-
+            EditorBuildPlatformConfigDocument platformConfig = ResolvePlatformConfig(platformId);
+            EditorPlatformBuildSelectionModel selectionModel = ResolveSelectionModel(platformId);
             string currentSceneId = SceneCatalogService.ResolveSceneId(CurrentScenePathProvider());
             if (string.IsNullOrWhiteSpace(currentSceneId)) {
                 throw new InvalidOperationException("The open scene is not saved inside the project's assets folder, so it cannot be played.");
@@ -153,6 +143,41 @@ namespace helengine.editor {
             queueItem.SelectedSceneIds = new List<string> { currentSceneId };
             queueItem.SelectedSceneReferences = SceneCatalogService.CreateSceneReferences(queueItem.SelectedSceneIds);
             return queueItem;
+        }
+
+        /// <summary>
+        /// Resolves the persisted build settings of one platform.
+        /// </summary>
+        /// <param name="platformId">Platform whose build settings are resolved.</param>
+        /// <returns>Build settings of the platform.</returns>
+        /// <exception cref="ArgumentException">Thrown when the platform id is blank.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the platform has no build settings.</exception>
+        EditorBuildPlatformConfigDocument ResolvePlatformConfig(string platformId) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            EditorBuildPlatformConfigDocument platformConfig = PlatformConfigResolver(platformId);
+            if (platformConfig == null) {
+                throw new InvalidOperationException($"No build settings exist for platform '{platformId}'.");
+            }
+
+            return platformConfig;
+        }
+
+        /// <summary>
+        /// Resolves the builder-provided selection model of one platform.
+        /// </summary>
+        /// <param name="platformId">Platform whose selection model is resolved.</param>
+        /// <returns>Selection model of the platform builder.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the platform exposes no selection model.</exception>
+        EditorPlatformBuildSelectionModel ResolveSelectionModel(string platformId) {
+            EditorPlatformBuildSelectionModel selectionModel = SelectionModelResolver(platformId);
+            if (selectionModel == null) {
+                throw new InvalidOperationException($"Platform '{platformId}' exposes no builder selection model.");
+            }
+
+            return selectionModel;
         }
     }
 }

@@ -120,6 +120,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Output directory path must be provided.", nameof(outputDirectoryPath));
             }
 
+            string selectedEnvironmentId = ResolveEnvironmentId(platformConfig, selectionModel);
             EnsurePlatformSelectionDefaults(platformConfig, selectionModel);
             NormalizeSelectedScenes(sceneCatalogService, platformConfig);
             EnsureSelectedScenes(sceneCatalogService, platformConfig);
@@ -137,7 +138,7 @@ namespace helengine.editor {
                 SelectedSceneReferences = sceneCatalogService.CreateSceneReferences(orderedSceneIds),
                 OutputDirectoryPath = Path.GetFullPath(outputDirectoryPath),
                 DebugBuild = platformConfig.DebugBuild,
-                SelectedEnvironmentId = ResolveSelectedEnvironmentId(platformConfig, platformConfig.SelectedBuildProfileId),
+                SelectedEnvironmentId = selectedEnvironmentId,
                 ExecutionMode = EditorBuildExecutionMode.Runtime,
                 SelectedBuildProfileId = platformConfig.SelectedBuildProfileId,
                 SelectedGraphicsProfileId = platformConfig.SelectedGraphicsProfileId,
@@ -151,13 +152,31 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the environment captured by a queue item, preserving the selected profile behavior.
+        /// Resolves the environment a queue item created from the platform configuration captures, without creating the
+        /// queue item and without changing the configuration. An explicit environment selection wins; otherwise the
+        /// build profile the queue item would default to decides between debug and release.
         /// </summary>
-        static string ResolveSelectedEnvironmentId(EditorBuildPlatformConfigDocument platformConfig, string selectedBuildProfileId) {
+        /// <param name="platformConfig">Persisted platform configuration a queue item would capture.</param>
+        /// <param name="selectionModel">Builder-provided selection model for the platform.</param>
+        /// <returns>Environment id <see cref="Create"/> stores on the queue item.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when either argument is null.</exception>
+        public static string ResolveEnvironmentId(EditorBuildPlatformConfigDocument platformConfig, EditorPlatformBuildSelectionModel selectionModel) {
+            if (platformConfig == null) {
+                throw new ArgumentNullException(nameof(platformConfig));
+            }
+            if (selectionModel == null) {
+                throw new ArgumentNullException(nameof(selectionModel));
+            }
+
             if (!string.IsNullOrWhiteSpace(platformConfig.SelectedEnvironmentId)) {
                 return platformConfig.SelectedEnvironmentId.Trim();
             }
 
+            PlatformBuildProfileDefinition buildProfile = EditorBuildProfileDefaultResolver.ResolveBuildProfile(
+                selectionModel,
+                platformConfig.SelectedBuildProfileId,
+                platformConfig.DebugBuild);
+            string selectedBuildProfileId = buildProfile != null ? buildProfile.ProfileId : platformConfig.SelectedBuildProfileId;
             return string.Equals(selectedBuildProfileId, "debug", StringComparison.OrdinalIgnoreCase)
                 || platformConfig.DebugBuild
                 ? "debug"

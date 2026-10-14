@@ -68,6 +68,56 @@ public sealed class EditorPlayCookRunnerTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures the Play script environment equals the one a Play queue item of the same build settings captures.
+    /// </summary>
+    /// <param name="selectedEnvironmentId">Persisted environment selection of the platform.</param>
+    /// <param name="debugBuild">Persisted debug-build flag of the platform.</param>
+    [Theory]
+    [InlineData("", false)]
+    [InlineData("", true)]
+    [InlineData(" staging ", false)]
+    [InlineData("release", true)]
+    public void ResolveEnvironmentId_EqualsTheEnvironmentTheQueueItemCaptures(string selectedEnvironmentId, bool debugBuild) {
+        EditorPlayCookRunner runner = CreateRunner(platformId => new EditorBuildPlatformConfigDocument {
+            PlatformId = platformId,
+            SelectedSceneIds = ["A", "B"],
+            SelectedEnvironmentId = selectedEnvironmentId,
+            DebugBuild = debugBuild
+        });
+
+        string environmentId = runner.ResolveEnvironmentId(PlatformId);
+
+        Assert.Equal(runner.CreateQueueItem(PlatformId).SelectedEnvironmentId, environmentId);
+    }
+
+    /// <summary>
+    /// Ensures resolving the Play environment neither builds a queue item (it never asks for the open scene) nor
+    /// rewrites the platform's build settings the way queue-item creation does.
+    /// </summary>
+    [Fact]
+    public void ResolveEnvironmentId_DoesNotCreateAQueueItemOrChangeTheSettings() {
+        EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
+            PlatformId = PlatformId,
+            SelectedSceneIds = ["A", "B"]
+        };
+        int scenePathRequests = 0;
+        EditorPlayCookRunner runner = CreateRunner(
+            platformId => platformConfig,
+            () => {
+                scenePathRequests++;
+                return CurrentScenePath;
+            });
+
+        string environmentId = runner.ResolveEnvironmentId(PlatformId);
+
+        Assert.Equal("debug", environmentId);
+        Assert.Equal(0, scenePathRequests);
+        Assert.Equal(string.Empty, platformConfig.SelectedBuildProfileId);
+        Assert.Equal(string.Empty, platformConfig.SelectedGraphicsProfileId);
+        Assert.Equal(new[] { "A", "B" }, platformConfig.SelectedSceneIds);
+    }
+
+    /// <summary>
     /// Ensures a scene saved outside the project's assets cannot be played.
     /// </summary>
     [Fact]
@@ -83,19 +133,38 @@ public sealed class EditorPlayCookRunnerTests : IDisposable {
     /// </summary>
     /// <returns>Runner under test; its executor factory is never reached by these tests.</returns>
     EditorPlayCookRunner CreateRunner() {
+        return CreateRunner(platformId => new EditorBuildPlatformConfigDocument {
+            PlatformId = platformId,
+            SelectedSceneIds = ["A", "B"]
+        });
+    }
+
+    /// <summary>
+    /// Creates the runner with the supplied platform build settings and the test's open scene.
+    /// </summary>
+    /// <param name="platformConfigResolver">Supplies the platform's build settings.</param>
+    /// <returns>Runner under test; its executor factory is never reached by these tests.</returns>
+    EditorPlayCookRunner CreateRunner(Func<string, EditorBuildPlatformConfigDocument> platformConfigResolver) {
+        return CreateRunner(platformConfigResolver, () => CurrentScenePath);
+    }
+
+    /// <summary>
+    /// Creates the runner with the supplied platform build settings and open-scene provider.
+    /// </summary>
+    /// <param name="platformConfigResolver">Supplies the platform's build settings.</param>
+    /// <param name="currentScenePathProvider">Supplies the saved path of the open scene.</param>
+    /// <returns>Runner under test; its executor factory is never reached by these tests.</returns>
+    EditorPlayCookRunner CreateRunner(Func<string, EditorBuildPlatformConfigDocument> platformConfigResolver, Func<string> currentScenePathProvider) {
         EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(ProjectRootPath);
         EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(
             new RecordingPlayPlatformAssetBuilder(PlatformPlayerCapability.CreateUnsupported()).Definition);
         return new EditorPlayCookRunner(
             ProjectRootPath,
             sceneCatalogService,
-            platformId => new EditorBuildPlatformConfigDocument {
-                PlatformId = platformId,
-                SelectedSceneIds = ["A", "B"]
-            },
+            platformConfigResolver,
             platformId => selectionModel,
             platformId => throw new InvalidOperationException("The executor is not used by queue-item tests."),
-            () => CurrentScenePath);
+            currentScenePathProvider);
     }
 
     /// <summary>
