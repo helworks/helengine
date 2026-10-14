@@ -197,23 +197,41 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(sharedResolver));
             }
 
-            List<string> sceneIds = new List<string>(references.Count);
-            for (int index = 0; index < references.Count; index++) {
+            // Validate in caller order without touching the disk, stopping at the first invalid entry. Only the
+            // file-backed references before that entry are resolved, so a failure surfaces in the same order as
+            // resolving each entry in turn would raise it.
+            List<SceneAssetReference> fileReferences = new List<SceneAssetReference>();
+            Exception invalidEntryException = null;
+            for (int index = 0; index < references.Count && invalidEntryException == null; index++) {
                 SceneAssetReference reference = references[index];
                 if (reference == null) {
-                    throw new ArgumentException("Scene reference must be provided.", nameof(references));
-                }
-
-                if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
+                    invalidEntryException = new ArgumentException("Scene reference must be provided.", nameof(references));
+                } else if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
                     if (!string.Equals(reference.ProviderId, GeneratedSceneProviderId, StringComparison.Ordinal)) {
-                        throw new InvalidOperationException($"Unsupported generated scene provider '{reference.ProviderId}'.");
+                        invalidEntryException = new InvalidOperationException($"Unsupported generated scene provider '{reference.ProviderId}'.");
                     }
-                    sceneIds.Add(reference.AssetId);
-                    continue;
+                } else {
+                    fileReferences.Add(reference);
                 }
+            }
 
-                AssetReferenceResolution resolution = sharedResolver.GetResolver().Resolve(reference, AssetEntryKind.Scene);
-                sceneIds.Add(ResolveSceneId(resolution.FullPath));
+            List<AssetReferenceResolution> resolutions = fileReferences.Count > 0
+                ? sharedResolver.GetResolver().ResolveAll(fileReferences, AssetEntryKind.Scene)
+                : new List<AssetReferenceResolution>();
+            if (invalidEntryException != null) {
+                throw invalidEntryException;
+            }
+
+            List<string> sceneIds = new List<string>(references.Count);
+            int resolutionIndex = 0;
+            for (int index = 0; index < references.Count; index++) {
+                SceneAssetReference reference = references[index];
+                if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
+                    sceneIds.Add(reference.AssetId);
+                } else {
+                    sceneIds.Add(ResolveSceneId(resolutions[resolutionIndex].FullPath));
+                    resolutionIndex++;
+                }
             }
 
             return sceneIds;

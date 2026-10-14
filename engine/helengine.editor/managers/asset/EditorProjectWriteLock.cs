@@ -347,13 +347,62 @@ namespace helengine.editor {
             : StringComparer.Ordinal;
 
         /// <summary>
-        /// Reads the current generation from the strict project snapshot, or zero when no snapshot exists.
+        /// Write-lock acquisition version under which <see cref="VerifiedGenerationByRoot"/> was verified, keyed by
+        /// normalized project root. The snapshot is only written by <see cref="WriteSnapshotAtomically"/>, every
+        /// writer holds the project write lock, and that writer clears both memos first, so while this thread still
+        /// holds the same acquisition a verified generation (with no pending repair) cannot change. Identity-index
+        /// lookups check publication availability on every call; without the memo a batch of reference resolutions
+        /// re-read and re-validated the snapshot several times per reference.
+        /// </summary>
+        [ThreadStatic]
+        static Dictionary<string, long> VerifiedGenerationLockVersionByRoot;
+
+        /// <summary>
+        /// Generation verified free of a pending repair under the acquisition recorded in
+        /// <see cref="VerifiedGenerationLockVersionByRoot"/>, keyed by normalized project root.
+        /// </summary>
+        [ThreadStatic]
+        static Dictionary<string, long> VerifiedGenerationByRoot;
+
+        /// <summary>
+        /// Reads the current generation from the strict project snapshot, or zero when no snapshot exists. While the
+        /// calling thread holds the project write lock, the verified generation is remembered for that acquisition.
         /// </summary>
         public static long Read(string projectRootPath) {
             string generationPath = GetPath(projectRootPath);
+            string rootKey = NormalizeVerifiedRootKey(projectRootPath);
+            bool lockHeld = EditorProjectWriteLock.TryGetHeldVersion(projectRootPath, out long heldVersion);
+            if (lockHeld
+                && VerifiedGenerationLockVersionByRoot != null
+                && VerifiedGenerationLockVersionByRoot.TryGetValue(rootKey, out long verifiedLockVersion)
+                && verifiedLockVersion == heldVersion) {
+                return VerifiedGenerationByRoot[rootKey];
+            }
+
             ProjectWriteGenerationSnapshot snapshot = ReadSnapshot(projectRootPath);
             EnsureNoPendingRepair(snapshot, generationPath);
+            if (lockHeld) {
+                (VerifiedGenerationLockVersionByRoot ??= new Dictionary<string, long>(PathComparer))[rootKey] = heldVersion;
+                (VerifiedGenerationByRoot ??= new Dictionary<string, long>(PathComparer))[rootKey] = snapshot.CurrentGeneration;
+            }
             return snapshot.CurrentGeneration;
+        }
+
+        /// <summary>
+        /// Normalizes a project root into the key used by the verified-generation memo.
+        /// </summary>
+        /// <param name="projectRootPath">Project root to normalize.</param>
+        /// <returns>Full project root path without a trailing separator.</returns>
+        static string NormalizeVerifiedRootKey(string projectRootPath) {
+            return Path.GetFullPath(projectRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+
+        /// <summary>
+        /// Forgets every verified generation of the current thread; called before the snapshot is rewritten.
+        /// </summary>
+        static void ForgetVerifiedGenerations() {
+            VerifiedGenerationLockVersionByRoot?.Clear();
+            VerifiedGenerationByRoot?.Clear();
         }
 
         /// <summary>
@@ -771,6 +820,7 @@ namespace helengine.editor {
         }
 
         static void WriteSnapshotAtomically(string generationPath, ProjectWriteGenerationSnapshot snapshot) {
+            ForgetVerifiedGenerations();
             string projectRootPath = Path.GetDirectoryName(
                 Path.GetDirectoryName(
                     Path.GetDirectoryName(generationPath)));

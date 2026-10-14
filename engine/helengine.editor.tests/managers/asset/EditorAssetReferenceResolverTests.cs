@@ -56,6 +56,130 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a batch resolves every reference, duplicates and a stale saved path included, exactly as resolving
+    /// each reference on its own does.
+    /// </summary>
+    [Fact]
+    public void ResolveAll_ReturnsTheSameResolutionsAsResolvingEachReference() {
+        List<SceneAssetReference> references = CreateBatchReferences();
+        EditorAssetReferenceResolver singleResolver = new EditorAssetReferenceResolver(TempRootPath);
+        List<AssetReferenceResolution> expected = references.Select(reference => singleResolver.Resolve(reference, AssetEntryKind.Model)).ToList();
+        singleResolver.Dispose();
+        using EditorAssetReferenceResolver batchResolver = new EditorAssetReferenceResolver(TempRootPath);
+
+        List<AssetReferenceResolution> actual = batchResolver.ResolveAll(references, AssetEntryKind.Model);
+
+        Assert.Equal(expected.Count, actual.Count);
+        for (int index = 0; index < expected.Count; index++) {
+            Assert.Equal(expected[index].FullPath, actual[index].FullPath);
+            Assert.Equal(expected[index].Tier, actual[index].Tier);
+            Assert.Equal(expected[index].ReferenceChanged, actual[index].ReferenceChanged);
+            Assert.Equal(expected[index].CanonicalReference.AssetId, actual[index].CanonicalReference.AssetId);
+            Assert.Equal(expected[index].CanonicalReference.RelativePath, actual[index].CanonicalReference.RelativePath);
+            Assert.Equal(expected[index].CanonicalReference.ContentHash, actual[index].CanonicalReference.ContentHash);
+        }
+        Assert.Equal("Models/BatchB.fbx", actual[3].CanonicalReference.RelativePath);
+    }
+
+    /// <summary>
+    /// Ensures a batch acquires the project write lock once, where resolving the same references one at a time
+    /// acquires it at least once per reference.
+    /// </summary>
+    [Fact]
+    public void ResolveAll_AcquiresTheProjectWriteLockOnce() {
+        List<SceneAssetReference> references = CreateBatchReferences();
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+        resolver.Resolve(references[0], AssetEntryKind.Model);
+
+        long beforeSingles = ReadOwningLockAcquisitionCount();
+        for (int index = 0; index < references.Count; index++) {
+            resolver.Resolve(references[index], AssetEntryKind.Model);
+        }
+        long singleAcquisitions = ReadOwningLockAcquisitionCount() - beforeSingles;
+        long beforeBatch = ReadOwningLockAcquisitionCount();
+        resolver.ResolveAll(references, AssetEntryKind.Model);
+        long batchAcquisitions = ReadOwningLockAcquisitionCount() - beforeBatch;
+
+        Assert.True(singleAcquisitions >= references.Count, $"Expected at least {references.Count} acquisitions, saw {singleAcquisitions}.");
+        Assert.Equal(1, batchAcquisitions);
+    }
+
+    /// <summary>
+    /// Ensures a batch stops at the first unresolvable reference with the same failure a single resolve raises.
+    /// </summary>
+    [Fact]
+    public void ResolveAll_WhenOneReferenceCannotResolve_RaisesTheSingleResolveFailure() {
+        List<SceneAssetReference> references = CreateBatchReferences();
+        SceneAssetReference missing = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            "ffeeddccbbaa99887766554433221100",
+            "Models/Gone.fbx",
+            "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+        InvalidOperationException single = Assert.Throws<InvalidOperationException>(() => resolver.Resolve(missing, AssetEntryKind.Model));
+
+        InvalidOperationException batch = Assert.Throws<InvalidOperationException>(
+            () => resolver.ResolveAll(new[] { references[0], missing, references[1] }, AssetEntryKind.Model));
+
+        Assert.Equal(single.Message, batch.Message);
+        Assert.Equal(references[1].AssetId, resolver.Resolve(references[1], AssetEntryKind.Model).CanonicalReference.AssetId);
+    }
+
+    /// <summary>
+    /// Ensures the generation read remembered for one write-lock acquisition is dropped when the same acquisition
+    /// publishes a change, and is not reused by a later acquisition.
+    /// </summary>
+    [Fact]
+    public void WriteGenerationRead_UnderOneAcquisition_SeesItsOwnPublications() {
+        CreateAsset("Models/Generation.fbx", new byte[] { 4, 5, 6 });
+        long initial;
+        long afterPublish;
+        using (EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(TempRootPath)) {
+            initial = EditorProjectWriteGeneration.Read(TempRootPath);
+            Assert.Equal(initial, EditorProjectWriteGeneration.Read(TempRootPath));
+            EditorProjectWriteGeneration.PublishChangeUnderLock(TempRootPath, "Models/Generation.fbx");
+            afterPublish = EditorProjectWriteGeneration.Read(TempRootPath);
+        }
+        EditorProjectWriteGeneration.PublishChange(TempRootPath, "Models/Generation.fbx");
+        long afterLaterAcquisition;
+        using (EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(TempRootPath)) {
+            afterLaterAcquisition = EditorProjectWriteGeneration.Read(TempRootPath);
+        }
+
+        Assert.Equal(initial + 1, afterPublish);
+        Assert.Equal(afterPublish + 1, afterLaterAcquisition);
+    }
+
+    /// <summary>
+    /// Creates three model assets and the references a batch test resolves: each asset once, the first again as a
+    /// duplicate, and the second under a stale saved path that only its asset id recovers.
+    /// </summary>
+    /// <returns>References in batch order.</returns>
+    List<SceneAssetReference> CreateBatchReferences() {
+        string first = CreateAsset("Models/BatchA.fbx", new byte[] { 1, 1, 1 });
+        string second = CreateAsset("Models/BatchB.fbx", new byte[] { 2, 2, 2 });
+        string third = CreateAsset("Models/BatchC.fbx", new byte[] { 3, 3, 3 });
+        using EditorAssetReferenceResolver setupResolver = new EditorAssetReferenceResolver(TempRootPath);
+        SceneAssetReference firstReference = setupResolver.CreateFileReference(first, AssetEntryKind.Model);
+        SceneAssetReference secondReference = setupResolver.CreateFileReference(second, AssetEntryKind.Model);
+        SceneAssetReference thirdReference = setupResolver.CreateFileReference(third, AssetEntryKind.Model);
+        SceneAssetReference staleSecondReference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            secondReference.AssetId,
+            "Models/Moved/BatchB.fbx",
+            secondReference.ContentHash);
+        return new List<SceneAssetReference> { firstReference, secondReference, firstReference, staleSecondReference, thirdReference };
+    }
+
+    /// <summary>
+    /// Reads how many owning project write-lock acquisitions the current thread has made. Every owning acquisition
+    /// draws a fresh per-thread version, so the difference across a call counts the acquisitions it made.
+    /// </summary>
+    /// <returns>Current per-thread acquisition counter.</returns>
+    static long ReadOwningLockAcquisitionCount() {
+        FieldInfo field = typeof(EditorProjectWriteLock).GetField("nextHeldVersion", BindingFlags.Static | BindingFlags.NonPublic);
+        return (long)field.GetValue(null);
+    }
+
+    /// <summary>
     /// Ensures a standalone resolver owns a project publication boundary for mutation-capable reads.
     /// </summary>
     [Fact]

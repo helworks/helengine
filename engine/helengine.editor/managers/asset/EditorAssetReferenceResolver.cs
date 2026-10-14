@@ -284,6 +284,32 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves an ordered batch of file-backed references inside one synchronized read, so the whole batch
+        /// acquires the project publication boundary and replays published changes once instead of once per
+        /// reference. Each reference is resolved exactly as <see cref="Resolve"/> would resolve it, in caller order;
+        /// the first failure propagates unchanged and stops the batch. No other writer can publish while the
+        /// boundary is held, so the per-reference results equal resolving the references one at a time.
+        /// </summary>
+        /// <param name="references">Saved file-backed references in caller order; duplicates are preserved.</param>
+        /// <param name="expectedKind">Required asset category of every reference.</param>
+        /// <returns>Resolutions in the same order as <paramref name="references"/>.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when the reference list is null.</exception>
+        public List<AssetReferenceResolution> ResolveAll(IReadOnlyList<SceneAssetReference> references, AssetEntryKind expectedKind) {
+            EnsureNotDisposed();
+            if (references == null) {
+                throw new ArgumentNullException(nameof(references));
+            }
+
+            return ExecuteSynchronizedRead(() => {
+                List<AssetReferenceResolution> resolutions = new List<AssetReferenceResolution>(references.Count);
+                for (int index = 0; index < references.Count; index++) {
+                    resolutions.Add(Resolve(references[index], expectedKind));
+                }
+                return resolutions;
+            });
+        }
+
+        /// <summary>
         /// Resolves a reference against an output already prepared by the
         /// caller's authoring transaction.  Scene serialization can run
         /// before that transaction publishes its material or native payload;
