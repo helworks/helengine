@@ -79,6 +79,11 @@ namespace helengine.editor {
         const string PublicationDestinationMovedPhase = "destination-moved";
 
         /// <summary>
+        /// Failure message of a build its caller cancelled; the cancelled build's output is incomplete.
+        /// </summary>
+        public const string CancelledMessage = "The script build was cancelled.";
+
+        /// <summary>
         /// Optional deterministic move-failure seam used by publication recovery tests.
         /// </summary>
         internal static Action<string, string> PublicationMoveHookForTests { get; set; }
@@ -193,7 +198,7 @@ namespace helengine.editor {
             }
 
             try {
-                EditorBuildExecutionResult result = RunBuildProcess(startInfo, solutionPath);
+                EditorBuildExecutionResult result = RunBuildProcess(startInfo, solutionPath, null);
                 if (result.Succeeded && !string.IsNullOrWhiteSpace(msbuildOutputRootPath)) {
                     PublishBuildOutputs(msbuildOutputRootPath, executionOutputRootPath, workspaceLease);
                 }
@@ -229,6 +234,8 @@ namespace helengine.editor {
         /// <param name="restoreInputFilePaths">Generated files whose contents decide what restore produces, such as the
         /// solution, project and build property files. Restore is skipped only while their contents, and the invocation
         /// property file, are byte-identical to the last build that restored successfully.</param>
+        /// <param name="cancellation">Cancels the build: a cancelled build never starts <c>dotnet</c>, and cancelling a
+        /// running one kills its whole process tree. The result is then a failure carrying <see cref="CancelledMessage"/>.</param>
         /// <returns>Structured execution result describing the process outcome.</returns>
         public EditorBuildExecutionResult BuildIncrementally(
             string solutionPath,
@@ -236,7 +243,8 @@ namespace helengine.editor {
             EditorGeneratedCodeWorkspaceLease workspaceLease,
             IReadOnlyList<string> additionalDefineConstants,
             IReadOnlyList<string> projectFilePaths,
-            IReadOnlyList<string> restoreInputFilePaths) {
+            IReadOnlyList<string> restoreInputFilePaths,
+            EditorProcessCancellation cancellation) {
             if (string.IsNullOrWhiteSpace(solutionPath)) {
                 throw new ArgumentException("Solution path must be provided.", nameof(solutionPath));
             } else if (string.IsNullOrWhiteSpace(outputRootPath)) {
@@ -249,6 +257,8 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(projectFilePaths));
             } else if (restoreInputFilePaths == null) {
                 throw new ArgumentNullException(nameof(restoreInputFilePaths));
+            } else if (cancellation == null) {
+                throw new ArgumentNullException(nameof(cancellation));
             }
 
             string workingDirectory = ResolveWorkingDirectory(solutionPath);
@@ -289,7 +299,11 @@ namespace helengine.editor {
                 File.Delete(restoreStampFilePath);
             }
 
-            EditorBuildExecutionResult result = RunBuildProcess(startInfo, solutionPath);
+            if (cancellation.IsCancellationRequested) {
+                return EditorBuildExecutionResult.Failure(CancelledMessage);
+            }
+
+            EditorBuildExecutionResult result = RunBuildProcess(startInfo, solutionPath, cancellation);
             if (result.Succeeded && !restoreCurrent) {
                 EditorScriptBuildFingerprint.WriteStored(restoreStampFilePath, restoreStamp);
             } else if (!result.Succeeded && restoreCurrent && File.Exists(restoreStampFilePath)) {
@@ -349,15 +363,30 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="startInfo">Fully configured build process description.</param>
         /// <param name="solutionPath">Solution being built, named in the success message.</param>
-        /// <returns>Success when the process exits with code zero, otherwise a failure carrying the build output.</returns>
-        EditorBuildExecutionResult RunBuildProcess(ProcessStartInfo startInfo, string solutionPath) {
+        /// <param name="cancellation">Cancels the build by killing its process tree, or null for a build that is not cancellable.</param>
+        /// <returns>Success when the process exits with code zero, a cancellation failure, or a failure carrying the build output.</returns>
+        EditorBuildExecutionResult RunBuildProcess(ProcessStartInfo startInfo, string solutionPath, EditorProcessCancellation cancellation) {
             using Process process = Process.Start(startInfo);
             if (process == null) {
                 throw new InvalidOperationException($"Failed to launch '{DotNetExecutableName}'.");
             }
 
-            CaptureProcessOutput(process, out string stdout, out string stderr);
-            if (process.ExitCode == 0) {
+            if (cancellation != null && !cancellation.TryAttach(process)) {
+                process.WaitForExit();
+                return EditorBuildExecutionResult.Failure(CancelledMessage);
+            }
+
+            string stdout;
+            string stderr;
+            try {
+                CaptureProcessOutput(process, out stdout, out stderr);
+            } finally {
+                cancellation?.Detach();
+            }
+
+            if (cancellation != null && cancellation.IsCancellationRequested) {
+                return EditorBuildExecutionResult.Failure(CancelledMessage);
+            } else if (process.ExitCode == 0) {
                 return EditorBuildExecutionResult.Success($"Script build completed: {solutionPath}");
             }
 

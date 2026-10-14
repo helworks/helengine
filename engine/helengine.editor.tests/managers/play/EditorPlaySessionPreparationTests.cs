@@ -122,11 +122,75 @@ public sealed class EditorPlaySessionPreparationTests {
     }
 
     /// <summary>
-    /// Ensures a preparation whose completion is never drained, as when the editor closes while Play is preparing,
-    /// never launches the player: closing stops the session, and nothing launches outside the frame thread's drain.
+    /// Ensures closing the editor while the cook runs on its real background thread stops Play, waits a bounded time
+    /// for the preparation thread (reporting when it is still busy), and never launches the player or runs the script
+    /// build, with no first-chance exception on either thread. The completion is never drained, as after a close.
     /// </summary>
     [Fact]
-    public void ClosingWhilePreparing_NeverLaunchesThePlayer() {
+    public void Shutdown_WhileTheCookRunsOnItsThread_WaitsBoundedAndNeverLaunches() {
+        using BlockingPlayCookRunner cookRunner = new BlockingPlayCookRunner(CreateSucceedingCookResult());
+        FakePlayScriptBuilder scriptBuilder = CreateSucceedingScriptBuilder();
+        FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
+        EditorPlaySessionService service = new EditorPlaySessionService(cookRunner, scriptBuilder, launcher, PlayerExecutablePath, Queue, new EditorPlayPreparationThreadScheduler());
+        int completionCount = 0;
+        List<int> exceptionThreadIds = new List<int>();
+        EventHandler<FirstChanceExceptionEventArgs> handler = (sender, args) => {
+            lock (exceptionThreadIds) {
+                exceptionThreadIds.Add(Environment.CurrentManagedThreadId);
+            }
+        };
+        bool finishedWhileCookBlocked;
+        bool finishedAfterRelease;
+
+        AppDomain.CurrentDomain.FirstChanceException += handler;
+        try {
+            StartPlay(service, result => completionCount++);
+            Assert.True(cookRunner.WaitUntilStarted(WaitTimeout));
+            finishedWhileCookBlocked = service.Shutdown(TimeSpan.FromMilliseconds(50));
+            cookRunner.Release();
+            finishedAfterRelease = service.Shutdown(WaitTimeout);
+        } finally {
+            AppDomain.CurrentDomain.FirstChanceException -= handler;
+        }
+
+        Assert.False(finishedWhileCookBlocked);
+        Assert.True(finishedAfterRelease);
+        Assert.Equal(EditorPlaySessionState.Stopped, service.State);
+        Assert.Empty(scriptBuilder.BuiltPlatformIds);
+        Assert.Empty(launcher.Requests);
+        Assert.Equal(0, completionCount);
+        Assert.Equal(0, CountOnThreads(exceptionThreadIds, Environment.CurrentManagedThreadId, cookRunner.CookThreadId));
+    }
+
+    /// <summary>
+    /// Ensures the script build receives the preparation's process cancellation and Stop cancels it, which is what
+    /// kills a running <c>dotnet build</c> process tree.
+    /// </summary>
+    [Fact]
+    public void Stop_CancelsTheScriptBuildProcessCancellation() {
+        FakePlayScriptBuilder scriptBuilder = CreateSucceedingScriptBuilder();
+        EditorPlaySessionService service = new EditorPlaySessionService(
+            new FakePlayCookRunner(CreateSucceedingCookResult()),
+            scriptBuilder,
+            new FakePlayProcessLauncher(),
+            PlayerExecutablePath,
+            Queue,
+            new InlinePlayPreparationScheduler());
+        StartPlay(service, result => { });
+        Assert.NotNull(scriptBuilder.LastCancellation);
+        Assert.False(scriptBuilder.LastCancellation.IsCancellationRequested);
+
+        service.Stop();
+
+        Assert.True(scriptBuilder.LastCancellation.IsCancellationRequested);
+    }
+
+    /// <summary>
+    /// Ensures a preparation whose completion is never drained never launches the player once stopped: nothing
+    /// launches outside the frame thread's drain.
+    /// </summary>
+    [Fact]
+    public void StopBeforeTheCompletionIsDrained_NeverLaunchesThePlayer() {
         FakePlayProcessLauncher launcher = new FakePlayProcessLauncher();
         EditorPlaySessionService service = new EditorPlaySessionService(
             new FakePlayCookRunner(CreateSucceedingCookResult()),

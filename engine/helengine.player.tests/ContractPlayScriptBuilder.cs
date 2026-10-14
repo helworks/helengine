@@ -13,10 +13,11 @@ namespace helengine.player.tests {
         /// Returns a successful build and reports the fixed runtime module root.
         /// </summary>
         /// <param name="platformId">Platform the session service asked to build scripts for; unused.</param>
+        /// <param name="cancellation">Build cancellation; unused.</param>
         /// <param name="runtimeModulesRootPath">Receives <see cref="RuntimeModulesRootPath"/>.</param>
         /// <param name="compileSkipped">Receives false; every contract build reports a compile.</param>
         /// <returns>The successful build outcome.</returns>
-        public EditorBuildExecutionResult Build(string platformId, out string runtimeModulesRootPath, out bool compileSkipped) {
+        public EditorBuildExecutionResult Build(string platformId, EditorProcessCancellation cancellation, out string runtimeModulesRootPath, out bool compileSkipped) {
             runtimeModulesRootPath = RuntimeModulesRootPath;
             compileSkipped = false;
             return EditorBuildExecutionResult.Success("Scripts built.");

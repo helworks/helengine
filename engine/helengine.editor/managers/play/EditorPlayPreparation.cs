@@ -18,6 +18,11 @@ namespace helengine.editor {
         volatile bool CancellationRequested;
 
         /// <summary>
+        /// Signaled by the preparation thread once it finished its work and queued its completion.
+        /// </summary>
+        readonly ManualResetEventSlim WorkerFinishedSignal = new ManualResetEventSlim(false);
+
+        /// <summary>
         /// Initializes the preparation from the values captured when Play was pressed.
         /// </summary>
         /// <param name="platformId">Identifier of the platform whose content and scripts are prepared.</param>
@@ -110,6 +115,12 @@ namespace helengine.editor {
         public bool IsCancellationRequested => CancellationRequested;
 
         /// <summary>
+        /// Gets the cancellation of the child processes the preparation starts, such as its <c>dotnet build</c>.
+        /// Cancelling the preparation kills them, with their whole process trees.
+        /// </summary>
+        public EditorProcessCancellation BuildCancellation { get; } = new EditorProcessCancellation();
+
+        /// <summary>
         /// Gets or sets the cook outcome, or null when the cook did not run.
         /// </summary>
         public EditorPlayCookResult CookResult { get; set; }
@@ -146,11 +157,29 @@ namespace helengine.editor {
         public Exception Failure { get; set; }
 
         /// <summary>
-        /// Cancels the preparation. The preparation thread stops at its next stage boundary and the frame thread discards
-        /// whatever it produced; the player is never launched.
+        /// Cancels the preparation. A running child process tree (the script build) is killed, the preparation thread
+        /// stops at its next stage boundary, and the frame thread discards whatever it produced; the player is never
+        /// launched.
         /// </summary>
         public void RequestCancellation() {
             CancellationRequested = true;
+            BuildCancellation.Cancel();
+        }
+
+        /// <summary>
+        /// Called by the preparation thread as its very last step, after it queued its completion.
+        /// </summary>
+        public void MarkWorkerFinished() {
+            WorkerFinishedSignal.Set();
+        }
+
+        /// <summary>
+        /// Waits, without raising any exception, until the preparation thread finished or the wait times out.
+        /// </summary>
+        /// <param name="maximumWait">Longest time to wait.</param>
+        /// <returns>True when the preparation thread finished within the wait.</returns>
+        public bool WaitForWorker(TimeSpan maximumWait) {
+            return WorkerFinishedSignal.Wait(maximumWait);
         }
     }
 }

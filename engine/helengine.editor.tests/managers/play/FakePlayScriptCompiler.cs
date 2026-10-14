@@ -60,9 +60,10 @@ public sealed class FakePlayScriptCompiler : IEditorPlayScriptCompiler {
     /// </summary>
     /// <param name="platformId">Platform identifier; ignored.</param>
     /// <param name="environmentId">Environment identifier recorded for the assertion.</param>
+    /// <param name="cancellation">Build cancellation; ignored.</param>
     /// <param name="runtimeModulesRootPath">Receives the module root.</param>
     /// <returns>Success or failure according to <see cref="NextResultSucceeds"/>.</returns>
-    public EditorBuildExecutionResult Build(string platformId, string environmentId, out string runtimeModulesRootPath) {
+    public EditorBuildExecutionResult Build(string platformId, string environmentId, EditorProcessCancellation cancellation, out string runtimeModulesRootPath) {
         CompiledEnvironmentIds.Add(environmentId);
         runtimeModulesRootPath = ResolveRuntimeModulesRootPath(platformId);
         if (!NextResultSucceeds) {

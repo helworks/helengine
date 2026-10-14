@@ -25,8 +25,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="platformId">Platform whose gameplay symbols are defined.</param>
         /// <param name="environmentId">Selected project environment, or empty when none is selected.</param>
+        /// <param name="cancellation">Cancels the compile; cancelling kills a running compiler process tree.</param>
         /// <param name="runtimeModulesRootPath">Receives the runtime module root.</param>
-        /// <returns>Compile outcome.</returns>
-        EditorBuildExecutionResult Build(string platformId, string environmentId, out string runtimeModulesRootPath);
+        /// <returns>Compile outcome; a cancelled compile is a failure.</returns>
+        EditorBuildExecutionResult Build(string platformId, string environmentId, EditorProcessCancellation cancellation, out string runtimeModulesRootPath);
     }
 }

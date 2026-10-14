@@ -30,6 +30,11 @@ public sealed class FakePlayScriptBuilder : IEditorPlayScriptBuilder {
     public string RuntimeModulesRootPath { get; }
 
     /// <summary>
+    /// Gets the cancellation handed to the latest build, or null before the first build.
+    /// </summary>
+    public EditorProcessCancellation LastCancellation { get; private set; }
+
+    /// <summary>
     /// Gets or sets whether every build reports that the compile was skipped because the scripts were up to date.
     /// </summary>
     public bool CompileSkipped { get; set; }
@@ -38,11 +43,13 @@ public sealed class FakePlayScriptBuilder : IEditorPlayScriptBuilder {
     /// Records the requested platform and returns the scripted build outcome and module root.
     /// </summary>
     /// <param name="platformId">Platform the session service asked to build scripts for.</param>
+    /// <param name="cancellation">Cancellation of the preparation that asked; recorded in <see cref="LastCancellation"/>.</param>
     /// <param name="runtimeModulesRootPath">Receives the scripted runtime module root.</param>
     /// <param name="compileSkipped">Receives <see cref="CompileSkipped"/>.</param>
     /// <returns>The scripted build outcome.</returns>
-    public EditorBuildExecutionResult Build(string platformId, out string runtimeModulesRootPath, out bool compileSkipped) {
+    public EditorBuildExecutionResult Build(string platformId, EditorProcessCancellation cancellation, out string runtimeModulesRootPath, out bool compileSkipped) {
         BuiltPlatformIds.Add(platformId);
+        LastCancellation = cancellation;
         runtimeModulesRootPath = RuntimeModulesRootPath;
         compileSkipped = CompileSkipped;
         return Result;

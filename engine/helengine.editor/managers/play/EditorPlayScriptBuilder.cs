@@ -101,14 +101,17 @@ namespace helengine.editor {
         /// Returns the up-to-date runtime modules for the platform, compiling only when a script input changed.
         /// </summary>
         /// <param name="platformId">Platform whose gameplay symbols the scripts compile against.</param>
+        /// <param name="cancellation">Cancels the compile; cancelling kills a running compiler process tree.</param>
         /// <param name="runtimeModulesRootPath">Receives the runtime module root; it exists on disk after success.</param>
         /// <param name="compileSkipped">Receives true when the fingerprint matched and the compile was skipped.</param>
         /// <returns>Success when the modules are current or were rebuilt, otherwise the compile failure.</returns>
         /// <exception cref="ArgumentException">Thrown when the platform id is blank.</exception>
         /// <exception cref="InvalidOperationException">Thrown when the environment resolver or compiler returns nothing.</exception>
-        public EditorBuildExecutionResult Build(string platformId, out string runtimeModulesRootPath, out bool compileSkipped) {
+        public EditorBuildExecutionResult Build(string platformId, EditorProcessCancellation cancellation, out string runtimeModulesRootPath, out bool compileSkipped) {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            } else if (cancellation == null) {
+                throw new ArgumentNullException(nameof(cancellation));
             }
 
             string environmentId = EnvironmentIdResolver(platformId);
@@ -135,7 +138,7 @@ namespace helengine.editor {
 
             compileSkipped = false;
             DeleteRemovedModuleFolders(expectedModulesRootPath);
-            EditorBuildExecutionResult result = Compiler.Build(platformId, environmentId, out runtimeModulesRootPath);
+            EditorBuildExecutionResult result = Compiler.Build(platformId, environmentId, cancellation, out runtimeModulesRootPath);
             if (result == null) {
                 throw new InvalidOperationException("The Play script compiler returned no result.");
             } else if (!result.Succeeded) {

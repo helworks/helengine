@@ -74,8 +74,8 @@ public sealed class EditorPlayScriptBuilderTests : IDisposable {
         FakePlayScriptCompiler compiler = CreateCompiler();
         EditorPlayScriptBuilder builder = CreateBuilder(compiler);
 
-        EditorBuildExecutionResult first = builder.Build(PlatformId, out string firstRoot, out bool firstSkipped);
-        EditorBuildExecutionResult second = builder.Build(PlatformId, out string secondRoot, out bool secondSkipped);
+        EditorBuildExecutionResult first = builder.Build(PlatformId, new EditorProcessCancellation(), out string firstRoot, out bool firstSkipped);
+        EditorBuildExecutionResult second = builder.Build(PlatformId, new EditorProcessCancellation(), out string secondRoot, out bool secondSkipped);
 
         Assert.True(first.Succeeded);
         Assert.True(second.Succeeded);
@@ -93,10 +93,10 @@ public sealed class EditorPlayScriptBuilderTests : IDisposable {
     public void Build_WhenSourceChanges_CompilesAgain() {
         FakePlayScriptCompiler compiler = CreateCompiler();
         EditorPlayScriptBuilder builder = CreateBuilder(compiler);
-        builder.Build(PlatformId, out _, out _);
+        builder.Build(PlatformId, new EditorProcessCancellation(), out _, out _);
 
         File.WriteAllText(SourceFilePath, "public class Mover { public int Speed; }");
-        builder.Build(PlatformId, out _, out bool compileSkipped);
+        builder.Build(PlatformId, new EditorProcessCancellation(), out _, out bool compileSkipped);
 
         Assert.Equal(2, compiler.CompiledEnvironmentIds.Count);
         Assert.False(compileSkipped);
@@ -109,10 +109,10 @@ public sealed class EditorPlayScriptBuilderTests : IDisposable {
     public void Build_WhenGameplaySymbolsChange_CompilesAgain() {
         FakePlayScriptCompiler compiler = CreateCompiler();
         EditorPlayScriptBuilder builder = CreateBuilder(compiler);
-        builder.Build(PlatformId, out _, out _);
+        builder.Build(PlatformId, new EditorProcessCancellation(), out _, out _);
 
         EnvironmentId = "debug";
-        builder.Build(PlatformId, out _, out _);
+        builder.Build(PlatformId, new EditorProcessCancellation(), out _, out _);
 
         Assert.Equal(new[] { "release", "debug" }, compiler.CompiledEnvironmentIds);
     }
@@ -126,13 +126,13 @@ public sealed class EditorPlayScriptBuilderTests : IDisposable {
         EditorPlayScriptBuilder builder = CreateBuilder(compiler);
         compiler.NextResultSucceeds = false;
 
-        EditorBuildExecutionResult failed = builder.Build(PlatformId, out _, out _);
+        EditorBuildExecutionResult failed = builder.Build(PlatformId, new EditorProcessCancellation(), out _, out _);
 
         Assert.False(failed.Succeeded);
         Assert.False(File.Exists(Path.Combine(OutputRootPath, EditorPlayScriptBuilder.FingerprintFileName)));
 
         compiler.NextResultSucceeds = true;
-        EditorBuildExecutionResult retried = builder.Build(PlatformId, out _, out _);
+        EditorBuildExecutionResult retried = builder.Build(PlatformId, new EditorProcessCancellation(), out _, out _);
 
         Assert.True(retried.Succeeded);
         Assert.Equal(2, compiler.CompiledEnvironmentIds.Count);
@@ -147,7 +147,7 @@ public sealed class EditorPlayScriptBuilderTests : IDisposable {
     public void Build_WhenStale_DeletesRemovedModuleFoldersAndKeepsIncrementalState() {
         FakePlayScriptCompiler compiler = CreateCompiler();
         EditorPlayScriptBuilder builder = CreateBuilder(compiler);
-        builder.Build(PlatformId, out string modulesRoot, out _);
+        builder.Build(PlatformId, new EditorProcessCancellation(), out string modulesRoot, out _);
         string removedModuleDirectoryPath = Path.Combine(modulesRoot, "removed");
         Directory.CreateDirectory(removedModuleDirectoryPath);
         File.WriteAllText(Path.Combine(removedModuleDirectoryPath, "removed.dll"), "stale");
@@ -156,7 +156,7 @@ public sealed class EditorPlayScriptBuilderTests : IDisposable {
         File.WriteAllText(intermediateFilePath, "{}");
 
         File.WriteAllText(SourceFilePath, "public class Mover { public int Health; }");
-        builder.Build(PlatformId, out _, out _);
+        builder.Build(PlatformId, new EditorProcessCancellation(), out _, out _);
 
         Assert.Equal(2, compiler.CompiledEnvironmentIds.Count);
         Assert.False(Directory.Exists(removedModuleDirectoryPath));
@@ -173,11 +173,11 @@ public sealed class EditorPlayScriptBuilderTests : IDisposable {
     public void Build_WhenStaleCompileFails_DiscardsPreviousFingerprint() {
         FakePlayScriptCompiler compiler = CreateCompiler();
         EditorPlayScriptBuilder builder = CreateBuilder(compiler);
-        builder.Build(PlatformId, out _, out _);
+        builder.Build(PlatformId, new EditorProcessCancellation(), out _, out _);
 
         File.WriteAllText(SourceFilePath, "public class Mover { public int Health; }");
         compiler.NextResultSucceeds = false;
-        EditorBuildExecutionResult failed = builder.Build(PlatformId, out _, out _);
+        EditorBuildExecutionResult failed = builder.Build(PlatformId, new EditorProcessCancellation(), out _, out _);
 
         Assert.False(failed.Succeeded);
         Assert.False(File.Exists(Path.Combine(OutputRootPath, EditorPlayScriptBuilder.FingerprintFileName)));
@@ -192,10 +192,10 @@ public sealed class EditorPlayScriptBuilderTests : IDisposable {
         string engineAssemblyPath = WriteEngineAssembly(new byte[] { 1, 2, 3, 4 });
         FakePlayScriptCompiler compiler = CreateCompiler();
         EditorPlayScriptBuilder builder = CreateBuilder(compiler, engineAssemblyPath);
-        builder.Build(PlatformId, out _, out _);
+        builder.Build(PlatformId, new EditorProcessCancellation(), out _, out _);
 
         File.SetLastWriteTimeUtc(engineAssemblyPath, File.GetLastWriteTimeUtc(engineAssemblyPath).AddMinutes(5));
-        EditorBuildExecutionResult second = builder.Build(PlatformId, out _, out _);
+        EditorBuildExecutionResult second = builder.Build(PlatformId, new EditorProcessCancellation(), out _, out _);
 
         Assert.True(second.Succeeded);
         Assert.Single(compiler.CompiledEnvironmentIds);
@@ -209,12 +209,12 @@ public sealed class EditorPlayScriptBuilderTests : IDisposable {
         string engineAssemblyPath = WriteEngineAssembly(new byte[] { 1, 2, 3, 4 });
         FakePlayScriptCompiler compiler = CreateCompiler();
         EditorPlayScriptBuilder builder = CreateBuilder(compiler, engineAssemblyPath);
-        builder.Build(PlatformId, out _, out _);
+        builder.Build(PlatformId, new EditorProcessCancellation(), out _, out _);
 
         DateTime originalWriteTimeUtc = File.GetLastWriteTimeUtc(engineAssemblyPath);
         File.WriteAllBytes(engineAssemblyPath, new byte[] { 4, 3, 2, 1 });
         File.SetLastWriteTimeUtc(engineAssemblyPath, originalWriteTimeUtc);
-        builder.Build(PlatformId, out _, out _);
+        builder.Build(PlatformId, new EditorProcessCancellation(), out _, out _);
 
         Assert.Equal(2, compiler.CompiledEnvironmentIds.Count);
     }
@@ -226,10 +226,10 @@ public sealed class EditorPlayScriptBuilderTests : IDisposable {
     public void Build_WhenModuleAssemblyIsMissing_CompilesAgain() {
         FakePlayScriptCompiler compiler = CreateCompiler();
         EditorPlayScriptBuilder builder = CreateBuilder(compiler);
-        builder.Build(PlatformId, out string modulesRoot, out _);
+        builder.Build(PlatformId, new EditorProcessCancellation(), out string modulesRoot, out _);
 
         File.Delete(Path.Combine(modulesRoot, ModuleId, ModuleId + ".dll"));
-        builder.Build(PlatformId, out _, out _);
+        builder.Build(PlatformId, new EditorProcessCancellation(), out _, out _);
 
         Assert.Equal(2, compiler.CompiledEnvironmentIds.Count);
     }
@@ -244,8 +244,8 @@ public sealed class EditorPlayScriptBuilderTests : IDisposable {
         File.Delete(SourceFilePath);
         EditorPlayScriptBuilder builder = CreateBuilder(compiler);
 
-        EditorBuildExecutionResult result = builder.Build(PlatformId, out string modulesRoot, out _);
-        builder.Build(PlatformId, out _, out _);
+        EditorBuildExecutionResult result = builder.Build(PlatformId, new EditorProcessCancellation(), out string modulesRoot, out _);
+        builder.Build(PlatformId, new EditorProcessCancellation(), out _, out _);
 
         Assert.True(result.Succeeded);
         Assert.True(Directory.Exists(modulesRoot));

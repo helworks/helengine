@@ -67,7 +67,7 @@ namespace helengine.player.tests {
             EditorPlayScriptBuildService compiler = new EditorPlayScriptBuildService(ProjectRootPath, "PlayFixture");
             EditorPlayScriptBuilder builder = new EditorPlayScriptBuilder(ProjectRootPath, compiler, platformId => string.Empty);
 
-            EditorBuildExecutionResult first = builder.Build(PlatformId, out string modulesRootPath, out _);
+            EditorBuildExecutionResult first = builder.Build(PlatformId, new EditorProcessCancellation(), out string modulesRootPath, out _);
 
             Assert.True(first.Succeeded, first.Message);
             Assert.Equal(compiler.ResolveRuntimeModulesRootPath(PlatformId), modulesRootPath);
@@ -79,7 +79,7 @@ namespace helengine.player.tests {
             Assert.False(Directory.Exists(Path.Combine(modulesRootPath, ToolsModuleId)));
             DateTime firstCoreWriteTimeUtc = File.GetLastWriteTimeUtc(coreAssemblyPath);
 
-            EditorBuildExecutionResult second = builder.Build(PlatformId, out string secondModulesRootPath, out _);
+            EditorBuildExecutionResult second = builder.Build(PlatformId, new EditorProcessCancellation(), out string secondModulesRootPath, out _);
 
             Assert.True(second.Succeeded, second.Message);
             Assert.Contains("script build skipped", second.Message);
@@ -96,7 +96,7 @@ namespace helengine.player.tests {
         public void RealPlayScriptBuild_AfterOneScriptEdit_RecompilesOnlyTheEditedModule() {
             EditorPlayScriptBuildService compiler = new EditorPlayScriptBuildService(ProjectRootPath, "PlayFixture");
             EditorPlayScriptBuilder builder = new EditorPlayScriptBuilder(ProjectRootPath, compiler, platformId => string.Empty);
-            EditorBuildExecutionResult first = builder.Build(PlatformId, out string modulesRootPath, out _);
+            EditorBuildExecutionResult first = builder.Build(PlatformId, new EditorProcessCancellation(), out string modulesRootPath, out _);
             Assert.True(first.Succeeded, first.Message);
             string coreAssemblyPath = Path.Combine(modulesRootPath, CoreModuleId, CoreModuleId + ".dll");
             string levelsAssemblyPath = Path.Combine(modulesRootPath, LevelsModuleId, LevelsModuleId + ".dll");
@@ -106,7 +106,7 @@ namespace helengine.player.tests {
             File.WriteAllText(
                 Path.Combine(ProjectRootPath, "assets", "codebase", "Levels", LevelsModuleId + ".cs"),
                 "namespace PlayFixture { public class LevelProbe { public CoreProbe Core; public int Depth; } }");
-            EditorBuildExecutionResult second = builder.Build(PlatformId, out string secondModulesRootPath, out _);
+            EditorBuildExecutionResult second = builder.Build(PlatformId, new EditorProcessCancellation(), out string secondModulesRootPath, out _);
 
             Assert.True(second.Succeeded, second.Message);
             Assert.DoesNotContain("script build skipped", second.Message);
@@ -127,7 +127,7 @@ namespace helengine.player.tests {
         public void RealPlayScriptBuild_WhenModulesAreAddedAndRemoved_PublishesExactlyTheCurrentModules() {
             EditorPlayScriptBuildService compiler = new EditorPlayScriptBuildService(ProjectRootPath, "PlayFixture");
             EditorPlayScriptBuilder builder = new EditorPlayScriptBuilder(ProjectRootPath, compiler, platformId => string.Empty);
-            EditorBuildExecutionResult first = builder.Build(PlatformId, out string modulesRootPath, out _);
+            EditorBuildExecutionResult first = builder.Build(PlatformId, new EditorProcessCancellation(), out string modulesRootPath, out _);
             Assert.True(first.Succeeded, first.Message);
 
             string codebasePath = Path.Combine(ProjectRootPath, "assets", "codebase");
@@ -139,7 +139,7 @@ namespace helengine.player.tests {
                 "runtime",
                 "[\"" + CoreModuleId + "\"]",
                 "namespace PlayFixture { public class ArenaProbe { public CoreProbe Core; } }");
-            EditorBuildExecutionResult second = builder.Build(PlatformId, out string secondModulesRootPath, out _);
+            EditorBuildExecutionResult second = builder.Build(PlatformId, new EditorProcessCancellation(), out string secondModulesRootPath, out _);
 
             Assert.True(second.Succeeded, second.Message);
             Assert.Equal(modulesRootPath, secondModulesRootPath);
@@ -161,7 +161,7 @@ namespace helengine.player.tests {
         public void RealPlayScriptBuild_WhenRestoringBuildFailsToCompile_DropsThePreviousRestoreStamp() {
             EditorPlayScriptBuildService compiler = new EditorPlayScriptBuildService(ProjectRootPath, "PlayFixture");
             EditorPlayScriptBuilder builder = new EditorPlayScriptBuilder(ProjectRootPath, compiler, platformId => string.Empty);
-            EditorBuildExecutionResult first = builder.Build(PlatformId, out _, out _);
+            EditorBuildExecutionResult first = builder.Build(PlatformId, new EditorProcessCancellation(), out _, out _);
             Assert.True(first.Succeeded, first.Message);
             string restoreStampFilePath = Path.Combine(
                 compiler.ResolvePlayOutputRootPath(PlatformId),
@@ -172,7 +172,7 @@ namespace helengine.player.tests {
             // edited source no longer compiles.
             string levelsFolderPath = Path.Combine(ProjectRootPath, "assets", "codebase", "Levels");
             WriteModule(levelsFolderPath, LevelsModuleId, "runtime", "[]", "namespace PlayFixture { public class LevelProbe { public CoreProbe Core; } }");
-            EditorBuildExecutionResult failed = builder.Build(PlatformId, out _, out _);
+            EditorBuildExecutionResult failed = builder.Build(PlatformId, new EditorProcessCancellation(), out _, out _);
 
             Assert.False(failed.Succeeded);
             Assert.False(File.Exists(restoreStampFilePath));
@@ -183,7 +183,7 @@ namespace helengine.player.tests {
                 "runtime",
                 "[\"" + CoreModuleId + "\"]",
                 "namespace PlayFixture { public class LevelProbe { public CoreProbe Core; } }");
-            EditorBuildExecutionResult reverted = builder.Build(PlatformId, out _, out _);
+            EditorBuildExecutionResult reverted = builder.Build(PlatformId, new EditorProcessCancellation(), out _, out _);
 
             Assert.True(reverted.Succeeded, reverted.Message);
             Assert.True(File.Exists(restoreStampFilePath));

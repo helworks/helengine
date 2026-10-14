@@ -77,13 +77,16 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="platformId">Stable platform identifier whose gameplay symbols are defined.</param>
         /// <param name="environmentId">Selected project environment id, or empty when no environment is selected.</param>
+        /// <param name="cancellation">Cancels the compile; cancelling kills the running <c>dotnet build</c> process tree.</param>
         /// <param name="runtimeModulesRootPath">Directory holding one <c>&lt;ModuleId&gt;</c> output folder per runtime module.</param>
         /// <returns>Structured result describing the build outcome.</returns>
-        public EditorBuildExecutionResult Build(string platformId, string environmentId, out string runtimeModulesRootPath) {
+        public EditorBuildExecutionResult Build(string platformId, string environmentId, EditorProcessCancellation cancellation, out string runtimeModulesRootPath) {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             } else if (environmentId == null) {
                 throw new ArgumentNullException(nameof(environmentId));
+            } else if (cancellation == null) {
+                throw new ArgumentNullException(nameof(cancellation));
             }
 
             EditorBuildIsolationPathResolver isolationPathResolver = new EditorBuildIsolationPathResolver(ProjectRootPath);
@@ -123,7 +126,8 @@ namespace helengine.editor {
                 workspaceLease,
                 gameplaySymbols,
                 projectFilePaths,
-                solutionService.DescribeBuildInputs().GeneratedFilePaths);
+                solutionService.DescribeBuildInputs().GeneratedFilePaths,
+                cancellation);
         }
 
         /// <summary>

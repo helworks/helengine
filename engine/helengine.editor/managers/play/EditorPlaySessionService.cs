@@ -100,6 +100,11 @@ namespace helengine.editor {
         const string PlayFailedPrefix = "Play failed: ";
 
         /// <summary>
+        /// Editor warning logged when the editor closes before a stopped preparation's cook finished.
+        /// </summary>
+        public const string ShutdownAbandonedMessage = "[play] the stopped preparation was still cooking when the editor closed; it was abandoned.";
+
+        /// <summary>
         /// Runs the assets-only cook for the requested platform.
         /// </summary>
         readonly IEditorPlayCookRunner CookRunner;
@@ -334,23 +339,43 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Stops Play. A preparation that is still running is cancelled: it stops at its next stage boundary and the
-        /// player is never launched. A running player is terminated. The session returns to
+        /// Stops Play. A preparation that is still running is cancelled: its <c>dotnet build</c> process tree, when one
+        /// runs, is killed, the preparation stops at its next stage boundary, and the player is never launched. A running player is terminated. The session returns to
         /// <see cref="EditorPlaySessionState.Stopped"/> at once, even when terminating the player fails; that failure is
         /// still rethrown.
         /// </summary>
         public void Stop() {
             EditorPlayPreparation preparation = CurrentPreparation;
-            if (preparation != null && !preparation.IsCancellationRequested) {
-                preparation.RequestCancellation();
-                Logger.WriteLine(PreparationStoppedMessage);
-            }
-
             try {
+                if (preparation != null && !preparation.IsCancellationRequested) {
+                    Logger.WriteLine(PreparationStoppedMessage);
+                    preparation.RequestCancellation();
+                }
+
                 KillCurrentProcess();
             } finally {
                 SetState(EditorPlaySessionState.Stopped);
             }
+        }
+
+        /// <summary>
+        /// Shuts Play down when the editor closes: stops it exactly like <see cref="Stop"/> (cancelling a preparation and
+        /// killing its <c>dotnet build</c> process tree), then waits a bounded time for the preparation thread to finish,
+        /// so the services it is still using are not disposed under it and no child process outlives the editor. The
+        /// cook itself cannot be interrupted; when it does not finish within the wait the thread is abandoned (it is a
+        /// background thread and dies with the process) and a warning is logged. Waiting raises no exception.
+        /// </summary>
+        /// <param name="maximumWait">Longest time to wait for a running preparation thread.</param>
+        /// <returns>True when no preparation thread is left running.</returns>
+        public bool Shutdown(TimeSpan maximumWait) {
+            EditorPlayPreparation preparation = CurrentPreparation;
+            Stop();
+            if (preparation == null || preparation.WaitForWorker(maximumWait)) {
+                return true;
+            }
+
+            Logger.WriteWarning(ShutdownAbandonedMessage);
+            return false;
         }
 
         /// <summary>
@@ -375,7 +400,7 @@ namespace helengine.editor {
                     return;
                 }
 
-                EditorBuildExecutionResult buildResult = ScriptBuilder.Build(preparation.PlatformId, out string runtimeModulesRootPath, out bool scriptCompileSkipped);
+                EditorBuildExecutionResult buildResult = ScriptBuilder.Build(preparation.PlatformId, preparation.BuildCancellation, out string runtimeModulesRootPath, out bool scriptCompileSkipped);
                 preparation.ScriptsBuiltAt = Clock.Now;
                 preparation.ScriptBuildResult = buildResult;
                 preparation.RuntimeModulesRootPath = runtimeModulesRootPath ?? string.Empty;
@@ -384,6 +409,7 @@ namespace helengine.editor {
                 preparation.Failure = exception;
             } finally {
                 MainThreadQueue.Enqueue(() => CompletePreparation(preparation));
+                preparation.MarkWorkerFinished();
             }
         }
 

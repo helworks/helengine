@@ -450,6 +450,12 @@ namespace helengine.editor {
         const string PlayerExecutableFileName = "helengine.player.exe";
 
         /// <summary>
+        /// Longest time closing the editor waits for a stopped Play preparation to finish its cook, so the services the
+        /// preparation still uses are not disposed under it. A longer cook is abandoned with a warning.
+        /// </summary>
+        static readonly TimeSpan PlayShutdownMaximumWait = TimeSpan.FromSeconds(15);
+
+        /// <summary>
         /// Queue drained once per frame that delivers background work, such as player console output and exit, on the
         /// editor frame thread.
         /// </summary>
@@ -952,7 +958,7 @@ namespace helengine.editor {
                 Path.Combine(AppContext.BaseDirectory, PlayerDirectoryName, PlayerExecutableFileName),
                 MainThreadActions,
                 new EditorPlayPreparationThreadScheduler());
-            constructionLedger.Register(() => PlaySession.Stop(), EditorSessionCleanupPhase.Dispose);
+            constructionLedger.Register(() => PlaySession.Shutdown(PlayShutdownMaximumWait), EditorSessionCleanupPhase.Dispose);
             RegisterDetacher(constructionLedger, () => PlaySession.StateChanged -= HandlePlaySessionStateChanged);
             PlaySession.StateChanged += HandlePlaySessionStateChanged;
             PlayPlatformSelection = CreatePlayPlatformSelection();
