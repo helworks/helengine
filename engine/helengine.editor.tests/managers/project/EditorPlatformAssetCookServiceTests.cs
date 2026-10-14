@@ -569,8 +569,54 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         File.WriteAllText(Path.Combine(ProjectRootPath, "assets", "new-asset.txt"), "new source content");
         Directory.Delete(Path.Combine(BuildRootPath, "cooked"), true);
         service.Cook(builder.Definition, ["MainMenu"], BuildRootPath, ["windows"], builder);
-        Assert.Equal(2, Directory.GetDirectories(sceneCacheRootPath).Length);
+        // The edit misses; packaging may also give the new file an identity sidecar, in which case the entry is
+        // stored under the post-packaging inputs too.
+        int entriesAfterEdit = Directory.GetDirectories(sceneCacheRootPath).Length;
+        Assert.InRange(entriesAfterEdit, 2, 3);
         Assert.True(File.Exists(cookedScenePath));
+
+        Directory.Delete(Path.Combine(BuildRootPath, "cooked"), true);
+        service.Cook(builder.Definition, ["MainMenu"], BuildRootPath, ["windows"], builder);
+        Assert.Equal(entriesAfterEdit, Directory.GetDirectories(sceneCacheRootPath).Length);
+        Assert.True(File.Exists(cookedScenePath));
+    }
+
+    /// <summary>
+    /// Verifies that when packaging imports a texture and persists its import-settings sidecar into the authored
+    /// assets tree, the entry is also stored under the post-packaging inputs, so the next unchanged cook restores it
+    /// instead of packaging again.
+    /// </summary>
+    [Fact]
+    public void Cook_when_packaging_writes_a_texture_import_settings_sidecar_restores_the_package_on_the_next_cook() {
+        string textureSourcePath = Path.Combine(ProjectRootPath, "assets", "Textures", "Logo.png");
+        Directory.CreateDirectory(Path.GetDirectoryName(textureSourcePath)!);
+        File.WriteAllBytes(textureSourcePath, [1, 2, 3, 4]);
+        WriteSceneAsset(
+            "Scenes/MainMenu.helen",
+            [global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemTexture("Textures/Logo.png")]);
+        EditorPlatformAssetCookService service = new(
+            ProjectRootPath,
+            "1.0.0-engine",
+            "game",
+            "1.0.0",
+            [new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"])],
+            PackagedFontAssetFactory.Create(),
+            null,
+            null,
+            BuiltInShaderAssetLibrary);
+        TestPlatformMaterialAssetBuilder builder = new();
+        string sceneCacheRootPath = Path.Combine(ProjectRootPath, "cache", "build", "scene-package", "v1");
+
+        service.Cook(builder.Definition, ["MainMenu"], BuildRootPath, ["windows"], builder);
+        Assert.True(File.Exists(textureSourcePath + ".hasset"));
+        int entriesAfterFirstCook = Directory.GetDirectories(sceneCacheRootPath).Length;
+
+        Directory.Delete(Path.Combine(BuildRootPath, "cooked"), true);
+        service.Cook(builder.Definition, ["MainMenu"], BuildRootPath, ["windows"], builder);
+
+        Assert.Equal(2, entriesAfterFirstCook);
+        Assert.Equal(entriesAfterFirstCook, Directory.GetDirectories(sceneCacheRootPath).Length);
+        Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "MainMenu.hasset")));
     }
 
     /// <summary>

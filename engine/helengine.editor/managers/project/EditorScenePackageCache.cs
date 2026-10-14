@@ -64,8 +64,8 @@ namespace helengine.editor {
         /// <param name="defaultFontAsset">Default font used when scenes reference it.</param>
         /// <param name="scriptTypeResolver">Resolver used by scene component packaging.</param>
         /// <param name="shaderLibrary">Built-in shader sources used by material packaging.</param>
-        /// <returns>Content-addressed cache key.</returns>
-        public string ComputeKey(
+        /// <returns>Content-addressed cache key with the content hash of every file it covers.</returns>
+        public EditorScenePackageKey ComputeKey(
             PlatformDefinition platformDefinition,
             IPlatformAssetBuilder materialBuilder,
             string buildProfileId,
@@ -124,12 +124,13 @@ namespace helengine.editor {
             AppendDirectory(hash, "scripts", skipTemporaryGeneratedScenes: false, stampMemo, fileHasher, inputHashes);
             AppendDirectory(hash, "code", skipTemporaryGeneratedScenes: false, stampMemo, fileHasher, inputHashes);
             AppendFile(hash, "project.heproj", stampMemo, fileHasher, inputHashes);
-            AppendExternalDirectory(hash, Path.Combine(AppContext.BaseDirectory, "shaders", "builtin"), "packaged-built-in-shaders");
+            AppendExternalDirectory(hash, Path.Combine(AppContext.BaseDirectory, "shaders", "builtin"), "packaged-built-in-shaders", inputHashes);
             try {
                 string engineRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
                 AppendExternalDirectory(hash,
                     Path.Combine(engineRootPath, "engine", "helengine.editor", "shaders", "builtin"),
-                    "source-built-in-shaders");
+                    "source-built-in-shaders",
+                    inputHashes);
             } catch (InvalidOperationException) {
                 // Installed editors do not have a source checkout to fingerprint.
             }
@@ -146,15 +147,17 @@ namespace helengine.editor {
                 // Scenes under the assets tree were hashed by the directory pass above; only temporary generated
                 // scenes, which that pass skips, are hashed here.
                 string sceneInputPath = "assets/" + Path.GetRelativePath(assetsRootPath, fullScenePath).Replace('\\', '/');
-                AppendText(hash, inputHashes.TryGetValue(sceneInputPath, out string sceneHash)
-                    ? sceneHash
-                    : fileHasher.ComputeHash(fullScenePath));
+                if (!inputHashes.TryGetValue(sceneInputPath, out string sceneHash)) {
+                    sceneHash = fileHasher.ComputeHash(fullScenePath);
+                    inputHashes[sceneInputPath] = sceneHash;
+                }
+                AppendText(hash, sceneHash);
             }
 
             stampMemo.Save();
             LastHashedInputCount = stampMemo.HashedFileCount;
             LastReusedInputCount = stampMemo.ReusedFileCount;
-            return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+            return new EditorScenePackageKey(Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant(), inputHashes);
         }
 
         /// <summary>
@@ -357,7 +360,8 @@ namespace helengine.editor {
         /// <param name="hash">Aggregate input hash.</param>
         /// <param name="rootPath">Absolute shader source directory.</param>
         /// <param name="rootId">Stable identity for this source directory.</param>
-        static void AppendExternalDirectory(IncrementalHash hash, string rootPath, string rootId) {
+        /// <param name="inputHashes">Receives each file's content hash by its appended identity.</param>
+        static void AppendExternalDirectory(IncrementalHash hash, string rootPath, string rootId, Dictionary<string, string> inputHashes) {
             if (!Directory.Exists(rootPath)) {
                 return;
             }
@@ -365,8 +369,11 @@ namespace helengine.editor {
             string[] files = Directory.GetFiles(rootPath, "*", SearchOption.AllDirectories);
             Array.Sort(files, StringComparer.Ordinal);
             foreach (string filePath in files) {
-                AppendText(hash, rootId + "/" + Path.GetRelativePath(rootPath, filePath).Replace('\\', '/'));
-                AppendText(hash, ComputeFileHash(filePath));
+                string inputPath = rootId + "/" + Path.GetRelativePath(rootPath, filePath).Replace('\\', '/');
+                string contentHash = ComputeFileHash(filePath);
+                AppendText(hash, inputPath);
+                AppendText(hash, contentHash);
+                inputHashes[inputPath] = contentHash;
             }
         }
 

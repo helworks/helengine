@@ -150,6 +150,59 @@ public sealed class EditorScenePackageCacheKeyTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a post-packaging key is accepted only when packaging created or rewrote import-settings or identity sidecars of
+    /// unchanged sources, and rejected for any other difference.
+    /// </summary>
+    [Fact]
+    public void DiffersOnlyByPackagerSidecars_AcceptsOnlySidecarsOfUnchangedSources() {
+        EditorScenePackageKey before = CreateKey("a", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "3");
+        EditorScenePackageKey withoutSidecar = CreateKey("a", "assets/t/logo.png", "1", "assets/m/mat.hasset", "3");
+
+        // The sidecar of an unchanged source was rewritten or created.
+        Assert.True(before.DiffersOnlyByPackagerSidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "9", "assets/m/mat.hasset", "3")));
+        Assert.True(withoutSidecar.DiffersOnlyByPackagerSidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "3")));
+        Assert.True(withoutSidecar.DiffersOnlyByPackagerSidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hmeta", "5", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "3")));
+
+        // The source itself changed, a non-sidecar asset changed, a file was removed, or another input appeared.
+        Assert.False(before.DiffersOnlyByPackagerSidecars(
+            CreateKey("b", "assets/t/logo.png", "5", "assets/t/logo.png.hasset", "9", "assets/m/mat.hasset", "3")));
+        Assert.False(before.DiffersOnlyByPackagerSidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "8")));
+        Assert.False(before.DiffersOnlyByPackagerSidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/m/mat.hasset", "3")));
+        Assert.False(before.DiffersOnlyByPackagerSidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "9", "assets/m/mat.hasset", "3", "settings/build_config.json", "7")));
+        Assert.False(before.DiffersOnlyByPackagerSidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "3", "assets/m/mat.hasset.hasset", "4")));
+        Assert.False(before.DiffersOnlyByPackagerSidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "3", "assets/t/logo.png.hasset.hmeta", "6")));
+
+        // The keys are equal, or differ while every covered file is identical.
+        Assert.False(before.DiffersOnlyByPackagerSidecars(
+            CreateKey("a", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "9", "assets/m/mat.hasset", "3")));
+        Assert.False(before.DiffersOnlyByPackagerSidecars(
+            CreateKey("b", "assets/t/logo.png", "1", "assets/t/logo.png.hasset", "2", "assets/m/mat.hasset", "3")));
+    }
+
+    /// <summary>
+    /// Builds a key over explicit file hashes.
+    /// </summary>
+    /// <param name="key">Key text.</param>
+    /// <param name="pathsAndHashes">Alternating project-relative paths and content hashes.</param>
+    /// <returns>Key covering exactly those files.</returns>
+    static EditorScenePackageKey CreateKey(string key, params string[] pathsAndHashes) {
+        Dictionary<string, string> inputHashes = new(StringComparer.Ordinal);
+        for (int index = 0; index < pathsAndHashes.Length; index += 2) {
+            inputHashes.Add(pathsAndHashes[index], pathsAndHashes[index + 1]);
+        }
+
+        return new EditorScenePackageKey(key, inputHashes);
+    }
+
+    /// <summary>
     /// Computes the key through the memo and compares it with a full re-hash of the same inputs.
     /// </summary>
     /// <param name="cache">Cache under test.</param>
@@ -192,7 +245,7 @@ public sealed class EditorScenePackageCacheKeyTests : IDisposable {
             Array.Empty<IAssetImporterRegistration>(),
             null,
             null,
-            null);
+            null).Key;
     }
 
     /// <summary>

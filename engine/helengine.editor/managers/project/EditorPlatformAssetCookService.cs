@@ -100,7 +100,7 @@ namespace helengine.editor {
             List<string> orderedScenePaths = ResolveOrderedScenePaths(orderedSceneIds, scenePathOverrides);
             EditorScenePackageCache scenePackageCache = new(ProjectRootPath);
             System.Diagnostics.Stopwatch scenePackageTimer = System.Diagnostics.Stopwatch.StartNew();
-            string scenePackageKey = scenePackageCache.ComputeKey(
+            EditorScenePackageKey scenePackageKey = scenePackageCache.ComputeKey(
                 platformDefinition,
                 effectiveMaterialBuilder,
                 selectedBuildProfileId,
@@ -113,8 +113,10 @@ namespace helengine.editor {
                 ScriptTypeResolver,
                 BuiltInShaderAssetLibrary);
             long fingerprintMilliseconds = scenePackageTimer.ElapsedMilliseconds;
+            int hashedInputCount = scenePackageCache.LastHashedInputCount;
+            int reusedInputCount = scenePackageCache.LastReusedInputCount;
             bool scenePackageCacheHit = scenePackageCache.TryRestore(
-                scenePackageKey,
+                scenePackageKey.Key,
                 effectiveExecutionRootPath,
                 out EditorPlatformBuildScenePackagerResult packagerResult);
             if (!scenePackageCacheHit) {
@@ -133,9 +135,35 @@ namespace helengine.editor {
                     orderedSceneIdentityPaths,
                     orderedScenePaths,
                     effectiveExecutionRootPath);
-                scenePackageCache.Store(scenePackageKey, effectiveExecutionRootPath, packagerResult);
+                scenePackageCache.Store(scenePackageKey.Key, effectiveExecutionRootPath, packagerResult);
+
+                // Packaging can import a texture whose platform import cache is missing, and the import persists the
+                // importer settings (whose derived asset id depends on the cooked platform) into the authored
+                // <source>.hasset sidecar; a fresh identity reconcile can also give a source its <source>.hmeta. The
+                // key above was taken before those writes, so the next Play would never hit it. Re-key after
+                // packaging and also store the entry under the post-packaging key when the only differences are such
+                // sidecars of unchanged sources; any other difference means the project changed during packaging, and
+                // the output is then kept only under the inputs it was packaged from.
+                EditorScenePackageKey packagedKey = scenePackageCache.ComputeKey(
+                    platformDefinition,
+                    effectiveMaterialBuilder,
+                    selectedBuildProfileId,
+                    selectedGraphicsProfileId,
+                    selectedEnvironmentId,
+                    orderedSceneIdentityPaths,
+                    orderedScenePaths,
+                    Importers,
+                    DefaultFontAsset,
+                    ScriptTypeResolver,
+                    BuiltInShaderAssetLibrary);
+                if (scenePackageKey.DiffersOnlyByPackagerSidecars(packagedKey)) {
+                    scenePackageCache.Store(packagedKey.Key, effectiveExecutionRootPath, packagerResult);
+                    Console.WriteLine("[cook] scene-package-cache stored-post-packaging-key (packaging wrote asset sidecars)");
+                } else if (!string.Equals(scenePackageKey.Key, packagedKey.Key, StringComparison.Ordinal)) {
+                    Console.WriteLine("[cook] scene-package-cache inputs changed during packaging; post-packaging key not stored");
+                }
             }
-            Console.WriteLine($"[cook] scene-package-cache {(scenePackageCacheHit ? "hit" : "miss")} fingerprint-ms={fingerprintMilliseconds} inputs-hashed={scenePackageCache.LastHashedInputCount} inputs-reused={scenePackageCache.LastReusedInputCount} total-ms={scenePackageTimer.ElapsedMilliseconds}");
+            Console.WriteLine($"[cook] scene-package-cache {(scenePackageCacheHit ? "hit" : "miss")} fingerprint-ms={fingerprintMilliseconds} inputs-hashed={hashedInputCount} inputs-reused={reusedInputCount} total-ms={scenePackageTimer.ElapsedMilliseconds}");
             PlatformCookWorkItem[] platformCookWorkItems = [.. packagerResult.PlatformCookWorkItems];
             System.Diagnostics.Stopwatch cookStageTimer = System.Diagnostics.Stopwatch.StartNew();
             PlatformCookedArtifactDeclaration[] cookedArtifactDeclarations = CookPlatformShaderArtifacts(
