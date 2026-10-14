@@ -1,32 +1,59 @@
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using Xunit;
 
 namespace helengine.editor.tests.managers.project;
 
 /// <summary>
 /// Verifies the child-process cancellation a Play preparation hands to its script build: cancelling kills the attached
-/// running process, and a process attached after cancellation is killed at once and refused.
+/// process and every process it started, raising no first-chance exception on any thread, and a process attached after
+/// cancellation is killed at once and refused. The class runs alone so its process-wide first-chance count only sees
+/// its own work.
 /// </summary>
+[Collection(EditorProcessCancellationTestCollection.Name)]
 public sealed class EditorProcessCancellationTests {
     /// <summary>
-    /// Longest time a test waits for a killed process to exit.
+    /// Longest time a test waits for a process to start or exit.
     /// </summary>
-    static readonly TimeSpan ExitTimeout = TimeSpan.FromSeconds(30);
+    static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Ensures cancelling kills the attached process tree.
+    /// Ensures cancelling kills a real process tree (a command shell and the ping it started after joining) and raises
+    /// no first-chance exception on any thread.
     /// </summary>
     [Fact]
-    public void Cancel_KillsTheAttachedProcess() {
+    public void Cancel_KillsTheWholeProcessTree_WithoutFirstChanceExceptions() {
         EditorProcessCancellation cancellation = new EditorProcessCancellation();
-        using Process process = StartLongRunningProcess();
+        using Process shell = Process.Start(new ProcessStartInfo("cmd.exe", "/q /k") {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true
+        });
+        Assert.True(cancellation.TryAttach(shell));
+        HashSet<int> pingsBefore = GetPingProcessIds();
+        shell.StandardInput.WriteLine("ping -n 60 127.0.0.1");
+        shell.StandardInput.Flush();
+        using Process child = WaitForNewPing(pingsBefore);
+        int firstChanceCount = 0;
+        EventHandler<FirstChanceExceptionEventArgs> handler = (sender, args) => Interlocked.Increment(ref firstChanceCount);
 
-        Assert.True(cancellation.TryAttach(process));
-        cancellation.Cancel();
+        AppDomain.CurrentDomain.FirstChanceException += handler;
+        bool shellExited;
+        bool childExited;
+        try {
+            cancellation.Cancel();
+            shellExited = shell.WaitForExit((int)Timeout.TotalMilliseconds);
+            childExited = child.WaitForExit((int)Timeout.TotalMilliseconds);
+            cancellation.Detach();
+        } finally {
+            AppDomain.CurrentDomain.FirstChanceException -= handler;
+        }
 
-        Assert.True(process.WaitForExit((int)ExitTimeout.TotalMilliseconds));
+        Assert.True(shellExited);
+        Assert.True(childExited);
         Assert.True(cancellation.IsCancellationRequested);
-        cancellation.Detach();
+        Assert.Equal(0, Volatile.Read(ref firstChanceCount));
     }
 
     /// <summary>
@@ -36,21 +63,26 @@ public sealed class EditorProcessCancellationTests {
     public void TryAttach_AfterCancel_KillsAndRefusesTheProcess() {
         EditorProcessCancellation cancellation = new EditorProcessCancellation();
         cancellation.Cancel();
-        using Process process = StartLongRunningProcess();
+        using Process process = Process.Start(new ProcessStartInfo("ping.exe", "-n 60 127.0.0.1") {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true
+        });
 
         Assert.False(cancellation.TryAttach(process));
-        Assert.True(process.WaitForExit((int)ExitTimeout.TotalMilliseconds));
+        Assert.True(process.WaitForExit((int)Timeout.TotalMilliseconds));
     }
 
     /// <summary>
-    /// Ensures cancelling after the attached process already exited does nothing and raises no exception.
+    /// Ensures a build that finishes normally and is detached leaves nothing to cancel: cancelling afterwards is quiet.
     /// </summary>
     [Fact]
-    public void Cancel_AfterTheProcessExited_IsQuiet() {
+    public void Cancel_AfterTheProcessExitedAndDetached_IsQuiet() {
         EditorProcessCancellation cancellation = new EditorProcessCancellation();
         using Process process = Process.Start(new ProcessStartInfo("cmd.exe", "/c exit 0") { UseShellExecute = false, CreateNoWindow = true });
-        Assert.True(cancellation.TryAttach(process));
-        Assert.True(process.WaitForExit((int)ExitTimeout.TotalMilliseconds));
+        cancellation.TryAttach(process);
+        Assert.True(process.WaitForExit((int)Timeout.TotalMilliseconds));
+        cancellation.Detach();
 
         cancellation.Cancel();
 
@@ -58,14 +90,45 @@ public sealed class EditorProcessCancellationTests {
     }
 
     /// <summary>
-    /// Starts a process that runs for about half a minute unless it is killed.
+    /// Reads the ids of the ping processes running now.
     /// </summary>
-    /// <returns>Started process.</returns>
-    static Process StartLongRunningProcess() {
-        return Process.Start(new ProcessStartInfo("ping.exe", "-n 30 127.0.0.1") {
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true
-        });
+    /// <returns>Ids of every running ping process.</returns>
+    static HashSet<int> GetPingProcessIds() {
+        HashSet<int> ids = new HashSet<int>();
+        Process[] pings = Process.GetProcessesByName("PING");
+        for (int index = 0; index < pings.Length; index++) {
+            ids.Add(pings[index].Id);
+            pings[index].Dispose();
+        }
+
+        return ids;
+    }
+
+    /// <summary>
+    /// Waits until a ping process that was not running before appears.
+    /// </summary>
+    /// <param name="pingsBefore">Ids of the ping processes running before the shell started its ping.</param>
+    /// <returns>The new ping process.</returns>
+    static Process WaitForNewPing(HashSet<int> pingsBefore) {
+        DateTime deadline = DateTime.UtcNow + Timeout;
+        while (DateTime.UtcNow < deadline) {
+            Process[] pings = Process.GetProcessesByName("PING");
+            Process found = null;
+            for (int index = 0; index < pings.Length; index++) {
+                if (found == null && !pingsBefore.Contains(pings[index].Id)) {
+                    found = pings[index];
+                } else {
+                    pings[index].Dispose();
+                }
+            }
+
+            if (found != null) {
+                return found;
+            }
+
+            Thread.Sleep(20);
+        }
+
+        throw new TimeoutException("The shell did not start its ping process.");
     }
 }
