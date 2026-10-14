@@ -26,6 +26,23 @@ namespace helengine.player.tests {
         public int2 LastPresentedDepthBufferSize { get; private set; }
 
         /// <summary>
+        /// Gets the projection matrix the most recent camera pass rendered with.
+        /// </summary>
+        public float4x4 LastCameraProjection { get; private set; }
+
+        /// <summary>
+        /// Builds the camera projection through the normal path and records it.
+        /// </summary>
+        /// <param name="camera">Camera being rendered.</param>
+        /// <param name="viewport">Pixel viewport the camera renders into.</param>
+        /// <returns>The projection the camera pass uses.</returns>
+        protected override float4x4 CreateCameraProjection(ICamera camera, float4 viewport) {
+            float4x4 projection = base.CreateCameraProjection(camera, viewport);
+            LastCameraProjection = projection;
+            return projection;
+        }
+
+        /// <summary>
         /// Captures the back buffer that is about to be presented, then presents it through the normal path.
         /// </summary>
         /// <param name="surface">Surface whose back buffer is being presented.</param>

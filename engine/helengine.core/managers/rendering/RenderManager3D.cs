@@ -4,6 +4,11 @@ namespace helengine {
     /// </summary>
     public abstract class RenderManager3D : IDisposable {
         /// <summary>
+        /// Pixel aspect of a window whose host never reports one: square pixels, so the framebuffer is shown unstretched.
+        /// </summary>
+        public const double SquarePixelAspect = 1d;
+
+        /// <summary>
         /// Stores each registered host window's client size independently of the primary window.
         /// </summary>
         readonly Dictionary<IntPtr, int2> WindowSizes = new Dictionary<IntPtr, int2>();
@@ -28,6 +33,12 @@ namespace helengine {
         /// <summary>Associates registered handles with their stable host view tags.</summary>
         readonly Dictionary<IntPtr, string> WindowTags = new Dictionary<IntPtr, string>();
 
+        /// <summary>Stores the display pixel aspect each host reported for its window; a window without an entry has square pixels.</summary>
+        readonly Dictionary<IntPtr, double> WindowPixelAspects = new Dictionary<IntPtr, double>();
+
+        /// <summary>Retains the pixel aspect of named layout views, including temporarily closed windows.</summary>
+        readonly Dictionary<string, double> NamedWindowPixelAspects = new Dictionary<string, double>();
+
         /// <summary>
         /// Core that owns this renderer. Renderers must use this explicit owner
         /// when traversing scene state so a later Core construction cannot
@@ -45,6 +56,12 @@ namespace helengine {
         /// Gets the primary layout reference size, retaining its last usable dimensions while that window is minimized.
         /// </summary>
         public int2 MainWindowSize { get; private set; }
+
+        /// <summary>
+        /// Gets the display pixel aspect of the primary window: the width one framebuffer pixel occupies on the display
+        /// divided by its height. It is <see cref="SquarePixelAspect"/> until the host reports another value.
+        /// </summary>
+        public double MainWindowPixelAspect { get; private set; } = SquarePixelAspect;
 
         /// <summary>
         /// Gets the first registered handle, whose size is the shared scene's layout reference.
@@ -146,6 +163,70 @@ namespace helengine {
             return NamedWindowDensityDpi[key];
         }
 
+        /// <summary>
+        /// Records the display pixel aspect of a registered window: the width one framebuffer pixel occupies on the display
+        /// divided by its height. A console video mode shown 4:3 (for example a 640x224 PS2 framebuffer) has non-square
+        /// pixels; camera projections and reference-canvas fits use this value so the picture keeps its proportions on the
+        /// display. Physical render dimensions and input pixels are unchanged.
+        /// </summary>
+        /// <param name="handle">Registered host window.</param>
+        /// <param name="pixelAspect">Finite, positive displayed width of one framebuffer pixel divided by its displayed height.</param>
+        /// <exception cref="ArgumentException">Thrown when the window is not registered.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when the pixel aspect is not finite and positive.</exception>
+        public void SetWindowPixelAspect(IntPtr handle, double pixelAspect) {
+            GetWindowSize(handle);
+            if (!double.IsFinite(pixelAspect) || pixelAspect <= 0d) {
+                throw new ArgumentOutOfRangeException(nameof(pixelAspect), "A window pixel aspect must be finite and positive.");
+            }
+            if (GetWindowPixelAspect(handle) == pixelAspect) {
+                return;
+            }
+            WindowPixelAspects[handle] = pixelAspect;
+            if (handle == MainWindowHandle) {
+                MainWindowPixelAspect = pixelAspect;
+            }
+            string tag = WindowTags[handle];
+            if (tag.Length > 0) {
+                NamedWindowPixelAspects[tag.ToLowerInvariant()] = pixelAspect;
+                WindowLayoutChanged?.Invoke(tag);
+            }
+        }
+
+        /// <summary>Returns a registered window's display pixel aspect; windows whose host reported none have square pixels.</summary>
+        /// <param name="handle">Registered host window.</param>
+        /// <returns>The displayed width of one framebuffer pixel divided by its displayed height.</returns>
+        /// <exception cref="ArgumentException">Thrown when the window is not registered.</exception>
+        public double GetWindowPixelAspect(IntPtr handle) {
+            GetWindowSize(handle);
+            return WindowPixelAspects.ContainsKey(handle) ? WindowPixelAspects[handle] : SquarePixelAspect;
+        }
+
+        /// <summary>
+        /// Resolves the display pixel aspect a camera renders with: square for a render target, the primary window's value
+        /// for a camera without an output tag, and the named view's value otherwise. It follows the same scope as
+        /// <see cref="GetCameraLayoutSize"/>.
+        /// </summary>
+        /// <param name="camera">Camera whose output pixels are described.</param>
+        /// <returns>The displayed width of one output pixel divided by its displayed height.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the camera names a view that was never registered.</exception>
+        public double GetCameraPixelAspect(ICamera camera) {
+            if (camera == null) {
+                throw new ArgumentNullException(nameof(camera));
+            } else if (camera.RenderTarget != null) {
+                return SquarePixelAspect;
+            } else if (camera.OutputWindowTag.Length == 0) {
+                return MainWindowPixelAspect;
+            }
+
+            string tag = camera.OutputWindowTag;
+            RenderWindowTagRules.Validate(tag, false);
+            string key = tag.ToLowerInvariant();
+            if (!NamedWindowLayoutSizes.ContainsKey(key)) {
+                throw new InvalidOperationException("The layout output window has not been registered: " + tag);
+            }
+            return NamedWindowPixelAspects.ContainsKey(key) ? NamedWindowPixelAspects[key] : SquarePixelAspect;
+        }
+
         /// <summary>Assigns a unique host tag to a registered window without changing its size or layout ownership.</summary>
         /// <param name="handle">Previously registered host window.</param>
         /// <param name="tag">Nonempty host view identifier, compared without case.</param>
@@ -166,6 +247,11 @@ namespace helengine {
                 NamedWindowDensityDpi[tag.ToLowerInvariant()] = WindowDensityDpi[handle];
             } else {
                 NamedWindowDensityDpi.Remove(tag.ToLowerInvariant());
+            }
+            if (WindowPixelAspects.ContainsKey(handle)) {
+                NamedWindowPixelAspects[tag.ToLowerInvariant()] = WindowPixelAspects[handle];
+            } else {
+                NamedWindowPixelAspects.Remove(tag.ToLowerInvariant());
             }
             WindowLayoutChanged?.Invoke(tag);
         }
@@ -234,6 +320,7 @@ namespace helengine {
             WindowSizes.Remove(handle);
             WindowLayoutSizes.Remove(handle);
             WindowDensityDpi.Remove(handle);
+            WindowPixelAspects.Remove(handle);
             WindowTags.Remove(handle);
             if (RenderWindowHandle == handle) {
                 RenderWindowHandle = MainWindowHandle;
@@ -387,10 +474,13 @@ namespace helengine {
             WindowDensityDpi.Clear();
             NamedWindowDensityDpi.Clear();
             NamedWindowLayoutSizes.Clear();
+            WindowPixelAspects.Clear();
+            NamedWindowPixelAspects.Clear();
             WindowTags.Clear();
             RenderWindowHandle = (IntPtr)0;
             HasMainWindow = false;
             MainWindowSize = new int2(0, 0);
+            MainWindowPixelAspect = SquarePixelAspect;
             MainWindowHandle = (IntPtr)0;
             InputWindowHandle = (IntPtr)0;
         }

@@ -898,7 +898,7 @@ namespace helengine.directx11 {
             float4 viewport = CameraViewportResolver.ResolveViewport(camera.Viewport, directX11Target.Width, directX11Target.Height);
             context.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
 
-            float4x4 projection = CameraProjectionUtils.CreateProjection(camera, viewport.Z / viewport.W);
+            float4x4 projection = CreateCameraProjection(camera, viewport);
 
             float4x4.Multiply(ref view, ref projection, out CurrentViewProjection);
 
@@ -1022,7 +1022,7 @@ namespace helengine.directx11 {
             float4 viewport = ResolveCameraViewport(camera, context.Surface);
             deviceContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
 
-            float4x4 projection = CameraProjectionUtils.CreateProjection(camera, viewport.Z / viewport.W);
+            float4x4 projection = CreateCameraProjection(camera, viewport);
 
             float4x4.Multiply(ref view, ref projection, out CurrentViewProjection);
 
@@ -1037,6 +1037,20 @@ namespace helengine.directx11 {
             UpdateShadowAtlasBindings(false);
             UpdatePointShadowBindings(0);
             PrepareForwardLightState(context);
+        }
+
+        /// <summary>
+        /// Creates the projection one camera renders with into a pixel viewport, using the display pixel aspect of the
+        /// window or render target it draws into, so a framebuffer shown with non-square pixels keeps the scene's
+        /// proportions. Windows that never report a pixel aspect project exactly as before.
+        /// </summary>
+        /// <param name="camera">Camera being rendered.</param>
+        /// <param name="viewport">Pixel viewport the camera renders into.</param>
+        /// <returns>The validated projection matrix.</returns>
+        protected virtual float4x4 CreateCameraProjection(ICamera camera, float4 viewport) {
+            return CameraProjectionUtils.CreateProjection(
+                camera,
+                CameraProjectionUtils.ResolveProjectionAspect(viewport.Z, viewport.W, GetCameraPixelAspect(camera)));
         }
 
         /// <summary>

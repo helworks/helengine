@@ -109,6 +109,35 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Resolves the projection aspect ratio of a viewport on a display whose pixels may not be square: the viewport's
+        /// displayed width divided by its displayed height, <c>viewportWidth * pixelAspect / viewportHeight</c>. With square
+        /// pixels it is exactly <c>viewportWidth / viewportHeight</c> in single precision, as every renderer computed it
+        /// before, so square-pixel platforms project bit for bit as they did.
+        /// </summary>
+        /// <param name="viewportWidth">Viewport width in framebuffer pixels.</param>
+        /// <param name="viewportHeight">Viewport height in framebuffer pixels.</param>
+        /// <param name="pixelAspect">Displayed width of one framebuffer pixel divided by its displayed height.</param>
+        /// <returns>The aspect ratio to build the projection with.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown for a non-finite or non-positive input, or an aspect outside single precision.</exception>
+        public static float ResolveProjectionAspect(float viewportWidth, float viewportHeight, double pixelAspect) {
+            if (!float.IsFinite(viewportWidth) || viewportWidth <= 0f) {
+                throw new ArgumentOutOfRangeException(nameof(viewportWidth), "The viewport width must be finite and positive.");
+            } else if (!float.IsFinite(viewportHeight) || viewportHeight <= 0f) {
+                throw new ArgumentOutOfRangeException(nameof(viewportHeight), "The viewport height must be finite and positive.");
+            } else if (!double.IsFinite(pixelAspect) || pixelAspect <= 0d) {
+                throw new ArgumentOutOfRangeException(nameof(pixelAspect), "The pixel aspect must be finite and positive.");
+            } else if (pixelAspect == RenderManager3D.SquarePixelAspect) {
+                return viewportWidth / viewportHeight;
+            }
+
+            double aspect = viewportWidth * pixelAspect / viewportHeight;
+            if (!double.IsFinite(aspect) || aspect > float.MaxValue) {
+                throw new ArgumentOutOfRangeException(nameof(pixelAspect), "The viewport and pixel aspect produce an aspect ratio outside single precision.");
+            }
+            return (float)aspect;
+        }
+
+        /// <summary>
         /// Gets the vertical world-space distance represented by one viewport pixel at a given camera distance.
         /// </summary>
         /// <param name="camera">Camera defining the active projection.</param>
