@@ -120,36 +120,43 @@ namespace helengine.editor {
         /// <param name="sceneIds">Scene identifiers in caller order; duplicates are preserved.</param>
         /// <returns>Current authored or generated references in the same order.</returns>
         public List<SceneAssetReference> CreateSceneReferences(IReadOnlyList<string> sceneIds) {
+            using EditorSharedAssetReferenceResolver sharedResolver = CreateSharedResolver();
+            return CreateSceneReferences(sceneIds, sharedResolver);
+        }
+
+        /// <summary>
+        /// Captures an ordered batch of scene references through a resolver shared with the caller's other batches, so
+        /// a caller that captures several lists in one operation initializes the asset identity index at most once.
+        /// </summary>
+        /// <param name="sceneIds">Scene identifiers in caller order; duplicates are preserved.</param>
+        /// <param name="sharedResolver">Caller-owned resolver holder; it creates its resolver only for authored scenes.</param>
+        /// <returns>Current authored or generated references in the same order.</returns>
+        public List<SceneAssetReference> CreateSceneReferences(IReadOnlyList<string> sceneIds, EditorSharedAssetReferenceResolver sharedResolver) {
             if (sceneIds == null) {
                 throw new ArgumentNullException(nameof(sceneIds));
             }
+            if (sharedResolver == null) {
+                throw new ArgumentNullException(nameof(sharedResolver));
+            }
 
             List<SceneAssetReference> references = new List<SceneAssetReference>(sceneIds.Count);
-            EditorAssetReferenceResolver resolver = null;
-            try {
-                for (int index = 0; index < sceneIds.Count; index++) {
-                    string sceneId = sceneIds[index];
-                    if (string.IsNullOrWhiteSpace(sceneId)) {
-                        throw new ArgumentException("Scene id must be provided.", nameof(sceneId));
-                    }
-
-                    if (GetSceneIds().Contains(sceneId, StringComparer.Ordinal)) {
-                        string relativePath = ResolveScenePath(sceneId);
-                        string fullPath = Path.Combine(AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
-                        if (resolver == null) {
-                            resolver = new EditorAssetReferenceResolver(ProjectRootPath);
-                        }
-                        references.Add(resolver.CreateFileReference(fullPath, AssetEntryKind.Scene));
-                    } else {
-                        references.Add(global::helengine.SceneAssetReferenceFactory.Rehydrate(
-                            SceneAssetReferenceSourceKind.Generated,
-                            sceneId,
-                            GeneratedSceneProviderId,
-                            sceneId));
-                    }
+            for (int index = 0; index < sceneIds.Count; index++) {
+                string sceneId = sceneIds[index];
+                if (string.IsNullOrWhiteSpace(sceneId)) {
+                    throw new ArgumentException("Scene id must be provided.", nameof(sceneId));
                 }
-            } finally {
-                resolver?.Dispose();
+
+                if (GetSceneIds().Contains(sceneId, StringComparer.Ordinal)) {
+                    string relativePath = ResolveScenePath(sceneId);
+                    string fullPath = Path.Combine(AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+                    references.Add(sharedResolver.GetResolver().CreateFileReference(fullPath, AssetEntryKind.Scene));
+                } else {
+                    references.Add(global::helengine.SceneAssetReferenceFactory.Rehydrate(
+                        SceneAssetReferenceSourceKind.Generated,
+                        sceneId,
+                        GeneratedSceneProviderId,
+                        sceneId));
+                }
             }
             return references;
         }
@@ -170,38 +177,55 @@ namespace helengine.editor {
         /// <param name="references">Scene references in caller order; duplicates are preserved.</param>
         /// <returns>Operational scene ids in the same order.</returns>
         public List<string> ResolveSceneIds(IReadOnlyList<SceneAssetReference> references) {
+            using EditorSharedAssetReferenceResolver sharedResolver = CreateSharedResolver();
+            return ResolveSceneIds(references, sharedResolver);
+        }
+
+        /// <summary>
+        /// Resolves an ordered batch of persisted scene references through a resolver shared with the caller's other
+        /// batches, so a caller that resolves several lists in one operation initializes the asset identity index at
+        /// most once.
+        /// </summary>
+        /// <param name="references">Scene references in caller order; duplicates are preserved.</param>
+        /// <param name="sharedResolver">Caller-owned resolver holder; it creates its resolver only for file-backed references.</param>
+        /// <returns>Operational scene ids in the same order.</returns>
+        public List<string> ResolveSceneIds(IReadOnlyList<SceneAssetReference> references, EditorSharedAssetReferenceResolver sharedResolver) {
             if (references == null) {
                 throw new ArgumentNullException(nameof(references));
             }
+            if (sharedResolver == null) {
+                throw new ArgumentNullException(nameof(sharedResolver));
+            }
 
             List<string> sceneIds = new List<string>(references.Count);
-            EditorAssetReferenceResolver resolver = null;
-            try {
-                for (int index = 0; index < references.Count; index++) {
-                    SceneAssetReference reference = references[index];
-                    if (reference == null) {
-                        throw new ArgumentException("Scene reference must be provided.", nameof(references));
-                    }
-
-                    if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
-                        if (!string.Equals(reference.ProviderId, GeneratedSceneProviderId, StringComparison.Ordinal)) {
-                            throw new InvalidOperationException($"Unsupported generated scene provider '{reference.ProviderId}'.");
-                        }
-                        sceneIds.Add(reference.AssetId);
-                        continue;
-                    }
-
-                    if (resolver == null) {
-                        resolver = new EditorAssetReferenceResolver(ProjectRootPath);
-                    }
-                    AssetReferenceResolution resolution = resolver.Resolve(reference, AssetEntryKind.Scene);
-                    sceneIds.Add(ResolveSceneId(resolution.FullPath));
+            for (int index = 0; index < references.Count; index++) {
+                SceneAssetReference reference = references[index];
+                if (reference == null) {
+                    throw new ArgumentException("Scene reference must be provided.", nameof(references));
                 }
-            } finally {
-                resolver?.Dispose();
+
+                if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
+                    if (!string.Equals(reference.ProviderId, GeneratedSceneProviderId, StringComparison.Ordinal)) {
+                        throw new InvalidOperationException($"Unsupported generated scene provider '{reference.ProviderId}'.");
+                    }
+                    sceneIds.Add(reference.AssetId);
+                    continue;
+                }
+
+                AssetReferenceResolution resolution = sharedResolver.GetResolver().Resolve(reference, AssetEntryKind.Scene);
+                sceneIds.Add(ResolveSceneId(resolution.FullPath));
             }
 
             return sceneIds;
+        }
+
+        /// <summary>
+        /// Creates a resolver holder that builds a fresh project resolver on first use, for callers that resolve one
+        /// batch on their own.
+        /// </summary>
+        /// <returns>Resolver holder the caller must dispose.</returns>
+        EditorSharedAssetReferenceResolver CreateSharedResolver() {
+            return new EditorSharedAssetReferenceResolver(() => new EditorAssetReferenceResolver(ProjectRootPath));
         }
 
         /// <summary>

@@ -477,6 +477,53 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures every scene list of one load (project packages, scene orders, local overrides and queue items) is
+    /// resolved through a single asset identity index, and that the resolved ids match the authored selection.
+    /// </summary>
+    [Fact]
+    public void Load_WhenManyListsReferenceAuthoredScenes_ResolvesAllOfThemThroughOneResolver() {
+        WriteSerializedScene("Scenes/City.helen");
+        WriteSerializedScene("Scenes/Menu.helen");
+        WriteSerializedScene("Levels/Arena.helen");
+        CreateService().Save(new EditorBuildConfigDocument {
+            Platforms = [
+                CreateOrderedPlatform("windows", ["City", "Menu"], false),
+                CreateOrderedPlatform("ps2", ["Arena", "City"], false),
+                CreateOrderedPlatform("psp", ["Menu", "Arena"], true),
+                CreateOrderedPlatform("ds", ["City", "Arena", "Menu"], true)
+            ],
+            QueueItems = [
+                new EditorBuildQueueItemDocument { QueueItemId = "queue-1", PlatformId = "windows", SelectedSceneIds = ["Menu", "City"] }
+            ]
+        });
+        int resolverCount = 0;
+        EditorBuildConfigService service = new EditorBuildConfigService(TempProjectRootPath, () => {
+            resolverCount++;
+            return new EditorAssetReferenceResolver(TempProjectRootPath);
+        });
+
+        EditorBuildConfigDocument loaded = service.Load(["windows", "ps2", "psp", "ds"], "City");
+        int loadResolverCount = resolverCount;
+        resolverCount = 0;
+        EditorBuildConfigDocument existing = service.TryLoadExisting();
+        int tryLoadResolverCount = resolverCount;
+        resolverCount = 0;
+        service.Save(existing);
+        int saveResolverCount = resolverCount;
+
+        Assert.Equal(1, loadResolverCount);
+        Assert.Equal(1, tryLoadResolverCount);
+        Assert.Equal(1, saveResolverCount);
+        foreach (EditorBuildConfigDocument document in new[] { loaded, existing }) {
+            AssertOrderedPlatform(document.Platforms[0], "windows", ["City", "Menu"]);
+            AssertOrderedPlatform(document.Platforms[1], "ps2", ["Arena", "City"]);
+            AssertOrderedPlatform(document.Platforms[2], "psp", ["Menu", "Arena"]);
+            AssertOrderedPlatform(document.Platforms[3], "ds", ["City", "Arena", "Menu"]);
+            Assert.Equal(["Menu", "City"], Assert.Single(document.QueueItems).SelectedSceneIds);
+        }
+    }
+
+    /// <summary>
     /// Creates the service under test for the current temporary project root.
     /// </summary>
     /// <returns>Build-config service configured for the current test project.</returns>
@@ -505,5 +552,55 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
         Assert.Equal(platformId, platform.PlatformId);
         Assert.Equal(sceneIds, platform.SelectedSceneIds);
         Assert.Equal(outputDirectoryPath, platform.OutputDirectoryPath);
+    }
+
+    /// <summary>
+    /// Asserts one platform selects the expected scenes and orders them in selection order.
+    /// </summary>
+    /// <param name="platform">Platform configuration to verify.</param>
+    /// <param name="platformId">Expected platform identifier.</param>
+    /// <param name="sceneIds">Expected scene identifiers, in their expected order.</param>
+    void AssertOrderedPlatform(EditorBuildPlatformConfigDocument platform, string platformId, IReadOnlyList<string> sceneIds) {
+        Assert.Equal(platformId, platform.PlatformId);
+        Assert.Equal(sceneIds, platform.SelectedSceneIds);
+        Assert.Equal(sceneIds.Count, platform.SceneOrders.Count);
+        for (int index = 0; index < sceneIds.Count; index++) {
+            Assert.Equal(sceneIds[index], platform.SceneOrders[index].SceneId);
+            Assert.Equal(index + 1, platform.SceneOrders[index].OrderNumber);
+        }
+    }
+
+    /// <summary>
+    /// Creates one platform entry that selects the supplied scenes and orders them in the supplied order.
+    /// </summary>
+    /// <param name="platformId">Platform identifier of the entry.</param>
+    /// <param name="sceneIds">Selected scene identifiers, in build order.</param>
+    /// <param name="overridesProjectScenes">True to keep the scenes as a local override instead of the project package.</param>
+    /// <returns>Platform entry ready to be saved.</returns>
+    static EditorBuildPlatformConfigDocument CreateOrderedPlatform(string platformId, List<string> sceneIds, bool overridesProjectScenes) {
+        List<EditorBuildSceneOrderDocument> orders = [];
+        for (int index = 0; index < sceneIds.Count; index++) {
+            orders.Add(new EditorBuildSceneOrderDocument { SceneId = sceneIds[index], OrderNumber = index + 1 });
+        }
+
+        return new EditorBuildPlatformConfigDocument {
+            PlatformId = platformId,
+            OverridesProjectScenes = overridesProjectScenes,
+            SelectedSceneIds = sceneIds,
+            SceneOrders = orders
+        };
+    }
+
+    /// <summary>
+    /// Writes one current native scene asset beneath the test project's assets directory, so references to it are
+    /// file-backed and need the asset identity index to resolve.
+    /// </summary>
+    /// <param name="relativePath">Destination beneath the test project's assets directory.</param>
+    void WriteSerializedScene(string relativePath) {
+        string scenePath = Path.Combine(TempProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
+        SceneAsset asset = new SceneAsset { Id = Path.GetFileNameWithoutExtension(relativePath), AuthoringAssetId = Guid.NewGuid().ToString("N") };
+        using FileStream stream = File.Create(scenePath);
+        global::helengine.files.EditorAssetBinarySerializer.Serialize(stream, asset);
     }
 }

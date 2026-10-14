@@ -27,6 +27,12 @@ namespace helengine.editor {
         string ProjectRootPath { get; }
 
         /// <summary>
+        /// Creates the asset reference resolver shared by every scene list of one load or save. A resolver builds a
+        /// fresh asset identity index over the whole `assets` tree, so each public operation creates at most one.
+        /// </summary>
+        Func<EditorAssetReferenceResolver> ResolverFactory { get; }
+
+        /// <summary>
         /// Gets the absolute path to the editor-local `user_settings/build_config.json`.
         /// </summary>
         string LocalBuildConfigFilePath {
@@ -54,6 +60,18 @@ namespace helengine.editor {
             }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
+            ResolverFactory = CreateProjectResolver;
+        }
+
+        /// <summary>
+        /// Initializes one build-config service whose scene references are resolved through resolvers created by the
+        /// supplied factory. Tests use it to observe how many asset identity indexes one operation builds.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative path to the current project root directory.</param>
+        /// <param name="resolverFactory">Creates the project resolver shared by one load or save.</param>
+        internal EditorBuildConfigService(string projectRootPath, Func<EditorAssetReferenceResolver> resolverFactory)
+            : this(projectRootPath) {
+            ResolverFactory = resolverFactory ?? throw new ArgumentNullException(nameof(resolverFactory));
         }
 
         /// <summary>
@@ -61,8 +79,9 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Composed build configuration, or null when neither the project nor the local file is present and readable.</returns>
         public EditorBuildConfigDocument TryLoadExisting() {
-            EditorProjectBuildConfigDocument projectDocument = TryLoadProjectDocument(out _);
-            EditorBuildConfigDocument localDocument = TryLoadLocalDocument(out bool localChanged);
+            using EditorSharedAssetReferenceResolver sharedResolver = CreateSharedResolver();
+            EditorProjectBuildConfigDocument projectDocument = TryLoadProjectDocument(sharedResolver, out _);
+            EditorBuildConfigDocument localDocument = TryLoadLocalDocument(sharedResolver, out bool localChanged);
             if (projectDocument == null && localDocument == null) {
                 return null;
             }
@@ -80,7 +99,8 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Project scene package, or null when `settings/build_config.json` is missing or unreadable.</returns>
         public EditorProjectBuildConfigDocument TryLoadProjectBuildConfig() {
-            return TryLoadProjectDocument(out _);
+            using EditorSharedAssetReferenceResolver sharedResolver = CreateSharedResolver();
+            return TryLoadProjectDocument(sharedResolver, out _);
         }
 
         /// <summary>
@@ -94,14 +114,15 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(supportedPlatforms));
             }
 
-            EditorProjectBuildConfigDocument projectDocument = TryLoadProjectDocument(out bool projectMalformed);
-            EditorBuildConfigDocument localDocument = TryLoadLocalDocument(out bool localChanged);
+            using EditorSharedAssetReferenceResolver sharedResolver = CreateSharedResolver();
+            EditorProjectBuildConfigDocument projectDocument = TryLoadProjectDocument(sharedResolver, out bool projectMalformed);
+            EditorBuildConfigDocument localDocument = TryLoadLocalDocument(sharedResolver, out bool localChanged);
             EditorBuildConfigDocument document = Compose(projectDocument, localDocument);
 
             bool changed = EnsurePlatformEntries(document, supportedPlatforms, currentSceneId) || localChanged;
             bool projectFileMissing = !projectMalformed && !File.Exists(ProjectBuildConfigFilePath);
             if (projectFileMissing || !File.Exists(LocalBuildConfigFilePath) || changed) {
-                Save(document);
+                Save(document, sharedResolver);
             }
 
             return document;
@@ -117,10 +138,25 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(document));
             }
 
+            using EditorSharedAssetReferenceResolver sharedResolver = CreateSharedResolver();
+            Save(document, sharedResolver);
+        }
+
+        /// <summary>
+        /// Persists the composed document, capturing and re-reading scene references through the resolver shared by
+        /// the calling operation.
+        /// </summary>
+        /// <param name="document">Composed build configuration to persist.</param>
+        /// <param name="sharedResolver">Resolver holder shared by the calling load or save.</param>
+        void Save(EditorBuildConfigDocument document, EditorSharedAssetReferenceResolver sharedResolver) {
+            if (document == null) {
+                throw new ArgumentNullException(nameof(document));
+            }
+
             EditorRuntimeLoadingSettingsResolver.Validate(document);
-            SynchronizeSceneReferences(document);
+            SynchronizeSceneReferences(document, sharedResolver);
             NormalizeDocument(document);
-            WriteProjectDocument(document);
+            WriteProjectDocument(document, sharedResolver);
             WriteLocalDocument(document);
         }
 
@@ -143,7 +179,8 @@ namespace helengine.editor {
             }
 
             platform.OverridesProjectScenes = false;
-            EditorProjectBuildConfigDocument projectDocument = TryLoadProjectDocument(out _);
+            using EditorSharedAssetReferenceResolver sharedResolver = CreateSharedResolver();
+            EditorProjectBuildConfigDocument projectDocument = TryLoadProjectDocument(sharedResolver, out _);
             ApplyProjectScenes(platform, FindProjectPlatformEntry(projectDocument, platformId));
         }
 
@@ -226,8 +263,9 @@ namespace helengine.editor {
         /// parsed is authored content and is left alone so its author can repair it.
         /// </summary>
         /// <param name="document">Composed build configuration being saved.</param>
-        void WriteProjectDocument(EditorBuildConfigDocument document) {
-            EditorProjectBuildConfigDocument projectDocument = TryLoadProjectDocument(out bool projectMalformed);
+        /// <param name="sharedResolver">Resolver holder shared by the calling load or save.</param>
+        void WriteProjectDocument(EditorBuildConfigDocument document, EditorSharedAssetReferenceResolver sharedResolver) {
+            EditorProjectBuildConfigDocument projectDocument = TryLoadProjectDocument(sharedResolver, out bool projectMalformed);
             if (projectMalformed) {
                 return;
             }
@@ -313,9 +351,10 @@ namespace helengine.editor {
         /// <summary>
         /// Attempts to load the project scene packages from disk, resolving scene identifiers from the references.
         /// </summary>
+        /// <param name="sharedResolver">Resolver holder shared by the calling load or save.</param>
         /// <param name="malformed">Set to true when the file exists but cannot be parsed.</param>
         /// <returns>Project scene packages, or null when the file is missing or malformed.</returns>
-        EditorProjectBuildConfigDocument TryLoadProjectDocument(out bool malformed) {
+        EditorProjectBuildConfigDocument TryLoadProjectDocument(EditorSharedAssetReferenceResolver sharedResolver, out bool malformed) {
             malformed = false;
             if (!File.Exists(ProjectBuildConfigFilePath)) {
                 return null;
@@ -339,8 +378,8 @@ namespace helengine.editor {
 
                     platform.SelectedSceneReferences ??= [];
                     platform.SceneOrders ??= [];
-                    platform.SelectedSceneIds = ResolveSceneIds(platform.SelectedSceneReferences);
-                    ResolveSceneOrderIds(platform.SceneOrders);
+                    platform.SelectedSceneIds = ResolveSceneIds(platform.SelectedSceneReferences, sharedResolver);
+                    ResolveSceneOrderIds(platform.SceneOrders, sharedResolver);
                 }
 
                 return document;
@@ -353,9 +392,10 @@ namespace helengine.editor {
         /// <summary>
         /// Attempts to load the local build document from disk, normalizing current-format fields.
         /// </summary>
+        /// <param name="sharedResolver">Resolver holder shared by the calling load.</param>
         /// <param name="changed">Set to true when normalization altered the document and it should be written back.</param>
         /// <returns>Local build document, or null when the file is missing or malformed.</returns>
-        EditorBuildConfigDocument TryLoadLocalDocument(out bool changed) {
+        EditorBuildConfigDocument TryLoadLocalDocument(EditorSharedAssetReferenceResolver sharedResolver, out bool changed) {
             changed = false;
             if (!File.Exists(LocalBuildConfigFilePath)) {
                 return null;
@@ -381,8 +421,8 @@ namespace helengine.editor {
                     platform.SelectedSceneIds ??= [];
                     platform.SelectedSceneReferences ??= [];
                     platform.SceneOrders ??= [];
-                    platform.SelectedSceneIds = ResolveSceneIds(platform.SelectedSceneReferences);
-                    ResolveSceneOrderIds(platform.SceneOrders);
+                    platform.SelectedSceneIds = ResolveSceneIds(platform.SelectedSceneReferences, sharedResolver);
+                    ResolveSceneOrderIds(platform.SceneOrders, sharedResolver);
                     platform.SelectedBuildProfileId ??= string.Empty;
                     platform.EditorPrebuildCommandIdsByBuildProfileId ??= [];
                     platform.SelectedGraphicsProfileId ??= string.Empty;
@@ -411,7 +451,7 @@ namespace helengine.editor {
 
                     queueItem.SelectedSceneIds ??= [];
                     queueItem.SelectedSceneReferences ??= [];
-                    queueItem.SelectedSceneIds = ResolveSceneIds(queueItem.SelectedSceneReferences);
+                    queueItem.SelectedSceneIds = ResolveSceneIds(queueItem.SelectedSceneReferences, sharedResolver);
                     queueItem.SelectedBuildProfileId ??= string.Empty;
                     queueItem.SelectedGraphicsProfileId ??= string.Empty;
                     queueItem.SelectedBuildOptionValues ??= [];
@@ -437,9 +477,11 @@ namespace helengine.editor {
 
         /// <summary>
         /// Synchronizes persisted scene references from the editor's operational scene-id lists. Every id in the
-        /// document is captured in one batch so the asset identity index is initialized once per save.
+        /// document is captured in one batch through the resolver shared by the calling operation.
         /// </summary>
-        void SynchronizeSceneReferences(EditorBuildConfigDocument document) {
+        /// <param name="document">Composed build configuration whose references are captured.</param>
+        /// <param name="sharedResolver">Resolver holder shared by the calling load or save.</param>
+        void SynchronizeSceneReferences(EditorBuildConfigDocument document, EditorSharedAssetReferenceResolver sharedResolver) {
             document.Platforms ??= [];
             document.QueueItems ??= [];
             List<string> sceneIds = [];
@@ -467,7 +509,7 @@ namespace helengine.editor {
                 sceneIds.AddRange(queueItem.SelectedSceneIds);
             }
 
-            List<SceneAssetReference> references = CreateSceneCatalogService().CreateSceneReferences(sceneIds);
+            List<SceneAssetReference> references = CreateSceneCatalogService().CreateSceneReferences(sceneIds, sharedResolver);
             int cursor = 0;
             for (int index = 0; index < document.Platforms.Count; index++) {
                 EditorBuildPlatformConfigDocument platform = document.Platforms[index];
@@ -494,14 +536,18 @@ namespace helengine.editor {
             }
         }
 
-        /// <summary>Resolves operational ids from one current persisted reference list in one batch.</summary>
-        List<string> ResolveSceneIds(IReadOnlyList<SceneAssetReference> references) {
-            return CreateSceneCatalogService().ResolveSceneIds(references ?? Array.Empty<SceneAssetReference>());
+        /// <summary>Resolves operational ids from one current persisted reference list through the shared resolver.</summary>
+        /// <param name="references">Persisted scene references, or null for an empty list.</param>
+        /// <param name="sharedResolver">Resolver holder shared by the calling load or save.</param>
+        /// <returns>Operational scene ids in reference order.</returns>
+        List<string> ResolveSceneIds(IReadOnlyList<SceneAssetReference> references, EditorSharedAssetReferenceResolver sharedResolver) {
+            return CreateSceneCatalogService().ResolveSceneIds(references ?? Array.Empty<SceneAssetReference>(), sharedResolver);
         }
 
-        /// <summary>Resolves the operational id of every order entry that carries a reference, in one batch.</summary>
+        /// <summary>Resolves the operational id of every order entry that carries a reference, through the shared resolver.</summary>
         /// <param name="orders">Scene order entries to update in place.</param>
-        void ResolveSceneOrderIds(List<EditorBuildSceneOrderDocument> orders) {
+        /// <param name="sharedResolver">Resolver holder shared by the calling load or save.</param>
+        void ResolveSceneOrderIds(List<EditorBuildSceneOrderDocument> orders, EditorSharedAssetReferenceResolver sharedResolver) {
             List<EditorBuildSceneOrderDocument> referencedOrders = [];
             List<SceneAssetReference> references = [];
             for (int index = 0; index < orders.Count; index++) {
@@ -512,14 +558,34 @@ namespace helengine.editor {
                 }
             }
 
-            List<string> sceneIds = ResolveSceneIds(references);
+            List<string> sceneIds = ResolveSceneIds(references, sharedResolver);
             for (int index = 0; index < referencedOrders.Count; index++) {
                 referencedOrders[index].SceneId = sceneIds[index];
             }
         }
 
+        /// <summary>
+        /// Creates the scene catalog used to translate between scene ids and authored scene paths.
+        /// </summary>
+        /// <returns>Scene catalog for the current project root.</returns>
         EditorProjectSceneCatalogService CreateSceneCatalogService() {
             return new EditorProjectSceneCatalogService(ProjectRootPath);
+        }
+
+        /// <summary>
+        /// Creates the resolver holder one public load or save shares across all of its scene lists.
+        /// </summary>
+        /// <returns>Resolver holder the calling operation must dispose.</returns>
+        EditorSharedAssetReferenceResolver CreateSharedResolver() {
+            return new EditorSharedAssetReferenceResolver(ResolverFactory);
+        }
+
+        /// <summary>
+        /// Creates a project resolver over the current project root; the default <see cref="ResolverFactory"/>.
+        /// </summary>
+        /// <returns>New project resolver with its own freshly reconciled asset identity index.</returns>
+        EditorAssetReferenceResolver CreateProjectResolver() {
+            return new EditorAssetReferenceResolver(ProjectRootPath);
         }
 
         /// <summary>
