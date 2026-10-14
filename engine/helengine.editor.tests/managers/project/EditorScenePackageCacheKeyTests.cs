@@ -210,6 +210,49 @@ public sealed class EditorScenePackageCacheKeyTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a model import-settings sidecar rewritten with a new platform-derived asset id, which every cook-time
+    /// model import produces on a platform switch, is rejected without any exception being thrown and caught.
+    /// </summary>
+    [Fact]
+    public void SidecarComparer_WhenAModelSidecarIsRewritten_RejectsWithoutExceptions() {
+        byte[] before = SerializeModelSettings("asset-a");
+        byte[] after = SerializeModelSettings("asset-b");
+        int testThreadId = Environment.CurrentManagedThreadId;
+        int firstChanceCount = 0;
+        EventHandler<System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs> handler = (sender, args) => {
+            if (Environment.CurrentManagedThreadId == testThreadId) {
+                firstChanceCount++;
+            }
+        };
+
+        AppDomain.CurrentDomain.FirstChanceException += handler;
+        bool accepted;
+        try {
+            accepted = EditorScenePackageSidecarComparer.DiffersOnlyByCookDerivedFields(before, after);
+        } finally {
+            AppDomain.CurrentDomain.FirstChanceException -= handler;
+        }
+
+        Assert.False(accepted);
+        Assert.Equal(0, firstChanceCount);
+    }
+
+    /// <summary>
+    /// Serializes model import settings with one asset id.
+    /// </summary>
+    /// <param name="assetId">Platform-derived asset id.</param>
+    /// <returns>Sidecar bytes.</returns>
+    static byte[] SerializeModelSettings(string assetId) {
+        ModelAssetImportSettings settings = new ModelAssetImportSettings();
+        settings.Importer.AssetId = assetId;
+        settings.Importer.SourceChecksum = "checksum";
+        settings.Importer.ImporterId = "importer";
+        using MemoryStream stream = new MemoryStream();
+        ModelAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+        return stream.ToArray();
+    }
+
+    /// <summary>
     /// Serializes texture import settings with one windows processor entry.
     /// </summary>
     /// <param name="assetId">Cook-derived asset id.</param>

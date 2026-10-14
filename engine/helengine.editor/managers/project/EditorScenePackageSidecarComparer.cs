@@ -34,15 +34,21 @@ namespace helengine.editor {
         /// serializer's canonical order.
         /// </summary>
         /// <param name="sidecarBytes">Serialized sidecar.</param>
-        /// <returns>Canonical bytes without cook-derived fields, or null when the sidecar is not texture import settings.
-        /// Only reached for a sidecar packaging changed, so a model, audio or font sidecar parsing failure is rare and
-        /// simply keeps the entry under its pre-packaging key.</returns>
+        /// <returns>Canonical bytes without cook-derived fields, or null when the sidecar is not current texture import
+        /// settings. Model and font sidecars are rewritten with platform-derived ids by every cook-time import, so on a
+        /// platform switch they reach this method routinely; their header is recognised without throwing and they
+        /// keep the entry under its pre-packaging key (one extra miss).</returns>
         static byte[] SerializeWithoutCookDerivedFields(byte[] sidecarBytes) {
+            if (!IsCurrentTextureImportSettings(sidecarBytes)) {
+                return null;
+            }
+
             TextureAssetImportSettings settings;
             try {
                 using MemoryStream input = new MemoryStream(sidecarBytes, writable: false);
                 settings = TextureAssetImportSettingsBinarySerializer.Deserialize(input);
             } catch (Exception exception) when (exception is EndOfStreamException || exception is InvalidOperationException || exception is ArgumentException || exception is InvalidDataException) {
+                // Only a corrupt body behind a valid texture-settings header reaches this; it is not a normal path.
                 return null;
             }
 
@@ -51,6 +57,19 @@ namespace helengine.editor {
             using MemoryStream output = new MemoryStream();
             TextureAssetImportSettingsBinarySerializer.Serialize(output, settings);
             return output.ToArray();
+        }
+        /// <summary>
+        /// Probes the HELE header without throwing, so non-texture sidecars are recognised without an exception.
+        /// </summary>
+        /// <param name="sidecarBytes">Serialized sidecar.</param>
+        /// <returns>True when the header names the current texture import settings format, record, value kind and version.</returns>
+        static bool IsCurrentTextureImportSettings(byte[] sidecarBytes) {
+            using MemoryStream stream = new MemoryStream(sidecarBytes, writable: false);
+            return EngineBinaryHeaderSerializer.TryRead(stream, out EngineBinaryHeader header)
+                && header.FormatId == EditorAssetBinarySerializer.FormatId
+                && header.RecordKind == (ushort)TextureAssetImportSettingsBinarySerializer.RecordKind
+                && header.ValueKind == (ushort)AssetImportSettingsBinaryValueKind.TextureAssetImportSettings
+                && header.Version == TextureAssetImportSettingsBinarySerializer.CurrentVersion;
         }
     }
 }
