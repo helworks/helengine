@@ -138,6 +138,7 @@ namespace helengine.player {
             PlayerFramePacer pacer = new PlayerFramePacer(targetFrameRate, clock);
             double previousElapsedSeconds = 0d;
             bool isFirstFrame = true;
+            bool firstFrameReported = false;
             Application.DoEvents();
             pacer.Start();
             while (!window.IsClosed) {
@@ -150,9 +151,25 @@ namespace helengine.player {
 
                 core.Update(frameDeltaSeconds);
                 core.Draw();
+                if (!firstFrameReported) {
+                    firstFrameReported = true;
+                    WriteFirstFrameMarker();
+                }
                 Application.DoEvents();
                 pacer.WaitForNextFrame();
             }
+        }
+
+        /// <summary>
+        /// Writes the machine-readable first-frame marker to stdout with the milliseconds elapsed since this process
+        /// started, so the editor can finish its Play startup timing summary. Called once, right after the first frame
+        /// is presented; the editor consumes the line instead of echoing it.
+        /// </summary>
+        static void WriteFirstFrameMarker() {
+            using Process currentProcess = Process.GetCurrentProcess();
+            TimeSpan sinceProcessStart = DateTime.Now - currentProcess.StartTime;
+            long milliseconds = (long)Math.Round(sinceProcessStart.TotalMilliseconds);
+            Console.WriteLine(EditorPlayFirstFrameMarker.Format(milliseconds));
         }
     }
 }

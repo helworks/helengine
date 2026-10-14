@@ -15,16 +15,29 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="service">Session service that receives the process's events.</param>
         /// <param name="process">Player process whose events are forwarded.</param>
-        /// <exception cref="ArgumentNullException">Thrown when the service or the process is null.</exception>
-        public EditorPlayProcessBinding(EditorPlaySessionService service, IEditorPlayProcess process) {
+        /// <param name="startupTiming">Measured Play stage durations that led to this process.</param>
+        /// <exception cref="ArgumentNullException">Thrown when the service, the process or the timing is null.</exception>
+        public EditorPlayProcessBinding(EditorPlaySessionService service, IEditorPlayProcess process, EditorPlayStartupTiming startupTiming) {
             Service = service ?? throw new ArgumentNullException(nameof(service));
             Process = process ?? throw new ArgumentNullException(nameof(process));
+            StartupTiming = startupTiming ?? throw new ArgumentNullException(nameof(startupTiming));
         }
 
         /// <summary>
         /// Gets the player process this binding forwards events from.
         /// </summary>
         public IEditorPlayProcess Process { get; }
+
+        /// <summary>
+        /// Gets the measured Play stage durations that led to this process; the startup summary is formatted from them.
+        /// </summary>
+        public EditorPlayStartupTiming StartupTiming { get; }
+
+        /// <summary>
+        /// Gets or sets whether the startup summary for this process was already logged, either at its first frame or at
+        /// its exit, so it is logged exactly once.
+        /// </summary>
+        public bool StartupSummaryLogged { get; set; }
 
         /// <summary>
         /// Subscribes to the process's output, error and exit events.

@@ -67,6 +67,12 @@ namespace helengine.editor {
         const string PlayerLogPrefix = "[player] ";
 
         /// <summary>
+        /// Success message <see cref="EditorPlayScriptBuilder"/> returns when the script fingerprint matched and the
+        /// compile was skipped; the startup summary tags the script stage "(skipped)" when the build reports it.
+        /// </summary>
+        internal const string ScriptBuildSkippedMessage = "Play scripts are up to date; script build skipped.";
+
+        /// <summary>
         /// Runs the assets-only cook for the requested platform.
         /// </summary>
         readonly IEditorPlayCookRunner CookRunner;
@@ -87,6 +93,11 @@ namespace helengine.editor {
         readonly string PlayerExecutablePath;
 
         /// <summary>
+        /// Monotonic clock timing the Play stages and the wait for the player's first frame.
+        /// </summary>
+        readonly IEditorPlayClock Clock;
+
+        /// <summary>
         /// Binding to the player process started by the latest successful Play, or null when none is attached.
         /// Events from any other binding are stale and ignored.
         /// </summary>
@@ -105,7 +116,27 @@ namespace helengine.editor {
             IEditorPlayCookRunner cookRunner,
             IEditorPlayScriptBuilder scriptBuilder,
             IEditorPlayProcessLauncher launcher,
-            string playerExecutablePath) {
+            string playerExecutablePath)
+            : this(cookRunner, scriptBuilder, launcher, playerExecutablePath, new EditorPlayStopwatchClock()) {
+        }
+
+        /// <summary>
+        /// Initializes the Play session service with an explicit clock, so tests can time the Play stages with fixed
+        /// readings.
+        /// </summary>
+        /// <param name="cookRunner">Runs the assets-only cook.</param>
+        /// <param name="scriptBuilder">Builds the runtime script modules.</param>
+        /// <param name="launcher">Starts the player process.</param>
+        /// <param name="playerExecutablePath">Absolute path of the desktop player executable.</param>
+        /// <param name="clock">Monotonic clock timing the Play stages for the startup summary.</param>
+        /// <exception cref="ArgumentNullException">Thrown when any collaborator or the clock is null.</exception>
+        /// <exception cref="ArgumentException">Thrown when the player executable path is blank.</exception>
+        internal EditorPlaySessionService(
+            IEditorPlayCookRunner cookRunner,
+            IEditorPlayScriptBuilder scriptBuilder,
+            IEditorPlayProcessLauncher launcher,
+            string playerExecutablePath,
+            IEditorPlayClock clock) {
             if (string.IsNullOrWhiteSpace(playerExecutablePath)) {
                 throw new ArgumentException("The Play session requires the player executable path.", nameof(playerExecutablePath));
             }
@@ -113,6 +144,7 @@ namespace helengine.editor {
             CookRunner = cookRunner ?? throw new ArgumentNullException(nameof(cookRunner));
             ScriptBuilder = scriptBuilder ?? throw new ArgumentNullException(nameof(scriptBuilder));
             Launcher = launcher ?? throw new ArgumentNullException(nameof(launcher));
+            Clock = clock ?? throw new ArgumentNullException(nameof(clock));
             PlayerExecutablePath = playerExecutablePath;
             State = EditorPlaySessionState.Stopped;
         }
@@ -237,12 +269,15 @@ namespace helengine.editor {
             double targetFrameRate,
             PlayerInputDevices inputDevices,
             bool waitForDebugger) {
+            TimeSpan playStartedAt = Clock.Now;
             if (!saveScene()) {
                 SetState(EditorPlaySessionState.Stopped);
                 return EditorBuildExecutionResult.Failure("Scene save failed; Play aborted.");
             }
 
+            TimeSpan savedAt = Clock.Now;
             EditorPlayCookResult cookResult = CookRunner.Cook(platformId);
+            TimeSpan cookedAt = Clock.Now;
             if (cookResult == null) {
                 throw new InvalidOperationException("The Play cook runner returned no result.");
             } else if (!cookResult.Succeeded) {
@@ -251,6 +286,7 @@ namespace helengine.editor {
             }
 
             EditorBuildExecutionResult buildResult = ScriptBuilder.Build(platformId, out string runtimeModulesRootPath);
+            TimeSpan scriptsBuiltAt = Clock.Now;
             if (buildResult == null) {
                 throw new InvalidOperationException("The Play script builder returned no result.");
             } else if (!buildResult.Succeeded) {
@@ -260,11 +296,19 @@ namespace helengine.editor {
 
             List<string> arguments = BuildPlayerArguments(cookResult, platformDisplayName, adapterAssemblyPath, adapterTypeName, runtimeModulesRootPath, targetFrameRate, inputDevices, waitForDebugger);
             IEditorPlayProcess process = Launcher.Start(new EditorPlayLaunchRequest(PlayerExecutablePath, arguments));
+            TimeSpan launchedAt = Clock.Now;
             if (process == null) {
                 throw new InvalidOperationException("The Play process launcher returned no process.");
             }
 
-            EditorPlayProcessBinding binding = new EditorPlayProcessBinding(this, process);
+            EditorPlayStartupTiming startupTiming = new EditorPlayStartupTiming(
+                playStartedAt,
+                savedAt - playStartedAt,
+                cookedAt - savedAt,
+                scriptsBuiltAt - cookedAt,
+                string.Equals(buildResult.Message, ScriptBuildSkippedMessage, StringComparison.Ordinal),
+                launchedAt - scriptsBuiltAt);
+            EditorPlayProcessBinding binding = new EditorPlayProcessBinding(this, process, startupTiming);
             CurrentBinding = binding;
             binding.Attach();
             if (CurrentBinding == binding) {
@@ -348,7 +392,8 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Forwards one player standard-output line to the editor log when it comes from the current player.
+        /// Forwards one player standard-output line to the editor log when it comes from the current player. The
+        /// first-frame marker is not echoed; it finishes the startup timing and logs the startup summary instead.
         /// </summary>
         /// <param name="binding">Binding of the process that wrote the line.</param>
         /// <param name="line">Line the player wrote.</param>
@@ -357,7 +402,32 @@ namespace helengine.editor {
                 return;
             }
 
-            Logger.WriteLine(PlayerLogPrefix + line);
+            if (EditorPlayFirstFrameMarker.IsMarker(line)) {
+                LogFirstFrameSummary(binding, line);
+            } else {
+                Logger.WriteLine(PlayerLogPrefix + line);
+            }
+        }
+
+        /// <summary>
+        /// Logs the startup summary for a player that reported its first frame: the measured editor stages, the time the
+        /// player reported from its process start to the first frame, and the total since Play started.
+        /// </summary>
+        /// <param name="binding">Binding of the process that wrote the marker.</param>
+        /// <param name="markerLine">First-frame marker line the player wrote.</param>
+        /// <exception cref="InvalidOperationException">Thrown when the player reports a first frame more than once.</exception>
+        void LogFirstFrameSummary(EditorPlayProcessBinding binding, string markerLine) {
+            if (binding.StartupSummaryLogged) {
+                throw new InvalidOperationException("The player reported its first frame more than once.");
+            }
+
+            TimeSpan receivedAt = Clock.Now;
+            long firstFrameMilliseconds = EditorPlayFirstFrameMarker.ParseMilliseconds(markerLine);
+            EditorPlayStartupTiming timing = binding.StartupTiming;
+            binding.StartupSummaryLogged = true;
+            Logger.WriteLine(timing.FormatFirstFrameSummary(
+                TimeSpan.FromMilliseconds(firstFrameMilliseconds),
+                receivedAt - timing.PlayStartedAt));
         }
 
         /// <summary>
@@ -374,8 +444,9 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Handles the current player exiting on its own: logs a non-zero exit code read from that player and returns
-        /// the session to stopped. Exits from replaced or already-handled players are ignored.
+        /// Handles the current player exiting on its own: logs the startup summary with the exit code when the player
+        /// never presented a frame, logs a non-zero exit code read from that player and returns the session to stopped.
+        /// Exits from replaced or already-handled players are ignored.
         /// </summary>
         /// <param name="binding">Binding of the process that exited.</param>
         internal void HandlePlayerExited(EditorPlayProcessBinding binding) {
@@ -385,6 +456,10 @@ namespace helengine.editor {
 
             int exitCode = binding.Process.ExitCode;
             DetachCurrentBinding();
+            if (!binding.StartupSummaryLogged) {
+                binding.StartupSummaryLogged = true;
+                Logger.WriteLine(binding.StartupTiming.FormatNoFrameSummary(exitCode));
+            }
             if (exitCode != 0) {
                 Logger.WriteError($"{PlayerLogPrefix}exited with code {exitCode}");
             }
