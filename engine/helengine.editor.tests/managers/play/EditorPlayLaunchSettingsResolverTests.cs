@@ -91,6 +91,44 @@ public sealed class EditorPlayLaunchSettingsResolverTests {
             () => EditorPlayLaunchSettingsResolver.Resolve(snapshot, CreateCookResult(true, new Dictionary<string, string> { ["video-mode"] = "m9" })));
 
         Assert.Contains("m9", exception.Message);
+        Assert.Contains("not one of project, m1, m2", exception.Message);
+    }
+
+    /// <summary>
+    /// With no stored platform value, the declared default <c>project</c> applies and resolves from the cook's graphics
+    /// options: a Play with no <c>play.json</c> follows the project.
+    /// </summary>
+    [Fact]
+    public void Resolve_DefaultProjectFollowsGraphicsOption() {
+        EditorPlaySettingsSnapshot snapshot = CreateSnapshot(new Dictionary<string, string>(), new Dictionary<string, string>(), false);
+
+        PlayerPlaySettings settings = EditorPlayLaunchSettingsResolver.Resolve(snapshot, CreateCookResult(true, new Dictionary<string, string> { ["video-mode"] = "m2" }));
+
+        Assert.Equal("m2", settings.PlatformValues["video-mode"]);
+    }
+
+    /// <summary>A project graphics option that is itself <c>project</c> fails with wording that says it is not a concrete value.</summary>
+    [Fact]
+    public void Resolve_WhenProjectOptionIsProjectSentinel_ThrowsNamingSentinel() {
+        EditorPlaySettingsSnapshot snapshot = CreateSnapshot(new Dictionary<string, string>(), new Dictionary<string, string> { ["video-mode"] = "project" }, false);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => EditorPlayLaunchSettingsResolver.Resolve(snapshot, CreateCookResult(true, new Dictionary<string, string> { ["video-mode"] = "project" })));
+
+        Assert.Contains("settings/platform.tst.json", exception.Message);
+        Assert.Contains("not a concrete value", exception.Message);
+    }
+
+    /// <summary>A failed cook is rejected up front, naming the cook's own failure instead of a missing project value.</summary>
+    [Fact]
+    public void Resolve_WhenCookFailed_ThrowsNamingCookFailure() {
+        EditorPlaySettingsSnapshot snapshot = CreateSnapshot(new Dictionary<string, string>(), new Dictionary<string, string> { ["video-mode"] = "m1" }, false);
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(
+            () => EditorPlayLaunchSettingsResolver.Resolve(snapshot, EditorPlayCookResult.Failure("Cook broke.")));
+
+        Assert.Equal("cookResult", exception.ParamName);
+        Assert.Contains("Cook broke.", exception.Message);
     }
 
     /// <summary>Creates a snapshot for a test platform whose Play setting may follow the project.</summary>

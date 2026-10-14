@@ -14,11 +14,14 @@ namespace helengine.editor {
         /// <param name="cookResult">Successful cook outcome.</param>
         /// <returns>Resolved player settings.</returns>
         /// <exception cref="InvalidOperationException">Thrown when a setting follows the project but the project has no acceptable value.</exception>
+        /// <exception cref="ArgumentException">Thrown when the cook did not succeed; its message is carried in the exception.</exception>
         public static PlayerPlaySettings Resolve(EditorPlaySettingsSnapshot snapshot, EditorPlayCookResult cookResult) {
             if (snapshot == null) {
                 throw new ArgumentNullException(nameof(snapshot));
             } else if (cookResult == null) {
                 throw new ArgumentNullException(nameof(cookResult));
+            } else if (!cookResult.Succeeded) {
+                throw new ArgumentException($"Play settings resolve only against a successful cook, but the cook failed: {cookResult.Message}", nameof(cookResult));
             }
 
             Dictionary<string, string> platformValues = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -52,14 +55,18 @@ namespace helengine.editor {
         /// <param name="declaration">Play setting declaration.</param>
         /// <param name="graphicsOptionValues">Project graphics option values captured at press time.</param>
         /// <returns>The concrete project value.</returns>
-        /// <exception cref="InvalidOperationException">Thrown when the project has no value or one the Play setting rejects.</exception>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown when the project has no value, sets the <c>project</c> sentinel itself, or selects a value the Play setting
+        /// rejects (the message carries the validator's reason, which lists the allowed values for a choice).
+        /// </exception>
         static string ResolveProjectValue(string platformId, PlatformSettingDefinition declaration, IReadOnlyDictionary<string, string> graphicsOptionValues) {
             string settingsFile = "settings/platform." + platformId + ".json";
             if (!graphicsOptionValues.TryGetValue(declaration.SettingId, out string projectValue) || string.IsNullOrWhiteSpace(projectValue)) {
                 throw new InvalidOperationException($"Play setting '{declaration.SettingId}' follows the project, but the selected graphics settings in {settingsFile} have no '{declaration.SettingId}' value.");
-            } else if (string.Equals(projectValue, PlayerCommonPlaySettings.ProjectValue, StringComparison.Ordinal)
-                || !EditorPlaySettingValueValidator.TryValidate(declaration, projectValue, out string reason)) {
-                throw new InvalidOperationException($"Play setting '{declaration.SettingId}' follows the project, but {settingsFile} selects '{projectValue}', which Play does not accept.");
+            } else if (string.Equals(projectValue, PlayerCommonPlaySettings.ProjectValue, StringComparison.Ordinal)) {
+                throw new InvalidOperationException($"Play setting '{declaration.SettingId}' follows the project, but {settingsFile} also sets '{declaration.SettingId}' to '{PlayerCommonPlaySettings.ProjectValue}', which is not a concrete value; select a concrete '{declaration.SettingId}' in the project's graphics settings.");
+            } else if (!EditorPlaySettingValueValidator.TryValidate(declaration, projectValue, out string reason)) {
+                throw new InvalidOperationException($"Play setting '{declaration.SettingId}' follows the project, but {settingsFile} selects '{projectValue}', which Play does not accept ({reason}).");
             }
 
             return projectValue;
