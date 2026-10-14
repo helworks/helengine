@@ -534,12 +534,16 @@ namespace helengine.editor {
                 row.DisclosureBackground.Size = new int2(disclosureButtonSize, disclosureButtonSize);
                 row.DisclosureBackground.BorderThickness = UiMetrics.ScalePixels(1);
                 row.DisclosureIcon.Size = new int2(GetDisclosureIconSizePixels(), GetDisclosureIconSizePixels());
+                // Sprites rotate around their top-left origin, so the expanded quarter turn (right edge pointing
+                // down) shifts the origin one icon width right to keep the arrow inside its button.
+                float disclosureIconInset = (disclosureButtonSize - GetDisclosureIconSizePixels()) * 0.5f;
+                float disclosureOriginShift = node.IsExpanded ? GetDisclosureIconSizePixels() : 0f;
                 row.DisclosureIconEntity.LocalPosition = new float3(
-                    (disclosureButtonSize - GetDisclosureIconSizePixels()) * 0.5f,
-                    (disclosureButtonSize - GetDisclosureIconSizePixels()) * 0.5f, 0.1f);
+                    disclosureIconInset + disclosureOriginShift,
+                    disclosureIconInset, 0.1f);
                 float4 disclosureOrientation;
                 float3 disclosureAxis = new float3(0f, 0f, 1f);
-                float disclosureAngle = node.IsExpanded ? -MathF.PI * 0.5f : 0f;
+                float disclosureAngle = node.IsExpanded ? MathF.PI * 0.5f : 0f;
                 float4.CreateFromAxisAngle(ref disclosureAxis, disclosureAngle, out disclosureOrientation);
                 row.DisclosureIconEntity.LocalOrientation = disclosureOrientation;
                 UpdateDisclosureAppearance(row);
