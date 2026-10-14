@@ -1,7 +1,7 @@
 namespace helengine.editor {
     /// <summary>
     /// Decides whether a texture import-settings sidecar rewritten during packaging changed only its cook-derived
-    /// fields. <see cref="AssetImporterSettings.AssetId"/> is derived from the source checksum, the importer, the platform
+    /// fields. <see cref="AssetImporterSettings.ProcessedAssetId"/> is derived from the source checksum, the importer, the platform
     /// being cooked and its processor settings, and <see cref="AssetImporterSettings.SourceChecksum"/> follows the
     /// source; neither is an authoring decision. Every other field (importer id, per-platform and per-environment
     /// processor settings such as resolution or color format) changes how the texture cooks, so a difference there
@@ -52,7 +52,7 @@ namespace helengine.editor {
                 return null;
             }
 
-            settings.Importer.AssetId = string.Empty;
+            settings.Importer.ProcessedAssetId = string.Empty;
             settings.Importer.SourceChecksum = string.Empty;
             using MemoryStream output = new MemoryStream();
             TextureAssetImportSettingsBinarySerializer.Serialize(output, settings);

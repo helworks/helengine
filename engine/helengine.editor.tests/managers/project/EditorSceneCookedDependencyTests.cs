@@ -794,7 +794,7 @@ namespace helengine.editor.tests.managers.project {
             }
             MaterialAssetImportSettings settings = new();
             settings.Importer.ImporterId = "helengine.material";
-            settings.Importer.AssetId = "materials/shared.hasset";
+            settings.Importer.ProcessedAssetId = "materials/shared.hasset";
             settings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings {
                 SchemaId = "standard-shader",
                 FieldValues = new Dictionary<string, string> {

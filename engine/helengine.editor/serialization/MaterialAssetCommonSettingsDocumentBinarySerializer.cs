@@ -52,7 +52,7 @@ namespace helengine.editor {
             }
             writer.WriteString(document.Importer.ImporterId ?? string.Empty);
             writer.WriteString(document.Importer.SourceChecksum ?? string.Empty);
-            writer.WriteString(document.Importer.AssetId ?? string.Empty);
+            writer.WriteString(document.Importer.ProcessedAssetId ?? string.Empty);
             writer.WriteString(document.Processor.SchemaId ?? string.Empty);
             writer.WriteInt32(document.Processor.FieldValues.Count);
             foreach (KeyValuePair<string, string> entry in document.Processor.FieldValues.OrderBy(entry => entry.Key, StringComparer.Ordinal)) {
@@ -101,7 +101,7 @@ namespace helengine.editor {
             }
             document.Importer.ImporterId = reader.ReadString();
             document.Importer.SourceChecksum = reader.ReadString();
-            document.Importer.AssetId = reader.ReadString();
+            document.Importer.ProcessedAssetId = reader.ReadString();
             document.Processor.SchemaId = reader.ReadString();
 
             int fieldValueCount = reader.ReadInt32();

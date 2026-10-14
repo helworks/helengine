@@ -145,7 +145,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            string outputPath = Owner.GetFontAssetPath(settings.Importer.AssetId);
+            string outputPath = Owner.GetFontAssetPath(settings.Importer.ProcessedAssetId);
             if (!File.Exists(outputPath)) {
                 asset = Owner.ImportFont(sourcePath);
                 return true;

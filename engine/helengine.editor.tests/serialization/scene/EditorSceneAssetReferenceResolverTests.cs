@@ -696,7 +696,7 @@ namespace helengine.editor.tests.serialization.scene {
 
             MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
             settings.Importer.ImporterId = "helengine.material";
-            settings.Importer.AssetId = "Materials/rendering/colored_cube_grid/Cube00.hasset";
+            settings.Importer.ProcessedAssetId = "Materials/rendering/colored_cube_grid/Cube00.hasset";
             settings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings {
                 SchemaId = "standard-shader",
                 FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
@@ -813,7 +813,7 @@ namespace helengine.editor.tests.serialization.scene {
 
             MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
             settings.Importer.ImporterId = "helengine.material";
-            settings.Importer.AssetId = "Materials/rendering/fixed_pipeline/Cube00.hasset";
+            settings.Importer.ProcessedAssetId = "Materials/rendering/fixed_pipeline/Cube00.hasset";
             settings.Processor.Platforms["ps2"] = new MaterialAssetProcessorSettings {
                 SchemaId = "ps2-simple-lit-textured",
                 FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {

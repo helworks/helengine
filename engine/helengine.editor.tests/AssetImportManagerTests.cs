@@ -208,8 +208,8 @@ namespace helengine.editor.tests {
                 TextureAssetImportSettings loadedSettings = TextureAssetImportSettingsBinarySerializer.Deserialize(settingsStream);
                 Assert.Equal("test-texture", loadedSettings.Importer.ImporterId);
                 Assert.False(string.IsNullOrWhiteSpace(loadedSettings.Importer.SourceChecksum));
-                Assert.False(string.IsNullOrWhiteSpace(loadedSettings.Importer.AssetId));
-                Assert.Equal(Path.Combine(CacheRootPath, loadedSettings.Importer.AssetId), importedAssets[0]);
+                Assert.False(string.IsNullOrWhiteSpace(loadedSettings.Importer.ProcessedAssetId));
+                Assert.Equal(Path.Combine(CacheRootPath, loadedSettings.Importer.ProcessedAssetId), importedAssets[0]);
             }
 
             using (FileStream assetStream = new FileStream(importedAssets[0], FileMode.Open, FileAccess.Read, FileShare.Read)) {
@@ -475,7 +475,7 @@ namespace helengine.editor.tests {
             manager.CurrentPlatformId = "gamecube";
 
             TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
-            settings.Importer.AssetId = "current-generated-texture-id";
+            settings.Importer.ProcessedAssetId = "current-generated-texture-id";
             settings.Processor.Platforms["gamecube"] = new TextureAssetProcessorSettings {
                 MaxResolution = 256,
                 ColorFormatId = "GxRgb5A3",
@@ -626,13 +626,13 @@ namespace helengine.editor.tests {
             };
             manager.SaveTextureImportSettings(sourcePath, settings);
             Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
-            string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+            string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.ProcessedAssetId;
 
             settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
             settings.Processor.Platforms["windows"].MaxResolution = 128;
             manager.SaveTextureImportSettings(sourcePath, settings);
             Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
-            string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+            string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.ProcessedAssetId;
 
             Assert.NotEqual(firstAssetId, secondAssetId);
         }
@@ -668,13 +668,13 @@ namespace helengine.editor.tests {
             };
             manager.SaveTextureImportSettings(sourcePath, settings);
             Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
-            string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+            string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.ProcessedAssetId;
 
             settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
             settings.Processor.Platforms["windows"].MaxResolution = 128;
             manager.SaveTextureImportSettings(sourcePath, settings);
             Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
-            string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+            string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.ProcessedAssetId;
 
             Assert.NotEqual(firstAssetId, secondAssetId);
         }
@@ -696,13 +696,13 @@ namespace helengine.editor.tests {
             };
             manager.SaveTextureImportSettings(sourcePath, settings);
             Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
-            string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+            string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.ProcessedAssetId;
 
             settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
             settings.Processor.Platforms["ds"].AlphaPrecision = TextureAssetAlphaPrecision.A8;
             manager.SaveTextureImportSettings(sourcePath, settings);
             Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
-            string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+            string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.ProcessedAssetId;
 
             Assert.NotEqual(firstAssetId, secondAssetId);
         }
@@ -723,13 +723,13 @@ namespace helengine.editor.tests {
             };
             manager.SaveTextureImportSettings(sourcePath, settings);
             Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
-            string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+            string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.ProcessedAssetId;
 
             settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
             settings.Processor.Platforms["ds"].ColorFormat = TextureAssetColorFormat.Rgba4444;
             manager.SaveTextureImportSettings(sourcePath, settings);
             Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
-            string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+            string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.ProcessedAssetId;
 
             Assert.NotEqual(firstAssetId, secondAssetId);
         }
@@ -751,13 +751,13 @@ namespace helengine.editor.tests {
             };
             manager.SaveTextureImportSettings(sourcePath, settings);
             Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
-            string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+            string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.ProcessedAssetId;
 
             settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
             settings.Processor.Platforms["gamecube"].ColorFormatId = "GxRgb5A3";
             manager.SaveTextureImportSettings(sourcePath, settings);
             Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
-            string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+            string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.ProcessedAssetId;
 
             Assert.NotEqual(firstAssetId, secondAssetId);
         }
@@ -780,13 +780,13 @@ namespace helengine.editor.tests {
             };
             manager.SaveTextureImportSettings(sourcePath, settings);
             Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
-            string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+            string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.ProcessedAssetId;
 
             settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
             settings.Processor.Platforms["ds"].IndexingMethodId = TextureAssetIndexingMethod.QuantizedIndexed.ToString();
             manager.SaveTextureImportSettings(sourcePath, settings);
             Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
-            string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+            string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.ProcessedAssetId;
 
             Assert.Equal(firstAssetId, secondAssetId);
         }
@@ -828,7 +828,7 @@ namespace helengine.editor.tests {
             Assert.NotNull(asset);
 
             AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
-            string outputPath = Path.Combine(CacheRootPath, settings.Importer.AssetId);
+            string outputPath = Path.Combine(CacheRootPath, settings.Importer.ProcessedAssetId);
             Assert.True(File.Exists(outputPath));
         }
 
@@ -859,7 +859,7 @@ namespace helengine.editor.tests {
             Assert.Equal(TextureAssetColorFormat.Rgba4444, asset.SourceTextureAsset.ColorFormat);
             Assert.Equal(new byte[] { 0xFF, 0xFF }, asset.SourceTextureAsset.Colors);
 
-            string outputPath = Path.Combine(CacheRootPath, manager.LoadOrCreateImportSettings(sourcePath).Importer.AssetId);
+            string outputPath = Path.Combine(CacheRootPath, manager.LoadOrCreateImportSettings(sourcePath).Importer.ProcessedAssetId);
             using Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(ProjectRootPath)
             });
@@ -939,7 +939,7 @@ namespace helengine.editor.tests {
             Assert.Equal(128, asset.AtlasWidth);
             Assert.Equal(64, asset.AtlasHeight);
 
-            string canonicalCachedFontPath = Path.Combine(CacheRootPath, manager.LoadOrCreateImportSettings(sourcePath).Importer.AssetId);
+            string canonicalCachedFontPath = Path.Combine(CacheRootPath, manager.LoadOrCreateImportSettings(sourcePath).Importer.ProcessedAssetId);
             Assert.False(File.Exists(canonicalCachedFontPath));
         }
 
@@ -999,13 +999,13 @@ namespace helengine.editor.tests {
             };
             manager.SaveImportSettings(sourcePath, settings);
             Assert.True(manager.TryLoadFontAsset(sourcePath, out _));
-            string firstAssetId = manager.LoadOrCreateImportSettings(sourcePath).Importer.AssetId;
+            string firstAssetId = manager.LoadOrCreateImportSettings(sourcePath).Importer.ProcessedAssetId;
 
             settings = manager.LoadOrCreateImportSettings(sourcePath);
             settings.Processor.Platforms["ds"].Texture.ColorFormat = TextureAssetColorFormat.Rgba4444;
             manager.SaveImportSettings(sourcePath, settings);
             Assert.True(manager.TryLoadFontAsset(sourcePath, out _));
-            string secondAssetId = manager.LoadOrCreateImportSettings(sourcePath).Importer.AssetId;
+            string secondAssetId = manager.LoadOrCreateImportSettings(sourcePath).Importer.ProcessedAssetId;
 
             Assert.NotEqual(firstAssetId, secondAssetId);
         }

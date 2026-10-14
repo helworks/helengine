@@ -416,11 +416,11 @@ namespace helengine.editor {
             }
 
             NormalizeCommonDocument(commonDocument, null);
-            if (commonDocument.Importer == null || string.IsNullOrWhiteSpace(commonDocument.Importer.AssetId)) {
+            if (commonDocument.Importer == null || string.IsNullOrWhiteSpace(commonDocument.Importer.ProcessedAssetId)) {
                 return false;
             }
 
-            assetId = commonDocument.Importer.AssetId;
+            assetId = commonDocument.Importer.ProcessedAssetId;
             return true;
         }
 
@@ -504,7 +504,7 @@ namespace helengine.editor {
 
             NormalizeCommonDocument(commonDocument, null);
             ShaderMaterialAsset shaderMaterialAsset = new ShaderMaterialAsset();
-            shaderMaterialAsset.Id = commonDocument.Importer.AssetId ?? string.Empty;
+            shaderMaterialAsset.Id = commonDocument.Importer.ProcessedAssetId ?? string.Empty;
             PopulateShaderMaterialAsset(shaderMaterialAsset, platformSettings);
             return shaderMaterialAsset;
         }
@@ -555,7 +555,7 @@ namespace helengine.editor {
             MaterialAssetCommonSettingsDocument commonDocument = MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(commonStream);
             NormalizeCommonDocument(commonDocument, null);
             ShaderMaterialAsset shaderMaterialAsset = new ShaderMaterialAsset {
-                Id = commonDocument.Importer.AssetId ?? string.Empty
+                Id = commonDocument.Importer.ProcessedAssetId ?? string.Empty
             };
             PopulateShaderMaterialAsset(shaderMaterialAsset, platformSettings);
             return shaderMaterialAsset;
@@ -745,7 +745,7 @@ namespace helengine.editor {
             MaterialAssetCommonSettingsDocument document = new MaterialAssetCommonSettingsDocument();
             document.Importer.ImporterId = MaterialImporterId;
             document.Importer.SourceChecksum = string.Empty;
-            document.Importer.AssetId = materialAsset == null ? string.Empty : materialAsset.Id ?? string.Empty;
+            document.Importer.ProcessedAssetId = materialAsset == null ? string.Empty : materialAsset.Id ?? string.Empty;
             return document;
         }
 
@@ -771,8 +771,8 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(document.Importer.ImporterId)) {
                 document.Importer.ImporterId = MaterialImporterId;
             }
-            if (string.IsNullOrWhiteSpace(document.Importer.AssetId) && materialAsset != null) {
-                document.Importer.AssetId = materialAsset.Id ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(document.Importer.ProcessedAssetId) && materialAsset != null) {
+                document.Importer.ProcessedAssetId = materialAsset.Id ?? string.Empty;
             }
         }
 
@@ -900,7 +900,7 @@ namespace helengine.editor {
             } else {
                 document.Importer.ImporterId = MaterialImporterId;
                 document.Importer.SourceChecksum = string.Empty;
-                document.Importer.AssetId = string.Empty;
+                document.Importer.ProcessedAssetId = string.Empty;
             }
 
             IReadOnlyList<string> platformIds = ResolveSortedPlatformIds(settings);
@@ -1368,7 +1368,7 @@ namespace helengine.editor {
 
             destination.ImporterId = source.ImporterId ?? string.Empty;
             destination.SourceChecksum = source.SourceChecksum ?? string.Empty;
-            destination.AssetId = source.AssetId ?? string.Empty;
+            destination.ProcessedAssetId = source.ProcessedAssetId ?? string.Empty;
         }
 
         /// <summary>

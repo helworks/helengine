@@ -165,7 +165,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            string outputPath = Owner.GetTextAssetPath(settings.Importer.AssetId);
+            string outputPath = Owner.GetTextAssetPath(settings.Importer.ProcessedAssetId);
             if (!File.Exists(outputPath)) {
                 asset = Owner.ImportText(sourcePath);
                 return true;

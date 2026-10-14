@@ -158,7 +158,7 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
         string sourcePath = Path.Combine(projectRootPath, "assets", "textures", "sample.png");
         TextureAssetImportSettings settings = new TextureAssetImportSettings();
         settings.Importer.ImporterId = "fixture-texture";
-        settings.Importer.AssetId = "sample-texture";
+        settings.Importer.ProcessedAssetId = "sample-texture";
 
         capability.SaveTextureImportSettings(sourcePath, settings);
         byte[] firstBytes = File.ReadAllBytes(sourcePath + ".hasset");
@@ -169,7 +169,7 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
         using MemoryStream stream = new MemoryStream(secondBytes);
         TextureAssetImportSettings restored = TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
         Assert.Equal(TextureAssetImportSettingsBinarySerializer.CurrentVersion, stream.ToArray()[5]);
-        Assert.Equal("sample-texture", restored.Importer.AssetId);
+        Assert.Equal("sample-texture", restored.Importer.ProcessedAssetId);
     }
 
     /// <summary>

@@ -43,7 +43,7 @@ namespace helengine.editor {
                 (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetImportSettings);
             writer.WriteString(settings.Importer.ImporterId);
             writer.WriteString(settings.Importer.SourceChecksum);
-            writer.WriteString(settings.Importer.AssetId);
+            writer.WriteString(settings.Importer.ProcessedAssetId);
             writer.WriteInt32(settings.Processor.Platforms.Count);
             foreach (KeyValuePair<string, MaterialAssetProcessorSettings> entry in settings.Processor.Platforms.OrderBy(entry => entry.Key, StringComparer.Ordinal)) {
                 if (string.IsNullOrWhiteSpace(entry.Key)) {
@@ -96,7 +96,7 @@ namespace helengine.editor {
             MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
             settings.Importer.ImporterId = reader.ReadString();
             settings.Importer.SourceChecksum = reader.ReadString();
-            settings.Importer.AssetId = reader.ReadString();
+            settings.Importer.ProcessedAssetId = reader.ReadString();
 
             int platformCount = reader.ReadInt32();
             if (platformCount < 0) {

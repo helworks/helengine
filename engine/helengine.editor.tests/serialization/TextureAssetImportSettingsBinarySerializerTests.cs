@@ -13,7 +13,7 @@ namespace helengine.editor.tests.serialization {
             TextureAssetImportSettings settings = new TextureAssetImportSettings();
             settings.Importer.ImporterId = "pfim";
             settings.Importer.SourceChecksum = "sha256:test";
-            settings.Importer.AssetId = "asset/test";
+            settings.Importer.ProcessedAssetId = "asset/test";
             settings.Processor.Platforms["ds"] = new TextureAssetProcessorSettings {
                 MaxResolution = 256,
                 ColorFormat = TextureAssetColorFormat.Indexed8,
@@ -40,7 +40,7 @@ namespace helengine.editor.tests.serialization {
             TextureAssetImportSettings settings = new TextureAssetImportSettings();
             settings.Importer.ImporterId = "pfim";
             settings.Importer.SourceChecksum = "sha256:test";
-            settings.Importer.AssetId = "asset/test";
+            settings.Importer.ProcessedAssetId = "asset/test";
             settings.Processor.Platforms["ds"] = new TextureAssetProcessorSettings {
                 MaxResolution = 256,
                 ColorFormat = TextureAssetColorFormat.Indexed8,
@@ -66,7 +66,7 @@ namespace helengine.editor.tests.serialization {
             TextureAssetImportSettings settings = new TextureAssetImportSettings();
             settings.Importer.ImporterId = "pfim";
             settings.Importer.SourceChecksum = "sha256:test";
-            settings.Importer.AssetId = "asset/test";
+            settings.Importer.ProcessedAssetId = "asset/test";
             settings.Processor.Platforms["gamecube"] = new TextureAssetProcessorSettings {
                 MaxResolution = 256,
                 ColorFormatId = "GxRgb5A3",

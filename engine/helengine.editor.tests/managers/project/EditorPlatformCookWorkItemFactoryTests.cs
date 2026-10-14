@@ -85,7 +85,7 @@ namespace helengine.editor.tests.managers.project {
             string sourceAtlasPath = Path.Combine(ProjectRootPath, "assets", "Images", "logo.png");
             AssetImportSettings settings = new AssetImportSettings();
             settings.Importer.ImporterId = "gdi-font";
-            settings.Importer.AssetId = "fonts/demodiscbody";
+            settings.Importer.ProcessedAssetId = "fonts/demodiscbody";
             settings.Processor.Platforms["ds"] = new AssetPlatformProcessorSettings {
                 Texture = new TextureAssetProcessorSettings {
                     MaxResolution = 256,
@@ -204,7 +204,7 @@ namespace helengine.editor.tests.managers.project {
         TextureAssetImportSettings CreateTextureImportSettings(TextureAssetColorFormat colorFormat, string indexingMethodId) {
             TextureAssetImportSettings settings = new TextureAssetImportSettings();
             settings.Importer.ImporterId = "pfim";
-            settings.Importer.AssetId = "images/logo";
+            settings.Importer.ProcessedAssetId = "images/logo";
             settings.Processor.Platforms["ds"] = new TextureAssetProcessorSettings {
                 MaxResolution = 128,
                 ColorFormat = colorFormat,
@@ -221,7 +221,7 @@ namespace helengine.editor.tests.managers.project {
         AssetImportSettings CreateFontImportSettings() {
             AssetImportSettings settings = new AssetImportSettings();
             settings.Importer.ImporterId = "gdi-font";
-            settings.Importer.AssetId = "fonts/demodiscbody";
+            settings.Importer.ProcessedAssetId = "fonts/demodiscbody";
             settings.Processor.Platforms["ds"] = new AssetPlatformProcessorSettings {
                 Texture = new TextureAssetProcessorSettings {
                     MaxResolution = 256,

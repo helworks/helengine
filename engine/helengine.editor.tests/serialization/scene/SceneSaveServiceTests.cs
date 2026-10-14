@@ -450,7 +450,7 @@ namespace helengine.editor.tests.serialization.scene {
             ModelAssetImportSettings importSettings = new ModelAssetImportSettings();
             importSettings.Importer.ImporterId = "obj";
             importSettings.Importer.SourceChecksum = "checksum";
-            importSettings.Importer.AssetId = "imported-arrow-model";
+            importSettings.Importer.ProcessedAssetId = "imported-arrow-model";
             using (FileStream stream = File.Create(modelSourcePath + ".hasset")) {
                 ModelAssetImportSettingsBinarySerializer.Serialize(stream, importSettings);
             }
@@ -463,7 +463,7 @@ namespace helengine.editor.tests.serialization.scene {
 
             EditorEntity root = CreateUserEntity("Arrow", float3.Zero, float3.One, float4.Identity);
             TestRuntimeModel runtimeModel = new TestRuntimeModel();
-            runtimeModel.SetId(importSettings.Importer.AssetId);
+            runtimeModel.SetId(importSettings.Importer.ProcessedAssetId);
             MeshComponent meshComponent = new MeshComponent {
                 Model = runtimeModel,
                 Materials = new RuntimeMaterial[] { GeneratedAssetGraph.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId) },
@@ -513,7 +513,7 @@ namespace helengine.editor.tests.serialization.scene {
             Directory.CreateDirectory(Path.GetDirectoryName(materialPath));
             MaterialAssetImportSettings materialSettings = new MaterialAssetImportSettings();
             materialSettings.Importer.ImporterId = "helengine.material";
-            materialSettings.Importer.AssetId = materialAssetId;
+            materialSettings.Importer.ProcessedAssetId = materialAssetId;
             materialSettings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings {
                 SchemaId = "standard-shader"
             };

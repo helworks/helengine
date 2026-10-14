@@ -244,7 +244,7 @@ public sealed class EditorScenePackageCacheKeyTests : IDisposable {
     /// <returns>Sidecar bytes.</returns>
     static byte[] SerializeModelSettings(string assetId) {
         ModelAssetImportSettings settings = new ModelAssetImportSettings();
-        settings.Importer.AssetId = assetId;
+        settings.Importer.ProcessedAssetId = assetId;
         settings.Importer.SourceChecksum = "checksum";
         settings.Importer.ImporterId = "importer";
         using MemoryStream stream = new MemoryStream();
@@ -262,7 +262,7 @@ public sealed class EditorScenePackageCacheKeyTests : IDisposable {
     /// <returns>Sidecar bytes.</returns>
     static byte[] SerializeTextureSettings(string assetId, string sourceChecksum, string importerId, int maxResolution) {
         TextureAssetImportSettings settings = new TextureAssetImportSettings();
-        settings.Importer.AssetId = assetId;
+        settings.Importer.ProcessedAssetId = assetId;
         settings.Importer.SourceChecksum = sourceChecksum;
         settings.Importer.ImporterId = importerId;
         settings.Processor.Platforms["windows"] = new TextureAssetProcessorSettings { MaxResolution = maxResolution };

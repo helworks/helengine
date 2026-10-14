@@ -246,7 +246,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            string outputPath = Owner.GetAudioAssetPath(settings.Importer.AssetId);
+            string outputPath = Owner.GetAudioAssetPath(settings.Importer.ProcessedAssetId);
             if (!File.Exists(outputPath)) {
                 asset = Owner.ImportAudio(sourcePath);
                 return true;

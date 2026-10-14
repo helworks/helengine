@@ -506,10 +506,10 @@ namespace helengine.editor {
             if (textureProcessorSettings.UsesGenericColorFormat()) {
                 asset = TextureAssetProcessor.Apply(asset, textureProcessorSettings);
             }
-            asset.Id = settings.Importer.AssetId;
-            asset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(settings.Importer.AssetId);
+            asset.Id = settings.Importer.ProcessedAssetId;
+            asset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(settings.Importer.ProcessedAssetId);
 
-            string outputPath = GetTextureAssetPath(settings.Importer.AssetId);
+            string outputPath = GetTextureAssetPath(settings.Importer.ProcessedAssetId);
             WriteSerializedFile(outputPath, stream => AssetSerializer.Serialize(stream, asset));
 
             SaveTextureImportSettings(sourcePath, settings);
@@ -576,10 +576,10 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Text importer '{settings.Importer.ImporterId}' did not return an asset.");
             }
 
-            asset.Id = settings.Importer.AssetId;
-            asset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(settings.Importer.AssetId);
+            asset.Id = settings.Importer.ProcessedAssetId;
+            asset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(settings.Importer.ProcessedAssetId);
 
-            string outputPath = GetTextAssetPath(settings.Importer.AssetId);
+            string outputPath = GetTextAssetPath(settings.Importer.ProcessedAssetId);
             WriteSerializedFile(outputPath, stream => AssetSerializer.Serialize(stream, asset));
 
             SaveImportSettings(sourcePath, settings);
@@ -601,9 +601,9 @@ namespace helengine.editor {
             AssetImportSettings settings = LoadOrCreateImportSettings(sourcePath);
             EnsureImportSettingsValid(settings);
             string platformId = ResolveTextureProcessorPlatformId(settings);
-            FontAsset asset = BuildImportedFontAsset(sourcePath, settings, platformId, settings.Importer.AssetId);
+            FontAsset asset = BuildImportedFontAsset(sourcePath, settings, platformId, settings.Importer.ProcessedAssetId);
 
-            string outputPath = GetFontAssetPath(settings.Importer.AssetId);
+            string outputPath = GetFontAssetPath(settings.Importer.ProcessedAssetId);
             WriteSerializedFile(outputPath, stream => FontAssetBinarySerializer.Serialize(stream, asset));
 
             SaveImportSettings(sourcePath, settings);
@@ -637,9 +637,9 @@ namespace helengine.editor {
             }
 
             AudioAssetProcessorSettings processorSettings = GetCurrentPlatformAudioProcessorSettings(settings);
-            AudioAsset asset = BuildImportedAudioAsset(importedAudio, processorSettings, settings.Importer.AssetId);
+            AudioAsset asset = BuildImportedAudioAsset(importedAudio, processorSettings, settings.Importer.ProcessedAssetId);
 
-            string outputPath = GetAudioAssetPath(settings.Importer.AssetId);
+            string outputPath = GetAudioAssetPath(settings.Importer.ProcessedAssetId);
             WriteSerializedFile(outputPath, stream => AssetSerializer.Serialize(stream, asset));
 
             SaveAudioImportSettings(sourcePath, settings);
@@ -739,11 +739,11 @@ namespace helengine.editor {
             ModelAsset asset = importedModel.ModelAsset;
             ModelAssetProcessorSettings processorSettings = GetCurrentPlatformModelProcessorSettings(settings);
             ModelAssetProcessor.Apply(asset, processorSettings);
-            asset.Id = settings.Importer.AssetId;
-            asset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(settings.Importer.AssetId);
+            asset.Id = settings.Importer.ProcessedAssetId;
+            asset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(settings.Importer.ProcessedAssetId);
             WriteGeneratedModelMaterials(sourcePath, importedModel.GeneratedMaterials);
 
-            string outputPath = GetModelAssetPath(settings.Importer.AssetId);
+            string outputPath = GetModelAssetPath(settings.Importer.ProcessedAssetId);
             WriteSerializedFile(outputPath, stream => AssetSerializer.Serialize(stream, asset));
 
             SaveModelImportSettings(sourcePath, settings);
@@ -799,7 +799,7 @@ namespace helengine.editor {
             MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
             settings.Importer.ImporterId = "helengine.material";
             settings.Importer.SourceChecksum = string.Empty;
-            settings.Importer.AssetId = generatedMaterial.RelativeMaterialPath ?? string.Empty;
+            settings.Importer.ProcessedAssetId = generatedMaterial.RelativeMaterialPath ?? string.Empty;
 
             IReadOnlyList<string> supportedPlatforms = new EditorProjectPlatformsService(projectRootPath).Load().SupportedPlatforms;
             for (int platformIndex = 0; platformIndex < supportedPlatforms.Count; platformIndex++) {
@@ -965,7 +965,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                string outputPath = GetTextureAssetPath(settings.Importer.AssetId);
+                string outputPath = GetTextureAssetPath(settings.Importer.ProcessedAssetId);
                 if (HasCurrentCachedAsset(outputPath, EditorAssetBinaryValueKind.TextureAsset)) {
                     continue;
                 }
@@ -998,7 +998,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                string outputPath = GetModelAssetPath(settings.Importer.AssetId);
+                string outputPath = GetModelAssetPath(settings.Importer.ProcessedAssetId);
                 if (HasCurrentCachedAsset(outputPath, EditorAssetBinaryValueKind.ModelAsset)) {
                     continue;
                 }
@@ -1034,7 +1034,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                string outputPath = GetAudioAssetPath(settings.Importer.AssetId);
+                string outputPath = GetAudioAssetPath(settings.Importer.ProcessedAssetId);
                 if (File.Exists(outputPath) && AudioImportHandler.TryLoadCachedAsset(outputPath, out _)) {
                     continue;
                 }
@@ -1206,11 +1206,11 @@ namespace helengine.editor {
             assetId = string.Empty;
             string settingsPath = GetSettingsPath(sourcePath);
             TextureAssetImportSettings settings;
-            if (!TryLoadTextureImportSettings(settingsPath, out settings) || settings == null || settings.Importer == null || string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
+            if (!TryLoadTextureImportSettings(settingsPath, out settings) || settings == null || settings.Importer == null || string.IsNullOrWhiteSpace(settings.Importer.ProcessedAssetId)) {
                 return false;
             }
 
-            assetId = settings.Importer.AssetId;
+            assetId = settings.Importer.ProcessedAssetId;
             return true;
         }
 
@@ -1236,8 +1236,8 @@ namespace helengine.editor {
             }
 
             if (settings.Importer != null &&
-                !string.IsNullOrWhiteSpace(settings.Importer.AssetId) &&
-                string.Equals(settings.Importer.AssetId, assetId, StringComparison.OrdinalIgnoreCase)) {
+                !string.IsNullOrWhiteSpace(settings.Importer.ProcessedAssetId) &&
+                string.Equals(settings.Importer.ProcessedAssetId, assetId, StringComparison.OrdinalIgnoreCase)) {
                 return true;
             }
 
@@ -2055,7 +2055,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Import settings must specify an importer id.");
             }
 
-            if (string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
+            if (string.IsNullOrWhiteSpace(settings.Importer.ProcessedAssetId)) {
                 throw new InvalidOperationException("Import settings must specify an asset id.");
             }
         }
@@ -2175,14 +2175,14 @@ namespace helengine.editor {
             string computedAssetId = BuildTextureAssetId(sourcePath, settings, sourceChecksum);
             bool existingIdentityMatchesCurrentSemantics = false;
             if (existingSettings != null
-                && !string.IsNullOrWhiteSpace(existingSettings.Importer?.AssetId)
+                && !string.IsNullOrWhiteSpace(existingSettings.Importer?.ProcessedAssetId)
                 && string.Equals(existingSettings.Importer?.SourceChecksum, sourceChecksum, StringComparison.Ordinal)) {
                 string existingComputedAssetId = BuildTextureAssetId(
                     sourcePath,
                     existingSettings,
                     sourceChecksum);
                 existingIdentityMatchesCurrentSemantics = string.Equals(
-                    existingSettings.Importer.AssetId,
+                    existingSettings.Importer.ProcessedAssetId,
                     existingComputedAssetId,
                     StringComparison.Ordinal)
                     && string.Equals(
@@ -2197,9 +2197,9 @@ namespace helengine.editor {
             // changed or semantically reconfigured sources receive the id
             // computed from the staged bytes/settings.
             if (existingIdentityMatchesCurrentSemantics) {
-                settings.Importer.AssetId = existingSettings.Importer.AssetId;
-            } else if (existingSettings != null || string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
-                settings.Importer.AssetId = computedAssetId;
+                settings.Importer.ProcessedAssetId = existingSettings.Importer.ProcessedAssetId;
+            } else if (existingSettings != null || string.IsNullOrWhiteSpace(settings.Importer.ProcessedAssetId)) {
+                settings.Importer.ProcessedAssetId = computedAssetId;
             }
             return settings;
         }
@@ -2373,7 +2373,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Texture import settings must include processor platform settings.");
             } else if (string.IsNullOrWhiteSpace(settings.Importer.ImporterId)) {
                 throw new InvalidOperationException("Texture import settings must specify an importer id.");
-            } else if (string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
+            } else if (string.IsNullOrWhiteSpace(settings.Importer.ProcessedAssetId)) {
                 throw new InvalidOperationException("Texture import settings must specify an asset id.");
             }
         }
@@ -2391,7 +2391,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Model import settings must include processor platform settings.");
             } else if (string.IsNullOrWhiteSpace(settings.Importer.ImporterId)) {
                 throw new InvalidOperationException("Model import settings must specify an importer id.");
-            } else if (string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
+            } else if (string.IsNullOrWhiteSpace(settings.Importer.ProcessedAssetId)) {
                 throw new InvalidOperationException("Model import settings must specify an asset id.");
             }
         }
@@ -2409,7 +2409,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Audio import settings must include processor platform settings.");
             } else if (string.IsNullOrWhiteSpace(settings.Importer.ImporterId)) {
                 throw new InvalidOperationException("Audio import settings must specify an importer id.");
-            } else if (string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
+            } else if (string.IsNullOrWhiteSpace(settings.Importer.ProcessedAssetId)) {
                 throw new InvalidOperationException("Audio import settings must specify an asset id.");
             }
         }
@@ -2495,7 +2495,7 @@ namespace helengine.editor {
 
             string checksum = fileHasher.ComputeHash(sourcePath);
             settings.Importer.SourceChecksum = checksum;
-            settings.Importer.AssetId = BuildAssetId(sourcePath, settings, checksum);
+            settings.Importer.ProcessedAssetId = BuildAssetId(sourcePath, settings, checksum);
         }
 
         /// <summary>
@@ -2512,7 +2512,7 @@ namespace helengine.editor {
 
             string checksum = fileHasher.ComputeHash(sourcePath);
             settings.Importer.SourceChecksum = checksum;
-            settings.Importer.AssetId = BuildTextureAssetId(sourcePath, settings, checksum);
+            settings.Importer.ProcessedAssetId = BuildTextureAssetId(sourcePath, settings, checksum);
         }
 
         /// <summary>
@@ -2529,7 +2529,7 @@ namespace helengine.editor {
 
             string checksum = fileHasher.ComputeHash(sourcePath);
             settings.Importer.SourceChecksum = checksum;
-            settings.Importer.AssetId = BuildModelAssetId(settings, checksum);
+            settings.Importer.ProcessedAssetId = BuildModelAssetId(settings, checksum);
         }
 
         /// <summary>
@@ -2546,7 +2546,7 @@ namespace helengine.editor {
 
             string checksum = fileHasher.ComputeHash(sourcePath);
             settings.Importer.SourceChecksum = checksum;
-            settings.Importer.AssetId = BuildAudioAssetId(settings, checksum);
+            settings.Importer.ProcessedAssetId = BuildAudioAssetId(settings, checksum);
         }
 
         /// <summary>

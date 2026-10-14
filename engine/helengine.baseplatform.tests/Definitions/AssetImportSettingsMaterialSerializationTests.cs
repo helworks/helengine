@@ -39,7 +39,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
         AssetImportSettings settings = new AssetImportSettings();
         settings.Importer.ImporterId = "helengine.material";
         settings.Importer.SourceChecksum = "checksum";
-        settings.Importer.AssetId = "Materials/Test.helmat";
+        settings.Importer.ProcessedAssetId = "Materials/Test.helmat";
 
         AssetPlatformProcessorSettings platformSettings = new AssetPlatformProcessorSettings();
         platformSettings.Model.FlipWinding = true;
@@ -85,7 +85,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
         string materialAssetPath = Path.Combine(TempRootPath, "Test.helmat");
         MaterialAssetCommonSettingsDocument commonDocument = new MaterialAssetCommonSettingsDocument();
         commonDocument.Importer.ImporterId = "helengine.material";
-        commonDocument.Importer.AssetId = materialAsset.Id;
+        commonDocument.Importer.ProcessedAssetId = materialAsset.Id;
         using (FileStream stream = File.Create(materialAssetPath)) {
             MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, commonDocument);
         }
@@ -201,7 +201,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
         string materialAssetPath = Path.Combine(TempRootPath, "Test.hasset");
         MaterialAssetCommonSettingsDocument commonDocument = new MaterialAssetCommonSettingsDocument();
         commonDocument.Importer.ImporterId = "helengine.material";
-        commonDocument.Importer.AssetId = "Materials/Test.hasset";
+        commonDocument.Importer.ProcessedAssetId = "Materials/Test.hasset";
         commonDocument.Processor.SchemaId = "gamecube-standard-textured";
         commonDocument.Processor.FieldValues["use-custom-shader"] = "false";
         commonDocument.Processor.FieldValues["texture-id"] = "Textures/Common.png";
@@ -317,7 +317,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
         string materialAssetPath = Path.Combine(TempRootPath, "Test.hasset");
         MaterialAssetCommonSettingsDocument commonDocument = new MaterialAssetCommonSettingsDocument();
         commonDocument.Importer.ImporterId = "helengine.material";
-        commonDocument.Importer.AssetId = "Materials/Test.hasset";
+        commonDocument.Importer.ProcessedAssetId = "Materials/Test.hasset";
         commonDocument.Processor.SchemaId = "standard-shader";
         commonDocument.Processor.FieldValues["use-custom-shader"] = "false";
         commonDocument.Processor.FieldValues["texture-id"] = "Textures/Common.png";
@@ -357,7 +357,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
         string materialAssetPath = Path.Combine(TempRootPath, "Test.hasset");
         MaterialAssetImportSettings authoredSettings = new MaterialAssetImportSettings();
         authoredSettings.Importer.ImporterId = "helengine.material";
-        authoredSettings.Importer.AssetId = "Materials/Test.hasset";
+        authoredSettings.Importer.ProcessedAssetId = "Materials/Test.hasset";
         authoredSettings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings {
             SchemaId = "standard-shader",
             FieldValues = {

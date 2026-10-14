@@ -618,7 +618,7 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
             AuthoringAssetId = assetId,
             Importer = new AssetImporterSettings {
                 ImporterId = "helengine.material",
-                AssetId = "Materials/Native"
+                ProcessedAssetId = "Materials/Native"
             }
         });
         return assetPath;

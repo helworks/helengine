@@ -384,7 +384,7 @@ namespace helengine.editor {
                 if (!TryLoadModelImportSettings(settingsPath, out ModelAssetImportSettings settings) ||
                     settings == null ||
                     settings.Importer == null ||
-                    string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
+                    string.IsNullOrWhiteSpace(settings.Importer.ProcessedAssetId)) {
                     continue;
                 }
 
@@ -394,11 +394,11 @@ namespace helengine.editor {
                 }
 
                 relativeSourcePath = relativeSourcePath.Substring(0, relativeSourcePath.Length - ".hasset".Length);
-                if (ModelRelativePathsByAssetId.ContainsKey(settings.Importer.AssetId)) {
+                if (ModelRelativePathsByAssetId.ContainsKey(settings.Importer.ProcessedAssetId)) {
                     continue;
                 }
 
-                ModelRelativePathsByAssetId.Add(settings.Importer.AssetId, relativeSourcePath);
+                ModelRelativePathsByAssetId.Add(settings.Importer.ProcessedAssetId, relativeSourcePath);
             }
 
             return ModelRelativePathsByAssetId;

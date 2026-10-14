@@ -295,11 +295,11 @@ namespace helengine.editor.tests {
             TestModelImporter modelImporter = new TestModelImporter();
             AssetImportManager manager = CreateManager(modelImporter);
             ModelAssetImportSettings settings = manager.LoadOrCreateModelImportSettings(sourcePath);
-            string outputPath = Path.Combine(CacheRootPath, settings.Importer.AssetId);
+            string outputPath = Path.Combine(CacheRootPath, settings.Importer.ProcessedAssetId);
 
             using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, new ModelAsset {
-                    Id = settings.Importer.AssetId,
+                    Id = settings.Importer.ProcessedAssetId,
                     Positions = new[] { float3.Zero },
                     Normals = new[] { new float3(0f, 1f, 0f) },
                     TexCoords = new[] { new float2(0f, 0f) },
@@ -327,10 +327,10 @@ namespace helengine.editor.tests {
             string sourcePath = WriteSourceModel("invalid-cache.obj");
             AssetImportManager manager = CreateManager(new TestModelImporter());
             ModelAssetImportSettings settings = manager.LoadOrCreateModelImportSettings(sourcePath);
-            string outputPath = Path.Combine(CacheRootPath, settings.Importer.AssetId);
+            string outputPath = Path.Combine(CacheRootPath, settings.Importer.ProcessedAssetId);
             using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, new TextureAsset {
-                    Id = settings.Importer.AssetId,
+                    Id = settings.Importer.ProcessedAssetId,
                     Width = 1,
                     Height = 1,
                     Colors = new byte[] { 255, 255, 255, 255 }
@@ -372,7 +372,7 @@ namespace helengine.editor.tests {
 
             List<string> importedAssets = manager.ImportModelsMissingCache();
 
-            string outputPath = Path.Combine(CacheRootPath, settings.Importer.AssetId);
+            string outputPath = Path.Combine(CacheRootPath, settings.Importer.ProcessedAssetId);
             Assert.Equal(new[] { outputPath }, importedAssets);
             Assert.Equal(1, modelImporter.ImportCount);
             Assert.True(File.Exists(outputPath));
@@ -396,8 +396,8 @@ namespace helengine.editor.tests {
             try {
                 List<string> importedAssets = manager.ImportModelsMissingCache();
 
-                string brokenOutputPath = Path.Combine(CacheRootPath, brokenSettings.Importer.AssetId);
-                string validOutputPath = Path.Combine(CacheRootPath, validSettings.Importer.AssetId);
+                string brokenOutputPath = Path.Combine(CacheRootPath, brokenSettings.Importer.ProcessedAssetId);
+                string validOutputPath = Path.Combine(CacheRootPath, validSettings.Importer.ProcessedAssetId);
                 Assert.Equal(new[] { validOutputPath }, importedAssets);
                 Assert.False(File.Exists(brokenOutputPath));
                 Assert.True(File.Exists(validOutputPath));
@@ -551,7 +551,7 @@ namespace helengine.editor.tests {
                 Importer = new AssetImporterSettings {
                     ImporterId = "helengine.material",
                     SourceChecksum = string.Empty,
-                    AssetId = assetId
+                    ProcessedAssetId = assetId
                 },
                 Processor = new MaterialAssetProcessorPlatformSettings {
                     Platforms = new Dictionary<string, MaterialAssetProcessorSettings> {

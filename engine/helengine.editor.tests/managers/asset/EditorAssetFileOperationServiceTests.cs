@@ -183,7 +183,7 @@ public sealed class EditorAssetFileOperationServiceTests : IDisposable {
                 AuthoringAssetId = authoringAssetId
             };
             document.Importer.ImporterId = "material";
-            document.Importer.AssetId = "Material";
+            document.Importer.ProcessedAssetId = "Material";
             MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, document);
         } else {
             AssetSerializer.Serialize(stream, new MaterialAsset {

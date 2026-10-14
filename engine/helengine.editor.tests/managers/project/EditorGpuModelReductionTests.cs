@@ -238,7 +238,7 @@ namespace helengine.editor.tests.managers.project {
             Assert.Equal(2, cpuPaths.Length);
             Dictionary<string, byte[]> cpuBytes = cpuPaths.ToDictionary(path => path, path => File.ReadAllBytes(Path.Combine(root, "baseline", path)));
             ModelAssetImportSettings baselineSettings = ReadModelSettings(root);
-            string baseImportId = baselineSettings.Importer.AssetId;
+            string baseImportId = baselineSettings.Importer.ProcessedAssetId;
             byte[] baseImportBytes = File.ReadAllBytes(Path.Combine(root, "cache", baseImportId));
             string sourceHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(root, "assets/models/shared.obj"))));
             WriteProfile(root, true);
@@ -265,7 +265,7 @@ namespace helengine.editor.tests.managers.project {
             Assert.Equal(first.Scenes.SelectMany(ReadDependencies).OrderBy(path => path), replay.Scenes.SelectMany(ReadDependencies).OrderBy(path => path));
             SetAssetGpuPolicy(root, new ModelGpuReductionSettings { Enabled = true, MaximumVertices = 96, MaximumIndices = 288 });
             PlatformBuildManifest changed = service.Cook(platform, ["First", "Second"], Path.Combine(root, "changed-gpu-policy"), ["ps1"]);
-            Assert.Equal(baseImportId, ReadModelSettings(root).Importer.AssetId);
+            Assert.Equal(baseImportId, ReadModelSettings(root).Importer.ProcessedAssetId);
             Assert.Equal(baseImportBytes, File.ReadAllBytes(Path.Combine(root, "cache", baseImportId)));
             foreach (string path in cpuPaths) Assert.Equal(cpuBytes[path], File.ReadAllBytes(Path.Combine(root, "changed-gpu-policy", path)));
             string[] changedVariants = ReadDependencies(changed.Scenes[0]).Where(path => path.StartsWith("cooked/generated/models/", StringComparison.Ordinal)).ToArray();

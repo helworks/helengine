@@ -1157,7 +1157,7 @@ namespace helengine.editor {
             MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
             settings.Importer.ImporterId = "helengine.material";
             settings.Importer.SourceChecksum = definition.SourceChecksum ?? string.Empty;
-            settings.Importer.AssetId = definition.MaterialAsset.Id;
+            settings.Importer.ProcessedAssetId = definition.MaterialAsset.Id;
             foreach (KeyValuePair<string, GeneratedMaterialPlatformDefinition> platformEntry in definition.Platforms) {
                 if (platformEntry.Value == null || string.IsNullOrWhiteSpace(platformEntry.Value.SchemaId)) {
                     throw new InvalidOperationException($"Generated material platform '{platformEntry.Key}' must specify a schema id.");

@@ -35,7 +35,7 @@ namespace helengine.editor.tests.serialization {
         public void MultipleSectionsProfilesAndEnvironmentsKeepTheirFraming() {
             AssetImportSettings settings = new AssetImportSettings();
             settings.Importer.ImporterId = "gdi-font";
-            settings.Importer.AssetId = "10000000000000000000000000000001";
+            settings.Importer.ProcessedAssetId = "10000000000000000000000000000001";
             settings.Importer.SourceChecksum = new string('a', 64);
             AssetPlatformProcessorSettings ps2 = new AssetPlatformProcessorSettings();
             ps2.Font.PixelSize = 34;

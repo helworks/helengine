@@ -1841,14 +1841,14 @@ namespace helengine.editor {
             if (!AssetImportManager.TryLoadOrCreateTextureImportSettings(sourcePath, out settings) || settings == null) {
                 throw new InvalidOperationException($"Texture source '{reference.RelativePath}' could not create import settings for packaging.");
             }
-            if (string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
+            if (string.IsNullOrWhiteSpace(settings.Importer.ProcessedAssetId)) {
                 throw new InvalidOperationException($"Texture source '{reference.RelativePath}' did not produce an imported asset id for packaging.");
             }
             if (!AssetImportManager.TryLoadTextureAsset(sourcePath, out TextureAsset textureAsset) || textureAsset == null) {
                 throw new InvalidOperationException($"Texture source '{reference.RelativePath}' could not be imported for packaging.");
             }
 
-            string cookedRelativePath = BuildImportedTextureCookedRelativePath(settings.Importer.AssetId);
+            string cookedRelativePath = BuildImportedTextureCookedRelativePath(settings.Importer.ProcessedAssetId);
             if (!SupportsBuilderOwnedPlatformCookKind("texture")) {
                 WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), textureAsset);
             }

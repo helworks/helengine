@@ -1009,7 +1009,7 @@ namespace helengine.editor.tests {
             Assert.Equal(SectionedAssetImportSettingsBinarySerializer.CurrentVersion, header.Version);
             Assert.Equal(settings.Importer.ImporterId, deserialized.Importer.ImporterId);
             Assert.Equal(settings.Importer.SourceChecksum, deserialized.Importer.SourceChecksum);
-            Assert.Equal(settings.Importer.AssetId, deserialized.Importer.AssetId);
+            Assert.Equal(settings.Importer.ProcessedAssetId, deserialized.Importer.ProcessedAssetId);
             Assert.True(deserialized.Processor.Platforms.ContainsKey("windows"));
             Assert.True(deserialized.Processor.Platforms["windows"].Model.FlipWinding);
             Assert.True(deserialized.Processor.Platforms.ContainsKey("android"));
@@ -1186,7 +1186,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal(settings.Importer.ImporterId, loadedSettings.Importer.ImporterId);
             Assert.Equal(settings.Importer.SourceChecksum, loadedSettings.Importer.SourceChecksum);
-            Assert.Equal(settings.Importer.AssetId, loadedSettings.Importer.AssetId);
+            Assert.Equal(settings.Importer.ProcessedAssetId, loadedSettings.Importer.ProcessedAssetId);
             Assert.True(loadedSettings.Processor.Platforms["windows"].Model.FlipWinding);
         }
 
@@ -1483,7 +1483,7 @@ namespace helengine.editor.tests {
             };
             document.Importer.ImporterId = "helengine.material";
             document.Importer.SourceChecksum = "sha256:" + new string('a', 64);
-            document.Importer.AssetId = "Materials/Panel.hasset";
+            document.Importer.ProcessedAssetId = "Materials/Panel.hasset";
             document.Processor.SchemaId = "standard-shader";
             document.Processor.FieldValues["base-color"] = "#12345678";
             document.Processor.AssetReferenceValues["texture-id"] = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
@@ -1499,7 +1499,7 @@ namespace helengine.editor.tests {
             Assert.Equal(document.FormerAuthoringAssetIds, restored.FormerAuthoringAssetIds);
             Assert.Equal(document.Importer.ImporterId, restored.Importer.ImporterId);
             Assert.Equal(document.Importer.SourceChecksum, restored.Importer.SourceChecksum);
-            Assert.Equal(document.Importer.AssetId, restored.Importer.AssetId);
+            Assert.Equal(document.Importer.ProcessedAssetId, restored.Importer.ProcessedAssetId);
             Assert.Equal(document.Processor.SchemaId, restored.Processor.SchemaId);
             Assert.Equal(document.Processor.FieldValues["base-color"], restored.Processor.FieldValues["base-color"]);
             SceneAssetReference reference = restored.Processor.AssetReferenceValues["texture-id"];
@@ -2010,7 +2010,7 @@ namespace helengine.editor.tests {
                 Importer = new AssetImporterSettings {
                     ImporterId = "model/obj",
                     SourceChecksum = "abc123",
-                    AssetId = "asset-001"
+                    ProcessedAssetId = "asset-001"
                 },
                 Processor = new AssetProcessorSettings {
                     Platforms = new Dictionary<string, AssetPlatformProcessorSettings> {
@@ -2038,7 +2038,7 @@ namespace helengine.editor.tests {
                 Importer = new AssetImporterSettings {
                     ImporterId = "pfim",
                     SourceChecksum = "texture-checksum",
-                    AssetId = "texture-id"
+                    ProcessedAssetId = "texture-id"
                 },
                 Processor = new TextureAssetProcessorPlatformSettings {
                     Platforms = new Dictionary<string, TextureAssetProcessorSettings> {
@@ -2064,7 +2064,7 @@ namespace helengine.editor.tests {
                 Importer = new AssetImporterSettings {
                     ImporterId = "wav",
                     SourceChecksum = "audio-checksum",
-                    AssetId = "audio-id"
+                    ProcessedAssetId = "audio-id"
                 },
                 Processor = new AudioAssetProcessorPlatformSettings {
                     Platforms = new Dictionary<string, AudioAssetProcessorSettings> {
@@ -2091,7 +2091,7 @@ namespace helengine.editor.tests {
                 Importer = new AssetImporterSettings {
                     ImporterId = "assimp",
                     SourceChecksum = "model-checksum",
-                    AssetId = "model-id"
+                    ProcessedAssetId = "model-id"
                 },
                 Processor = new ModelAssetProcessorPlatformSettings {
                     Platforms = new Dictionary<string, ModelAssetProcessorSettings> {
@@ -2117,7 +2117,7 @@ namespace helengine.editor.tests {
                 Importer = new AssetImporterSettings {
                     ImporterId = "helengine.material",
                     SourceChecksum = string.Empty,
-                    AssetId = "Materials/Demo.hasset"
+                    ProcessedAssetId = "Materials/Demo.hasset"
                 },
                 Processor = new MaterialAssetProcessorPlatformSettings {
                     Platforms = new Dictionary<string, MaterialAssetProcessorSettings> {
@@ -2148,7 +2148,7 @@ namespace helengine.editor.tests {
                 Importer = new AssetImporterSettings {
                     ImporterId = "helengine.material",
                     SourceChecksum = "source",
-                    AssetId = "Materials/Test"
+                    ProcessedAssetId = "Materials/Test"
                 }
             };
             document.Processor.SchemaId = "standard-shader";

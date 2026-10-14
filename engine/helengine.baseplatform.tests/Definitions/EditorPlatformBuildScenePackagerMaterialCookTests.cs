@@ -274,7 +274,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
         document.AuthoringAssetId = "44444444444444444444444444444444";
         document.FormerAuthoringAssetIds = new List<string>();
         document.Importer.ImporterId = "helengine.material";
-        document.Importer.AssetId = materialRelativePath;
+        document.Importer.ProcessedAssetId = materialRelativePath;
         document.Processor.SchemaId = "standard-shader";
         document.Processor.FieldValues["use-custom-shader"] = "false";
         document.Processor.FieldValues["shader-asset-id"] = shaderAssetId;

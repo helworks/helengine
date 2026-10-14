@@ -144,7 +144,7 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
             AuthoringAssetId = "00112233445566778899aabbccddeeff"
         };
         document.Importer.ImporterId = "helengine.material";
-        document.Importer.AssetId = "models/Material.hasset";
+        document.Importer.ProcessedAssetId = "models/Material.hasset";
         using (FileStream stream = File.Create(materialPath)) {
             MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, document);
         }
@@ -278,7 +278,7 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
             AuthoringAssetId = assetId
         };
         document.Importer.ImporterId = "helengine.material";
-        document.Importer.AssetId = "Materials/Native";
+        document.Importer.ProcessedAssetId = "Materials/Native";
         using FileStream stream = File.Create(path);
         MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, document);
     }
@@ -289,7 +289,7 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
     static void WriteNativeMaterial(string path) {
         MaterialAssetCommonSettingsDocument document = new MaterialAssetCommonSettingsDocument();
         document.Importer.ImporterId = "native-material";
-        document.Importer.AssetId = "Native";
+        document.Importer.ProcessedAssetId = "Native";
         using FileStream stream = File.Create(path);
         MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, document);
     }

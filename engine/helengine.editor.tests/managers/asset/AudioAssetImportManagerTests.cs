@@ -79,7 +79,7 @@ namespace helengine.editor.tests.managers.asset {
             Assert.Equal(4, chunk.ByteLength);
 
             AudioAssetImportSettings resolvedSettings = manager.LoadOrCreateAudioImportSettings(sourcePath);
-            string outputPath = Path.Combine(CacheRootPath, resolvedSettings.Importer.AssetId);
+            string outputPath = Path.Combine(CacheRootPath, resolvedSettings.Importer.ProcessedAssetId);
             Assert.True(File.Exists(outputPath));
         }
 

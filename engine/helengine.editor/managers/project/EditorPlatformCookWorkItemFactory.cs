@@ -45,7 +45,7 @@ namespace helengine.editor {
                 sourceRelativePath,
                 "texture",
                 outputRelativePath,
-                settings.Importer?.AssetId ?? sourceRelativePath,
+                settings.Importer?.ProcessedAssetId ?? sourceRelativePath,
                 processorSettings,
                 fileHasher);
         }

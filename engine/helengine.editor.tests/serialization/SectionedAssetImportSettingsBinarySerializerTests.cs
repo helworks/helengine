@@ -13,7 +13,7 @@ namespace helengine.editor.tests.serialization {
             AssetImportSettings settings = new AssetImportSettings();
             settings.Importer.ImporterId = "test-font";
             settings.Importer.SourceChecksum = "abc123";
-            settings.Importer.AssetId = "asset-id";
+            settings.Importer.ProcessedAssetId = "asset-id";
 
             AssetPlatformProcessorSettings windowsSettings = new AssetPlatformProcessorSettings();
             AssetPlatformSettingsSectionRegistry.Shared.SetSection(windowsSettings, "texture", new TextureAssetProcessorSettings {

@@ -446,7 +446,7 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
         Assert.Equal(
             Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(sourceBytes)).ToLowerInvariant(),
             prepared.Importer.SourceChecksum);
-        Assert.NotNull(prepared.Importer.AssetId);
+        Assert.NotNull(prepared.Importer.ProcessedAssetId);
         Assert.Equal(sourceBytes, transaction.ReadStagedFile("assets/textures/generated.png"));
         Assert.NotEmpty(transaction.ReadStagedFile("assets/textures/generated.png.hasset"));
         Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", "textures", "generated.png")));
@@ -498,7 +498,7 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
             firstIntent,
             second);
 
-        Assert.NotEqual(firstIntent.Importer.AssetId, changedSettings.Importer.AssetId);
+        Assert.NotEqual(firstIntent.Importer.ProcessedAssetId, changedSettings.Importer.ProcessedAssetId);
         Assert.Equal(
             Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(changedBytes)).ToLowerInvariant(),
             changedSettings.Importer.SourceChecksum);
@@ -524,7 +524,7 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
 
         TextureAssetImportSettings proposed = new TextureAssetImportSettings();
         proposed.Importer.ImporterId = firstSettings.Importer.ImporterId;
-        proposed.Importer.AssetId = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        proposed.Importer.ProcessedAssetId = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
         proposed.Processor = firstSettings.Processor;
         using EditorAuthoringTransaction repeat = session.BeginTransaction();
         TextureAssetImportSettings repeated = session.WriteGeneratedTexture(
@@ -533,7 +533,7 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
             proposed,
             repeat);
 
-        Assert.Equal(firstSettings.Importer.AssetId, repeated.Importer.AssetId);
+        Assert.Equal(firstSettings.Importer.ProcessedAssetId, repeated.Importer.ProcessedAssetId);
         repeat.Commit();
     }
 
@@ -569,7 +569,7 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
             changedIntent,
             second);
 
-        Assert.NotEqual(initialSettings.Importer.AssetId, changedSettings.Importer.AssetId);
+        Assert.NotEqual(initialSettings.Importer.ProcessedAssetId, changedSettings.Importer.ProcessedAssetId);
         second.Commit();
     }
 

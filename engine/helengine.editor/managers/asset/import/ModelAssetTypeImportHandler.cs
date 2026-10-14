@@ -172,7 +172,7 @@ namespace helengine.editor {
                     return false;
                 }
 
-                outputPath = Owner.GetModelAssetPath(settings.Importer.AssetId);
+                outputPath = Owner.GetModelAssetPath(settings.Importer.ProcessedAssetId);
                 if (!File.Exists(outputPath)) {
                     asset = Owner.ImportModel(sourcePath);
                     return true;

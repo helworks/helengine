@@ -264,7 +264,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            string outputPath = Owner.GetTextureAssetPath(settings.Importer.AssetId);
+            string outputPath = Owner.GetTextureAssetPath(settings.Importer.ProcessedAssetId);
             if (!File.Exists(outputPath)) {
                 asset = Owner.ImportTexture(sourcePath);
                 return true;

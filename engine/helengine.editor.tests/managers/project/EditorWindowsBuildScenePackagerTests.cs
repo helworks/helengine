@@ -739,7 +739,7 @@ namespace helengine.editor.tests {
             Assert.True(materialSettingsService.TryLoadPlatformSettings(materialPath, "windows", out MaterialAssetProcessorSettings windowsSettings));
             MaterialAssetImportSettings savedSettings = new MaterialAssetImportSettings();
             savedSettings.Importer.ImporterId = "helengine.material";
-            savedSettings.Importer.AssetId = materialRelativePath;
+            savedSettings.Importer.ProcessedAssetId = materialRelativePath;
             savedSettings.Processor.Platforms["windows"] = windowsSettings;
             savedSettings.Processor.Platforms["ds"] = new MaterialAssetProcessorSettings {
                 SchemaId = "ds-standard-textured",
@@ -4160,8 +4160,8 @@ namespace helengine.editor.tests {
             Assert.True(assetImportManager.TryLoadOrCreateTextureImportSettings(textureSourcePath, out settings));
             Assert.NotNull(settings);
             Assert.NotNull(settings.Importer);
-            Assert.False(string.IsNullOrWhiteSpace(settings.Importer.AssetId));
-            return settings.Importer.AssetId;
+            Assert.False(string.IsNullOrWhiteSpace(settings.Importer.ProcessedAssetId));
+            return settings.Importer.ProcessedAssetId;
         }
 
         /// <summary>
@@ -4389,7 +4389,7 @@ namespace helengine.editor.tests {
             MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
             settings.Importer.ImporterId = "helengine.material";
             settings.Importer.SourceChecksum = string.Empty;
-            settings.Importer.AssetId = materialRelativePath;
+            settings.Importer.ProcessedAssetId = materialRelativePath;
             settings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings {
                 SchemaId = schemaId,
                 FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {

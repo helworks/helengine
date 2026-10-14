@@ -245,10 +245,10 @@ public class ModelPreviewSourceTests : IDisposable {
             string textureSourcePath = WriteSourceFile("Textures/Fabric.png", "texture source");
             assetImportManager.ImportTexture(textureSourcePath);
             TextureAssetImportSettings textureSettings = assetImportManager.LoadOrCreateTextureImportSettings(textureSourcePath);
-            string cachedTexturePath = Path.Combine(assetImportManager.ImportRootPath, textureSettings.Importer.AssetId);
+            string cachedTexturePath = Path.Combine(assetImportManager.ImportRootPath, textureSettings.Importer.ProcessedAssetId);
             using (FileStream stream = new FileStream(cachedTexturePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, new TextureAsset {
-                    Id = textureSettings.Importer.AssetId,
+                    Id = textureSettings.Importer.ProcessedAssetId,
                     Width = 7,
                     Height = 7,
                     Colors = new byte[7 * 7 * 4]

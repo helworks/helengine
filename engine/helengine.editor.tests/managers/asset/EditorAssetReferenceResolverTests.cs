@@ -1200,7 +1200,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
             AuthoringAssetId = assetId
         };
         document.Importer.ImporterId = "helengine.material";
-        document.Importer.AssetId = "Materials/Native";
+        document.Importer.ProcessedAssetId = "Materials/Native";
         using FileStream stream = File.Create(assetPath);
         MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, document);
         return assetPath;

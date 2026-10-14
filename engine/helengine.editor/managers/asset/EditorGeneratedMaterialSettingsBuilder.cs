@@ -18,7 +18,7 @@ namespace helengine.editor {
             MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
             settings.Importer.ImporterId = MaterialImporterId;
             settings.Importer.SourceChecksum = definition.SourceChecksum ?? string.Empty;
-            settings.Importer.AssetId = definition.MaterialAsset.Id;
+            settings.Importer.ProcessedAssetId = definition.MaterialAsset.Id;
             foreach (KeyValuePair<string, GeneratedMaterialPlatformDefinition> platformEntry in definition.Platforms) {
                 if (string.IsNullOrWhiteSpace(platformEntry.Key)) {
                     throw new InvalidOperationException("Generated material platform ids must not be blank.");

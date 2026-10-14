@@ -999,7 +999,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Texture importer '{settings.Importer.ImporterId}' did not return an asset for '{sourceTexturePath}'.");
             }
 
-            textureAsset.Id = settings.Importer.AssetId;
+            textureAsset.Id = settings.Importer.ProcessedAssetId;
             return textureAsset;
         }
 

@@ -99,7 +99,7 @@ namespace helengine.editor.tests {
                 Importer = new AssetImporterSettings {
                     ImporterId = "test-audio",
                     SourceChecksum = "audio-checksum",
-                    AssetId = "audio-id"
+                    ProcessedAssetId = "audio-id"
                 }
             };
             settings.Processor.Platforms["windows"] = new AudioAssetProcessorSettings {
@@ -286,7 +286,7 @@ namespace helengine.editor.tests {
                 Importer = new AssetImporterSettings {
                     ImporterId = "test-dynamic-audio",
                     SourceChecksum = "audio-checksum",
-                    AssetId = "audio-id"
+                    ProcessedAssetId = "audio-id"
                 }
             };
             manager.SaveAudioImportSettings(sourcePath, settings);
