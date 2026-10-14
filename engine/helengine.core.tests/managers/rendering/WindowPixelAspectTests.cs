@@ -60,6 +60,40 @@ namespace helengine.core.tests {
             Assert.Equal(0.75d, renderer.GetCameraPixelAspect(new CameraComponent { OutputWindowTag = "preview" }));
         }
 
+        /// <summary>
+        /// Removing a window forgets its pixel aspect, so a later window registered with the same handle (hosts reuse
+        /// handle values) starts with square pixels.
+        /// </summary>
+        [Fact]
+        public void RemovedWindowForgetsItsPixelAspect() {
+            using MultiWindowTestRenderManager renderer = CreateRenderer();
+            renderer.AddWindow(new IntPtr(3), 320, 240);
+            renderer.SetWindowPixelAspect(new IntPtr(3), 0.75d);
+
+            renderer.RemoveWindow(new IntPtr(3));
+            renderer.AddWindow(new IntPtr(3), 320, 240);
+
+            Assert.Equal(1d, renderer.GetWindowPixelAspect(new IntPtr(3)));
+        }
+
+        /// <summary>
+        /// Tagging a window that never reported a pixel aspect clears the value a previous owner of that view reported,
+        /// so the view is square again.
+        /// </summary>
+        [Fact]
+        public void RetaggingAnUnreportedWindowClearsTheViewsStalePixelAspect() {
+            using MultiWindowTestRenderManager renderer = CreateRenderer();
+            renderer.AddWindow(new IntPtr(3), 320, 240);
+            renderer.SetWindowTag(new IntPtr(3), "preview");
+            renderer.SetWindowPixelAspect(new IntPtr(3), 0.75d);
+            renderer.RemoveWindow(new IntPtr(3));
+            renderer.AddWindow(new IntPtr(4), 320, 240);
+
+            renderer.SetWindowTag(new IntPtr(4), "preview");
+
+            Assert.Equal(1d, renderer.GetCameraPixelAspect(new CameraComponent { OutputWindowTag = "preview" }));
+        }
+
         /// <summary>Non-finite or non-positive values, unknown windows and unknown views are refused.</summary>
         [Fact]
         public void InvalidReportsAndUnknownViewsAreRefused() {
