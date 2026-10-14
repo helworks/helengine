@@ -2278,7 +2278,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="sourcePath">Absolute destination source path.</param>
         /// <param name="sourceBytes">Bytes that will be published as the source.</param>
-        /// <param name="settingsIntent">Explicit importer and processor intent.</param>
+        /// <param name="settingsIntent">Explicit importer and processor intent. Its processed asset id must be empty,
+        /// equal to the id the bytes and settings produce, or the id the published source produced (settings returned by
+        /// an earlier write); any other value throws.</param>
         /// <returns>Settings prepared for the supplied source bytes.</returns>
         internal TextureAssetImportSettings PrepareGeneratedTextureImportSettings(
             string sourcePath,
@@ -2293,6 +2295,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Generated texture settings intent must include importer and processor settings.");
             }
 
+            string proposedProcessedAssetId = settingsIntent.Importer.ProcessedAssetId;
             TextureAssetImportSettings settings = CloneTextureImportSettings(settingsIntent);
             TextureAssetImportSettings existingSettings = null;
             string settingsPath = GetSettingsPath(sourcePath);
@@ -2310,9 +2313,51 @@ namespace helengine.editor {
             string sourceChecksum = fileHasher.ComputeHash(sourceStream);
             settings.Importer.SourceChecksum = sourceChecksum;
             // The processed id is derived from the staged bytes and settings, exactly as a load of the published
-            // pair would recompute it; it is never persisted, so no published sidecar can own a different one.
-            settings.Importer.ProcessedAssetId = BuildTextureAssetId(sourcePath, settings, sourceChecksum);
+            // pair would recompute it; it is never persisted, so no published sidecar can own a different one. A
+            // caller cannot choose it. An intent may carry an id this manager derived earlier (settings returned by a
+            // previous write and reused as the next intent): that id is recomputed. Any other proposed id would be
+            // silently replaced on the next load, so it is rejected before anything is staged.
+            string processedAssetId = BuildTextureAssetId(sourcePath, settings, sourceChecksum);
+            if (!string.IsNullOrWhiteSpace(proposedProcessedAssetId)
+                && !string.Equals(proposedProcessedAssetId, processedAssetId, StringComparison.Ordinal)
+                && !IsPublishedProcessedTextureAssetId(sourcePath, proposedProcessedAssetId, settings, existingSettings)) {
+                throw new InvalidOperationException(
+                    $"Generated texture '{sourcePath}' proposes processed asset id '{proposedProcessedAssetId}', but its bytes and " +
+                    $"import settings produce '{processedAssetId}'. Processed ids are derived, not chosen: leave " +
+                    "Importer.ProcessedAssetId empty in the settings intent and use the id of the returned settings.");
+            }
+
+            settings.Importer.ProcessedAssetId = processedAssetId;
             return settings;
+        }
+
+        /// <summary>
+        /// Reports whether a proposed processed id is the one the currently published source produces, under either the
+        /// intent's settings or the published sidecar's settings, so a generator that reuses the settings an earlier
+        /// write returned is not mistaken for one that chooses its own id. Only reached when the proposed id disagrees
+        /// with the staged bytes.
+        /// </summary>
+        /// <param name="sourcePath">Absolute destination source path.</param>
+        /// <param name="proposedProcessedAssetId">Processed id carried by the settings intent.</param>
+        /// <param name="settings">Settings prepared from the intent.</param>
+        /// <param name="existingSettings">Published sidecar settings, or null when there is none.</param>
+        /// <returns>True when the published source produces the proposed id.</returns>
+        bool IsPublishedProcessedTextureAssetId(
+            string sourcePath,
+            string proposedProcessedAssetId,
+            TextureAssetImportSettings settings,
+            TextureAssetImportSettings existingSettings) {
+            if (!File.Exists(sourcePath)) {
+                return false;
+            }
+
+            string publishedChecksum = fileHasher.ComputeHash(sourcePath);
+            if (string.Equals(BuildTextureAssetId(sourcePath, settings, publishedChecksum), proposedProcessedAssetId, StringComparison.Ordinal)) {
+                return true;
+            }
+
+            return existingSettings != null
+                && string.Equals(BuildTextureAssetId(sourcePath, existingSettings, publishedChecksum), proposedProcessedAssetId, StringComparison.Ordinal);
         }
 
         /// <summary>Clones typed texture settings through the canonical binary format.</summary>

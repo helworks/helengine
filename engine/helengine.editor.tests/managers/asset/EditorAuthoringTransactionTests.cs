@@ -507,8 +507,36 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
         Assert.Equal(changedBytes, File.ReadAllBytes(Path.Combine(ProjectRootPath, "assets", "textures", "changed.png")));
     }
 
+    /// <summary>
+    /// Ensures a generated texture whose settings intent proposes a processed id that its bytes and settings do not
+    /// produce fails with a message naming the texture and both ids, before anything is staged, instead of the id
+    /// being silently replaced.
+    /// </summary>
     [Fact]
-    public void WriteGeneratedTexture_PreservesExistingSemanticIdentityOverAProposedCatalogId() {
+    public void WriteGeneratedTexture_WhenTheIntentProposesADifferentProcessedId_ThrowsWithoutStaging() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        TextureAssetImportSettings proposed = new TextureAssetImportSettings();
+        proposed.Importer.ImporterId = "generated";
+        proposed.Importer.ProcessedAssetId = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        using EditorAuthoringTransaction transaction = session.BeginTransaction();
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => session.WriteGeneratedTexture(
+            "textures/proposed.png",
+            new byte[] { 0x71, 0x72 },
+            proposed,
+            transaction));
+
+        Assert.Contains("proposed.png", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(proposed.Importer.ProcessedAssetId, exception.Message, StringComparison.Ordinal);
+        Assert.False(transaction.TryReadStagedFile("assets/textures/proposed.png", out _));
+    }
+
+    /// <summary>
+    /// Ensures a proposed processed id equal to the one the bytes and settings produce is accepted, so a generator
+    /// that re-stages a texture with the id returned earlier keeps working.
+    /// </summary>
+    [Fact]
+    public void WriteGeneratedTexture_WhenTheIntentProposesTheDerivedProcessedId_AcceptsIt() {
         using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
         TextureAssetImportSettings firstIntent = new TextureAssetImportSettings();
         firstIntent.Importer.ImporterId = "generated";
@@ -524,7 +552,7 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
 
         TextureAssetImportSettings proposed = new TextureAssetImportSettings();
         proposed.Importer.ImporterId = firstSettings.Importer.ImporterId;
-        proposed.Importer.ProcessedAssetId = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        proposed.Importer.ProcessedAssetId = firstSettings.Importer.ProcessedAssetId;
         proposed.Processor = firstSettings.Processor;
         using EditorAuthoringTransaction repeat = session.BeginTransaction();
         TextureAssetImportSettings repeated = session.WriteGeneratedTexture(
