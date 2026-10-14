@@ -35,6 +35,23 @@ namespace helengine.baseplatform.tests.Definitions {
             Assert.Throws<ArgumentOutOfRangeException>(() => new PlatformVideoMode("m", 320, 224, true, 59.94d, 60d, 4, -3));
         }
 
+        /// <summary>Width and both display-aspect terms accept 4096 and reject 4097.</summary>
+        [Fact]
+        public void Ctor_RejectsTermsAboveTheMaximumDimension() {
+            Assert.Equal(4096, new PlatformVideoMode("m", 4096, 224, true, 59.94d, 60d, 4096, 4096).Width);
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PlatformVideoMode("m", 4097, 224, true, 59.94d, 60d, 4, 3));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PlatformVideoMode("m", 320, 224, true, 59.94d, 60d, 4097, 3));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PlatformVideoMode("m", 320, 224, true, 59.94d, 60d, 4, 4097));
+        }
+
+        /// <summary>A zero, negative or infinite refresh rate is rejected.</summary>
+        [Fact]
+        public void Ctor_RejectsNonPositiveOrInfiniteRefreshRate() {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PlatformVideoMode("m", 320, 224, true, 0d, 60d, 4, 3));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PlatformVideoMode("m", 320, 224, true, -59.94d, 60d, 4, 3));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PlatformVideoMode("m", 320, 224, true, double.PositiveInfinity, 60d, 4, 3));
+        }
+
         /// <summary>A square-pixel mode has pixel aspect exactly 1; a 4:3 mode on a 640x448 framebuffer has 14/15.</summary>
         [Fact]
         public void PixelAspect_FollowsTheDisplayAspect() {
@@ -68,6 +85,22 @@ namespace helengine.baseplatform.tests.Definitions {
             Assert.Throws<ArgumentException>(() => new PlatformVideoModeCapability("video-mode", []));
             Assert.Throws<ArgumentException>(() => new PlatformVideoModeCapability("video-mode", [mode, mode]));
             Assert.Throws<ArgumentException>(() => new PlatformVideoModeCapability("video-mode", [mode, null]));
+        }
+
+        /// <summary>The capability copies the declared modes, so changing the caller's array afterwards changes nothing.</summary>
+        [Fact]
+        public void Capability_ModesAreACopyOfTheDeclaredArray() {
+            PlatformVideoMode first = new PlatformVideoMode("a", 640, 448, false, 59.94d, 60d, 4, 3);
+            PlatformVideoMode[] declared = [first, new PlatformVideoMode("b", 320, 224, true, 59.94d, 60d, 4, 3)];
+            PlatformVideoModeCapability capability = new PlatformVideoModeCapability("video-mode", declared);
+
+            declared[0] = new PlatformVideoMode("c", 256, 224, true, 59.94d, 60d, 4, 3);
+
+            Assert.Same(first, capability.Modes[0]);
+            Assert.Equal(2, capability.Modes.Count);
+            Assert.True(capability.Contains("a"));
+            Assert.False(capability.Contains("c"));
+            Assert.Equal(new[] { "a", "b" }, capability.GetModeIds());
         }
     }
 }

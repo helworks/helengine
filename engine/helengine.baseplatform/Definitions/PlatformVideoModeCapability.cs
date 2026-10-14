@@ -27,22 +27,23 @@ namespace helengine.baseplatform.Definitions {
             }
 
             SettingId = settingId;
-            Modes = [.. modes];
+            PlatformVideoMode[] copy = [.. modes];
+            Modes = Array.AsReadOnly(copy);
         }
 
         /// <summary>Gets the graphics (and Play) setting id that selects the mode.</summary>
         public string SettingId { get; }
 
-        /// <summary>Gets every mode, in display order.</summary>
-        public PlatformVideoMode[] Modes { get; }
+        /// <summary>Gets every mode, in display order, as a read-only copy of the declared list.</summary>
+        public IReadOnlyList<PlatformVideoMode> Modes { get; }
 
         /// <summary>
         /// Gets the mode ids in display order, the exact allowed values of the selecting choice setting.
         /// </summary>
         /// <returns>New array of mode ids.</returns>
         public string[] GetModeIds() {
-            string[] ids = new string[Modes.Length];
-            for (int index = 0; index < Modes.Length; index++) {
+            string[] ids = new string[Modes.Count];
+            for (int index = 0; index < Modes.Count; index++) {
                 ids[index] = Modes[index].Id;
             }
 
@@ -55,7 +56,13 @@ namespace helengine.baseplatform.Definitions {
         /// <param name="modeId">Mode id.</param>
         /// <returns>True when declared.</returns>
         public bool Contains(string modeId) {
-            return Array.Exists(Modes, mode => string.Equals(mode.Id, modeId, StringComparison.Ordinal));
+            for (int index = 0; index < Modes.Count; index++) {
+                if (string.Equals(Modes[index].Id, modeId, StringComparison.Ordinal)) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -66,7 +73,7 @@ namespace helengine.baseplatform.Definitions {
         /// <returns>The mode.</returns>
         /// <exception cref="InvalidOperationException">Thrown when the id is not declared.</exception>
         public PlatformVideoMode Resolve(string modeId, string platformId) {
-            for (int index = 0; index < Modes.Length; index++) {
+            for (int index = 0; index < Modes.Count; index++) {
                 if (string.Equals(Modes[index].Id, modeId, StringComparison.Ordinal)) {
                     return Modes[index];
                 }
