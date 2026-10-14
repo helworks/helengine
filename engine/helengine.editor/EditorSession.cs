@@ -3554,7 +3554,11 @@ namespace helengine.editor {
             string dialogPlatformId = ResolveVisiblePlatformId(visiblePlatformIds, ActiveProjectPlatform);
             IReadOnlyList<string> sceneIds = sceneCatalogService.GetSceneIds();
             string currentSceneId = sceneCatalogService.ResolveSceneId(CurrentScenePath);
-            EditorBuildConfigDocument buildConfig = buildConfigService.Load(visiblePlatformIds, currentSceneId);
+            EditorBuildConfigDocument buildConfig = null;
+            if (!TryRunBuildConfigFileOperation("loaded", () => buildConfig = buildConfigService.Load(visiblePlatformIds, currentSceneId))) {
+                return;
+            }
+
             buildDialogCopySettingsDialog.Hide();
             buildDialog.Show(visiblePlatformIds, sceneIds, dialogPlatformId, buildConfig, ResolvePlatformSelectionModel(dialogPlatformId), ResolveProjectEnvironmentIds());
         }
@@ -4075,6 +4079,28 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Runs one Build-dialog operation that reads or writes the build configuration files and reports a file-system
+        /// failure (a sharing violation with another writer such as a command-line build, or a denied file) as an editor
+        /// error instead of letting it escape into the frame loop. Only file-system failures are caught; anything else
+        /// still propagates.
+        /// </summary>
+        /// <param name="action">Past participle naming what failed, as in "Build settings could not be saved".</param>
+        /// <param name="operation">Operation that loads or saves the build configuration.</param>
+        /// <returns>True when the operation completed; false when it failed and was reported.</returns>
+        bool TryRunBuildConfigFileOperation(string action, Action operation) {
+            try {
+                operation();
+                return true;
+            } catch (IOException exception) {
+                Logger.WriteError($"Build settings could not be {action}: {exception.Message}");
+                return false;
+            } catch (UnauthorizedAccessException exception) {
+                Logger.WriteError($"Build settings could not be {action}: {exception.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Resolves one platform selection model for the supplied platform id, if the platform exposes a builder assembly.
         /// </summary>
         /// <param name="platformId">Stable platform identifier.</param>
@@ -4119,7 +4145,11 @@ namespace helengine.editor {
                 return;
             }
 
-            EditorBuildConfigDocument buildConfig = ResolveCurrentBuildConfig();
+            EditorBuildConfigDocument buildConfig = null;
+            if (!TryRunBuildConfigFileOperation("loaded", () => buildConfig = ResolveCurrentBuildConfig())) {
+                return;
+            }
+
             buildConfig.QueueItems.Add(new EditorBuildQueueItemDocument {
                 QueueItemId = Guid.NewGuid().ToString("N"),
                 PlatformId = request.PlatformId,
@@ -4138,7 +4168,10 @@ namespace helengine.editor {
                 Status = EditorBuildQueueItemStatus.Pending,
                 StatusMessage = string.Empty
             });
-            buildConfigService.Save(buildConfig);
+            if (!TryRunBuildConfigFileOperation("saved", () => buildConfigService.Save(buildConfig))) {
+                return;
+            }
+
             buildDialogCopySettingsDialog.Hide();
             buildDialog.Refresh(ResolveVisibleSupportedPlatforms(), sceneCatalogService.GetSceneIds(), request.PlatformId, buildConfig, ResolvePlatformSelectionModel(request.PlatformId), ResolveProjectEnvironmentIds());
         }
@@ -4152,7 +4185,11 @@ namespace helengine.editor {
                 throw new ArgumentException("Queue item id is required.", nameof(queueItemId));
             }
 
-            EditorBuildConfigDocument buildConfig = ResolveCurrentBuildConfig();
+            EditorBuildConfigDocument buildConfig = null;
+            if (!TryRunBuildConfigFileOperation("loaded", () => buildConfig = ResolveCurrentBuildConfig())) {
+                return;
+            }
+
             for (int index = 0; index < buildConfig.QueueItems.Count; index++) {
                 if (buildConfig.QueueItems[index].QueueItemId == queueItemId) {
                     buildConfig.QueueItems.RemoveAt(index);
@@ -4160,7 +4197,10 @@ namespace helengine.editor {
                 }
             }
 
-            buildConfigService.Save(buildConfig);
+            if (!TryRunBuildConfigFileOperation("saved", () => buildConfigService.Save(buildConfig))) {
+                return;
+            }
+
             buildDialogCopySettingsDialog.Hide();
             IReadOnlyList<string> visiblePlatformIds = ResolveVisibleSupportedPlatforms();
             if (visiblePlatformIds.Count < 1) {
@@ -4199,8 +4239,14 @@ namespace helengine.editor {
             }
 
             IReadOnlyList<string> visiblePlatformIds = ResolveVisibleSupportedPlatforms();
-            EditorBuildConfigDocument buildConfig = ResolveCurrentBuildConfig();
-            buildConfigService.Save(buildConfig);
+            EditorBuildConfigDocument buildConfig = null;
+            if (!TryRunBuildConfigFileOperation("saved", () => {
+                buildConfig = ResolveCurrentBuildConfig();
+                buildConfigService.Save(buildConfig);
+            })) {
+                return;
+            }
+
             buildQueueService.RunPending(buildConfig, visiblePlatformIds);
             buildDialogCopySettingsDialog.Hide();
             if (visiblePlatformIds.Count < 1) {
@@ -4222,9 +4268,15 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id is required.", nameof(platformId));
             }
 
-            EditorBuildConfigDocument buildConfig = ResolveCurrentBuildConfig();
-            buildConfigService.ResetPlatformScenesToProject(buildConfig, platformId);
-            buildConfigService.Save(buildConfig);
+            EditorBuildConfigDocument buildConfig = null;
+            if (!TryRunBuildConfigFileOperation("reset to the project scenes", () => {
+                buildConfig = ResolveCurrentBuildConfig();
+                buildConfigService.ResetPlatformScenesToProject(buildConfig, platformId);
+                buildConfigService.Save(buildConfig);
+            })) {
+                return;
+            }
+
             buildDialogCopySettingsDialog.Hide();
             buildDialog.Refresh(ResolveVisibleSupportedPlatforms(), sceneCatalogService.GetSceneIds(), platformId, buildConfig, ResolvePlatformSelectionModel(platformId), ResolveProjectEnvironmentIds());
         }

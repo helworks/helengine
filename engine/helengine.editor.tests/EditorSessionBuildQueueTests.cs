@@ -518,6 +518,34 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a Build-dialog operation whose build settings file cannot be read (here held exclusively, as by a
+        /// concurrent writer) is reported as an editor error instead of escaping into the frame loop, and the file is
+        /// left as it was.
+        /// </summary>
+        [Fact]
+        public void HandleBuildDialogRemoveQueueItemRequested_WhenTheSettingsFileIsLocked_ReportsTheErrorAndKeepsTheFile() {
+            EditorBuildConfigService buildConfigService = new EditorBuildConfigService(TempProjectRootPath);
+            buildConfigService.Load(["windows"], CurrentSceneId);
+            EditorBuildQueueService buildQueueService = new EditorBuildQueueService(buildConfigService, new TestEditorBuildExecutor([]));
+            EditorSession session = CreateSession(buildConfigService, buildQueueService, "windows");
+            string localPath = Path.Combine(TempProjectRootPath, "user_settings", "build_config.json");
+            byte[] localBytes = File.ReadAllBytes(localPath);
+            List<string> errors = new List<string>();
+            Action<LogEntry> captureError = entry => errors.Add(entry.Message);
+
+            Logger.ErrorLogged += captureError;
+            try {
+                using FileStream exclusive = new FileStream(localPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                InvokePrivate(session, "HandleBuildDialogRemoveQueueItemRequested", "queue-1");
+            } finally {
+                Logger.ErrorLogged -= captureError;
+            }
+
+            Assert.Contains(errors, message => message.StartsWith("Build settings could not be loaded:", StringComparison.Ordinal));
+            Assert.Equal(localBytes, File.ReadAllBytes(localPath));
+        }
+
+        /// <summary>
         /// Ensures removing one queued build refreshes the visible dialog without discarding a manual panel position.
         /// </summary>
         [Fact]
