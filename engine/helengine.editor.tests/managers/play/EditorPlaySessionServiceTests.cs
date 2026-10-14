@@ -212,6 +212,40 @@ public sealed class EditorPlaySessionServiceTests {
     }
 
     /// <summary>
+    /// Press-time capture against the real per-user store: Play captures <c>play.json</c> when it is pressed, so a value
+    /// saved to the file while that Play is still preparing does not reach it (the player gets the pressed value), and
+    /// the next Play captures the saved edit.
+    /// </summary>
+    [Fact]
+    public void Play_WhenPlaySettingsAreSavedWhilePreparing_LaunchesPressTimeValuesAndNextPlayUsesTheEdit() {
+        EditorPlaySettingsStore store = new EditorPlaySettingsStore(Path.Combine(TestPlaySettings.ProjectRoot, "press-time-store"));
+        PlatformPlayerCapability capability = new PlatformPlayerCapability(true, AdapterTypeName, "ps2-staging", TargetFrameRate, InputDevices, RuntimePlatformName, RuntimePlatformVersion, []);
+        EditorPlaySessionService service = CreateService(CreateSucceedingCookRunner(), CreateSucceedingScriptBuilder(), new FakePlayProcessLauncher());
+        string settingsPath = TestPlaySettings.CreateWriter().ResolvePath(PlatformId);
+        EditorPlaySettingsDocument pressedDocument = new EditorPlaySettingsDocument();
+        pressedDocument.CommonValues["window-scale"] = "2x";
+        store.Save(pressedDocument);
+        Assert.True(EditorPlaySettingsCapture.TryCapture(store, PlatformId, capability, false, 4242, out EditorPlaySettingsSnapshot pressed, out string pressedFailure), pressedFailure);
+        EditorBuildExecutionResult firstLaunch = null;
+
+        EditorBuildExecutionResult firstStart = service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, InputDevices, RuntimePlatformName, RuntimePlatformVersion, pressed, result => firstLaunch = result);
+        EditorPlaySettingsDocument editedDocument = new EditorPlaySettingsDocument();
+        editedDocument.CommonValues["window-scale"] = "3x";
+        store.Save(editedDocument);
+        Queue.ProcessPending();
+
+        Assert.True(firstStart.Succeeded, firstStart.Message);
+        Assert.True(firstLaunch.Succeeded, firstLaunch.Message);
+        Assert.Equal(PlayerWindowScale.Two, PlayerPlaySettingsFile.Read(settingsPath).WindowScale);
+
+        Assert.True(EditorPlaySettingsCapture.TryCapture(store, PlatformId, capability, false, 4242, out EditorPlaySettingsSnapshot next, out string nextFailure), nextFailure);
+        EditorBuildExecutionResult secondLaunch = PlayToCompletion(service, PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, InputDevices, next);
+
+        Assert.True(secondLaunch.Succeeded, secondLaunch.Message);
+        Assert.Equal(PlayerWindowScale.Three, PlayerPlaySettingsFile.Read(settingsPath).WindowScale);
+    }
+
+    /// <summary>
     /// A cook whose platform turns shadows off and that produced a runtime settings catalog launches the configured
     /// player executable, forwards the catalog as the trailing <c>--runtime-settings</c> pair, and writes shadows off
     /// even though the Play setting <c>shadows</c> defaults to on (Play can only turn shadows off).

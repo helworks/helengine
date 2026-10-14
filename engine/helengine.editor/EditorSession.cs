@@ -492,6 +492,10 @@ namespace helengine.editor {
         /// </summary>
         SceneSettingsDialog sceneSettingsDialog;
         /// <summary>
+        /// Per-user Play settings in user_settings/play.json.
+        /// </summary>
+        EditorPlaySettingsStore PlaySettingsStore;
+        /// <summary>
         /// Modal dialog used to edit the project's name and description.
         /// </summary>
         ProjectSettingsDialog projectSettingsDialog;
@@ -739,6 +743,7 @@ namespace helengine.editor {
             projectEnvironmentsService = new EditorProjectEnvironmentsService(this.projectPath);
             ProjectSupportedPlatforms = projectPlatformsService.Load().SupportedPlatforms.AsReadOnly();
             ProjectLocalSettingsService = new EditorProjectLocalSettingsService(this.projectPath, ProjectSupportedPlatforms);
+            PlaySettingsStore = new EditorPlaySettingsStore(this.projectPath);
             ActiveProjectPlatform = ProjectLocalSettingsService.LoadActivePlatform();
             availablePlatformProviderResolver = platformProviderResolver ?? throw new ArgumentNullException(nameof(platformProviderResolver));
             platformCatalogService = CreatePlatformCatalogService();
@@ -3621,8 +3626,11 @@ namespace helengine.editor {
         /// <summary>
         /// Handles the viewport Play button: plays the open scene through the desktop player on the platform chosen in
         /// the viewport Play platform selector (not the editor preview platform), using the builder assembly and player
-        /// adapter the catalog already loaded, and logs the outcome. A Shift+click launches the player waiting for a
-        /// debugger to attach before it starts the scene.
+        /// adapter the catalog already loaded, and logs the outcome. Play uses the Play settings in
+        /// user_settings/play.json as they are when Play is pressed, so an edit saved while this Play is preparing applies
+        /// to the next Play; stored values the platform's declarations reject refuse Play with a message naming the file,
+        /// the platform and the id. A Shift+click forces the player to wait for a debugger to attach before it starts the
+        /// scene, whatever the wait-for-debugger setting says.
         /// </summary>
         /// <param name="waitForDebugger">True when Shift was held on the Play button.</param>
         void HandlePlayRequested(bool waitForDebugger) {
@@ -3644,8 +3652,10 @@ namespace helengine.editor {
                     PlayPreparationInputs = CapturePlayPreparationInputs(playPlatform.PlatformId);
                 }
 
-                EditorPlaySettingsEvaluation defaults = EditorPlaySettingsEvaluator.Evaluate(new EditorPlaySettingsDocument(), "(defaults)", playPlatform.PlatformId, playPlatform.PlayerCapability);
-                EditorPlaySettingsSnapshot playSettings = new EditorPlaySettingsSnapshot(defaults, waitForDebugger, playPlatform.PlayerCapability, Environment.ProcessId);
+                if (!EditorPlaySettingsCapture.TryCapture(PlaySettingsStore, playPlatform.PlatformId, playPlatform.PlayerCapability, waitForDebugger, Environment.ProcessId, out EditorPlaySettingsSnapshot playSettings, out string playSettingsFailure)) {
+                    Logger.WriteError(playSettingsFailure);
+                    return;
+                }
                 EditorBuildExecutionResult result = PlaySession.Play(
                     playPlatform.PlatformId,
                     playPlatform.DisplayName,
