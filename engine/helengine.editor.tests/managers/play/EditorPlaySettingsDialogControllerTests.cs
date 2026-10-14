@@ -150,6 +150,44 @@ public sealed class EditorPlaySettingsDialogControllerTests : IDisposable {
     }
 
     /// <summary>
+    /// An undeclared stored id next to a rejected value: Reset Invalid resets only the declared row (the undeclared id
+    /// has no default to reset to), the undeclared id stays listed for removal, and Save then succeeds without either.
+    /// </summary>
+    [Fact]
+    public void ResetInvalidToDefaults_WithUndeclaredIdAndRejectedValue_ResetsTheRowAndSaveRemovesTheId() {
+        SaveRaw("{ \"version\": 1, \"common\": {}, \"platforms\": { \"ds\": { \"screen-gap\": \"8\", \"screen-layout\": \"bogus\" } } }");
+        EditorPlaySettingsDialogController controller = Open();
+
+        controller.ResetInvalidToDefaults();
+
+        Assert.Equal("stacked", controller.GetValue(EditorPlaySettingScope.Platform, "screen-layout"));
+        Assert.False(controller.IsRowFlagged(EditorPlaySettingScope.Platform, "screen-layout"));
+        Assert.StartsWith("Stored settings that are no longer declared: 'screen-gap' = '8'", controller.StatusText);
+        Assert.True(controller.TrySave(Store), controller.StatusText);
+        Assert.False(Store.Load().PlatformValues.ContainsKey("ds"));
+    }
+
+    /// <summary>
+    /// The checkbox state shown for a boolean row: its value when it is true or false, and checked for a rejected stored
+    /// value, so a single click stores <c>false</c> (Reset Invalid gives the declared default).
+    /// </summary>
+    [Fact]
+    public void GetCheckBoxState_ShowsRejectedBooleanCheckedSoOneClickStoresFalse() {
+        SaveRaw("{ \"version\": 1, \"common\": { \"shadows\": \"yes\", \"wait-for-debugger\": true }, \"platforms\": {} }");
+        EditorPlaySettingsDialogController controller = Open();
+
+        Assert.True(controller.GetCheckBoxState(EditorPlaySettingScope.Common, "shadows"));
+        Assert.True(controller.GetCheckBoxState(EditorPlaySettingScope.Common, "wait-for-debugger"));
+        controller.SetBooleanValue(EditorPlaySettingScope.Common, "wait-for-debugger", false);
+        Assert.False(controller.GetCheckBoxState(EditorPlaySettingScope.Common, "wait-for-debugger"));
+
+        controller.SetBooleanValue(EditorPlaySettingScope.Common, "shadows", false);
+
+        Assert.Equal("false", controller.GetValue(EditorPlaySettingScope.Common, "shadows"));
+        Assert.False(controller.IsRowFlagged(EditorPlaySettingScope.Common, "shadows"));
+    }
+
+    /// <summary>
     /// A file system failure while saving is caught from the model and shown in the status line naming play.json, Save
     /// reports failure (the dialog stays open) and the previous file content survives.
     /// </summary>

@@ -28,7 +28,7 @@ namespace helengine.editor {
         /// <summary>Unscaled spacing between the sections, the status line and the footer.</summary>
         public const int SectionSpacing = 12;
 
-        /// <summary>Unscaled height of the status text area.</summary>
+        /// <summary>Unscaled minimum height of the status text area; it grows by whole wrapped lines when the text needs more.</summary>
         public const int StatusHeight = 36;
 
         /// <summary>Unscaled label column width of the setting rows.</summary>
@@ -122,6 +122,7 @@ namespace helengine.editor {
                 Font = DialogFont,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.StateWarning,
+                WrapText = true,
                 Size = new int2(1, DialogMetrics.ScalePixels(StatusHeight))
             };
             StatusHost.AddComponent(StatusText);
@@ -165,7 +166,6 @@ namespace helengine.editor {
             AttachRowHandlers(CommonSection, EditorPlaySettingScope.Common);
             AttachRowHandlers(PlatformSection, EditorPlaySettingScope.Platform);
             RefreshPresentation();
-            SetDialogSize(DialogWidth, ComputePanelHeightPixels());
             ResetDialogPositioning();
             Enabled = true;
             ShowDialogImmediately();
@@ -236,7 +236,7 @@ namespace helengine.editor {
             PlatformSection.Layout();
             float statusTop = platformTop + PlatformSection.ContentHeight + spacing;
             StatusHost.Position = new float3(padding, statusTop, 0f);
-            StatusText.Size = new int2(Math.Max(1, AnchorBounds.X - padding * 2), DialogMetrics.ScalePixels(StatusHeight));
+            StatusText.Size = new int2(GetStatusWidthPixels(), ComputeStatusHeightPixels());
             int footerY = AnchorBounds.Y - padding - DialogMetrics.ScalePixels(FooterHeight);
             int buttonSpacing = DialogMetrics.ScalePixels(ButtonSpacing);
             int cancelX = AnchorBounds.X - padding - ScaleSize(ButtonSize).X;
@@ -256,9 +256,33 @@ namespace helengine.editor {
                 + CommonSection.ContentHeight
                 + PlatformSection.ContentHeight
                 + DialogMetrics.ScalePixels(SectionSpacing) * 3
-                + DialogMetrics.ScalePixels(StatusHeight)
+                + ComputeStatusHeightPixels()
                 + DialogMetrics.ScalePixels(FooterHeight);
             return (int)Math.Ceiling(height);
+        }
+
+        /// <summary>
+        /// Gets the width the status text wraps at: the panel width inside the padding.
+        /// </summary>
+        /// <returns>Status width in pixels.</returns>
+        int GetStatusWidthPixels() {
+            return Math.Max(1, DialogWidth - DialogMetrics.ScalePixels(PanelPadding) * 2);
+        }
+
+        /// <summary>
+        /// Computes the status text height: the minimum status height, or enough whole lines for the wrapped text when
+        /// several issues or a save failure naming play.json need more, so the panel grows instead of the text running
+        /// into the footer.
+        /// </summary>
+        /// <returns>Status height in pixels.</returns>
+        int ComputeStatusHeightPixels() {
+            int minimumHeight = DialogMetrics.ScalePixels(StatusHeight);
+            if (string.IsNullOrEmpty(StatusText.Text)) {
+                return minimumHeight;
+            }
+
+            int lineCount = TextLayoutUtils.WrapText(StatusText.Text, DialogFont, GetStatusWidthPixels()).Split('\n').Length;
+            return Math.Max(minimumHeight, lineCount * GetDialogLineHeight());
         }
 
         /// <summary>
@@ -307,7 +331,7 @@ namespace helengine.editor {
                 if (row.ComboBox != null) {
                     row.ComboBox.SelectedIndex = Array.IndexOf(row.Setting.AllowedValues, value);
                 } else if (row.CheckBox != null) {
-                    row.CheckBox.IsChecked = string.Equals(value, "true", StringComparison.Ordinal);
+                    row.CheckBox.IsChecked = Controller.GetCheckBoxState(scope, row.Setting.SettingId);
                 } else if (row.TextBox != null) {
                     row.TextBox.Text = value;
                 }
@@ -321,6 +345,7 @@ namespace helengine.editor {
             RefreshSectionLabels(CommonSection, EditorPlaySettingScope.Common);
             RefreshSectionLabels(PlatformSection, EditorPlaySettingScope.Platform);
             StatusText.Text = Controller.StatusText;
+            SetDialogSize(DialogWidth, ComputePanelHeightPixels());
         }
 
         /// <summary>

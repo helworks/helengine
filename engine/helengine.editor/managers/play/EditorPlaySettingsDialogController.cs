@@ -94,6 +94,19 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Gets the state a boolean row's checkbox shows: unchecked only for <c>false</c>. A rejected stored value (for
+        /// example <c>yes</c>) is shown checked, so a single click stores <c>false</c>; the row stays flagged until then,
+        /// and Reset Invalid gives the declared default.
+        /// </summary>
+        /// <param name="scope">Section of the setting.</param>
+        /// <param name="settingId">Setting id.</param>
+        /// <returns>True when the checkbox is shown checked.</returns>
+        /// <exception cref="ArgumentException">Thrown when the section does not declare the id.</exception>
+        public bool GetCheckBoxState(EditorPlaySettingScope scope, string settingId) {
+            return !string.Equals(GetValue(scope, settingId), "false", StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Creates a private copy of one section's values for the shared setting rows to bind to. The rows may rewrite
         /// that copy; it never reaches the model.
         /// </summary>
