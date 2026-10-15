@@ -27,9 +27,17 @@ PS_IN VS(VS_IN input)
     return output;
 }
 
+#if defined(HEL_API_WEBGPU)
+float PS(PS_IN input) : SV_Depth
+#else
 float4 PS(PS_IN input) : SV_Target
+#endif
 {
     float shadowRange = max(lightPositionAndRange.w, 0.0001f);
     float normalizedDistance = saturate(length(input.worldPos - lightPositionAndRange.xyz) / shadowRange);
+#if defined(HEL_API_WEBGPU)
+    return normalizedDistance;
+#else
     return float4(normalizedDistance, 0.0f, 0.0f, 1.0f);
+#endif
 }
