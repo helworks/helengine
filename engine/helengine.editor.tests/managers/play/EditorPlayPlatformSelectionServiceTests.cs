@@ -63,6 +63,27 @@ public sealed class EditorPlayPlatformSelectionServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a Play option carries the video modes its platform definition declares, the same instance, so Play press
+    /// hands them to the settings capture and the frame rate of a video-mode platform comes from the resolved mode.
+    /// </summary>
+    [Fact]
+    public void Refresh_OptionCarriesTheDefinitionVideoModes() {
+        PlatformVideoModeCapability modes = new PlatformVideoModeCapability("video-mode", [
+            new PlatformVideoMode("ntsc-640x448i", 640, 448, false, 59.94d, 60d, 4, 3),
+            new PlatformVideoMode("pal-640x512i", 640, 512, false, 50d, 50d, 4, 3)
+        ]);
+        PlatformPlayerCapability capability = new PlatformPlayerCapability(true, "ps2.adapter", "ps2-staging", 0d, PlayerInputDevices.Gamepad, "ps2", "1.0.0",
+            [new PlatformSettingDefinition("video-mode", "Video Mode", PlatformSettingKind.Choice, "project", true, ["project", "ntsc-640x448i", "pal-640x512i"])]);
+        PlatformSettingDefinition graphicsSetting = new PlatformSettingDefinition("video-mode", "Video Mode", PlatformSettingKind.Choice, "ntsc-640x448i", true, ["ntsc-640x448i", "pal-640x512i"]);
+        AvailablePlatformDescriptor descriptor = new AvailablePlatformDescriptor("ps2", "PlayStation 2", @"C:\builders\ps2.dll", isInstalled: true);
+        EditorPlayPlatformSelectionService service = CreateService(["ps2"]);
+
+        service.Refresh(["ps2"], [new EditorLoadedPlatformBuilder(descriptor, new RecordingPlayPlatformAssetBuilder(capability, [graphicsSetting], modes))]);
+
+        Assert.Same(modes, service.Options[0].VideoModeCapability);
+    }
+
+    /// <summary>
     /// Ensures a chosen Play platform is persisted and restored by a fresh service, as on the next editor boot.
     /// </summary>
     [Fact]

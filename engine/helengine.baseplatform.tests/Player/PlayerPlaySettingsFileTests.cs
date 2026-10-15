@@ -155,24 +155,62 @@ namespace helengine.baseplatform.tests.Player {
             Assert.Throws<ArgumentOutOfRangeException>(() => new PlayerPlaySettings(PlayerWindowScale.Fit, PlayerWindowMonitor.Editor, 1, false, true, true, 60d, new Dictionary<string, string>(), null));
         }
 
-        /// <summary>A resolved video mode round-trips in full.</summary>
+        /// <summary>
+        /// A resolved video mode round-trips in full. The mode's refresh rate (59.94) and player frame rate (60) differ, so a
+        /// swap of the two rate fields is caught.
+        /// </summary>
         [Fact]
         public void WriteThenRead_RoundTripsVideoMode() {
             string path = Path.Combine(Root, "mode.json");
-            PlatformVideoMode mode = new PlatformVideoMode("pal-320x256p", 320, 256, true, 50d, 50d, 4, 3);
-            PlayerPlaySettingsFile.Write(path, new PlayerPlaySettings(PlayerWindowScale.Fit, PlayerWindowMonitor.Editor, 1, false, true, false, 50d, new Dictionary<string, string>(), mode));
+            PlatformVideoMode mode = new PlatformVideoMode("ntsc-320x224p", 320, 224, true, 59.94d, 60d, 4, 3);
+            PlayerPlaySettingsFile.Write(path, new PlayerPlaySettings(PlayerWindowScale.Fit, PlayerWindowMonitor.Editor, 1, false, true, false, 60d, new Dictionary<string, string>(), mode));
 
             PlayerPlaySettings read = PlayerPlaySettingsFile.Read(path);
 
             Assert.True(read.HasVideoMode);
-            Assert.Equal("pal-320x256p", read.VideoMode.Id);
+            Assert.Equal("ntsc-320x224p", read.VideoMode.Id);
             Assert.Equal(320, read.VideoMode.Width);
-            Assert.Equal(256, read.VideoMode.Height);
+            Assert.Equal(224, read.VideoMode.Height);
             Assert.True(read.VideoMode.IsProgressive);
-            Assert.Equal(50d, read.VideoMode.RefreshRateHz);
-            Assert.Equal(50d, read.VideoMode.PlayerFrameRate);
+            Assert.Equal(59.94d, read.VideoMode.RefreshRateHz);
+            Assert.Equal(60d, read.VideoMode.PlayerFrameRate);
             Assert.Equal(4, read.VideoMode.DisplayAspectWidth);
             Assert.Equal(3, read.VideoMode.DisplayAspectHeight);
+        }
+
+        /// <summary>
+        /// Every invalid nested <c>videoMode</c> field fails as one error naming the file and <c>videoMode.&lt;field&gt;</c>,
+        /// checked before the mode is constructed: an unknown field, a blank id, a wrongly typed or fractional field, and every
+        /// value outside its range (dimensions and display-aspect terms 1..4096, rates positive).
+        /// </summary>
+        /// <param name="find">Text of the valid file's <c>videoMode</c> object to replace.</param>
+        /// <param name="replacement">Invalid replacement text.</param>
+        /// <param name="field">Nested field the error must name.</param>
+        [Theory]
+        [InlineData("\"id\": \"pal-320x256p\"", "\"id\": \"pal-320x256p\", \"pixelAspect\": 1.2", "pixelAspect")]
+        [InlineData("\"id\": \"pal-320x256p\"", "\"id\": \" \"", "id")]
+        [InlineData("\"id\": \"pal-320x256p\"", "\"id\": 7", "id")]
+        [InlineData("\"width\": 320", "\"width\": 0", "width")]
+        [InlineData("\"width\": 320", "\"width\": 4097", "width")]
+        [InlineData("\"width\": 320", "\"width\": 320.5", "width")]
+        [InlineData("\"height\": 256", "\"height\": 5000", "height")]
+        [InlineData("\"progressive\": true", "\"progressive\": 1", "progressive")]
+        [InlineData("\"refreshRateHz\": 50", "\"refreshRateHz\": 0", "refreshRateHz")]
+        [InlineData("\"playerFrameRate\": 50", "\"playerFrameRate\": -50", "playerFrameRate")]
+        [InlineData("\"displayAspectWidth\": 4", "\"displayAspectWidth\": 0", "displayAspectWidth")]
+        [InlineData("\"displayAspectHeight\": 3", "\"displayAspectHeight\": -1", "displayAspectHeight")]
+        public void Read_WhenVideoModeFieldInvalid_ThrowsNamingFileAndNestedField(string find, string replacement, string field) {
+            string path = Path.Combine(Root, "bad-mode-field.json");
+            PlatformVideoMode mode = new PlatformVideoMode("pal-320x256p", 320, 256, true, 50d, 50d, 4, 3);
+            PlayerPlaySettingsFile.Write(path, new PlayerPlaySettings(PlayerWindowScale.Fit, PlayerWindowMonitor.Editor, 1, false, true, true, 0d, new Dictionary<string, string>(), mode));
+            string json = File.ReadAllText(path);
+            Assert.Contains(find, json);
+            File.WriteAllText(path, json.Replace(find, replacement));
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => PlayerPlaySettingsFile.Read(path));
+
+            Assert.Contains(path, exception.Message);
+            Assert.Contains("'videoMode." + field + "'", exception.Message);
         }
 
         /// <summary>A platform without video modes writes <c>videoMode</c> as JSON null and reads back no mode.</summary>

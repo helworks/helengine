@@ -22,9 +22,22 @@ namespace helengine.editor.tests.testing {
         /// an install-tree media profile and the supplied Play capability.
         /// </summary>
         /// <param name="playerCapability">Play capability published through the platform definition.</param>
-        public RecordingPlayPlatformAssetBuilder(PlatformPlayerCapability playerCapability) {
+        public RecordingPlayPlatformAssetBuilder(PlatformPlayerCapability playerCapability)
+            : this(playerCapability, [], null) {
+        }
+
+        /// <summary>
+        /// Initializes the builder like the single-argument constructor, but with the given settings on its graphics profile
+        /// and the given video modes, so a test can build a platform whose Play frame rate comes from a video mode.
+        /// </summary>
+        /// <param name="playerCapability">Play capability published through the platform definition.</param>
+        /// <param name="graphicsSettings">Settings of the single graphics profile (a video-mode platform declares its mode setting here).</param>
+        /// <param name="videoModeCapability">Video modes published through the platform definition, or null for none.</param>
+        public RecordingPlayPlatformAssetBuilder(PlatformPlayerCapability playerCapability, PlatformSettingDefinition[] graphicsSettings, PlatformVideoModeCapability videoModeCapability) {
             if (playerCapability == null) {
                 throw new ArgumentNullException(nameof(playerCapability));
+            } else if (graphicsSettings == null) {
+                throw new ArgumentNullException(nameof(graphicsSettings));
             }
 
             RecordedRequests = [];
@@ -52,7 +65,7 @@ namespace helengine.editor.tests.testing {
                         "directx11",
                         "DirectX 11",
                         "Default Windows renderer",
-                        [])
+                        graphicsSettings)
                 ],
                 [],
                 [],
@@ -82,7 +95,8 @@ namespace helengine.editor.tests.testing {
                         true,
                         true)
                 ],
-                playerCapability: playerCapability);
+                playerCapability: playerCapability,
+                videoModeCapability: videoModeCapability);
         }
 
         /// <summary>

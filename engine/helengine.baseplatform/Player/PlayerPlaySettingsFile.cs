@@ -17,6 +17,11 @@ namespace helengine.baseplatform.Player {
             "shadowsEnabled", "frameRateUnlimited", "targetFrameRate", "platform", "videoMode"
         ];
 
+        /// <summary>Field names of the <c>videoMode</c> object, in write order; any other field is rejected.</summary>
+        static readonly string[] VideoModePropertyNames = [
+            "id", "width", "height", "progressive", "refreshRateHz", "playerFrameRate", "displayAspectWidth", "displayAspectHeight"
+        ];
+
         /// <summary>
         /// Writes one resolved settings file, replacing any previous one.
         /// </summary>
@@ -256,8 +261,9 @@ namespace helengine.baseplatform.Player {
         /// <param name="path">File path reported on failure.</param>
         /// <returns>The video mode, or null when the file carries JSON null.</returns>
         /// <exception cref="InvalidOperationException">
-        /// Thrown when the property is missing, is neither an object nor null, or its object lacks a field or holds a
-        /// wrongly typed one.
+        /// Thrown when the property is missing or is neither an object nor null, or when its object has an unknown field,
+        /// lacks a field, or holds a wrongly typed or out-of-range one. Every value is checked before the mode is
+        /// constructed, so each message names the file and <c>videoMode.&lt;field&gt;</c>.
         /// </exception>
         static PlatformVideoMode RequireVideoMode(JsonElement root, string path) {
             if (!root.TryGetProperty("videoMode", out JsonElement videoModeElement)) {
@@ -268,15 +274,82 @@ namespace helengine.baseplatform.Player {
                 throw new InvalidOperationException($"Play settings file '{path}' property 'videoMode' must be an object or null.");
             }
 
+            foreach (JsonProperty property in videoModeElement.EnumerateObject()) {
+                if (Array.IndexOf(VideoModePropertyNames, property.Name) < 0) {
+                    throw new InvalidOperationException($"Play settings file '{path}' has unknown property 'videoMode.{property.Name}'.");
+                }
+            }
+
+            JsonElement idElement = RequireVideoModeProperty(videoModeElement, "id", path);
+            if (idElement.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(idElement.GetString())) {
+                throw new InvalidOperationException($"Play settings file '{path}' property 'videoMode.id' is {idElement.GetRawText()}; it must be a non-blank string.");
+            }
+
+            JsonElement progressiveElement = RequireVideoModeProperty(videoModeElement, "progressive", path);
+            if (progressiveElement.ValueKind != JsonValueKind.True && progressiveElement.ValueKind != JsonValueKind.False) {
+                throw new InvalidOperationException($"Play settings file '{path}' property 'videoMode.progressive' is {progressiveElement.GetRawText()}; it must be true or false.");
+            }
+
             return new PlatformVideoMode(
-                RequireProperty(videoModeElement, "id", JsonValueKind.String, path).GetString(),
-                RequireInt32(videoModeElement, "width", path),
-                RequireInt32(videoModeElement, "height", path),
-                RequireBoolean(videoModeElement, "progressive", path),
-                RequireProperty(videoModeElement, "refreshRateHz", JsonValueKind.Number, path).GetDouble(),
-                RequireProperty(videoModeElement, "playerFrameRate", JsonValueKind.Number, path).GetDouble(),
-                RequireInt32(videoModeElement, "displayAspectWidth", path),
-                RequireInt32(videoModeElement, "displayAspectHeight", path));
+                idElement.GetString(),
+                RequireVideoModeDimension(videoModeElement, "width", path),
+                RequireVideoModeDimension(videoModeElement, "height", path),
+                progressiveElement.ValueKind == JsonValueKind.True,
+                RequireVideoModeRate(videoModeElement, "refreshRateHz", path),
+                RequireVideoModeRate(videoModeElement, "playerFrameRate", path),
+                RequireVideoModeDimension(videoModeElement, "displayAspectWidth", path),
+                RequireVideoModeDimension(videoModeElement, "displayAspectHeight", path));
+        }
+
+        /// <summary>
+        /// Returns one required field of the <c>videoMode</c> object, of any JSON kind.
+        /// </summary>
+        /// <param name="videoModeElement">The <c>videoMode</c> object.</param>
+        /// <param name="field">Field name inside the object.</param>
+        /// <param name="path">File path reported on failure.</param>
+        /// <returns>The field value.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the field is missing, naming the file and <c>videoMode.&lt;field&gt;</c>.</exception>
+        static JsonElement RequireVideoModeProperty(JsonElement videoModeElement, string field, string path) {
+            if (!videoModeElement.TryGetProperty(field, out JsonElement value)) {
+                throw new InvalidOperationException($"Play settings file '{path}' is missing property 'videoMode.{field}'.");
+            }
+
+            return value;
+        }
+
+        /// <summary>
+        /// Returns one required whole-number field of the <c>videoMode</c> object that lies in the range a video mode accepts
+        /// for its dimensions and display-aspect terms (1 to <see cref="PlatformVideoMode.MaximumDimension"/>).
+        /// </summary>
+        /// <param name="videoModeElement">The <c>videoMode</c> object.</param>
+        /// <param name="field">Field name inside the object.</param>
+        /// <param name="path">File path reported on failure.</param>
+        /// <returns>The field value.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the field is missing, not a whole number or out of range.</exception>
+        static int RequireVideoModeDimension(JsonElement videoModeElement, string field, string path) {
+            JsonElement value = RequireVideoModeProperty(videoModeElement, field, path);
+            if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out int number) || number < 1 || number > PlatformVideoMode.MaximumDimension) {
+                throw new InvalidOperationException($"Play settings file '{path}' property 'videoMode.{field}' is {value.GetRawText()}; it must be a whole number from 1 to {PlatformVideoMode.MaximumDimension}.");
+            }
+
+            return number;
+        }
+
+        /// <summary>
+        /// Returns one required rate field of the <c>videoMode</c> object, which must be a positive, finite number.
+        /// </summary>
+        /// <param name="videoModeElement">The <c>videoMode</c> object.</param>
+        /// <param name="field">Field name inside the object.</param>
+        /// <param name="path">File path reported on failure.</param>
+        /// <returns>The rate.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the field is missing, not a number, or not positive and finite.</exception>
+        static double RequireVideoModeRate(JsonElement videoModeElement, string field, string path) {
+            JsonElement value = RequireVideoModeProperty(videoModeElement, field, path);
+            if (value.ValueKind != JsonValueKind.Number || !value.TryGetDouble(out double rate) || !(rate > 0d && double.IsFinite(rate))) {
+                throw new InvalidOperationException($"Play settings file '{path}' property 'videoMode.{field}' is {value.GetRawText()}; it must be a positive, finite number.");
+            }
+
+            return rate;
         }
 
         /// <summary>
