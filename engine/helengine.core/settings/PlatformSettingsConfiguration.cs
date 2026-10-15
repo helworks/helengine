@@ -6,11 +6,24 @@ namespace helengine {
         /// <summary>Owns deep copies of the complete presets.</summary>
         [NativeOwnedMember] PlatformSettingsPreset[] PresetsValue;
         /// <summary>Constructs a catalog, rejecting duplicate identifiers, incomplete presets and unknown initial selections.</summary>
+        /// <remarks>
+        /// A platform without authored settings is the empty catalog: no definitions, no presets and no initial preset.
+        /// "No initial preset" is a null or empty id and is stored as an empty string, because the native string type
+        /// cannot tell null from empty; a catalog with presets must name one of them explicitly.
+        /// </remarks>
         public PlatformSettingsConfiguration(string platformId, [NativeNoEscape] PlatformRuntimeSettingDefinition[] definitions,
             [NativeNoEscape] PlatformSettingsPreset[] presets, string initialPresetId) {
             if (string.IsNullOrWhiteSpace(platformId)) { throw new ArgumentException("Platform id is required.", nameof(platformId)); }
-            if (definitions == null || presets == null || initialPresetId == null) { throw new ArgumentNullException(nameof(definitions)); }
-            PlatformId = platformId; InitialPresetId = initialPresetId;
+            if (definitions == null) { throw new ArgumentNullException(nameof(definitions)); }
+            if (presets == null) { throw new ArgumentNullException(nameof(presets)); }
+            bool hasInitialPreset = !string.IsNullOrEmpty(initialPresetId);
+            if (presets.Length == 0) {
+                if (definitions.Length != 0) { throw new ArgumentException("Configured platforms require at least one complete preset.", nameof(presets)); }
+                if (hasInitialPreset) { throw new ArgumentException("A catalog without presets cannot select an initial preset.", nameof(initialPresetId)); }
+            } else if (!hasInitialPreset) {
+                throw new ArgumentException("Configured platforms require an initial preset.", nameof(initialPresetId));
+            }
+            PlatformId = platformId; InitialPresetId = hasInitialPreset ? initialPresetId : string.Empty;
             DefinitionsValue = new PlatformRuntimeSettingDefinition[definitions.Length];
             PresetsValue = new PlatformSettingsPreset[presets.Length];
             for (int index = 0; index < definitions.Length; index++) {
@@ -28,11 +41,7 @@ namespace helengine {
                 Validate(presets[index].Values);
                 PresetsValue[index] = presets[index].Clone();
             }
-            if (presets.Length == 0) {
-                if (definitions.Length != 0 || initialPresetId.Length != 0) { throw new ArgumentException("Configured platforms require at least one complete preset."); }
-            } else {
-                GetPreset(initialPresetId);
-            }
+            if (presets.Length != 0) { GetPreset(initialPresetId); }
         }
         /// <summary>Gets the platform whose settings this catalog describes.</summary>
         public string PlatformId { get; }
