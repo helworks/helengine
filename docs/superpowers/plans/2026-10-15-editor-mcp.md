@@ -10,7 +10,9 @@
 
 **Spec:** [C:\dev\helworks\helengine\docs\superpowers\specs\2026-10-15-editor-mcp-design.md](C:/dev/helworks/helengine/docs/superpowers/specs/2026-10-15-editor-mcp-design.md), aprovada em 2026-10-15.
 
-Status deste plano: pronto para revisão; nenhuma tarefa de implementação foi executada. A divisão de projetos e a seleção de SDK abaixo são propostas concretas para aprovação com este plano, não mudanças já efetuadas.
+Status deste plano: execução autorizada, em andamento. Helena definiu no máximo dois subagentes, ambos `gpt-6-luna` com esforço `xhigh`. As tarefas só são consideradas concluídas após testes e revisão.
+
+Decisão adicional aprovada por Helena em 2026-10-15: usar uma biblioteca de JSON Schema como dependência para validar os argumentos recebidos em runtime. O SDK MCP anuncia schemas, mas isso não substitui a validação de entrada. Fixar uma versão compatível com .NET 9 e testar a rejeição de propriedades desconhecidas e tipos inválidos. O projeto compartilhado permanece independente do motor, da UI e do SDK MCP.
 
 ## Global Constraints
 
@@ -487,4 +489,4 @@ Não foram executados restore, compilação, testes de produto, instalação de 
 
 Fontes consultadas em 2026-10-15. Metadados do pacote indicam compatibilidade de alvo; somente a tarefa 01 comprova execução nesta composição. O índice de código estava desatualizado; caminhos e comportamento citados foram conferidos por leitura de fonte.
 
-Revisão de Helena deve cobrir a estrutura de projetos, SDK/Kestrel, revisão conservadora e limites propostos. Após aprovação do plano, escolher execução pelo agente principal ou por subagentes com revisão por tarefa. Se houver delegação autorizada, usar por padrão `gpt-6.1-sol` com esforço `high`, conforme as instruções de Helena.
+Execução por subagentes autorizada por Helena, com revisão por tarefa e limite de dois subagentes, ambos `gpt-6-luna` com esforço `xhigh`. Novas decisões arquiteturais continuam exigindo seu feedback.
