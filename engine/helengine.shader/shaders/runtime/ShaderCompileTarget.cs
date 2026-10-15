@@ -51,6 +51,11 @@ namespace helengine {
         /// <summary>
         /// Original Xbox NV2A vertex microcode and pixel register-combiner artifact target.
         /// </summary>
-        Xbox = 9
+        Xbox = 9,
+
+        /// <summary>
+        /// Browser WebGPU shader artifacts containing validated WGSL and reflected bindings.
+        /// </summary>
+        WebGpu = 10
     }
 }
