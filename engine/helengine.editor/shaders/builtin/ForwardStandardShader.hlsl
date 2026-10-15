@@ -118,20 +118,20 @@ float SamplePointShadowTexture(int textureIndex, float3 sampleDirection)
 {
     if (textureIndex == 0)
     {
-        return pointShadowTexture0.Sample(pointShadowSampler, sampleDirection).r;
+        return pointShadowTexture0.SampleLevel(pointShadowSampler, sampleDirection, 0.0f).r;
     }
 
     if (textureIndex == 1)
     {
-        return pointShadowTexture1.Sample(pointShadowSampler, sampleDirection).r;
+        return pointShadowTexture1.SampleLevel(pointShadowSampler, sampleDirection, 0.0f).r;
     }
 
     if (textureIndex == 2)
     {
-        return pointShadowTexture2.Sample(pointShadowSampler, sampleDirection).r;
+        return pointShadowTexture2.SampleLevel(pointShadowSampler, sampleDirection, 0.0f).r;
     }
 
-    return pointShadowTexture3.Sample(pointShadowSampler, sampleDirection).r;
+    return pointShadowTexture3.SampleLevel(pointShadowSampler, sampleDirection, 0.0f).r;
 }
 #endif
 
@@ -231,7 +231,7 @@ float3 EvaluateForwardLight(
                 if (shadowUv.x >= 0.0f && shadowUv.x <= 1.0f && shadowUv.y >= 0.0f && shadowUv.y <= 1.0f && shadowNdc.z >= 0.0f && shadowNdc.z <= 1.0f)
                 {
                     float2 atlasUv = shadowAtlasRect.xy + (shadowUv * shadowAtlasRect.zw);
-                    float sampledDepth = shadowAtlasTexture.Sample(shadowAtlasSampler, atlasUv).r;
+                    float sampledDepth = shadowAtlasTexture.SampleLevel(shadowAtlasSampler, atlasUv, 0.0f).r;
                     float shadowBias = 0.0015f;
                     float shadowVisibility = (shadowNdc.z - shadowBias) <= sampledDepth ? 1.0f : 0.0f;
                     attenuation *= lerp(1.0f, shadowVisibility, shadowSlotMetadata.y);
@@ -309,7 +309,7 @@ float3 EvaluateWiiUDirectionalLight(
             if (shadowUv.x >= 0.0f && shadowUv.x <= 1.0f && shadowUv.y >= 0.0f && shadowUv.y <= 1.0f && shadowNdc.z >= 0.0f && shadowNdc.z <= 1.0f)
             {
                 float2 atlasUv = shadowAtlasRect.xy + (shadowUv * shadowAtlasRect.zw);
-                float sampledDepth = shadowAtlasTexture.Sample(shadowAtlasSampler, atlasUv).r;
+                float sampledDepth = shadowAtlasTexture.SampleLevel(shadowAtlasSampler, atlasUv, 0.0f).r;
                 float shadowBias = 0.0015f;
                 float wiiuShadowReceiverDepth = (shadowNdc.z * 0.5f) + 0.5f;
                 float shadowVisibility = (wiiuShadowReceiverDepth - shadowBias) <= sampledDepth ? 1.0f : 0.0f;
