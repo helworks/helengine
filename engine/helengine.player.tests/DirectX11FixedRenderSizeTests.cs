@@ -76,6 +76,30 @@ namespace helengine.player.tests {
             Assert.Equal(expected, DirectX11FixedRenderSize.ResolveClientWidth(renderWidth, 1, 4d * renderHeight / (3d * renderWidth)));
         }
 
+        /// <summary>
+        /// A client narrower than the render width is rejected even when its width follows the pixel-aspect rule: the
+        /// magnify pass would then squeeze columns (r = client width / render width below 1), so a point-sampled frame
+        /// drops columns and a coverage-blended one stops being a two-column area blend. 640x224 and 640x448 shown 4:3
+        /// at 1x are 299 and 597 pixels wide; the player layout raises them to 3x and 2x instead. The message names both
+        /// widths.
+        /// </summary>
+        /// <param name="clientWidth">Client width the pixel-aspect rule gives at 1x.</param>
+        /// <param name="clientHeight">Client height at 1x.</param>
+        /// <param name="renderWidth">Fixed render width.</param>
+        /// <param name="renderHeight">Fixed render height.</param>
+        [Theory]
+        [InlineData(299, 224, 640, 224)]
+        [InlineData(597, 448, 640, 448)]
+        public void ValidateMagnification_WhenTheClientIsNarrowerThanTheRender_Rejects(int clientWidth, int clientHeight, int renderWidth, int renderHeight) {
+            double pixelAspect = 4d * renderHeight / (3d * renderWidth);
+            Assert.Equal(clientWidth, DirectX11FixedRenderSize.ResolveClientWidth(renderWidth, 1, pixelAspect));
+
+            ArgumentException exception = Assert.Throws<ArgumentException>(() => DirectX11FixedRenderSize.ValidateMagnification(clientWidth, clientHeight, renderWidth, renderHeight, pixelAspect));
+
+            Assert.Contains(clientWidth.ToString(System.Globalization.CultureInfo.InvariantCulture), exception.Message);
+            Assert.Contains(renderWidth.ToString(System.Globalization.CultureInfo.InvariantCulture), exception.Message);
+        }
+
         /// <summary>A non-finite or non-positive pixel aspect is rejected.</summary>
         [Fact]
         public void ValidateMagnification_RejectsInvalidPixelAspect() {

@@ -82,6 +82,12 @@ float4 PSColumnCoverage(VertexOutput input) : SV_TARGET {
         readonly SharpDX.Direct3D11.Buffer SizeBuffer;
 
         /// <summary>
+        /// Source width, source height, target width and target height last uploaded to <see cref="SizeBuffer"/>; all zero
+        /// until the first upload. Reused so a frame whose sizes are unchanged neither allocates nor uploads.
+        /// </summary>
+        readonly int[] UploadedSizes = new int[4];
+
+        /// <summary>
         /// Compiles the pass for one device.
         /// </summary>
         /// <param name="device">Device that owns the pass resources.</param>
@@ -134,7 +140,13 @@ float4 PSColumnCoverage(VertexOutput input) : SV_TARGET {
                 context.PixelShader.Set(PointPixelShader);
                 context.PixelShader.SetSampler(0, PointSampler);
             } else {
-                context.UpdateSubresource(new[] { sourceWidth, sourceHeight, targetWidth, targetHeight }, SizeBuffer);
+                if (UploadedSizes[0] != sourceWidth || UploadedSizes[1] != sourceHeight || UploadedSizes[2] != targetWidth || UploadedSizes[3] != targetHeight) {
+                    UploadedSizes[0] = sourceWidth;
+                    UploadedSizes[1] = sourceHeight;
+                    UploadedSizes[2] = targetWidth;
+                    UploadedSizes[3] = targetHeight;
+                    context.UpdateSubresource(UploadedSizes, SizeBuffer);
+                }
                 context.PixelShader.Set(ColumnCoveragePixelShader);
                 context.PixelShader.SetConstantBuffer(0, SizeBuffer);
             }

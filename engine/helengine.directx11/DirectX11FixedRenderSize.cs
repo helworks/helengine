@@ -4,9 +4,11 @@ namespace helengine.directx11 {
     /// <summary>
     /// Rules for a window that renders at a fixed size and is magnified on present. The client height is an integer
     /// multiple k of the render height, and the client width is the render width times the display pixel aspect times k,
-    /// rounded to the nearest pixel. With square pixels both axes use the same integer multiple, so point sampling turns
-    /// every rendered pixel into an identical block; with non-square pixels (a console mode shown 4:3) every rendered row
-    /// is repeated k times and the columns are stretched to the display aspect.
+    /// rounded to the nearest pixel, and never narrower than the render width. With square pixels both axes use the same
+    /// integer multiple, so point sampling turns every rendered pixel into an identical block; with non-square pixels (a
+    /// console mode shown 4:3) every rendered row is repeated k times and the columns are stretched to the display aspect.
+    /// A non-integer column stretch r = client width / render width is magnified sharp-bilinear by
+    /// <see cref="DirectX11MagnifyPass"/>, which needs r of at least 1 so each client pixel overlaps at most two columns.
     /// </summary>
     public static class DirectX11FixedRenderSize {
         /// <summary>
@@ -39,7 +41,7 @@ namespace helengine.directx11 {
         /// <param name="renderHeight">Fixed render height.</param>
         /// <param name="pixelAspect">Displayed width of one rendered pixel divided by its displayed height; 1 for square pixels.</param>
         /// <returns>The integer multiplier (at least 1).</returns>
-        /// <exception cref="ArgumentException">Thrown when a size is not positive, the height is not an integer multiple, or the width does not match the pixel aspect.</exception>
+        /// <exception cref="ArgumentException">Thrown when a size is not positive, the height is not an integer multiple, the width does not match the pixel aspect, or the client is narrower than the render.</exception>
         /// <exception cref="ArgumentOutOfRangeException">Thrown when the pixel aspect is not finite and positive.</exception>
         public static int ValidateMagnification(int clientWidth, int clientHeight, int renderWidth, int renderHeight, double pixelAspect) {
             if (clientWidth <= 0 || clientHeight <= 0 || renderWidth <= 0 || renderHeight <= 0) {
@@ -56,6 +58,10 @@ namespace helengine.directx11 {
                 throw new ArgumentException(
                     $"Client {clientWidth}x{clientHeight} does not show render size {renderWidth}x{renderHeight} at pixel aspect "
                     + pixelAspect.ToString("0.####", CultureInfo.InvariantCulture) + $": at {multiplier}x the client width must be {expectedWidth}.");
+            } else if (clientWidth < renderWidth) {
+                throw new ArgumentException(
+                    $"Client width {clientWidth} is narrower than render width {renderWidth}: magnification would squeeze rendered "
+                    + "columns, so use a larger multiple whose client width is at least the render width.");
             }
 
             return multiplier;

@@ -59,8 +59,11 @@ namespace helengine.player {
         }
 
         /// <summary>
-        /// Resolves the smallest multiple whose client width is at least the render width, so point sampling drops no
-        /// rendered column. Square pixels and pixel aspects of 1 or more always give 1.
+        /// Resolves the smallest multiple whose client width is at least the render width, so the magnify pass never
+        /// squeezes rendered columns: its column stretch r = client width / render width is at least 1, which keeps the
+        /// sharp-bilinear coverage blend to at most two columns per client pixel (and a point-sampled integer stretch
+        /// dropping none). <see cref="DirectX11FixedRenderSize.ValidateMagnification"/> rejects narrower clients. Square
+        /// pixels and pixel aspects of 1 or more always give 1.
         /// </summary>
         /// <param name="renderSize">Platform render size and pixel aspect.</param>
         /// <returns>The minimum multiple.</returns>
