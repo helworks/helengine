@@ -10,7 +10,9 @@
 
 **Spec:** [C:\dev\helworks\helengine\docs\superpowers\specs\2026-10-15-editor-mcp-design.md](C:/dev/helworks/helengine/docs/superpowers/specs/2026-10-15-editor-mcp-design.md), aprovada em 2026-10-15.
 
-Status deste plano: pronto para revisão; nenhuma tarefa de implementação foi executada. A divisão de projetos e a seleção de SDK abaixo são propostas concretas para aprovação com este plano, não mudanças já efetuadas.
+Status deste plano: execução autorizada, em andamento. Helena definiu no máximo dois subagentes, ambos `gpt-6-luna` com esforço `xhigh`. As tarefas só são consideradas concluídas após testes e revisão.
+
+Decisão adicional aprovada por Helena em 2026-10-15: usar uma biblioteca de JSON Schema como dependência para validar os argumentos recebidos em runtime. O SDK MCP anuncia schemas, mas isso não substitui a validação de entrada. Fixar uma versão compatível com .NET 9 e testar a rejeição de propriedades desconhecidas e tipos inválidos. O projeto compartilhado permanece independente do motor, da UI e do SDK MCP.
 
 ## Global Constraints
 
@@ -25,13 +27,13 @@ Status deste plano: pronto para revisão; nenhuma tarefa de implementação foi 
 - Código gerado é corrigido no gerador; não editar saídas. Nenhuma execução de código arbitrário substitui ferramentas de domínio.
 - Outputs, logs e fixtures ficam em `C:\dev\helworks\builds\helengine\editor-mcp`, em subdiretório exclusivo por execução. Não direcionar saídas ao diretório temporário do usuário.
 - Não capturar tela/janelas sem autorização específica. Validar estado e integração por testes e consultas.
-- Não reverter alterações de outras tarefas/pessoas. Começar a execução em checkout isolado; este plano não exige isolamento para a edição documental.
+- Não reverter alterações de outras tarefas/pessoas. Trabalhar diretamente no checkout real `C:\dev\helworks\helengine`, na `main`. Não criar ou executar tarefas em worktrees nem usar exports para build/teste. Se o checkout estiver em outra branch ou tiver alterações não commitadas, parar e consultar Helena antes de prosseguir.
 - Decisão arquitetural nova ou mudança incompatível exige feedback de Helena, inclusive se a prova de SDK falhar.
 
 ## Review Focus
 
 1. Mesmo nome de projeto, duas cópias, duas instâncias e reutilização de PID/porta: confirmar identidade e nunca trocar de destino. Testes nas tarefas 02, 03, 08 e 23.
-2. UTF-8, espaços, caminho Windows com casing diferente, junction e arquivo de registro parcialmente escrito: não perder identidade, aceitar entrada inválida ou escapar da raiz. Testes nas tarefas 02 e 13.
+2. Inicializações concorrentes do coordenador, listener ocupado por processo alheio, resposta health/protocol inválida, lease expirada e recuperação após crash: não matar processo externo, perder editor vivo ou repetir mutações. Testes nas tarefas 02 e 07–09.
 3. Alteração pela UI, undo/redo ou hot reload entre leitura e escrita: invalidar revisão/handle/esquema antes de qualquer efeito. Testes nas tarefas 05 e 12.
 4. Resposta perdida após commit, cancelamento tardio e fechamento com requisições em fila: não duplicar efeito, prometer rollback inexistente ou bloquear indefinidamente. Testes nas tarefas 04, 06, 17 e 23.
 5. Play salva implicitamente hoje e builds consomem arquivos: distinguir estado vivo de fonte salva sem alterar silenciosamente a semântica da interface. Testes nas tarefas 10, 19 e 20.
@@ -42,17 +44,18 @@ Os diretórios novos abaixo são propostas. Arquivos marcados “modificar” na
 
 | Unidade | Caminho absoluto | Responsabilidade |
 | --- | --- | --- |
-| Compartilhado novo | `C:\dev\helworks\helengine\engine\helengine.editor.automation` | DTOs, catálogo, schemas, descoberta e armazenamento local sem referência ao motor, UI ou SDK MCP |
+| Compartilhado novo | `C:\dev\helworks\helengine\engine\helengine.editor.automation` | DTOs, catálogo, schemas e contratos/clientes de descoberta sem referência ao motor, UI ou SDK MCP |
 | Domínio no editor existente | `C:\dev\helworks\helengine\engine\helengine.editor\automation` | Despacho, revisão, bindings, ledger, jobs e adaptadores dos serviços de domínio |
 | Host HTTP novo | `C:\dev\helworks\helengine\engine\helengine.editor.mcp` | MCP C# SDK, Kestrel, autenticação, lifecycle e adaptação de resultados |
 | Conector novo | `C:\dev\helworks\helengine\engine\helengine.editor.mcp.connector` | Executável stdio, descoberta, conexões HTTP e roteamento por vínculo |
+| Coordenador novo | `C:\dev\helworks\helengine\engine\helengine.editor.mcp.coordinator` | Processo local independente, endpoint loopback de descoberta e registros vivos em memória |
 | Testes de transporte novos | `C:\dev\helworks\helengine\engine\helengine.editor.mcp.tests` | Compatibilidade SDK, registro, HTTP, stdio, isolamento e distribuição |
 | Testes de domínio existentes | `C:\dev\helworks\helengine\engine\helengine.editor.tests\automation` | Serviços reais e fixtures determinísticas de editor |
 | Composição existente | `C:\dev\helworks\helengine\helengine.ui\helengine.editor.app\MainForm.cs` | Iniciar/parar host MCP junto à sessão, sem regras de domínio |
 
-Direção de referências: editor → automation; host MCP → editor + automation; conector → automation + SDK MCP. O conector não referencia editor, renderizadores ou app. O app referencia host MCP. O SDK usa seu contêiner de hospedagem apenas dentro dos adaptadores de transporte; não reestruturar a composição do motor.
+Direção de referências: editor → automation; host MCP → editor + automation; conector → automation + SDK MCP; coordenador → contratos compartilhados. O conector não referencia editor, renderizadores ou app. O app inicia/garante o coordenador e referencia host MCP. O coordenador serve descoberta, enquanto o conector encaminha chamadas diretamente aos hosts dos editores, sem proxy MCP. O SDK usa seu contêiner de hospedagem apenas dentro dos adaptadores de transporte; não reestruturar a composição do motor.
 
-Criar os quatro projetos novos como `net9.0`, com nullable desabilitado. A distribuição e os testes nativos iniciais são Windows. A camada de armazenamento local verifica suporte a ACL do Windows explicitamente; não fingir suporte a outro sistema operacional com permissões permissivas.
+Criar os cinco projetos novos como `net9.0`, com nullable desabilitado. O MCP deve acompanhar o editor no Windows, Linux e macOS. A máquina de desenvolvimento Windows não restringe o produto a esse sistema. Descoberta, credenciais e vínculo precisam preservar seus contratos nas três plataformas. A autenticação/bootstrap do coordenador e a privacidade das credenciais continuam pendentes; não assumir divulgação pública de segredos nem reduzir isolamento por usuário. Não estabelecer requisito de Windows 10 1709+ por causa de uma API escolhida durante a implementação. Testes executados somente no Windows não comprovam suporte aos outros sistemas.
 
 `ModelContextProtocol.AspNetCore` e `ModelContextProtocol` ficam fixados em `2.2.0` nos respectivos projetos de transporte. O pacote publicado inclui alvo `net9.0`; isso não dispensa provar resolução de dependências e publicação junto ao host. HTTP usa `/mcp`, `HttpServerSessionMode.Stateless` e `HttpTransportMode.StreamableHttp`; bind de aplicação não depende de sessão do transporte. Não habilitar fallback para SSE legado. A tarefa 01 verifica negociação suportada pelo SDK e registra versões reais dos clientes, sem copiar APIs de exemplos do SDK v1.
 
@@ -103,7 +106,7 @@ Limites iniciais propostos para revisão: página padrão 100/máximo 500; 1.024
 
 ## 3. Rotina de teste e checkpoints
 
-Na execução, usar estas variáveis PowerShell, ajustando somente a raiz se estiver num worktree:
+Na execução, usar estas variáveis PowerShell no checkout real, na `main`:
 
 ```powershell
 $Dotnet = 'C:\dev\helworks\helengine\dotnetw.ps1'
@@ -163,17 +166,25 @@ Quando o passo verde mencionar regressões existentes, usar também os filtros a
 - [ ] Executar verde com o mesmo filtro e revisar publicação framework-dependent em .NET 9.
 - [ ] Commit: `feat: define editor automation contract and validate MCP SDK`.
 
-### Tarefa 02 — Registro local e credenciais por instância
+### Tarefa 02 — Coordenador local em memória e lifecycle
 
-**Criar:** `C:\dev\helworks\helengine\engine\helengine.editor.automation\discovery\EditorInstanceRegistry.cs`; `C:\dev\helworks\helengine\engine\helengine.editor.automation\discovery\EditorLocalCredentialStore.cs`; `C:\dev\helworks\helengine\engine\helengine.editor.automation\discovery\EditorRegistryPaths.cs`; `C:\dev\helworks\helengine\engine\helengine.editor.mcp.tests\EditorInstanceRegistryTests.cs`.
+**Substitui a implementação file-based anterior da tarefa 02, que está obsoleta e requer substituição. A tarefa 01 permanece válida.**
 
-**Interfaces:** `void Publish(EditorInstanceDescriptor instance)`, `IReadOnlyList<EditorInstanceDescriptor> ReadCandidates()`, `void Remove(string instanceId)`; credenciais: `string Create(string instanceId)`, `string Read(string instanceId)`, `void Delete(string instanceId)`. Construtores recebem diretório absoluto; registry recebe também `Action<string> reportIssue` para comunicar entradas inválidas sem esconder destinos saudáveis. Produção resolve LocalApplicationData, testes usam `$Artifacts`.
+**Modificar:** `C:\dev\helworks\helengine\engine\helengine.editor.automation\discovery\EditorInstanceRegistry.cs`; `C:\dev\helworks\helengine\engine\helengine.editor.mcp.tests\EditorInstanceRegistryTests.cs`.
 
-- [ ] Escrever `Publish_is_atomic_and_private`, `Corrupt_entry_does_not_hide_healthy_instances`, `Same_name_and_same_project_keep_distinct_instances`, `Cleanup_cannot_remove_replacement`, `Unicode_and_case_paths_roundtrip`; conferir `Assert.Equal(2, candidates.Count)`, credencial ausente no descriptor e erro diagnóstico para entrada corrompida.
-- [ ] Vermelho: `$Mcp`, `FullyQualifiedName~EditorInstanceRegistryTests`.
-- [ ] Implementar criação criptográfica de credencial, ACL restrita, escrita atômica por instance ID e remoção condicional. Nunca seguir junction/entrada arbitrária para fora da raiz privada. Candidatos são apenas registros; disponibilidade será verificada por HTTP.
-- [ ] Verde com o mesmo filtro, incluindo credencial recusada para usuário não autorizado no teste Windows de ACL.
-- [ ] Commit: `feat: discover local editor instances with private credentials`.
+**Criar:** `C:\dev\helworks\helengine\engine\helengine.editor.automation\discovery\EditorCoordinatorClient.cs`; projeto `C:\dev\helworks\helengine\engine\helengine.editor.mcp.coordinator\helengine.editor.mcp.coordinator.csproj`, com `C:\dev\helworks\helengine\engine\helengine.editor.mcp.coordinator\Program.cs`, `C:\dev\helworks\helengine\engine\helengine.editor.mcp.coordinator\CoordinatorServer.cs` e `C:\dev\helworks\helengine\engine\helengine.editor.mcp.coordinator\InMemoryEditorRegistry.cs`; `C:\dev\helworks\helengine\engine\helengine.editor.mcp.tests\EditorCoordinatorLifecycleTests.cs`.
+
+**Remover na execução desta tarefa:** `C:\dev\helworks\helengine\engine\helengine.editor.automation\discovery\EditorLocalCredentialStore.cs` e `C:\dev\helworks\helengine\engine\helengine.editor.automation\discovery\EditorRegistryPaths.cs`, junto das implementações Windows de arquivo/ACL e testes exclusivos delas. Credenciais privadas continuam requisito; a remoção desses arquivos não autoriza expor segredos nem reduzir isolamento.
+
+**Interfaces:** publicação e consulta de descriptors vivos, unregister, heartbeat/lease, health/protocol check e start/ensure/stop do processo. O coordenador usa endpoint loopback estável configurável uma vez, sem fixar aqui valor numérico. Não armazena registro persistente nem encaminha chamadas de ferramenta.
+
+- [ ] Escrever testes para descoberta de duas instâncias, unregister do primeiro mantendo o coordenador para a segunda, encerramento após a última, lease expirada após crash do editor, inicialização concorrente com posse exclusiva, listener estrangeiro preservado em caso de colisão e recuperação/re-registro após crash do coordenador.
+- [ ] Cobrir deterministicamente um novo registro disputando com unregister/expiração da última instância: registro aceito impede encerramento por lista vazia; encerramento já iniciado recusa registro e permite retry no próximo coordenador. Cobrir também o intervalo entre iniciar o processo e receber o primeiro registro, incluindo queda do editor iniciador.
+- [ ] Vermelho: `$Mcp`, filtros `FullyQualifiedName~EditorInstanceRegistryTests|FullyQualifiedName~EditorCoordinatorLifecycleTests`.
+- [ ] Implementar processo .NET 9 independente, registros apenas em memória, health/protocol check e retries limitados no startup/shutdown. Editores sobreviventes detectam recuperação e registram novamente. Nunca matar processo que ocupe a porta nem repetir mutações na reconexão.
+- [ ] Verde com os mesmos filtros; teste a fixture real do processo/HTTP e execução concorrente, sem substituir prova de transporte por mocks.
+- [ ] **Bloqueado para despacho:** não implementar o transporte de registro/descoberta nem fluxo de credenciais até Helena decidir autenticação/bootstrap e isolamento. Não adicionar endpoint público de registro ou divulgação de segredo. Credenciais de editor permanecem privadas.
+- [ ] Commit: `feat: track live editor instances with local coordinator`.
 
 ### Tarefa 03 — Bind explícito no servidor
 
@@ -231,11 +242,11 @@ Quando o passo verde mencionar regressões existentes, usar também os filtros a
 
 **Criar:** `C:\dev\helworks\helengine\engine\helengine.editor.mcp\helengine.editor.mcp.csproj`; `C:\dev\helworks\helengine\engine\helengine.editor.mcp\EditorMcpServer.cs`; `C:\dev\helworks\helengine\engine\helengine.editor.mcp\EditorMcpAccessPolicy.cs`; `C:\dev\helworks\helengine\engine\helengine.editor.mcp\EditorMcpToolAdapter.cs`; `C:\dev\helworks\helengine\engine\helengine.editor.mcp.tests\EditorMcpServerTests.cs`.
 
-**Interfaces:** `Task<EditorInstanceDescriptor> StartAsync(CancellationToken cancellationToken)`, `Task StopAsync(CancellationToken cancellationToken)`; construtor recebe dispatcher, bindings, catálogo, registro e credential store. Adapter traduz schemas/resultado para SDK sem expor objetos vivos.
+**Interfaces:** `Task<EditorInstanceDescriptor> StartAsync(CancellationToken cancellationToken)`, `Task StopAsync(CancellationToken cancellationToken)`; construtor recebe dispatcher, bindings, catálogo e política de acesso. Adapter traduz schemas/resultado para SDK sem expor objetos vivos. O host é responsável somente pelo endpoint HTTP; registro, lease e unregister pertencem exclusivamente ao `EditorMcpLifetime` da tarefa 09.
 
-- [ ] Escrever `Binds_only_ipv4_loopback_on_automatic_port`, `Rejects_missing_credentials_and_invalid_origin`, `Authenticated_direct_http_obeys_bindings`, `Published_instance_is_already_ready`; `Assert.Equal("127.0.0.1", endpoint.Host); Assert.NotEqual(0, endpoint.Port); Assert.Equal(401, unauthorizedStatus); Assert.Equal(403, invalidOriginStatus)`.
+- [ ] Escrever `Binds_only_ipv4_loopback_on_automatic_port`, `Rejects_missing_credentials_and_invalid_origin`, `Authenticated_direct_http_obeys_bindings`, `Start_returns_only_when_endpoint_is_ready`; `Assert.Equal("127.0.0.1", endpoint.Host); Assert.NotEqual(0, endpoint.Port); Assert.Equal(401, unauthorizedStatus); Assert.Equal(403, invalidOriginStatus)`.
 - [ ] Vermelho: `$Mcp`, `FullyQualifiedName~EditorMcpServerTests`.
-- [ ] Implementar `/mcp`, autenticação em todas as chamadas, Host `127.0.0.1`, Origin ausente permitido para clientes nativos e Origin presente validado contra origem local exata. Sem CORS permissivo nem redirects. Publicar registro somente depois do start. Endpoint direto lista a própria instância; conector agrega descoberta.
+- [ ] Implementar `/mcp`, autenticação em todas as chamadas, Host loopback, Origin ausente permitido para clientes nativos e Origin presente validado contra origem local exata. Sem CORS permissivo nem redirects. Retornar o descriptor com endereço efetivo somente depois de o endpoint estar pronto, para registro pelo lifetime na tarefa 09. O bootstrap de autenticação continua pendente, conforme a tarefa 02.
 - [ ] Verde com o mesmo filtro e prova SDK da tarefa 01.
 - [ ] Commit: `feat: host authenticated MCP HTTP inside each editor`.
 
@@ -243,12 +254,12 @@ Quando o passo verde mencionar regressões existentes, usar também os filtros a
 
 **Criar:** `C:\dev\helworks\helengine\engine\helengine.editor.mcp.connector\helengine.editor.mcp.connector.csproj`; `C:\dev\helworks\helengine\engine\helengine.editor.mcp.connector\Program.cs`; `C:\dev\helworks\helengine\engine\helengine.editor.mcp.connector\EditorMcpConnector.cs`; `C:\dev\helworks\helengine\engine\helengine.editor.mcp.connector\EditorEndpointVerifier.cs`; `C:\dev\helworks\helengine\engine\helengine.editor.mcp.tests\EditorMcpConnectorTests.cs`.
 
-**Interfaces:** `Task<EditorOperationResult> InvokeAsync(EditorOperationRequest request, CancellationToken cancellationToken)`; ferramenta `list_editors` agrega candidatos verificados; `bind_editor` valida identidade/versão pelo endpoint e guarda rota pelo binding retornado. Catálogo carregado mesmo sem editor aberto.
+**Interfaces:** `Task<EditorOperationResult> InvokeAsync(EditorOperationRequest request, CancellationToken cancellationToken)`; `list_editors` consulta coordenador e verifica candidatos; `bind_editor` valida identidade/versão no endpoint e guarda rota pelo binding retornado. Catálogo continua carregado sem editores. Após descoberta, todas as chamadas seguem diretamente ao editor selecionado, nunca via coordenador.
 
 - [ ] Escrever `Two_bindings_share_connection_without_cross_routing`, `Editor_opened_later_is_discoverable`, `Recycled_port_fails_identity_check`, `Restart_requires_rebind_not_configuration_change`, `Stdout_contains_only_protocol`; `Assert.Equal(instanceA, responseA.InstanceId); Assert.Equal(instanceB, responseB.InstanceId); Assert.Empty(nonProtocolStdout)`.
 - [ ] Vermelho: `$Mcp`, `FullyQualifiedName~EditorMcpConnectorTests`.
-- [ ] Implementar cliente HTTP do SDK, credenciais fora de prompts e roteamento explícito. Verificar identidade pela descoberta autenticada do endpoint e comparar a geração novamente com o resultado do bind; se mudou, liberar o vínculo recém-criado e retornar conflito. Impedir redirects e proxy para loopback; não procurar endereço em texto de projeto. Reconectar apenas mesma identidade e nunca repetir mutação com ID novo automaticamente. Logs em stderr.
-- [ ] Verde com o mesmo filtro usando dois hosts HTTP reais de teste.
+- [ ] Implementar cliente HTTP do SDK e roteamento explícito. Verificar identidade/versão no endpoint do editor e comparar a geração novamente com o resultado do bind; se mudou, liberar o vínculo recém-criado e retornar conflito. Aquisição e uso da credencial dependem da decisão pendente na tarefa 02; não buscar segredo em respostas públicas de descoberta. Impedir redirects e proxy para loopback; não procurar endereço em texto de projeto. Reconectar apenas mesma identidade e nunca repetir mutação com ID novo automaticamente. Logs em stderr.
+- [ ] Verde com o mesmo filtro usando coordenador e dois hosts HTTP reais; comprovar que o coordenador só descobre e que a ferramenta chega diretamente ao host vinculado.
 - [ ] Commit: `feat: bridge Codex and Claude stdio connections to bound editors`.
 
 ### Tarefa 09 — Composição no app, status e shutdown
@@ -257,11 +268,11 @@ Quando o passo verde mencionar regressões existentes, usar também os filtros a
 
 **Modificar:** `C:\dev\helworks\helengine\helengine.ui\helengine.editor.app\helengine.editor.app.csproj`; `C:\dev\helworks\helengine\helengine.ui\helengine.editor.app\MainForm.cs`; `C:\dev\helworks\helengine\engine\helengine.editor\EditorSession.cs`; `C:\dev\helworks\helengine\engine\helengine.editor\components\ui\EditorTitleBar.cs`.
 
-**Interfaces:** `EditorSession.Automation` fornece objeto explícito da sessão; `Task EditorMcpLifetime.StartAsync(CancellationToken token)`, `Task StopAsync(CancellationToken token)`. `EditorAutomationSession` implementa `IEditorOperationHandler.Execute` para `editor_get_state`, `editor_get_capabilities` e `editor_close`, delegando o fechamento ao fluxo existente e à política da tarefa 10. Status alimenta diálogo por snapshot, sem atualizar controles pela thread HTTP.
+**Interfaces:** `EditorSession.Automation` fornece objeto explícito da sessão; `Task EditorMcpLifetime.StartAsync(CancellationToken token)`, `Task StopAsync(CancellationToken token)`. `EditorAutomationSession` implementa `IEditorOperationHandler.Execute` para `editor_get_state`, `editor_get_capabilities` e `editor_close`, delegando o fechamento ao fluxo existente e à política da tarefa 10. O lifetime garante/starta coordenador, inicia host, registra e mantém lease; no fechamento faz unregister antes do host e deixa o coordenador encerrar somente após a última instância. Status alimenta diálogo por snapshot, sem atualizar controles pela thread HTTP.
 
-- [ ] Escrever `Startup_failure_is_visible_and_unpublished`, `Shutdown_rejects_calls_before_dispose`, `Unbind_does_not_close_editor`, `Command_line_build_does_not_start_mcp`; `Assert.Empty(registryAfterFailure); Assert.True(allRequestsCompleted); Assert.False(editorDisposedAfterUnbind)`.
+- [ ] Escrever `Coordinator_failure_is_visible`, `Shutdown_unregisters_only_this_editor`, `Last_editor_stops_coordinator`, `Shutdown_rejects_calls_before_dispose`, `Unbind_does_not_close_editor`, `Command_line_build_does_not_start_mcp`; validar que outro editor mantém o coordenador vivo.
 - [ ] Vermelho: `$Mcp`, `FullyQualifiedName~EditorMcpLifetimeTests`.
-- [ ] Compor host após sessão pronta; mostrar endereço, projeto, estado, erro e vínculos. Encerrar aceitação, invalidar/despublicar, completar chamadas, parar host e só então liberar recursos. Não alterar modos CLI de Program nem encerrar o editor ao falhar MCP. Preservar o guard de cena suja.
+- [ ] Compor coordenador/host após sessão pronta; mostrar endereço, projeto, estado, erro e vínculos. Encerrar aceitação, unregister desta instância, completar chamadas, parar host e liberar recursos. Falha ao contatar coordenador é visível e recuperável; não alterar modos CLI nem encerrar o editor automaticamente. Preservar o guard de cena suja.
 - [ ] Verde com o mesmo filtro e testes existentes de construção/dispose da sessão.
 - [ ] Commit: `feat: integrate MCP startup status and shutdown with editor lifetime`.
 
@@ -441,7 +452,7 @@ Quando o passo verde mencionar regressões existentes, usar também os filtros a
 
 - [ ] Escrever `Packaged_connector_runs_without_global_dotnet`, `Install_path_survives_editor_version_change`, `Spaces_in_install_path_are_quoted`, `Generated_configs_contain_no_port_or_secret`; `Assert.False(configContainsEndpoint); Assert.True(handshakeSucceeded)`.
 - [ ] Vermelho: `$Mcp`, `FullyQualifiedName~EditorMcpDistributionTests`.
-- [ ] Publicar conector separado, sem DLLs de renderização; usar runtime incluído e manter ASP.NET para o editor. Atualização preserva launcher estável e não mistura binários de versões. Instruções instalam servidor stdio uma vez; não sobrescrever arquivos de configuração reais durante testes nem modificar configurações de Helena sem autorização de execução.
+- [ ] Publicar conector estável e coordenador local independente com os runtimes necessários, sem DLLs de renderização no conector. Atualização preserva launcher/configuração do stdio e não mistura binários de versões. O editor inicia o coordenador sob demanda. Não definir aqui porta numérica nem mecanismo de autenticação ainda pendente. Não sobrescrever arquivos de configuração reais durante testes nem modificar configurações de Helena sem autorização de execução.
 - [ ] Verde com o mesmo filtro e teste de pacote mínimo para editor/conector. Não executar release de todas as plataformas como pré-requisito.
 - [ ] Commit: `feat: distribute stable local MCP connector and setup instructions`.
 
@@ -463,8 +474,8 @@ Quando o passo verde mencionar regressões existentes, usar também os filtros a
 
 | Requisito da especificação | Tarefas |
 | --- | --- |
-| HTTP por editor, loopback, porta automática, credencial, descoberta | 01–03, 07, 09 |
-| Configuração fixa, bind explícito, clientes compartilhando conexão | 03, 08, 22–23 |
+| HTTP por editor, loopback, porta automática, credencial, coordenador e descoberta | 01–03, 07–09, 22 |
+| Configuração fixa, bind explícito, clientes compartilhando conexão e encaminhamento direto | 03, 08, 22–23 |
 | Schema/catálogo, capacidades e paginação | 01, 07–08, 10–16, 23 |
 | Estado vivo, frame, erros e shutdown | 04, 09, 17 |
 | Revisões, handles, alterações de UI, hot reload | 05, 10–16, 21 |
@@ -487,4 +498,4 @@ Não foram executados restore, compilação, testes de produto, instalação de 
 
 Fontes consultadas em 2026-10-15. Metadados do pacote indicam compatibilidade de alvo; somente a tarefa 01 comprova execução nesta composição. O índice de código estava desatualizado; caminhos e comportamento citados foram conferidos por leitura de fonte.
 
-Revisão de Helena deve cobrir a estrutura de projetos, SDK/Kestrel, revisão conservadora e limites propostos. Após aprovação do plano, escolher execução pelo agente principal ou por subagentes com revisão por tarefa. Se houver delegação autorizada, usar por padrão `gpt-6.1-sol` com esforço `high`, conforme as instruções de Helena.
+Execução por subagentes autorizada por Helena, com revisão por tarefa e limite de dois subagentes, ambos `gpt-6-luna` com esforço `xhigh`. Novas decisões arquiteturais continuam exigindo seu feedback.

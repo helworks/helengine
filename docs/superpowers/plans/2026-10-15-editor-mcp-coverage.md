@@ -23,7 +23,7 @@ Status: catálogo proposto para implementação e revisão. Nenhuma ferramenta d
 
 | ID | Ferramentas exatas | Entrada específica além de B/S/W/P | Resultado e semântica | Tarefa |
 | --- | --- | --- | --- | --- |
-| CON-01 | `list_editors` | Sem B; `project_root` opcional para filtrar | Instâncias verificadas, nome, raiz, geração, endereço e disponibilidade; sem credencial | 02, 08 |
+| CON-01 | `list_editors` | Sem B; `project_root` opcional para filtrar | Instâncias vivas descobertas no coordenador e verificadas no endpoint; nome, raiz, geração, endereço e disponibilidade; sem credencial | 02, 08 |
 | CON-02 | `bind_editor` | Sem B; `instance_id` | Binding e identidade/geração verificadas. Não altera bindings existentes | 03, 08 |
 | CON-03 | `get_binding`, `unbind_editor` | B | Estado ou liberação daquele vínculo; não fecha editor | 03, 08 |
 | CON-04 | `editor_get_state`, `editor_get_capabilities` | B | Projeto, cena, revisão, dirty, modos, schemas disponíveis, capacidades por plataforma e restrições | 09 |
