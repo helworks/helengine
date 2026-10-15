@@ -70,7 +70,12 @@ namespace helengine.player {
                     window.Height - window.ClientSize.Height);
                 window.ClientSize = new Size(layout.ClientWidth, layout.ClientHeight);
                 window.Location = new Point(layout.Left, layout.Top);
-                Console.WriteLine("[player] render " + renderSize.Width + "x" + renderSize.Height + " at " + layout.Multiplier + "x");
+                Console.WriteLine("[player] render " + renderSize.Width + "x" + renderSize.Height + " at " + layout.Multiplier + "x, window "
+                    + layout.ClientWidth + "x" + layout.ClientHeight + ", pixel aspect "
+                    + renderSize.PixelAspect.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture));
+                if (playSettings.WindowScale != PlayerWindowScale.Fit && layout.Multiplier > PlayerWindowScaleText.ToMultiplier(playSettings.WindowScale)) {
+                    Console.WriteLine("[player] window-scale " + PlayerWindowScaleText.Format(playSettings.WindowScale) + " raised to " + layout.Multiplier + "x so every rendered pixel column stays visible");
+                }
                 if (layout.ExceedsWorkArea) {
                     Console.WriteLine("[player] window-scale " + layout.Multiplier + "x is larger than the monitor work area " + workArea.Width + "x" + workArea.Height + "; the window opens at the work-area origin");
                 }
@@ -97,7 +102,7 @@ namespace helengine.player {
                 core = new Core(coreOptions);
                 core.Initialize(renderer3D, renderer3D.Render2D, input, options.CreateRuntimePlatformInfo(), coreOptions);
 
-                renderer3D.AddWindowWithFixedRenderSize(window.Handle, layout.ClientWidth, layout.ClientHeight, renderSize.Width, renderSize.Height);
+                renderer3D.AddWindowWithFixedRenderSize(window.Handle, layout.ClientWidth, layout.ClientHeight, renderSize.Width, renderSize.Height, renderSize.PixelAspect);
                 core.SceneManager.LoadScene(options.SceneId, SceneLoadMode.Single);
 
                 RunFrameLoop(core, window, playSettings, startupStopwatch);

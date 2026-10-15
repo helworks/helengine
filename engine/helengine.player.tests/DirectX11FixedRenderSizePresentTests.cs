@@ -88,7 +88,7 @@ namespace helengine.player.tests {
             int2 expectedRenderSize;
             int magnification;
             if (fixedRenderSize) {
-                renderer.AddWindowWithFixedRenderSize(window.Handle, ClientWidth, ClientHeight, RenderWidth, RenderHeight);
+                renderer.AddWindowWithFixedRenderSize(window.Handle, ClientWidth, ClientHeight, RenderWidth, RenderHeight, 1d);
                 expectedRenderSize = new int2(RenderWidth, RenderHeight);
                 magnification = Multiplier;
             } else {

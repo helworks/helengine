@@ -412,15 +412,23 @@ namespace helengine.directx11 {
         /// target of that size, and Present copies it into the client-sized back buffer with point sampling.
         /// </summary>
         /// <param name="handle">Native window handle.</param>
-        /// <param name="clientWidth">Window client width; an integer multiple of the render width.</param>
-        /// <param name="clientHeight">Window client height; the same integer multiple of the render height.</param>
+        /// <param name="clientWidth">
+        /// Window client width: the render width times the pixel aspect times the multiple, rounded.
+        /// </param>
+        /// <param name="clientHeight">Window client height; an integer multiple of the render height.</param>
         /// <param name="renderWidth">Fixed render width.</param>
         /// <param name="renderHeight">Fixed render height.</param>
-        /// <exception cref="ArgumentException">Thrown when the client is not an equal integer multiple of the render size.</exception>
-        public void AddWindowWithFixedRenderSize(IntPtr handle, int clientWidth, int clientHeight, int renderWidth, int renderHeight) {
-            DirectX11FixedRenderSize.ValidateMagnification(clientWidth, clientHeight, renderWidth, renderHeight);
+        /// <param name="pixelAspect">
+        /// Displayed width of one rendered pixel divided by its displayed height; 1 for square pixels. The window reports
+        /// it to the core so cameras and reference-canvas fits use it.
+        /// </param>
+        /// <exception cref="ArgumentException">Thrown when the client does not show the render size at an integer multiple and the pixel aspect.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when the pixel aspect is not finite and positive.</exception>
+        public void AddWindowWithFixedRenderSize(IntPtr handle, int clientWidth, int clientHeight, int renderWidth, int renderHeight, double pixelAspect) {
+            DirectX11FixedRenderSize.ValidateMagnification(clientWidth, clientHeight, renderWidth, renderHeight, pixelAspect);
             PointMagnifyPass ??= new DirectX11PointMagnifyPass(Device);
             base.AddWindow(handle, renderWidth, renderHeight);
+            SetWindowPixelAspect(handle, pixelAspect);
             DirectX11SwapChainSurface surface = CreateSwapChainSurface(handle, clientWidth, clientHeight);
 
             surface.BackBufferRenderTargetView = surface.RenderTargetView;

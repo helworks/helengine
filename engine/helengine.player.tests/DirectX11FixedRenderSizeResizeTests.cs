@@ -38,7 +38,7 @@ namespace helengine.player.tests {
             StaTestThread.Run(() => {
                 using DirectX11Renderer3D renderer = new DirectX11Renderer3D();
                 using Form window = CreateWindow();
-                renderer.AddWindowWithFixedRenderSize(window.Handle, ClientWidth, ClientHeight, RenderWidth, RenderHeight);
+                renderer.AddWindowWithFixedRenderSize(window.Handle, ClientWidth, ClientHeight, RenderWidth, RenderHeight, 1d);
                 int events = 0;
                 renderer.WindowResized += (handle, newWidth, newHeight) => events++;
                 renderer.WindowLayoutChanged += tag => events++;
@@ -58,7 +58,7 @@ namespace helengine.player.tests {
             StaTestThread.Run(() => {
                 using DirectX11Renderer3D renderer = new DirectX11Renderer3D();
                 using Form window = CreateWindow();
-                renderer.AddWindowWithFixedRenderSize(window.Handle, ClientWidth, ClientHeight, RenderWidth, RenderHeight);
+                renderer.AddWindowWithFixedRenderSize(window.Handle, ClientWidth, ClientHeight, RenderWidth, RenderHeight, 1d);
                 int events = 0;
                 renderer.WindowResized += (handle, newWidth, newHeight) => events++;
                 renderer.WindowLayoutChanged += tag => events++;
@@ -80,7 +80,7 @@ namespace helengine.player.tests {
             StaTestThread.Run(() => {
                 using DirectX11Renderer3D renderer = new DirectX11Renderer3D();
                 using Form window = CreateWindow();
-                renderer.AddWindowWithFixedRenderSize(window.Handle, ClientWidth, ClientHeight, RenderWidth, RenderHeight);
+                renderer.AddWindowWithFixedRenderSize(window.Handle, ClientWidth, ClientHeight, RenderWidth, RenderHeight, 1d);
 
                 Assert.Throws<ArgumentOutOfRangeException>(() => renderer.OnWindowResize(window.Handle, -1, ClientHeight));
                 AssertRenderSizeKept(renderer, window.Handle);
