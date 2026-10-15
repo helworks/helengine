@@ -1,4 +1,5 @@
 using helengine.baseplatform.Definitions;
+using helengine.baseplatform.Player;
 
 namespace helengine.player {
     /// <summary>
@@ -44,6 +45,26 @@ namespace helengine.player {
             }
 
             return "helengine player [" + platformName + " · " + videoMode.Label + "] — " + sceneId;
+        }
+
+        /// <summary>
+        /// Builds the title for one Play session: the platform and its video mode (<see cref="FormatWithVideoMode"/>) when
+        /// the resolved Play settings reproduce a console video mode, otherwise the platform alone (<see cref="Format"/>).
+        /// </summary>
+        /// <param name="platformName">Display name of the platform being played.</param>
+        /// <param name="playSettings">Resolved Play settings, whose video mode decides the title form.</param>
+        /// <param name="sceneId">Stable id of the scene being played.</param>
+        /// <returns>The window title text.</returns>
+        /// <exception cref="ArgumentNullException">The Play settings are null.</exception>
+        /// <exception cref="ArgumentException">The platform name or scene id is blank.</exception>
+        public static string ForPlay(string platformName, PlayerPlaySettings playSettings, string sceneId) {
+            if (playSettings == null) {
+                throw new ArgumentNullException(nameof(playSettings));
+            }
+
+            return playSettings.HasVideoMode
+                ? FormatWithVideoMode(platformName, playSettings.VideoMode, sceneId)
+                : Format(platformName, sceneId);
         }
     }
 }
