@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text;
 
 namespace helengine.editor {
     /// <summary>
@@ -80,7 +79,9 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Runs one process and drains both streams asynchronously so a chatty child cannot deadlock the pipes.
+        /// Runs one process to exit, draining both streams so a chatty child cannot deadlock the pipes. It returns when the
+        /// process exits rather than when its pipes close: a <c>dotnet publish</c> that starts a fresh MSBuild worker node
+        /// leaves that warm node holding the pipes for its whole idle lifetime.
         /// </summary>
         /// <param name="startInfo">Configured start information with both output streams redirected.</param>
         /// <param name="stdout">Receives the captured standard output.</param>
@@ -89,15 +90,7 @@ namespace helengine.editor {
         static void Run(ProcessStartInfo startInfo, out string stdout, out string stderr, out int exitCode) {
             using Process process = Process.Start(startInfo)
                 ?? throw new InvalidOperationException($"Failed to launch '{startInfo.FileName}'.");
-            StringBuilder stdoutBuilder = new StringBuilder();
-            StringBuilder stderrBuilder = new StringBuilder();
-            process.OutputDataReceived += (sender, eventArgs) => { if (eventArgs.Data != null) { stdoutBuilder.AppendLine(eventArgs.Data); } };
-            process.ErrorDataReceived += (sender, eventArgs) => { if (eventArgs.Data != null) { stderrBuilder.AppendLine(eventArgs.Data); } };
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-            process.WaitForExit();
-            stdout = stdoutBuilder.ToString();
-            stderr = stderrBuilder.ToString();
+            EditorBuildProcessOutputCapture.Capture(process, out stdout, out stderr);
             exitCode = process.ExitCode;
         }
     }
