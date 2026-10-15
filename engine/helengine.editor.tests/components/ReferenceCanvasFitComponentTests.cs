@@ -545,6 +545,76 @@ namespace helengine.editor.tests.components {
         }
 
         /// <summary>
+        /// A host that reports the pixel aspect after the window already has its final size (no resize follows) still
+        /// relayouts the reference-canvas fit: the report alone moves the canvas from the square 427x240 fit to the
+        /// display-space 640x180 fit.
+        /// </summary>
+        [Fact]
+        public void Update_WhenOnlyThePixelAspectChanges_RefitsTheCanvasWithoutAResize() {
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
+            Entity panelEntity;
+            RoundedRectComponent panelBackground;
+            Entity headingEntity;
+            TextComponent headingText;
+            ReferenceCanvasFitComponent fit = CreateFittedPanelScene(out panelEntity, out panelBackground, out headingEntity, out headingText);
+            renderManager.OnWindowResize(IntPtr.Zero, 640, 240);
+            Core.Instance.Update();
+            Assert.Equal(new int2(427, 240), fit.AnchorSpace.Size);
+
+            renderManager.SetWindowPixelAspect(IntPtr.Zero, 0.5d);
+            Core.Instance.Update();
+
+            Assert.Equal(new int2(640, 180), fit.AnchorSpace.Size);
+            Assert.Equal(new float3(44f, 47.5f, 0f), panelEntity.LocalPosition);
+            Assert.Equal(new int2(280, 105), panelBackground.Size);
+            Assert.Equal(0.25f, headingText.FontScale);
+        }
+
+        /// <summary>
+        /// A screen-bound reference-canvas viewport relayouts when only the window's pixel aspect changes, with no resize:
+        /// the report alone moves it from the square 427x240 fit to the display-space 640x180 fit.
+        /// </summary>
+        [Fact]
+        public void Update_WhenOnlyThePixelAspectChanges_RefitsTheViewportWithoutAResize() {
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
+
+            Entity menuRoot = CreateEntity(float3.Zero);
+            ViewportComponent viewport = new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                FixedSize = new int2(1280, 720),
+                ScalingMode = ViewportComponent.ReferenceCanvasScalingMode,
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            };
+            menuRoot.AddComponent(viewport);
+            Entity generatedRoot = CreateEntity(float3.Zero);
+            menuRoot.AddChild(generatedRoot);
+            Entity panelEntity = CreateEntity(new float3(88f, 190f, 0f));
+            RoundedRectComponent panelBackground = new RoundedRectComponent {
+                Size = new int2(560, 420),
+                Radius = 18f,
+                BorderThickness = 3f
+            };
+            panelEntity.AddComponent(panelBackground);
+            generatedRoot.AddChild(panelEntity);
+            menuRoot.InitializeHierarchy();
+            renderManager.OnWindowResize(IntPtr.Zero, 640, 240);
+            Core.Instance.Update();
+            Assert.Equal(1d, viewport.ResolvedPixelAspect);
+            Assert.Equal(new int2(427, 240), viewport.AnchorSpace.Size);
+
+            renderManager.SetWindowPixelAspect(IntPtr.Zero, 0.5d);
+            Core.Instance.Update();
+
+            Assert.Equal(0.5d, viewport.ResolvedPixelAspect);
+            Assert.Equal(new int2(640, 180), viewport.AnchorSpace.Size);
+            Assert.Equal(new float3(44f, 47.5f, 0f), panelEntity.LocalPosition);
+            Assert.Equal(new int2(280, 105), panelBackground.Size);
+        }
+
+        /// <summary>
         /// Builds a screen-bound menu root with a 1280x720 reference-canvas fit, one 560x420 panel at (88, 190) and a
         /// heading text inside it, and initializes the hierarchy.
         /// </summary>
