@@ -51,6 +51,12 @@ namespace helengine.video {
         public List<VideoOverlayPlacement> OverlayPlacements { get; } = new List<VideoOverlayPlacement>();
 
         /// <summary>
+        /// Gets where the speaker's head is on screen in each scene whose take media has head boxes, by scene id, in time
+        /// order (see <see cref="VideoFaceFraming"/>).
+        /// </summary>
+        public Dictionary<string, List<VideoHeadSample>> Heads { get; } = new Dictionary<string, List<VideoHeadSample>>(StringComparer.Ordinal);
+
+        /// <summary>
         /// Gets the overlays each stacked list overlay stands for, with their own intervals, by stacked overlay.
         /// </summary>
         public Dictionary<VideoOverlay, List<VideoOverlayTiming>> Stacks { get; } = new Dictionary<VideoOverlay, List<VideoOverlayTiming>>();

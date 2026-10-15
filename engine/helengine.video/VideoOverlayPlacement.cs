@@ -57,8 +57,9 @@ namespace helengine.video {
         public MediaTime End { get; }
 
         /// <summary>
-        /// Gets the screen box in output pixels, or null when unknown.
+        /// Gets the screen box in output pixels, or null when unknown; moved when the overlay is moved off the speaker's head
+        /// (see <see cref="VideoFaceClearance"/>).
         /// </summary>
-        public VideoGraphicRectangle Bounds { get; }
+        public VideoGraphicRectangle Bounds { get; internal set; }
     }
 }

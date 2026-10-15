@@ -60,5 +60,12 @@ namespace helengine.video {
         /// </summary>
         public VideoTracks Tracks { get; set; } = new();
 
+        /// <summary>
+        /// Optional face zone for takes whose media has head boxes; vertical formats default to
+        /// <see cref="VideoFaceFraming.DefaultFaceTop"/>..<see cref="VideoFaceFraming.DefaultFaceBottom"/>, other formats
+        /// have no zone unless one is set.
+        /// </summary>
+        public VideoFraming Framing { get; set; }
+
     }
 }

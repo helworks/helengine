@@ -31,8 +31,14 @@ namespace helengine.video {
             for (int index = 0; index < layers.Count; index++) {
                 string layerPath = $"{path}.layers[{index}]";
                 VisualLayer front = Layer(state, span, layers[index], layerPath);
+                // The head is kept inside the face zone before the background copies the motion and the segments slice it.
+                VideoFramingChange framing = layers[index].Kind == "take" ? VideoFaceFraming.Guard(state, span, front, layerPath, true) : null;
                 // The background is added first so it draws under the speaker: members of equal order keep their list order.
                 VisualLayer behind = layers[index].Kind == "take" ? Background(state, span, layers[index], front, layerPath) : null;
+                if (behind != null && scene.Background.Mode == "blur") {
+                    // The blurred copy moves with the speaker.
+                    framing?.Apply(behind);
+                }
                 if (behind != null) {
                     // A blurred background is a copy of the take, so it cuts and plays at speed with the speaker; a
                     // replacement plays on undisturbed.
@@ -81,7 +87,7 @@ namespace helengine.video {
         /// <param name="source">Edit layer.</param>
         /// <param name="path">JSON path used in diagnostics.</param>
         /// <returns>Composition layer spanning the scene.</returns>
-        static VisualLayer Layer(VideoCompileState state, VideoSceneSpan span, VideoLayer source, string path) {
+        internal static VisualLayer Layer(VideoCompileState state, VideoSceneSpan span, VideoLayer source, string path) {
             VideoScene scene = span.Scene;
             VisualLayer layer = new VisualLayer {
                 Id = scene.Id + "-" + source.Id,

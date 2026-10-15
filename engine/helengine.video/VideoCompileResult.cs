@@ -22,6 +22,12 @@ namespace helengine.video {
         public List<VideoOverlayPlacement> Overlays { get; } = [];
 
         /// <summary>
+        /// Gets where the speaker's head is on screen, by scene id, for every scene whose take media has head boxes (after
+        /// the face framing), so hosts can keep their own text off it; empty when validation failed.
+        /// </summary>
+        public Dictionary<string, List<VideoHeadSample>> Heads { get; } = new Dictionary<string, List<VideoHeadSample>>(StringComparer.Ordinal);
+
+        /// <summary>
         /// Gets whether the edit could not be compiled.
         /// </summary>
         public bool HasErrors {

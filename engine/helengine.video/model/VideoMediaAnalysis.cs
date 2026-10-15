@@ -29,5 +29,12 @@ namespace helengine.video {
         /// </summary>
         public List<double[]> LookAway { get; set; }
 
+        /// <summary>
+        /// Optional head boxes of the speaker, each [t, x0, y0, x1, y1]: source seconds and the box in normalized display
+        /// coordinates of the source frame (0..1, top-left origin), hair and chin included. The compiler keeps the head inside
+        /// the face zone (<see cref="VideoEdit.Framing"/>) and keeps overlays and captions off it.
+        /// </summary>
+        public List<double[]> Heads { get; set; }
+
     }
 }

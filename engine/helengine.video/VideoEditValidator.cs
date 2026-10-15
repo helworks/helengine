@@ -58,6 +58,9 @@ namespace helengine.video {
             if (edit.Format == null || edit.Format.Width <= 0 || edit.Format.Height <= 0 || edit.Format.FrameRate == null || edit.Format.FrameRate.Numerator <= 0 || edit.Format.FrameRate.Denominator <= 0) {
                 Error(errors, "invalid_format", null, "format", "The output format needs a positive size and frame rate.");
             }
+            if (edit.Framing != null && VideoFaceFraming.Zone(edit) is not { } zone) {
+                Error(errors, "invalid_framing", null, "framing", "The face zone needs 0 <= face_top < face_bottom <= 1, as fractions of the output height.");
+            }
             Dictionary<string, VideoMedia> media = new Dictionary<string, VideoMedia>(StringComparer.Ordinal);
             for (int index = 0; index < edit.Media.Count; index++) {
                 VideoMedia item = edit.Media[index];
@@ -469,7 +472,8 @@ namespace helengine.video {
         }
 
         /// <summary>
-        /// Validates the voiced and look-away spans of one media analysis: each a finite [start, end] pair, start before end.
+        /// Validates the voiced and look-away spans of one media analysis (each a finite [start, end] pair, start before end) and
+        /// its head boxes (each [t, x0, y0, x1, y1] with a non-empty box inside the normalized frame).
         /// </summary>
         /// <param name="item">Media.</param>
         /// <param name="index">Media index.</param>
@@ -481,6 +485,12 @@ namespace helengine.video {
                     if (value is not { Length: 2 } || !double.IsFinite(value[0]) || !double.IsFinite(value[1]) || value[0] < 0 || value[1] < value[0]) {
                         Error(errors, "invalid_analysis_span", null, $"media[{index}].analysis.{name}[{span}]", "An analysis span must be [start, end] in source seconds with start before end.");
                     }
+                }
+            }
+            for (int head = 0; head < (item.Analysis?.Heads?.Count ?? 0); head++) {
+                double[] value = item.Analysis.Heads[head];
+                if (value is not { Length: 5 } || !value.All(double.IsFinite) || value[0] < 0 || value[1] < 0 || value[2] < 0 || value[3] > 1 || value[4] > 1 || value[3] <= value[1] || value[4] <= value[2]) {
+                    Error(errors, "invalid_analysis_head", null, $"media[{index}].analysis.heads[{head}]", "A head box must be [t, x0, y0, x1, y1]: source seconds and a non-empty box in normalized frame coordinates (0..1).");
                 }
             }
         }

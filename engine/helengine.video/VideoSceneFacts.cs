@@ -1,7 +1,8 @@
 namespace helengine.video {
     /// <summary>
     /// Derives per-scene facts from an edit: resolved durations, take-relative words and silences, take handles, speed and
-    /// segments, and the voiced and look-away spans of the take, all mapped through the segment table and the take speed.
+    /// segments, and the voiced and look-away spans of the take, all mapped through the segment table and the take speed, and
+    /// where the speaker's head is on screen after the face framing (head box, face zone and the bands free for text).
     /// </summary>
     public static class VideoSceneFacts {
         /// <summary>
@@ -20,6 +21,7 @@ namespace helengine.video {
             }
             IReadOnlyList<VideoSceneSpan> spans = VideoSceneTimeline.Build(edit, new List<VideoDiagnostic>());
             List<VideoSceneFact> facts = [];
+            VideoCompileState framing = null;
             for (int index = 0; index < spans.Count; index++) {
                 VideoScene scene = spans[index].Scene;
                 VideoMedia media = scene.Take == null ? null : edit.Media.FirstOrDefault(item => item.Id == scene.Take.Media);
@@ -43,10 +45,69 @@ namespace helengine.video {
                     fact.Silences = CollectSilences(fact.Words, duration);
                     fact.Voiced = VideoTakeTiming.MapSpans(pieces, media?.Analysis?.Voiced);
                     fact.LookAway = VideoTakeTiming.MapSpans(pieces, media?.Analysis?.LookAway);
+                    if (media?.Analysis?.Heads is { Count: > 0 }) {
+                        framing ??= FramingState(edit, spans);
+                        Head(framing, spans[index], fact);
+                    }
                 }
                 facts.Add(fact);
             }
             return facts;
+        }
+
+        /// <summary>
+        /// Creates the compilation state the head framing of the facts runs in: the edit's format and frame rate, no catalog.
+        /// </summary>
+        /// <param name="edit">Edit.</param>
+        /// <param name="spans">Scene spans.</param>
+        /// <returns>State whose diagnostics are discarded.</returns>
+        static VideoCompileState FramingState(VideoEdit edit, IReadOnlyList<VideoSceneSpan> spans) {
+            helengine.media.CompositionDocument document = new helengine.media.CompositionDocument {
+                Width = edit.Format.Width, Height = edit.Format.Height,
+                FrameRate = new helengine.media.MediaTime(edit.Format.FrameRate.Numerator, edit.Format.FrameRate.Denominator)
+            };
+            return new VideoCompileState(edit, new VideoCompileContext(), document, spans, new List<VideoDiagnostic>());
+        }
+
+        /// <summary>
+        /// Compiles the scene's take layer, frames it as the compiler does (see <see cref="VideoFaceFraming"/>) and reports the
+        /// head's box over the scene, the face zone and the bands free for text, as fractions of the frame.
+        /// </summary>
+        /// <param name="state">Framing state.</param>
+        /// <param name="span">Scene span.</param>
+        /// <param name="fact">Fact completed in place.</param>
+        static void Head(VideoCompileState state, VideoSceneSpan span, VideoSceneFact fact) {
+            VideoLayer source = VideoFaceFraming.TakeLayer(span.Scene);
+            if (source == null || state.Edit.Format.Width <= 0 || state.Edit.Format.Height <= 0) {
+                return;
+            }
+            string path = $"scenes[{span.Index}]";
+            try {
+                VideoFaceFraming.Guard(state, span, VideoSceneCompiler.Layer(state, span, source, path), path, true);
+            } catch (Exception error) when (error is InvalidDataException or KeyNotFoundException or ArgumentException or InvalidOperationException) {
+                // An edit the validator would reject has no reliable framing; the facts leave the head out.
+                return;
+            }
+            VideoGraphicRectangle head = VideoFaceFraming.Union(state, span.Start, span.End);
+            if (head == null) {
+                return;
+            }
+            double width = state.Edit.Format.Width, height = state.Edit.Format.Height;
+            fact.Head = new VideoFactBox { Left = Round(head.Left / width), Top = Round(head.Top / height), Right = Round(head.Right / width), Bottom = Round(head.Bottom / height) };
+            if (VideoFaceFraming.Zone(state.Edit) is { } zone) {
+                fact.FaceZone = new VideoFactBand { Top = zone.Top, Bottom = zone.Bottom };
+            }
+            fact.FreeAreas = VideoFaceClearance.Bands(state.Edit, head.Inflate(VideoCaptionBand.Gap * height)).Where(band => band.Bottom - band.Top >= VideoFaceClearance.MinimumBand * height)
+                .Select(band => new VideoFactBand { Top = Round(band.Top / height), Bottom = Round(band.Bottom / height) }).ToList();
+        }
+
+        /// <summary>
+        /// Rounds a frame fraction for planners.
+        /// </summary>
+        /// <param name="value">Fraction.</param>
+        /// <returns>Value rounded to three decimals.</returns>
+        static double Round(double value) {
+            return Math.Round(value, 3);
         }
 
         /// <summary>

@@ -70,9 +70,10 @@ namespace helengine.video {
                 schema["additionalProperties"] = false;
             }
             if (context.TypeInfo.Type == typeof(double[])) {
-                // Analysis spans are [start, end] pairs.
-                schema["minItems"] = 2;
-                schema["maxItems"] = 2;
+                // Analysis spans are [start, end] pairs; head boxes are [t, x0, y0, x1, y1].
+                int length = context.Path.ToArray().Contains("heads") ? 5 : 2;
+                schema["minItems"] = length;
+                schema["maxItems"] = length;
             }
             if (context.PropertyInfo?.DeclaringType != null && Ranges.TryGetValue(Key(context.PropertyInfo.DeclaringType, PropertyName(context)), out (double Minimum, double Maximum) range)) {
                 schema["minimum"] = range.Minimum;

@@ -163,6 +163,40 @@ a graphic's exit fade likewise. Simultaneous plain overlays are stacked with the
 overlay. When a held overlay is on screen together with an overlay of a later scene whose box intersects its own, the
 later overlay gets the warning `overlay_hold_overlap`.
 
+## Speaker face: framing and text clearance
+
+`media[].analysis.heads` may carry the speaker's head boxes, `[[t, x0, y0, x1, y1], ...]`: source seconds and the box in
+normalized display coordinates of the source frame (0..1, top-left origin, hair and chin included; Flux Studio measures
+them with MediaPipe about ten times a second). Malformed entries are `invalid_analysis_head`; the schema fixes five numbers
+per box. The optional `"framing": {"face_top": 0.16, "face_bottom": 0.70}` sets the face zone as fractions of the output
+height (`invalid_framing` unless `0 <= face_top < face_bottom <= 1`; a missing edge takes its default). Vertical formats
+(height > width) default to 0.16..0.70; other formats have no zone unless one is set.
+
+Head samples are placed in scene time through the take segments and speed (a sample up to 0.15 s outside a segment
+describes its edge) and mapped to output pixels as the layer pass draws the layer: the source is fitted into the layer
+viewport (`cover`/`contain`), `zoom` crops the fitted viewport around `focus_x`/`focus_y` (as in `PresentationTransform`,
+the crop clamped inside the viewport, focus read as a fraction of the fitted source), then `position_*`, `scale_*` and
+`rotation_deg` move it around the viewport center; each property is evaluated from the layer's tracks at that instant
+(zoom_to_focus ramps and raw keyframes alike). For the first take layer of a scene with heads and a zone, when the head
+leaves the zone the compiler searches the largest zoom ceiling (steps of 0.02 down to 1) and the focus offset nearest
+zero that keep every sample inside; it then clamps every `zoom` keyframe (and the static zoom) to that ceiling and adds
+the offset to every `focus_y` keyframe (and the static focus), before the blurred background copies the motion and the
+segments slice it, so the motion keeps its shape. The scene gets the warning `framing_adjusted` (with the ceiling and the
+offset, and how far the head still leaves the zone when nothing fits). `VideoCompileResult.Heads` gives the framed head
+boxes per scene (absolute time, output pixels).
+
+Text stays off the head: for every overlay placement (a stacked list moves once) the head boxes of every scene on screen
+during its interval are joined, a held overlay included over the later scenes it crosses. When its box meets that union
+(widened by the caption gap) it moves into a free band above the head (below the 7 % top margin) or below it (above the
+caption band, else the 7 % bottom margin): the nearest band where it fits at full size, otherwise the largest, scaled down
+uniformly (not below 0.5). The move is made on the compiled layer (scale around the frame center, `position_y` added to
+the static value and to the lift keyframes), the placement reports the moved box (`text_moved_from_face`, info) and held
+overlays are checked against later ones afterwards. With no room it stays and warns `text_covers_face`. A caption cue
+whose box (measured text wrapped to the style width and to the words per line) meets the head moves just below it when it
+fits above the bottom margin, otherwise just above it, never off screen (`text_covers_face` when it still meets the head).
+`VideoSceneFacts` adds `head` (the framed head over the scene, frame fractions), `face_zone` and `free_areas` (bands at
+least 4 % high above and below the head) for planners.
+
 ## Speaker background (blur and replacement)
 
 A scene with a take may declare `"background": {"mode": "original"|"blur"|"replace", "radius"?: 24, "media"?: "<id>", "by"?: "human"|"ai"}`

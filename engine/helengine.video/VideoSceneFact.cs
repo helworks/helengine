@@ -1,7 +1,7 @@
 namespace helengine.video {
     /// <summary>
-    /// Measured facts about one scene (duration, spoken words, silences and take handles) that are sent to an AI model so
-    /// it can plan cuts without reading the whole edit document.
+    /// Measured facts about one scene (duration, spoken words, silences, take handles and where the speaker's head is on
+    /// screen) that are sent to an AI model so it can plan cuts and place text without reading the whole edit document.
     /// </summary>
     public sealed class VideoSceneFact {
         /// <summary>
@@ -76,5 +76,23 @@ namespace helengine.video {
         /// take media has no gaze analysis.
         /// </summary>
         public List<double[]> LookAway { get; set; }
+
+        /// <summary>
+        /// Where the speaker's head is on screen over the whole scene, after the face framing limited the motion: the union of
+        /// its boxes, as fractions of the frame; null when the take media has no head boxes.
+        /// </summary>
+        public VideoFactBox Head { get; set; }
+
+        /// <summary>
+        /// The band the head is kept inside (<see cref="VideoEdit.Framing"/>); null when the edit has no face zone or the scene
+        /// has no head boxes.
+        /// </summary>
+        public VideoFactBand FaceZone { get; set; }
+
+        /// <summary>
+        /// Bands of the frame free for text: above the head and below it (above the captions), at least
+        /// <see cref="VideoFaceClearance.MinimumBand"/> high; null when the scene has no head boxes.
+        /// </summary>
+        public List<VideoFactBand> FreeAreas { get; set; }
     }
 }

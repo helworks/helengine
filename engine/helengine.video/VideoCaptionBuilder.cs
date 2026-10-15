@@ -4,7 +4,8 @@ namespace helengine.video {
     /// <summary>
     /// Derives caption cues from the words spoken in each scene take, grouped by the caption track settings, with timed
     /// words for spoken-word highlighting. Before a take has timed words, previews estimate cues from the planned speech;
-    /// final renders report <c>caption_alignment</c> instead.
+    /// final renders report <c>caption_alignment</c> instead. A cue that would cover the speaker's head moves off it (see
+    /// <see cref="VideoFaceClearance.Caption"/>).
     /// </summary>
     public static class VideoCaptionBuilder {
         /// <summary>
@@ -45,6 +46,7 @@ namespace helengine.video {
                         Effects = captions.Effects.Select(VideoSceneCompiler.Effect).ToList()
                     };
                     VideoAnimationBuilder.AddLift(layer, captions);
+                    VideoFaceClearance.Caption(state, span, layer, text, captions.WordsPerLine);
                     state.AddMember(span, layer);
                 }
             }

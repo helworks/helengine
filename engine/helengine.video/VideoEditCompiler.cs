@@ -43,8 +43,13 @@ namespace helengine.video {
                     result.Diagnostics.Add(VideoDiagnostic.Create(VideoDiagnosticSeverity.Pending, "estimated_duration", span.Scene.Id, $"scenes[{span.Index}].duration", "The scene length is still an estimate; choose a take or a fixed length."));
                 }
             }
+            // Overlays leave the speaker's face before held ones are checked against later ones, so both see the final boxes.
+            VideoFaceClearance.Overlays(state);
             VideoOverlayHold.Check(state);
             result.Overlays.AddRange(state.OverlayPlacements);
+            foreach ((string scene, List<VideoHeadSample> track) in state.Heads) {
+                result.Heads[scene] = track;
+            }
             VideoCaptionBuilder.Build(state);
             VideoEntryCompiler.Compile(state);
             VideoAudioBuilder.Build(state);
