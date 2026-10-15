@@ -571,10 +571,66 @@ namespace helengine.editor.tests {
             Assert.Equal("opaque", materialBuilder.LastMaterialCookRequest.FieldValues["alpha-mode"]);
             Assert.Equal("false", materialBuilder.LastMaterialCookRequest.FieldValues["double-sided"]);
             Assert.Equal("multiply", materialBuilder.LastMaterialCookRequest.FieldValues["vertex-color-mode"]);
+            Assert.All(materialBuilder.MaterialCookRequests, request => {
+                Assert.False(request.FieldValues.ContainsKey("casts-shadow"));
+                Assert.False(request.FieldValues.ContainsKey("receives-shadow"));
+            });
 
             string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "engine", "materials", "standard.hasset");
             Assert.Equal(cookedBytes, File.ReadAllBytes(cookedMaterialPath));
             Assert.False(File.Exists(Path.Combine(BuildRootPath, "cooked", "shaders", "ForwardStandardShader.dx11.hasset")));
+        }
+
+        /// <summary>Preserves engine Standard shadow flags through both generated-material cook paths despite nonshadowing schema defaults.</summary>
+        [Fact]
+        public void Package_WhenGeneratedStandardSchemaDisablesShadows_PreservesEngineMaterialFlags() {
+            const string sceneId = "Scenes/GeneratedStandardShadowFlags.helen";
+            WriteSceneAsset(sceneId, CreateGeneratedStandardMaterialReference());
+            RecordingMaterialBuilder builder = new RecordingMaterialBuilder(
+                CreateWindowsMaterialBuilderDefinition(false, true),
+                request => new PlatformMaterialCookResult([0x4d, 0x41, 0x54], []));
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath, [], "windows", builder, "debug", "directx11", BuiltInShaderAssetLibrary);
+
+            packager.Package([sceneId], BuildRootPath);
+
+            PlatformMaterialCookRequest[] requests = builder.MaterialCookRequests.Where(request =>
+                request.MaterialRelativePath == EngineGeneratedAssetProvider.StandardMaterialRelativePath).ToArray();
+            Assert.True(requests.Length >= 2, "The top-level and component-transform generated material paths must both be exercised.");
+            Assert.All(requests, request => {
+                Assert.Equal("true", request.FieldValues["casts-shadow"]);
+                Assert.Equal("true", request.FieldValues["receives-shadow"]);
+            });
+        }
+
+        /// <summary>Retains explicit authored platform shadow flags while the generated Standard uses the original engine defaults.</summary>
+        [Fact]
+        public void Package_WhenAuthoredMaterialDisablesShadows_PreservesPlatformFlags() {
+            const string sceneId = "Scenes/AuthoredShadowFlags.helen";
+            const string materialPath = "Materials/AuthoredShadowFlags.hasset";
+            MaterialAssetImportSettings settings = CreateMaterialSettings(materialPath, string.Empty,
+                string.Empty, string.Empty, string.Empty, "standard-shader", false, "#FFFFFFFF");
+            settings.Processor.Platforms["windows"].FieldValues["casts-shadow"] = "false";
+            settings.Processor.Platforms["windows"].FieldValues["receives-shadow"] = "false";
+            string absolutePath = Path.Combine(ProjectRootPath, "assets", materialPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(absolutePath));
+            new MaterialAssetSettingsService(ProjectRootPath).Save(absolutePath, settings);
+            WriteSceneAsset(sceneId, materialPath);
+            RecordingMaterialBuilder builder = new RecordingMaterialBuilder(
+                CreateWindowsMaterialBuilderDefinition(true, true),
+                request => new PlatformMaterialCookResult([0x4d, 0x41, 0x54], []));
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath, [], "windows", builder, "debug", "directx11", BuiltInShaderAssetLibrary);
+
+            packager.Package([sceneId], BuildRootPath);
+
+            PlatformMaterialCookRequest[] requests = builder.MaterialCookRequests.Where(request =>
+                request.MaterialRelativePath == materialPath).ToArray();
+            Assert.NotEmpty(requests);
+            Assert.All(requests, request => {
+                Assert.Equal("false", request.FieldValues["casts-shadow"]);
+                Assert.Equal("false", request.FieldValues["receives-shadow"]);
+            });
         }
 
         /// <summary>
@@ -5333,7 +5389,9 @@ namespace helengine.editor.tests {
         /// Creates one minimal Windows platform definition that publishes the standard material schema for cook request verification.
         /// </summary>
         /// <returns>Minimal Windows platform definition with the standard-shader material schema.</returns>
-        static PlatformDefinition CreateWindowsMaterialBuilderDefinition() {
+        /// <param name="shadowsByDefault">Schema defaults, which must not replace the generated engine material state.</param>
+        /// <param name="cookedMaterialResolution">Whether generated runtime materials are opaque builder-owned payloads.</param>
+        static PlatformDefinition CreateWindowsMaterialBuilderDefinition(bool shadowsByDefault = true, bool cookedMaterialResolution = false) {
             return new PlatformDefinition(
                 "windows",
                 "Windows DirectX",
@@ -5390,14 +5448,14 @@ namespace helengine.editor.tests {
                                 "casts-shadow",
                                 "Casts Shadow",
                                 PlatformMaterialFieldKind.Boolean,
-                                "true",
+                                shadowsByDefault ? "true" : "false",
                                 true,
                                 []),
                             new PlatformMaterialFieldDefinition(
                                 "receives-shadow",
                                 "Receives Shadow",
                                 PlatformMaterialFieldKind.Boolean,
-                                "true",
+                                shadowsByDefault ? "true" : "false",
                                 true,
                                 []),
                             new PlatformMaterialFieldDefinition(
@@ -5426,7 +5484,10 @@ namespace helengine.editor.tests {
                 [],
                 [],
                 [],
-                []);
+                [],
+                cookedMaterialResolution
+                    ? new RuntimeGenerationContract(RuntimeMaterialResolutionMode.CookedPlatformOwned, true, PackagedPathPolicy.ContentRelativeOnly)
+                    : RuntimeGenerationContract.CreateDefault());
         }
 
         /// <summary>

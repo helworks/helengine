@@ -2796,7 +2796,14 @@ namespace helengine.editor {
                 throw new InvalidOperationException("The generated standard material requires at least one material schema.");
             }
 
-            Dictionary<string, string> standardMaterialFieldValues = BuildMaterialCookFieldValues(new ShaderMaterialAsset(), standardMaterialSettings);
+            ShaderMaterialAsset generatedMaterialAsset = new ShaderMaterialAsset();
+            Dictionary<string, string> standardMaterialFieldValues = BuildMaterialCookFieldValues(generatedMaterialAsset, standardMaterialSettings);
+            if (standardMaterialFieldValues.ContainsKey("casts-shadow")) {
+                standardMaterialFieldValues["casts-shadow"] = generatedMaterialAsset.CastsShadows ? "true" : "false";
+            }
+            if (standardMaterialFieldValues.ContainsKey("receives-shadow")) {
+                standardMaterialFieldValues["receives-shadow"] = generatedMaterialAsset.ReceivesShadows ? "true" : "false";
+            }
             standardMaterialFieldValues[VariantFieldId] = StandardShaderVariantName;
             PlatformMaterialCookResult cookResult = MaterialBuilder.CookMaterial(new PlatformMaterialCookRequest(
                 StandardGeneratedMaterialAssetId,

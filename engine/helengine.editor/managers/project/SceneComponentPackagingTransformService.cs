@@ -2916,6 +2916,8 @@ namespace helengine.editor {
             return MaterialBuilder.Definition.RuntimeGenerationContract.MaterialResolutionMode == RuntimeMaterialResolutionMode.CookedPlatformOwned;
         }
 
+        /// <summary>Packages the original engine Standard material through the selected builder while preserving its declared shadow flags.</summary>
+        /// <param name="buildRootPath">Root receiving the generated material and any shared shader payload.</param>
         void EnsureGeneratedStandardMaterialAssets(string buildRootPath) {
             string shaderAssetId = StandardShaderAssetId;
             if (ShouldWriteGeneratedStandardShaderAsset()) {
@@ -2954,6 +2956,12 @@ namespace helengine.editor {
             }
 
             Dictionary<string, string> standardMaterialFieldValues = BuildMaterialCookFieldValues(new ShaderMaterialAsset(), standardMaterialSettings);
+            if (standardMaterialFieldValues.ContainsKey("casts-shadow")) {
+                standardMaterialFieldValues["casts-shadow"] = standardMaterialFieldValues["casts-shadows"];
+            }
+            if (standardMaterialFieldValues.ContainsKey("receives-shadow")) {
+                standardMaterialFieldValues["receives-shadow"] = standardMaterialFieldValues["receives-shadows"];
+            }
             standardMaterialFieldValues[VariantFieldId] = StandardShaderVariantName;
             PlatformMaterialCookResult cookResult = MaterialBuilder.CookMaterial(new PlatformMaterialCookRequest(
                 StandardGeneratedMaterialAssetId,
