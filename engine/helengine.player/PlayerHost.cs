@@ -59,7 +59,10 @@ namespace helengine.player {
                 // Vsync only prevents tearing; the frame limiter holds the loop to the platform's rate. An unlimited Play
                 // turns vsync off too, so it really runs unpaced.
                 renderer3D.PresentSyncInterval = playSettings.FrameRateUnlimited ? 0 : 1;
-                window = new PlayerWindow(options.PlatformName, options.SceneId, renderSize.Width, renderSize.Height);
+                string title = playSettings.HasVideoMode
+                    ? PlayerWindowTitle.FormatWithVideoMode(options.PlatformName, playSettings.VideoMode, options.SceneId)
+                    : PlayerWindowTitle.Format(options.PlatformName, options.SceneId);
+                window = new PlayerWindow(title, renderSize.Width, renderSize.Height);
                 PlayerScreenArea workArea = new PlayerMonitorLocator(new WinFormsPlayerMonitorQuery()).ResolveWorkArea(playSettings.WindowMonitor, playSettings.EditorProcessId);
                 PlayerWindowLayoutResult layout = PlayerWindowLayout.Compute(
                     renderSize,

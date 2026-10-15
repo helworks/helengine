@@ -8,16 +8,18 @@ namespace helengine.player {
         bool IsClosedValue;
 
         /// <summary>
-        /// Creates the player window titled after the platform and scene being played, with the given client size. The
-        /// host positions it explicitly.
+        /// Creates the player window with the given title and client size. The host builds the title with
+        /// <see cref="PlayerWindowTitle"/> and positions the window explicitly.
         /// </summary>
-        /// <param name="platformName">Display name of the platform shown in square brackets in the title bar.</param>
-        /// <param name="sceneId">Stable id of the scene shown in the title bar.</param>
+        /// <param name="title">Title bar text naming the platform, its video mode when it has one, and the scene.</param>
         /// <param name="clientWidth">Client width in pixels.</param>
         /// <param name="clientHeight">Client height in pixels.</param>
-        /// <exception cref="ArgumentException">The platform name or scene id is blank.</exception>
-        public PlayerWindow(string platformName, string sceneId, int clientWidth, int clientHeight) {
-            string title = PlayerWindowTitle.Format(platformName, sceneId);
+        /// <exception cref="ArgumentException">The title is blank.</exception>
+        public PlayerWindow(string title, int clientWidth, int clientHeight) {
+            if (string.IsNullOrWhiteSpace(title)) {
+                throw new ArgumentException("Player window title must be provided.", nameof(title));
+            }
+
             ClientSize = new Size(clientWidth, clientHeight);
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
