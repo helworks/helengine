@@ -27,22 +27,93 @@ namespace helengine.baseplatform.tests.Definitions {
         /// <summary>The Play setting must offer project plus every mode.</summary>
         [Fact]
         public void Ctor_WhenPlaySettingDiffers_Throws() {
-            Assert.Throws<ArgumentException>(
+            ArgumentException exception = Assert.Throws<ArgumentException>(
                 () => Create(CreateGraphicsSetting(["a", "b"], "a"), CreatePlayCapability(0d, CreatePlaySetting(["project", "a"])), CreateModes()));
+
+            Assert.Equal("videoModeCapability", exception.ParamName);
         }
 
         /// <summary>A Play platform with modes may not also declare a fixed frame rate.</summary>
         [Fact]
         public void Ctor_WhenModesAndFixedFrameRate_Throws() {
-            Assert.Throws<ArgumentException>(
+            ArgumentException exception = Assert.Throws<ArgumentException>(
                 () => Create(CreateGraphicsSetting(["a", "b"], "a"), CreatePlayCapability(60d, CreatePlaySetting(["project", "a", "b"])), CreateModes()));
+
+            Assert.Equal("playerCapability", exception.ParamName);
         }
 
         /// <summary>A Play platform without modes must declare a fixed frame rate.</summary>
         [Fact]
         public void Ctor_WhenNoModesAndNoFrameRate_Throws() {
-            Assert.Throws<ArgumentException>(
+            ArgumentException exception = Assert.Throws<ArgumentException>(
                 () => Create(CreateGraphicsSetting(["a", "b"], "a"), new PlatformPlayerCapability(true, "a.B", "s", 0d, PlayerInputDevices.Gamepad, "ps2", "1.0.0", []), null));
+
+            Assert.Equal("playerCapability", exception.ParamName);
+        }
+
+        /// <summary>Every graphics profile must declare the setting that selects the video mode.</summary>
+        [Fact]
+        public void Ctor_WhenGraphicsProfileLacksTheModeSetting_Throws() {
+            PlatformSettingDefinition otherSetting = new PlatformSettingDefinition("other", "Other", PlatformSettingKind.Choice, "a", true, ["a", "b"]);
+
+            ArgumentException exception = Assert.Throws<ArgumentException>(() => Create(otherSetting, null, CreateModes()));
+
+            Assert.Equal("videoModeCapability", exception.ParamName);
+        }
+
+        /// <summary>The graphics setting selecting the mode must be a choice, even when its values match the modes.</summary>
+        [Fact]
+        public void Ctor_WhenGraphicsModeSettingIsNotAChoice_Throws() {
+            PlatformSettingDefinition textSetting = new PlatformSettingDefinition("video-mode", "Video Mode", PlatformSettingKind.Text, "a", true, ["a", "b"]);
+
+            ArgumentException exception = Assert.Throws<ArgumentException>(() => Create(textSetting, null, CreateModes()));
+
+            Assert.Equal("videoModeCapability", exception.ParamName);
+        }
+
+        /// <summary>The graphics setting selecting the mode must default to one of the modes.</summary>
+        [Fact]
+        public void Ctor_WhenGraphicsModeDefaultIsNotAMode_Throws() {
+            ArgumentException exception = Assert.Throws<ArgumentException>(() => Create(CreateGraphicsSetting(["a", "b"], "c"), null, CreateModes()));
+
+            Assert.Equal("videoModeCapability", exception.ParamName);
+        }
+
+        /// <summary>The Play setting must default to project, even when it offers project plus every mode.</summary>
+        [Fact]
+        public void Ctor_WhenPlaySettingDefaultIsNotProject_Throws() {
+            PlatformSettingDefinition playSetting = new PlatformSettingDefinition("video-mode", "Video Mode", PlatformSettingKind.Choice, "a", true, ["project", "a", "b"]);
+
+            ArgumentException exception = Assert.Throws<ArgumentException>(
+                () => Create(CreateGraphicsSetting(["a", "b"], "a"), CreatePlayCapability(0d, playSetting), CreateModes()));
+
+            Assert.Equal("videoModeCapability", exception.ParamName);
+        }
+
+        /// <summary>A platform without Play may declare modes; only its graphics profiles must agree with them.</summary>
+        [Fact]
+        public void Ctor_WhenModesWithoutPlaySupport_IsAccepted() {
+            PlatformDefinition definition = Create(CreateGraphicsSetting(["a", "b"], "a"), null, CreateModes());
+
+            Assert.True(definition.HasVideoModes);
+            Assert.False(definition.PlayerCapability.SupportsPlay);
+            Assert.False(definition.PlayerCapability.FrameRateFromVideoMode);
+        }
+
+        /// <summary>
+        /// A mode Play setting that can follow the project is checked first by the project-option rule, whose message names
+        /// both the setting and the graphics profile that lacks it.
+        /// </summary>
+        [Fact]
+        public void Ctor_WhenGraphicsProfileLacksTheFollowedModeSetting_NamesSettingAndProfile() {
+            PlatformSettingDefinition otherSetting = new PlatformSettingDefinition("other", "Other", PlatformSettingKind.Choice, "a", true, ["a", "b"]);
+
+            ArgumentException exception = Assert.Throws<ArgumentException>(
+                () => Create(otherSetting, CreatePlayCapability(0d, CreatePlaySetting(["project", "a", "b"])), CreateModes()));
+
+            Assert.Equal("playerCapability", exception.ParamName);
+            Assert.Contains("'video-mode'", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("graphics profile 'g'", exception.Message, StringComparison.Ordinal);
         }
 
         /// <summary>Creates the definition under test.</summary>
