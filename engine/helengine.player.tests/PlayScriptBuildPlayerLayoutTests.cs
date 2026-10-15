@@ -20,6 +20,18 @@ namespace helengine.player.tests {
         /// <summary>Editor-only module that Play must not compile or expect.</summary>
         const string ToolsModuleId = "PlayFixtureTools";
 
+        /// <summary>
+        /// Environment variable MSBuild mixes into its node handshake; nodes started under a different value are never
+        /// reused, so a unique value forces a build to start a fresh node.
+        /// </summary>
+        const string NodeHandshakeSaltVariableName = "MSBUILDNODEHANDSHAKESALT";
+
+        /// <summary>
+        /// Longest time the fresh-node build may take. A loaded machine builds the fixture in well under this, while a
+        /// build stuck on the idle node's handles would wait for the node's 15-minute idle timeout.
+        /// </summary>
+        static readonly TimeSpan FreshNodeBuildBound = TimeSpan.FromMinutes(3);
+
         /// <summary>Scratch root holding the fixture project and its Play output, deleted on dispose.</summary>
         readonly string ScratchRootPath;
 
@@ -187,6 +199,36 @@ namespace helengine.player.tests {
 
             Assert.True(reverted.Succeeded, reverted.Message);
             Assert.True(File.Exists(restoreStampFilePath));
+        }
+
+        /// <summary>
+        /// A real Play script build that has to start a fresh MSBuild worker node still returns once <c>dotnet</c> exits,
+        /// with its compiler errors. The fresh node is kept warm for reuse and holds the build's standard output and error
+        /// handles for its whole idle lifetime, so a build that waits for those streams to close instead of for the process
+        /// hangs for as long as the node lives. A unique node handshake salt makes every idle node on the machine
+        /// incompatible, which forces the fresh node; the bound fails the test long before the node would idle out.
+        /// </summary>
+        [Fact]
+        public void RealPlayScriptBuild_WhenItStartsAFreshReusableNode_ReturnsWithTheCompilerErrors() {
+            WriteModule(
+                Path.Combine(ProjectRootPath, "assets", "codebase", "Levels"),
+                LevelsModuleId,
+                "runtime",
+                "[\"" + CoreModuleId + "\"]",
+                "namespace PlayFixture { public class LevelProbe { public MissingFreshNodeProbe Missing; } }");
+            EditorPlayScriptBuildService compiler = new EditorPlayScriptBuildService(ProjectRootPath, "PlayFixture");
+            EditorPlayScriptBuilder builder = new EditorPlayScriptBuilder(ProjectRootPath, compiler, platformId => string.Empty);
+            string previousSalt = Environment.GetEnvironmentVariable(NodeHandshakeSaltVariableName);
+            Environment.SetEnvironmentVariable(NodeHandshakeSaltVariableName, "helengine-play-tests-" + Guid.NewGuid().ToString("N"));
+            try {
+                Task<EditorBuildExecutionResult> build = Task.Run(() => builder.Build(PlatformId, new EditorProcessCancellation(), out _, out _));
+
+                Assert.True(build.Wait(FreshNodeBuildBound), $"The Play script build did not return within {FreshNodeBuildBound}.");
+                Assert.False(build.Result.Succeeded);
+                Assert.Contains("MissingFreshNodeProbe", build.Result.Message);
+            } finally {
+                Environment.SetEnvironmentVariable(NodeHandshakeSaltVariableName, previousSalt);
+            }
         }
 
         /// <summary>
