@@ -83,8 +83,8 @@ namespace helengine.directx11 {
         /// </summary>
         Dictionary<IntPtr, DirectX11SwapChainSurface> SurfacesByHandle;
         /// <summary>
-        /// Point magnification used by fixed-render-size surfaces; created on first use, so renderers that only add
-        /// ordinary windows (the editor) never create it.
+        /// Magnification used by fixed-render-size surfaces (point sampled, or sharp-bilinear columns for a non-integer
+        /// column stretch); created on first use, so renderers that only add ordinary windows (the editor) never create it.
         /// </summary>
         DirectX11MagnifyPass MagnifyPass;
         /// <summary>
@@ -1926,7 +1926,7 @@ namespace helengine.directx11 {
                     }
 
                     if (surface.UsesFixedRenderSize) {
-                        MagnifyPass.Execute(Device.ImmediateContext, surface.RenderColorShaderResourceView, surface.BackBufferRenderTargetView, surface.BackBufferWidth, surface.BackBufferHeight);
+                        MagnifyPass.Execute(Device.ImmediateContext, surface.RenderColorShaderResourceView, surface.Width, surface.Height, surface.BackBufferRenderTargetView, surface.BackBufferWidth, surface.BackBufferHeight);
                     }
 
                     PresentSurface(surface);
@@ -1937,7 +1937,7 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
-        /// Presents one surface's back buffer once every camera (and, for a fixed-render-size surface, the point-magnify
+        /// Presents one surface's back buffer once every camera (and, for a fixed-render-size surface, the magnify
         /// pass) has drawn into it.
         /// </summary>
         /// <param name="surface">Surface whose swap chain is presented.</param>

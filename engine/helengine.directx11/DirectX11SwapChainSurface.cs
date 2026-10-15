@@ -52,7 +52,7 @@ namespace helengine.directx11 {
 
         /// <summary>
         /// Gets or sets the render target view of the swap chain back buffer for a fixed-render-size surface, the
-        /// destination of the point-magnify pass. Unset for ordinary surfaces.
+        /// destination of the magnify pass. Unset for ordinary surfaces.
         /// </summary>
         public RenderTargetView BackBufferRenderTargetView { get; set; }
 
@@ -63,7 +63,7 @@ namespace helengine.directx11 {
         public Texture2D RenderColorTexture { get; set; }
 
         /// <summary>
-        /// Gets or sets the shader resource view the point-magnify pass samples <see cref="RenderColorTexture"/> through.
+        /// Gets or sets the shader resource view the magnify pass samples <see cref="RenderColorTexture"/> through.
         /// Unset for ordinary surfaces.
         /// </summary>
         public ShaderResourceView RenderColorShaderResourceView { get; set; }
