@@ -171,7 +171,7 @@ namespace helengine {
         /// Synchronizes authored input and advances the owned world by its exact configured fixed step.
         /// </summary>
         public void Step() {
-            if (IsDisposedValue) throw new ObjectDisposedException(nameof(HelPhysicsSceneBinder3D));
+            if (IsDisposedValue) throw new InvalidOperationException("The HelPhysics scene binder has been disposed.");
             Synchronizer.Step();
             RefreshTriggerEvents();
             PruneRetiredHandles();

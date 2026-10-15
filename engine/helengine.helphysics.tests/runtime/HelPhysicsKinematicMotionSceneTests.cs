@@ -90,7 +90,8 @@ namespace helengine {
             HelPhysicsEntitySynchronizer3D synchronizer = binder.Synchronizer;
             binder.Dispose();
             binder.Dispose();
-            Assert.Throws<ObjectDisposedException>(() => synchronizer.Step());
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => synchronizer.Step());
+            Assert.Contains("disposed", exception.Message);
         }
 
         /// <summary>Creates an initialized core with the same fixed scheduler used by runtime scenes.</summary>

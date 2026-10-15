@@ -240,7 +240,7 @@ namespace helengine {
 
         /// <summary>Rejects stale managed references before accessing retired native preflight storage.</summary>
         void ThrowIfDisposed() {
-            if (IsDisposed) throw new ObjectDisposedException(nameof(HelPhysicsEntitySynchronizer3D));
+            if (IsDisposed) throw new InvalidOperationException("The HelPhysics entity synchronizer has been disposed.");
         }
 
         /// <summary>
