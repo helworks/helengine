@@ -86,7 +86,7 @@ namespace helengine.directx11 {
         /// Point magnification used by fixed-render-size surfaces; created on first use, so renderers that only add
         /// ordinary windows (the editor) never create it.
         /// </summary>
-        DirectX11PointMagnifyPass PointMagnifyPass;
+        DirectX11MagnifyPass MagnifyPass;
         /// <summary>
         /// Constant buffer for the built-in standard mesh transform data.
         /// </summary>
@@ -388,7 +388,7 @@ namespace helengine.directx11 {
             DisposeShaderResourceCache();
             DisposeShaderPassCache();
             MaterialsByShaderAssetId.Clear();
-            PointMagnifyPass?.Dispose();
+            MagnifyPass?.Dispose();
             Device?.Dispose();
             Adapter?.Dispose();
 
@@ -426,7 +426,7 @@ namespace helengine.directx11 {
         /// <exception cref="ArgumentOutOfRangeException">Thrown when the pixel aspect is not finite and positive.</exception>
         public void AddWindowWithFixedRenderSize(IntPtr handle, int clientWidth, int clientHeight, int renderWidth, int renderHeight, double pixelAspect) {
             DirectX11FixedRenderSize.ValidateMagnification(clientWidth, clientHeight, renderWidth, renderHeight, pixelAspect);
-            PointMagnifyPass ??= new DirectX11PointMagnifyPass(Device);
+            MagnifyPass ??= new DirectX11MagnifyPass(Device);
             base.AddWindow(handle, renderWidth, renderHeight);
             SetWindowPixelAspect(handle, pixelAspect);
             DirectX11SwapChainSurface surface = CreateSwapChainSurface(handle, clientWidth, clientHeight);
@@ -1926,7 +1926,7 @@ namespace helengine.directx11 {
                     }
 
                     if (surface.UsesFixedRenderSize) {
-                        PointMagnifyPass.Execute(Device.ImmediateContext, surface.RenderColorShaderResourceView, surface.BackBufferRenderTargetView, surface.BackBufferWidth, surface.BackBufferHeight);
+                        MagnifyPass.Execute(Device.ImmediateContext, surface.RenderColorShaderResourceView, surface.BackBufferRenderTargetView, surface.BackBufferWidth, surface.BackBufferHeight);
                     }
 
                     PresentSurface(surface);

@@ -9,7 +9,7 @@ namespace helengine.directx11 {
     /// console's video output magnifying its framebuffer. Draws one full-screen triangle generated from the vertex id, so
     /// it needs no vertex buffer or input layout.
     /// </summary>
-    public sealed class DirectX11PointMagnifyPass : IDisposable {
+    public sealed class DirectX11MagnifyPass : IDisposable {
         /// <summary>HLSL source of the full-screen triangle and the point-sampled copy.</summary>
         const string ShaderSource = @"
 Texture2D SourceTexture : register(t0);
@@ -39,7 +39,7 @@ float4 PSMain(VertexOutput input) : SV_TARGET {
         /// Compiles the pass for one device.
         /// </summary>
         /// <param name="device">Device that owns the pass resources.</param>
-        public DirectX11PointMagnifyPass(SharpDX.Direct3D11.Device device) {
+        public DirectX11MagnifyPass(SharpDX.Direct3D11.Device device) {
             if (device == null) {
                 throw new ArgumentNullException(nameof(device));
             }
