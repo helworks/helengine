@@ -40,6 +40,55 @@ namespace helengine.baseplatform.tests.Definitions {
                 () => Create(CreateGraphicsSetting(["a", "b"], "a"), CreatePlayCapability(60d, CreatePlaySetting(["project", "a", "b"])), CreateModes()));
 
             Assert.Equal("playerCapability", exception.ParamName);
+            Assert.StartsWith("Platform 'ps2' declares a Play capability frame rate of 60 and video modes.", exception.Message, StringComparison.Ordinal);
+        }
+
+        /// <summary>The Play setting selecting the mode must be a choice, even when its values are project plus every mode.</summary>
+        [Fact]
+        public void Ctor_WhenPlaySettingIsNotAChoice_Throws() {
+            PlatformSettingDefinition textSetting = new PlatformSettingDefinition("video-mode", "Video Mode", PlatformSettingKind.Text, "project", true, ["project", "a", "b"]);
+
+            ArgumentException exception = Assert.Throws<ArgumentException>(
+                () => Create(CreateGraphicsSetting(["a", "b"], "a"), CreatePlayCapability(0d, textSetting), CreateModes()));
+
+            Assert.Equal("videoModeCapability", exception.ParamName);
+        }
+
+        /// <summary>A Play platform with modes must declare the Play setting that chooses the mode Play renders.</summary>
+        [Fact]
+        public void Ctor_WhenPlayPlatformWithModesDeclaresNoPlaySetting_Throws() {
+            PlatformPlayerCapability capability = new PlatformPlayerCapability(true, "a.B", "s", 0d, PlayerInputDevices.Gamepad, "ps2", "1.0.0", []);
+
+            ArgumentException exception = Assert.Throws<ArgumentException>(
+                () => Create(CreateGraphicsSetting(["a", "b"], "a"), capability, CreateModes()));
+
+            Assert.Equal("videoModeCapability", exception.ParamName);
+            Assert.StartsWith("Platform 'ps2' ", exception.Message, StringComparison.Ordinal);
+        }
+
+        /// <summary>Every graphics profile is checked, not only the first.</summary>
+        [Fact]
+        public void Ctor_WhenSecondGraphicsProfileDiffers_Throws() {
+            PlatformGraphicsProfileDefinition[] profiles = [
+                new PlatformGraphicsProfileDefinition("g", "G", "G", [CreateGraphicsSetting(["a", "b"], "a")]),
+                new PlatformGraphicsProfileDefinition("h", "H", "H", [CreateGraphicsSetting(["b", "a"], "a")])
+            ];
+
+            ArgumentException exception = Assert.Throws<ArgumentException>(
+                () => new PlatformDefinition("ps2", "PlayStation 2", [], profiles, [], [], [], [], [], [], videoModeCapability: CreateModes()));
+
+            Assert.Equal("videoModeCapability", exception.ParamName);
+            Assert.Contains("graphics profile 'h'", exception.Message, StringComparison.Ordinal);
+        }
+
+        /// <summary>The Play choice must list project then the modes in declaration order, and the message lists that order.</summary>
+        [Fact]
+        public void Ctor_WhenPlaySettingReordersTheModes_Throws() {
+            ArgumentException exception = Assert.Throws<ArgumentException>(
+                () => Create(CreateGraphicsSetting(["a", "b"], "a"), CreatePlayCapability(0d, CreatePlaySetting(["project", "b", "a"])), CreateModes()));
+
+            Assert.Equal("videoModeCapability", exception.ParamName);
+            Assert.Contains("in order: project, a, b.", exception.Message, StringComparison.Ordinal);
         }
 
         /// <summary>A Play platform without modes must declare a fixed frame rate.</summary>

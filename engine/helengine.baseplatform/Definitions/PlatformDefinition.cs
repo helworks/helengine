@@ -103,7 +103,7 @@ namespace helengine.baseplatform.Definitions {
             PlayerCapability = playerCapability ?? PlatformPlayerCapability.CreateUnsupported();
             ValidateProjectPlaySettings(PlayerCapability, GraphicsProfiles);
             VideoModeCapability = videoModeCapability;
-            ValidateVideoModes(PlayerCapability, GraphicsProfiles, videoModeCapability);
+            ValidateVideoModes(platformId, PlayerCapability, GraphicsProfiles, videoModeCapability);
         }
 
         /// <summary>
@@ -436,17 +436,21 @@ namespace helengine.baseplatform.Definitions {
 
         /// <summary>
         /// Checks that video modes agree with the graphics profiles and the Play declarations, and that a Play platform has
-        /// exactly one frame-rate source.
+        /// exactly one frame-rate source. Every message starts with the platform id, because the editor loads every
+        /// installed builder and the author must see which platform's declaration is wrong.
         /// </summary>
+        /// <param name="platformId">Platform whose declarations are checked; named in every message.</param>
         /// <param name="playerCapability">Play capability.</param>
         /// <param name="graphicsProfiles">Graphics profiles.</param>
         /// <param name="videoModes">Declared video modes, or null.</param>
         /// <exception cref="ArgumentException">Thrown when the declarations disagree.</exception>
-        static void ValidateVideoModes(PlatformPlayerCapability playerCapability, PlatformGraphicsProfileDefinition[] graphicsProfiles, PlatformVideoModeCapability videoModes) {
+        static void ValidateVideoModes(string platformId, PlatformPlayerCapability playerCapability, PlatformGraphicsProfileDefinition[] graphicsProfiles, PlatformVideoModeCapability videoModes) {
             bool hasModes = videoModes != null;
             if (playerCapability.SupportsPlay && hasModes == (playerCapability.TargetFrameRate > 0d)) {
+                string declaredRate = playerCapability.TargetFrameRate.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+                string declaredModes = hasModes ? "and video modes" : "and no video modes";
                 throw new ArgumentException(
-                    "A platform that supports Play takes its player frame rate from exactly one source: a positive Play capability frame rate, or video modes with a Play capability frame rate of 0.",
+                    $"Platform '{platformId}' declares a Play capability frame rate of {declaredRate} {declaredModes}. A platform that supports Play takes its player frame rate from exactly one source: a positive Play capability frame rate, or video modes with a Play capability frame rate of 0.",
                     "playerCapability");
             } else if (!hasModes) {
                 return;
@@ -457,11 +461,11 @@ namespace helengine.baseplatform.Definitions {
                 PlatformGraphicsProfileDefinition profile = graphicsProfiles[profileIndex];
                 PlatformSettingDefinition setting = Array.Find(profile.Settings, candidate => string.Equals(candidate.SettingId, videoModes.SettingId, StringComparison.Ordinal));
                 if (setting == null) {
-                    throw new ArgumentException($"Graphics profile '{profile.ProfileId}' declares no '{videoModes.SettingId}' setting to select the video mode.", "videoModeCapability");
+                    throw new ArgumentException($"Platform '{platformId}': graphics profile '{profile.ProfileId}' declares no '{videoModes.SettingId}' setting to select the video mode.", "videoModeCapability");
                 } else if (setting.SettingKind != PlatformSettingKind.Choice || !setting.AllowedValues.SequenceEqual(modeIds, StringComparer.Ordinal)) {
-                    throw new ArgumentException($"Graphics profile '{profile.ProfileId}' setting '{videoModes.SettingId}' must be a choice of exactly: {string.Join(", ", modeIds)}.", "videoModeCapability");
+                    throw new ArgumentException($"Platform '{platformId}': graphics profile '{profile.ProfileId}' setting '{videoModes.SettingId}' must be a choice of exactly: {string.Join(", ", modeIds)}.", "videoModeCapability");
                 } else if (Array.IndexOf(modeIds, setting.DefaultValue) < 0) {
-                    throw new ArgumentException($"Graphics profile '{profile.ProfileId}' setting '{videoModes.SettingId}' defaults to '{setting.DefaultValue}', which is not a video mode.", "videoModeCapability");
+                    throw new ArgumentException($"Platform '{platformId}': graphics profile '{profile.ProfileId}' setting '{videoModes.SettingId}' defaults to '{setting.DefaultValue}', which is not a video mode.", "videoModeCapability");
                 }
             }
 
@@ -473,12 +477,21 @@ namespace helengine.baseplatform.Definitions {
             playValues[0] = PlayerCommonPlaySettings.ProjectValue;
             Array.Copy(modeIds, 0, playValues, 1, modeIds.Length);
             PlatformSettingDefinition playSetting = playerCapability.FindPlaySetting(videoModes.SettingId);
-            if (playSetting == null
-                || playSetting.SettingKind != PlatformSettingKind.Choice
-                || !playSetting.AllowedValues.SequenceEqual(playValues, StringComparer.Ordinal)
-                || !string.Equals(playSetting.DefaultValue, PlayerCommonPlaySettings.ProjectValue, StringComparison.Ordinal)) {
+            if (playSetting == null) {
                 throw new ArgumentException(
-                    $"A Play platform with video modes must declare Play setting '{videoModes.SettingId}' as a choice of project plus every mode, defaulting to project.",
+                    $"Platform '{platformId}' supports Play and declares video modes, but declares no Play setting '{videoModes.SettingId}' to choose the video mode Play renders.",
+                    "videoModeCapability");
+            } else if (playSetting.SettingKind != PlatformSettingKind.Choice) {
+                throw new ArgumentException(
+                    $"Platform '{platformId}': Play setting '{videoModes.SettingId}' is a {playSetting.SettingKind} setting but must be a choice.",
+                    "videoModeCapability");
+            } else if (!playSetting.AllowedValues.SequenceEqual(playValues, StringComparer.Ordinal)) {
+                throw new ArgumentException(
+                    $"Platform '{platformId}': Play setting '{videoModes.SettingId}' must offer exactly, in order: {string.Join(", ", playValues)}.",
+                    "videoModeCapability");
+            } else if (!string.Equals(playSetting.DefaultValue, PlayerCommonPlaySettings.ProjectValue, StringComparison.Ordinal)) {
+                throw new ArgumentException(
+                    $"Platform '{platformId}': Play setting '{videoModes.SettingId}' defaults to '{playSetting.DefaultValue}' but must default to '{PlayerCommonPlaySettings.ProjectValue}'.",
                     "videoModeCapability");
             }
         }
