@@ -29,6 +29,9 @@ namespace helengine.player.tests {
         /// <summary>Opaque red sprite, in the back buffer's BGRA byte order.</summary>
         static readonly byte4 SpritePixel = new byte4(0, 0, 255, 255);
 
+        /// <summary>Opaque green odd column of the column pattern, in the back buffer's BGRA byte order.</summary>
+        static readonly byte4 GreenColumnPixel = new byte4(0, 255, 0, 255);
+
         /// <summary>
         /// A 32x12 render at pixel aspect 0.5 is shown in a 32x24 client (2x, a 4:3 display): columns keep their width and
         /// rows double. An 8x10 render at pixel aspect 2 is shown in a 16x10 client (1x): columns double and rows keep
@@ -45,6 +48,103 @@ namespace helengine.player.tests {
         [InlineData(8, 10, 2d, 16, 10)]
         public void FixedRenderSizeWindow_StretchesColumnsByThePixelAspect(int renderWidth, int renderHeight, double pixelAspect, int clientWidth, int clientHeight) {
             StaTestThread.Run(() => RenderAndAssert(renderWidth, renderHeight, pixelAspect, clientWidth, clientHeight));
+        }
+
+        /// <summary>
+        /// The real PS2 case: columns are stretched by a non-integer factor. A 640x448 framebuffer is shown 1195 pixels wide
+        /// at 2x (1.867 client pixels per column), and a 640x512 framebuffer 683 pixels wide at 1x (1.067 per column). A
+        /// full-frame pattern of alternating 1-pixel columns must reach the window with every rendered column present
+        /// exactly once, in order, each between floor(r) and floor(r)+1 client pixels wide.
+        /// </summary>
+        /// <param name="renderWidth">Fixed render width.</param>
+        /// <param name="renderHeight">Fixed render height.</param>
+        /// <param name="clientWidth">Window client width: round(renderWidth * pixelAspect * k).</param>
+        /// <param name="clientHeight">Window client height: renderHeight * k.</param>
+        [Theory]
+        [InlineData(640, 448, 1195, 896)]
+        [InlineData(640, 512, 683, 512)]
+        public void FixedRenderSizeWindow_WithANonIntegerColumnStretch_KeepsEveryRenderedColumn(int renderWidth, int renderHeight, int clientWidth, int clientHeight) {
+            StaTestThread.Run(() => RenderColumnsAndAssert(renderWidth, renderHeight, 4d * renderHeight / (3d * renderWidth), clientWidth, clientHeight));
+        }
+
+        /// <summary>
+        /// Renders two frames of a full-frame sprite whose texture alternates red and green 1-pixel columns, shown 4:3 in an
+        /// off-desktop window, and checks every presented row: only the two colours appear, there is one run per rendered
+        /// column starting with red, and every run is floor(r) or floor(r)+1 pixels wide for r = client width / render width.
+        /// </summary>
+        /// <param name="renderWidth">Fixed render width.</param>
+        /// <param name="renderHeight">Fixed render height.</param>
+        /// <param name="pixelAspect">Display pixel aspect of the rendered pixels.</param>
+        /// <param name="clientWidth">Window client width.</param>
+        /// <param name="clientHeight">Window client height.</param>
+        static void RenderColumnsAndAssert(int renderWidth, int renderHeight, double pixelAspect, int clientWidth, int clientHeight) {
+            using CapturingDirectX11Renderer3D renderer = new CapturingDirectX11Renderer3D();
+            using Form window = new Form {
+                FormBorderStyle = FormBorderStyle.None, ClientSize = new Size(clientWidth, clientHeight),
+                ShowInTaskbar = false, StartPosition = FormStartPosition.Manual, Location = new Point(-32000, -32000)
+            };
+            window.Show();
+            Application.DoEvents();
+            renderer.AddWindowWithFixedRenderSize(window.Handle, clientWidth, clientHeight, renderWidth, renderHeight, pixelAspect);
+
+            using Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+            });
+            core.Initialize(renderer, renderer.Render2D, null, new PlatformInfo("windows", "test"));
+            Entity cameraEntity = CreateEntity(core);
+            cameraEntity.AddComponent(new CameraComponent {
+                LayerMask = 1,
+                ClearSettings = new CameraClearSettings(true, new float4(0, 0, 1, 1), true, 1, false, 0)
+            });
+            byte[] columns = new byte[renderWidth * 4];
+            for (int column = 0; column < renderWidth; column++) {
+                bool even = column % 2 == 0;
+                columns[column * 4] = even ? (byte)255 : (byte)0;
+                columns[column * 4 + 1] = even ? (byte)0 : (byte)255;
+                columns[column * 4 + 3] = 255;
+            }
+            RuntimeTexture stripes = renderer.Render2D.BuildTextureFromRaw(new TextureAsset {
+                Width = (ushort)renderWidth, Height = 1, Colors = columns
+            });
+            Entity spriteEntity = CreateEntity(core);
+            spriteEntity.AddComponent(new SpriteComponent {
+                Texture = stripes, Size = new int2(renderWidth, renderHeight)
+            });
+
+            renderer.Draw();
+            renderer.Draw();
+
+            byte4[,] pixels = renderer.LastPresentedPixels;
+            Assert.Equal(clientHeight, pixels.GetLength(0));
+            Assert.Equal(clientWidth, pixels.GetLength(1));
+            int narrowest = clientWidth / renderWidth;
+            int widest = narrowest + 1;
+            for (int y = 0; y < clientHeight; y++) {
+                int runs = 0;
+                int runWidth = 0;
+                byte4 runColor = default;
+                for (int x = 0; x < clientWidth; x++) {
+                    byte4 pixel = pixels[y, x];
+                    Assert.True(pixel.Equals(SpritePixel) || pixel.Equals(GreenColumnPixel),
+                        $"Row {y} column {x} is {pixel}, neither a red nor a green rendered column.");
+                    if (x > 0 && pixel.Equals(runColor)) {
+                        runWidth++;
+                        continue;
+                    }
+                    if (x > 0) {
+                        Assert.True(runWidth >= narrowest && runWidth <= widest,
+                            $"Row {y}: rendered column {runs - 1} is {runWidth} client pixels wide; expected {narrowest} or {widest}.");
+                    } else {
+                        Assert.True(pixel.Equals(SpritePixel), $"Row {y} starts with {pixel}, not rendered column 0 (red).");
+                    }
+                    runs++;
+                    runWidth = 1;
+                    runColor = pixel;
+                }
+                Assert.True(runWidth >= narrowest && runWidth <= widest,
+                    $"Row {y}: the last rendered column is {runWidth} client pixels wide; expected {narrowest} or {widest}.");
+                Assert.True(runs == renderWidth, $"Row {y} shows {runs} rendered columns; expected all {renderWidth}.");
+            }
         }
 
         /// <summary>
