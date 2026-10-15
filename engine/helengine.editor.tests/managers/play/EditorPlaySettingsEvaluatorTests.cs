@@ -83,7 +83,7 @@ public sealed class EditorPlaySettingsEvaluatorTests {
         EditorPlaySettingsDocument document = new EditorPlaySettingsDocument();
         document.CommonValues["window-scale"] = "2x";
         EditorPlaySettingsEvaluation evaluation = EditorPlaySettingsEvaluator.Evaluate(document, FilePath, "ds", CreateCapability());
-        EditorPlaySettingsSnapshot snapshot = new EditorPlaySettingsSnapshot(evaluation, false, CreateCapability(), 77);
+        EditorPlaySettingsSnapshot snapshot = new EditorPlaySettingsSnapshot(evaluation, false, CreateCapability(), null, 77);
 
         document.CommonValues["window-scale"] = "4x";
 
@@ -99,7 +99,7 @@ public sealed class EditorPlaySettingsEvaluatorTests {
         document.CommonValues["window-scale"] = "5x";
         EditorPlaySettingsEvaluation evaluation = EditorPlaySettingsEvaluator.Evaluate(document, FilePath, "ds", CreateCapability());
 
-        Assert.Throws<ArgumentException>(() => new EditorPlaySettingsSnapshot(evaluation, false, CreateCapability(), 77));
+        Assert.Throws<ArgumentException>(() => new EditorPlaySettingsSnapshot(evaluation, false, CreateCapability(), null, 77));
     }
 
     /// <summary>The debugger wait is the stored setting or the Shift+click request.</summary>
@@ -112,7 +112,7 @@ public sealed class EditorPlaySettingsEvaluatorTests {
         document.CommonValues["wait-for-debugger"] = stored;
         EditorPlaySettingsEvaluation evaluation = EditorPlaySettingsEvaluator.Evaluate(document, FilePath, "ds", CreateCapability());
 
-        Assert.Equal(expected, new EditorPlaySettingsSnapshot(evaluation, shiftRequested, CreateCapability(), 77).EffectiveWaitForDebugger);
+        Assert.Equal(expected, new EditorPlaySettingsSnapshot(evaluation, shiftRequested, CreateCapability(), null, 77).EffectiveWaitForDebugger);
     }
 
     /// <summary>Creates a DS-like capability with one choice Play setting.</summary>

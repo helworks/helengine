@@ -13,6 +13,7 @@ namespace helengine.editor {
         /// <param name="store">Per-user Play settings store.</param>
         /// <param name="platformId">Platform being played.</param>
         /// <param name="capability">Play capability of the platform.</param>
+        /// <param name="videoModeCapability">Video modes of the platform, or null when it declares none.</param>
         /// <param name="waitForDebuggerRequested">Whether Shift was held on the Play button.</param>
         /// <param name="editorProcessId">Process id of this editor.</param>
         /// <param name="snapshot">The snapshot when captured; null otherwise.</param>
@@ -24,6 +25,7 @@ namespace helengine.editor {
             EditorPlaySettingsStore store,
             string platformId,
             PlatformPlayerCapability capability,
+            PlatformVideoModeCapability videoModeCapability,
             bool waitForDebuggerRequested,
             int editorProcessId,
             out EditorPlaySettingsSnapshot snapshot,
@@ -39,7 +41,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            snapshot = new EditorPlaySettingsSnapshot(evaluation, waitForDebuggerRequested, capability, editorProcessId);
+            snapshot = new EditorPlaySettingsSnapshot(evaluation, waitForDebuggerRequested, capability, videoModeCapability, editorProcessId);
             failureMessage = string.Empty;
             return true;
         }

@@ -3,7 +3,8 @@ using helengine.baseplatform.Definitions;
 namespace helengine.editor {
     /// <summary>
     /// The Play settings captured on the editor frame thread when Play was pressed: private copies of the effective common
-    /// and platform values, the Shift+click debugger request, the platform's Play capability and the editor process id.
+    /// and platform values, the Shift+click debugger request, the platform's Play capability and video modes, and the editor
+    /// process id.
     /// Editing Play settings while this Play prepares changes only the next Play.
     /// </summary>
     public sealed class EditorPlaySettingsSnapshot {
@@ -13,16 +14,22 @@ namespace helengine.editor {
         /// <param name="evaluation">Valid evaluation of the stored settings for the platform.</param>
         /// <param name="waitForDebuggerRequested">Whether Shift was held on the Play button.</param>
         /// <param name="capability">Play capability of the platform (read-only after the catalog loads it).</param>
+        /// <param name="videoModeCapability">Video modes of the platform, or null when it declares none.</param>
         /// <param name="editorProcessId">Process id of this editor, used by the player to find the editor's monitor.</param>
-        /// <exception cref="ArgumentException">Thrown when the evaluation has issues or the process id is not positive.</exception>
+        /// <exception cref="ArgumentException">
+        /// Thrown when the evaluation has issues, the process id is not positive, or the capability takes its frame rate from
+        /// the video mode but no video modes are given.
+        /// </exception>
         /// <exception cref="ArgumentNullException">Thrown when the evaluation or capability is null.</exception>
-        public EditorPlaySettingsSnapshot(EditorPlaySettingsEvaluation evaluation, bool waitForDebuggerRequested, PlatformPlayerCapability capability, int editorProcessId) {
+        public EditorPlaySettingsSnapshot(EditorPlaySettingsEvaluation evaluation, bool waitForDebuggerRequested, PlatformPlayerCapability capability, PlatformVideoModeCapability videoModeCapability, int editorProcessId) {
             if (evaluation == null) {
                 throw new ArgumentNullException(nameof(evaluation));
             } else if (!evaluation.IsValid) {
                 throw new ArgumentException(evaluation.FormatFailure(), nameof(evaluation));
             } else if (capability == null) {
                 throw new ArgumentNullException(nameof(capability));
+            } else if (capability.FrameRateFromVideoMode && videoModeCapability == null) {
+                throw new ArgumentException($"Platform '{evaluation.PlatformId}' takes its Play frame rate from the video mode, but declares no video modes.", nameof(videoModeCapability));
             } else if (editorProcessId <= 0) {
                 throw new ArgumentException("The editor process id must be positive.", nameof(editorProcessId));
             }
@@ -32,6 +39,7 @@ namespace helengine.editor {
             PlatformValues = new Dictionary<string, string>(evaluation.PlatformValues, StringComparer.Ordinal);
             WaitForDebuggerRequested = waitForDebuggerRequested;
             Capability = capability;
+            VideoModeCapability = videoModeCapability;
             EditorProcessId = editorProcessId;
         }
 
@@ -49,6 +57,12 @@ namespace helengine.editor {
 
         /// <summary>Gets the Play capability of the platform.</summary>
         public PlatformPlayerCapability Capability { get; }
+
+        /// <summary>Gets the video modes of the platform, or null when it declares none.</summary>
+        public PlatformVideoModeCapability VideoModeCapability { get; }
+
+        /// <summary>Gets whether the platform declares video modes, so Play resolves one and paces at its frame rate.</summary>
+        public bool HasVideoModes => VideoModeCapability != null;
 
         /// <summary>Gets the editor process id.</summary>
         public int EditorProcessId { get; }

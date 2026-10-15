@@ -31,6 +31,7 @@ namespace helengine.editor {
             DisplayName = loadedBuilder.PlatformDescriptor.DisplayName;
             BuilderAssemblyPath = loadedBuilder.PlatformDescriptor.BuilderAssemblyPath;
             PlayerCapability = capability;
+            VideoModeCapability = loadedBuilder.Definition.VideoModeCapability;
         }
 
         /// <summary>
@@ -52,5 +53,10 @@ namespace helengine.editor {
         /// Gets the Play capability declared by the platform builder, including the player adapter type name.
         /// </summary>
         public PlatformPlayerCapability PlayerCapability { get; }
+
+        /// <summary>
+        /// Gets the video modes the platform declares, or null when it declares none.
+        /// </summary>
+        public PlatformVideoModeCapability VideoModeCapability { get; }
     }
 }

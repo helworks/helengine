@@ -4,7 +4,9 @@ using helengine.baseplatform.Player;
 namespace helengine.editor {
     /// <summary>
     /// Turns the Play settings captured at press time into the fully resolved settings the player receives, once the cook
-    /// has reported the project's graphics option values and shadow policy (both also captured at press time).
+    /// has reported the project's graphics option values and shadow policy (both also captured at press time). On a platform
+    /// with video modes, the resolved video-mode setting selects the mode, and <c>frame-rate: platform</c> paces at the
+    /// mode's player frame rate instead of the capability's.
     /// </summary>
     public static class EditorPlayLaunchSettingsResolver {
         /// <summary>
@@ -35,7 +37,16 @@ namespace helengine.editor {
                 platformValues.Add(declaration.SettingId, value);
             }
 
+            PlatformVideoMode videoMode = null;
+            if (snapshot.HasVideoModes) {
+                if (!platformValues.TryGetValue(snapshot.VideoModeCapability.SettingId, out string videoModeId)) {
+                    throw new InvalidOperationException($"Platform '{snapshot.PlatformId}' declares video modes through setting '{snapshot.VideoModeCapability.SettingId}', but its Play capability declares no such Play setting.");
+                }
+                videoMode = snapshot.VideoModeCapability.Resolve(videoModeId, snapshot.PlatformId);
+            }
+
             bool unlimited = string.Equals(snapshot.CommonValues[PlayerCommonPlaySettings.FrameRateId], "unlimited", StringComparison.Ordinal);
+            double targetFrameRate = unlimited ? 0d : (videoMode != null ? videoMode.PlayerFrameRate : snapshot.Capability.TargetFrameRate);
             bool playShadows = string.Equals(snapshot.CommonValues[PlayerCommonPlaySettings.ShadowsId], "true", StringComparison.Ordinal);
             return new PlayerPlaySettings(
                 PlayerWindowScaleText.Parse(snapshot.CommonValues[PlayerCommonPlaySettings.WindowScaleId]),
@@ -44,8 +55,9 @@ namespace helengine.editor {
                 snapshot.EffectiveWaitForDebugger,
                 playShadows && cookResult.ShadowsEnabled,
                 unlimited,
-                unlimited ? 0d : snapshot.Capability.TargetFrameRate,
-                platformValues);
+                targetFrameRate,
+                platformValues,
+                videoMode);
         }
 
         /// <summary>

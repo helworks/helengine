@@ -225,7 +225,7 @@ public sealed class EditorPlaySessionServiceTests {
         EditorPlaySettingsDocument pressedDocument = new EditorPlaySettingsDocument();
         pressedDocument.CommonValues["window-scale"] = "2x";
         store.Save(pressedDocument);
-        Assert.True(EditorPlaySettingsCapture.TryCapture(store, PlatformId, capability, false, 4242, out EditorPlaySettingsSnapshot pressed, out string pressedFailure), pressedFailure);
+        Assert.True(EditorPlaySettingsCapture.TryCapture(store, PlatformId, capability, null, false, 4242, out EditorPlaySettingsSnapshot pressed, out string pressedFailure), pressedFailure);
         EditorBuildExecutionResult firstLaunch = null;
 
         EditorBuildExecutionResult firstStart = service.Play(PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, InputDevices, RuntimePlatformName, RuntimePlatformVersion, pressed, result => firstLaunch = result);
@@ -238,7 +238,7 @@ public sealed class EditorPlaySessionServiceTests {
         Assert.True(firstLaunch.Succeeded, firstLaunch.Message);
         Assert.Equal(PlayerWindowScale.Two, PlayerPlaySettingsFile.Read(settingsPath).WindowScale);
 
-        Assert.True(EditorPlaySettingsCapture.TryCapture(store, PlatformId, capability, false, 4242, out EditorPlaySettingsSnapshot next, out string nextFailure), nextFailure);
+        Assert.True(EditorPlaySettingsCapture.TryCapture(store, PlatformId, capability, null, false, 4242, out EditorPlaySettingsSnapshot next, out string nextFailure), nextFailure);
         EditorBuildExecutionResult secondLaunch = PlayToCompletion(service, PlatformId, PlatformDisplayName, ScenePath, () => true, AdapterAssemblyPath, AdapterTypeName, InputDevices, next);
 
         Assert.True(secondLaunch.Succeeded, secondLaunch.Message);

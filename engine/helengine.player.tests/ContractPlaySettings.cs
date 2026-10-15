@@ -20,7 +20,7 @@ namespace helengine.player.tests {
         public static EditorPlaySettingsSnapshot CreateDefaults(string platformId, double targetFrameRate, bool waitForDebuggerRequested) {
             PlatformPlayerCapability capability = new PlatformPlayerCapability(true, "a.B", "staging", targetFrameRate, PlayerInputDevices.Gamepad, platformId, "1.0.0", []);
             EditorPlaySettingsEvaluation evaluation = EditorPlaySettingsEvaluator.Evaluate(new EditorPlaySettingsDocument(), ProjectRoot + @"\user_settings\play.json", platformId, capability);
-            return new EditorPlaySettingsSnapshot(evaluation, waitForDebuggerRequested, capability, 4242);
+            return new EditorPlaySettingsSnapshot(evaluation, waitForDebuggerRequested, capability, null, 4242);
         }
 
         /// <summary>

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using helengine.baseplatform.Definitions;
 
 namespace helengine.baseplatform.Player {
     /// <summary>
@@ -13,7 +14,7 @@ namespace helengine.baseplatform.Player {
         /// <summary>Property names, in write order.</summary>
         static readonly string[] PropertyNames = [
             "version", "windowScale", "windowMonitor", "editorProcessId", "waitForDebugger",
-            "shadowsEnabled", "frameRateUnlimited", "targetFrameRate", "platform"
+            "shadowsEnabled", "frameRateUnlimited", "targetFrameRate", "platform", "videoMode"
         ];
 
         /// <summary>
@@ -49,6 +50,20 @@ namespace helengine.baseplatform.Player {
                 writer.WriteString(entry.Key, entry.Value);
             }
             writer.WriteEndObject();
+            if (settings.HasVideoMode) {
+                writer.WriteStartObject("videoMode");
+                writer.WriteString("id", settings.VideoMode.Id);
+                writer.WriteNumber("width", settings.VideoMode.Width);
+                writer.WriteNumber("height", settings.VideoMode.Height);
+                writer.WriteBoolean("progressive", settings.VideoMode.IsProgressive);
+                writer.WriteNumber("refreshRateHz", settings.VideoMode.RefreshRateHz);
+                writer.WriteNumber("playerFrameRate", settings.VideoMode.PlayerFrameRate);
+                writer.WriteNumber("displayAspectWidth", settings.VideoMode.DisplayAspectWidth);
+                writer.WriteNumber("displayAspectHeight", settings.VideoMode.DisplayAspectHeight);
+                writer.WriteEndObject();
+            } else {
+                writer.WriteNull("videoMode");
+            }
             writer.WriteEndObject();
         }
 
@@ -98,6 +113,10 @@ namespace helengine.baseplatform.Player {
 
                 bool frameRateUnlimited = RequireBoolean(root, "frameRateUnlimited", path);
                 double targetFrameRate = RequireFrameRate(root, frameRateUnlimited, path);
+                PlatformVideoMode videoMode = RequireVideoMode(root, path);
+                if (videoMode != null && !frameRateUnlimited && targetFrameRate != videoMode.PlayerFrameRate) {
+                    throw new InvalidOperationException($"Play settings file '{path}' property 'targetFrameRate' is {targetFrameRate.ToString(CultureInfo.InvariantCulture)}, but video mode '{videoMode.Id}' plays at {videoMode.PlayerFrameRate.ToString(CultureInfo.InvariantCulture)} frames per second.");
+                }
 
                 return new PlayerPlaySettings(
                     RequireWindowScale(root, path),
@@ -107,7 +126,8 @@ namespace helengine.baseplatform.Player {
                     RequireBoolean(root, "shadowsEnabled", path),
                     frameRateUnlimited,
                     targetFrameRate,
-                    RequirePlatformValues(root, path));
+                    RequirePlatformValues(root, path),
+                    videoMode);
             }
         }
 
@@ -226,6 +246,37 @@ namespace helengine.baseplatform.Player {
             }
 
             return platformValues;
+        }
+
+        /// <summary>
+        /// Returns the required <c>videoMode</c> property: a full video mode object, or JSON null when the platform declares
+        /// no video modes.
+        /// </summary>
+        /// <param name="root">Root object.</param>
+        /// <param name="path">File path reported on failure.</param>
+        /// <returns>The video mode, or null when the file carries JSON null.</returns>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown when the property is missing, is neither an object nor null, or its object lacks a field or holds a
+        /// wrongly typed one.
+        /// </exception>
+        static PlatformVideoMode RequireVideoMode(JsonElement root, string path) {
+            if (!root.TryGetProperty("videoMode", out JsonElement videoModeElement)) {
+                throw new InvalidOperationException($"Play settings file '{path}' is missing property 'videoMode'.");
+            } else if (videoModeElement.ValueKind == JsonValueKind.Null) {
+                return null;
+            } else if (videoModeElement.ValueKind != JsonValueKind.Object) {
+                throw new InvalidOperationException($"Play settings file '{path}' property 'videoMode' must be an object or null.");
+            }
+
+            return new PlatformVideoMode(
+                RequireProperty(videoModeElement, "id", JsonValueKind.String, path).GetString(),
+                RequireInt32(videoModeElement, "width", path),
+                RequireInt32(videoModeElement, "height", path),
+                RequireBoolean(videoModeElement, "progressive", path),
+                RequireProperty(videoModeElement, "refreshRateHz", JsonValueKind.Number, path).GetDouble(),
+                RequireProperty(videoModeElement, "playerFrameRate", JsonValueKind.Number, path).GetDouble(),
+                RequireInt32(videoModeElement, "displayAspectWidth", path),
+                RequireInt32(videoModeElement, "displayAspectHeight", path));
         }
 
         /// <summary>

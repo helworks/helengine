@@ -131,6 +131,114 @@ public sealed class EditorPlayLaunchSettingsResolverTests {
         Assert.Contains("Cook broke.", exception.Message);
     }
 
+    /// <summary>With video modes, project resolves to the project's mode and the frame rate is the mode's player rate.</summary>
+    [Fact]
+    public void Resolve_VideoModeFollowsProjectAndSetsFrameRate() {
+        EditorPlaySettingsSnapshot snapshot = CreateVideoModeSnapshot("project");
+
+        PlayerPlaySettings settings = EditorPlayLaunchSettingsResolver.Resolve(snapshot, CreateCookResult(true, new Dictionary<string, string> { ["video-mode"] = "pal-320x256p" }));
+
+        Assert.Equal("pal-320x256p", settings.VideoMode.Id);
+        Assert.Equal(320, settings.VideoMode.Width);
+        Assert.Equal(50d, settings.TargetFrameRate);
+    }
+
+    /// <summary>An explicit Play mode overrides the project's mode.</summary>
+    [Fact]
+    public void Resolve_ExplicitVideoModeOverridesProject() {
+        EditorPlaySettingsSnapshot snapshot = CreateVideoModeSnapshot("ntsc-256x224p");
+
+        PlayerPlaySettings settings = EditorPlayLaunchSettingsResolver.Resolve(snapshot, CreateCookResult(true, new Dictionary<string, string> { ["video-mode"] = "pal-640x512i" }));
+
+        Assert.Equal("ntsc-256x224p", settings.VideoMode.Id);
+        Assert.Equal(60d, settings.TargetFrameRate);
+    }
+
+    /// <summary>
+    /// An old project file without <c>video-mode</c> (it still holds default-width/default-height) fails Play naming the
+    /// field and the platform settings file instead of silently running at 640x448.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenProjectHasOldSizeFieldsOnly_FailsNamingFieldAndFile() {
+        EditorPlaySettingsSnapshot snapshot = CreateVideoModeSnapshot("project");
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => EditorPlayLaunchSettingsResolver.Resolve(
+            snapshot,
+            CreateCookResult(true, new Dictionary<string, string> { ["default-width"] = "640", ["default-height"] = "448" })));
+
+        Assert.Contains("video-mode", exception.Message);
+        Assert.Contains("settings/platform.ps2.json", exception.Message);
+    }
+
+    /// <summary>
+    /// A platform whose capability frame rate is 0 (the rate comes from the video mode) never resolves a paced rate of 0:
+    /// <c>frame-rate: platform</c> paces at the resolved mode's player rate, and <c>unlimited</c> stays unpaced with the mode
+    /// still resolved.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenCapabilityRateIsZero_TakesTheRateFromTheResolvedMode() {
+        EditorPlaySettingsSnapshot paced = CreateVideoModeSnapshot("pal-640x512i");
+        EditorPlaySettingsSnapshot unlimited = CreateVideoModeSnapshot("pal-640x512i", "unlimited");
+
+        PlayerPlaySettings pacedSettings = EditorPlayLaunchSettingsResolver.Resolve(paced, CreateCookResult(true, new Dictionary<string, string>()));
+        PlayerPlaySettings unlimitedSettings = EditorPlayLaunchSettingsResolver.Resolve(unlimited, CreateCookResult(true, new Dictionary<string, string>()));
+
+        Assert.Equal(0d, paced.Capability.TargetFrameRate);
+        Assert.False(pacedSettings.FrameRateUnlimited);
+        Assert.Equal(50d, pacedSettings.TargetFrameRate);
+        Assert.True(unlimitedSettings.FrameRateUnlimited);
+        Assert.Equal(0d, unlimitedSettings.TargetFrameRate);
+        Assert.Equal("pal-640x512i", unlimitedSettings.VideoMode.Id);
+    }
+
+    /// <summary>A platform without video modes resolves no mode and paces at the capability's frame rate.</summary>
+    [Fact]
+    public void Resolve_WithoutVideoModes_HasNoModeAndUsesTheCapabilityRate() {
+        EditorPlaySettingsSnapshot snapshot = CreateSnapshot(new Dictionary<string, string>(), new Dictionary<string, string> { ["video-mode"] = "m1" }, false);
+
+        PlayerPlaySettings settings = EditorPlayLaunchSettingsResolver.Resolve(snapshot, CreateCookResult(true, new Dictionary<string, string>()));
+
+        Assert.False(snapshot.HasVideoModes);
+        Assert.False(settings.HasVideoMode);
+        Assert.Equal(60d, settings.TargetFrameRate);
+    }
+
+    /// <summary>
+    /// A capability that takes its frame rate from the video mode cannot be snapshotted without video modes, so a frame
+    /// rate of 0 never reaches the resolver or the player's pacer.
+    /// </summary>
+    [Fact]
+    public void Snapshot_WhenCapabilityRateIsZeroWithoutVideoModes_Throws() {
+        PlatformPlayerCapability capability = new PlatformPlayerCapability(true, "a.B", "ps2-staging", 0d, PlayerInputDevices.Gamepad, "ps2", "1.0.0", []);
+        EditorPlaySettingsEvaluation evaluation = EditorPlaySettingsEvaluator.Evaluate(new EditorPlaySettingsDocument(), @"C:\p\user_settings\play.json", "ps2", capability);
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => new EditorPlaySettingsSnapshot(evaluation, false, capability, null, 55));
+
+        Assert.Equal("videoModeCapability", exception.ParamName);
+        Assert.Contains("ps2", exception.Message);
+    }
+
+    /// <summary>Creates a PS2-like snapshot whose Play video mode is the given value.</summary>
+    static EditorPlaySettingsSnapshot CreateVideoModeSnapshot(string playValue) {
+        return CreateVideoModeSnapshot(playValue, "platform");
+    }
+
+    /// <summary>Creates a PS2-like snapshot (capability frame rate 0) whose Play video mode and frame-rate setting are the given values.</summary>
+    static EditorPlaySettingsSnapshot CreateVideoModeSnapshot(string playValue, string frameRate) {
+        PlatformVideoModeCapability modes = new PlatformVideoModeCapability("video-mode", [
+            new PlatformVideoMode("ntsc-256x224p", 256, 224, true, 59.94d, 60d, 4, 3),
+            new PlatformVideoMode("pal-320x256p", 320, 256, true, 50d, 50d, 4, 3),
+            new PlatformVideoMode("pal-640x512i", 640, 512, false, 50d, 50d, 4, 3)
+        ]);
+        PlatformPlayerCapability capability = new PlatformPlayerCapability(true, "a.B", "ps2-staging", 0d, PlayerInputDevices.Gamepad, "ps2", "1.0.0",
+            [new PlatformSettingDefinition("video-mode", "Video Mode", PlatformSettingKind.Choice, "project", true, ["project", "ntsc-256x224p", "pal-320x256p", "pal-640x512i"])]);
+        EditorPlaySettingsDocument document = new EditorPlaySettingsDocument();
+        document.CommonValues["frame-rate"] = frameRate;
+        document.PlatformValues["ps2"] = new Dictionary<string, string> { ["video-mode"] = playValue };
+        EditorPlaySettingsEvaluation evaluation = EditorPlaySettingsEvaluator.Evaluate(document, @"C:\p\user_settings\play.json", "ps2", capability);
+        return new EditorPlaySettingsSnapshot(evaluation, false, capability, modes, 55);
+    }
+
     /// <summary>Creates a snapshot for a test platform whose Play setting may follow the project.</summary>
     static EditorPlaySettingsSnapshot CreateSnapshot(Dictionary<string, string> common, Dictionary<string, string> platform, bool shift) {
         PlatformPlayerCapability capability = new PlatformPlayerCapability(true, "a.B", "staging", 60d, PlayerInputDevices.Gamepad, "tst", "1.0.0",
@@ -141,7 +249,7 @@ public sealed class EditorPlayLaunchSettingsResolverTests {
         }
         document.PlatformValues["tst"] = platform;
         EditorPlaySettingsEvaluation evaluation = EditorPlaySettingsEvaluator.Evaluate(document, @"C:\p\user_settings\play.json", "tst", capability);
-        return new EditorPlaySettingsSnapshot(evaluation, shift, capability, 55);
+        return new EditorPlaySettingsSnapshot(evaluation, shift, capability, null, 55);
     }
 
     /// <summary>Creates a successful cook result with the given shadow policy and graphics options.</summary>

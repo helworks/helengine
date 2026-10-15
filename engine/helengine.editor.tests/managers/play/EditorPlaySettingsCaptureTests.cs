@@ -26,7 +26,7 @@ public sealed class EditorPlaySettingsCaptureTests : IDisposable {
     public void TryCapture_WithoutFile_ReturnsDefaults() {
         EditorPlaySettingsStore store = new EditorPlaySettingsStore(ProjectRoot);
 
-        bool captured = EditorPlaySettingsCapture.TryCapture(store, "ps2", CreateCapability(), false, 99, out EditorPlaySettingsSnapshot snapshot, out string failure);
+        bool captured = EditorPlaySettingsCapture.TryCapture(store, "ps2", CreateCapability(), null, false, 99, out EditorPlaySettingsSnapshot snapshot, out string failure);
 
         Assert.True(captured);
         Assert.Equal(string.Empty, failure);
@@ -44,7 +44,7 @@ public sealed class EditorPlaySettingsCaptureTests : IDisposable {
         document.CommonValues["window-scale"] = "3x";
         store.Save(document);
 
-        bool captured = EditorPlaySettingsCapture.TryCapture(store, "ps2", CreateCapability(), true, 99, out EditorPlaySettingsSnapshot snapshot, out string failure);
+        bool captured = EditorPlaySettingsCapture.TryCapture(store, "ps2", CreateCapability(), null, true, 99, out EditorPlaySettingsSnapshot snapshot, out string failure);
 
         Assert.True(captured, failure);
         Assert.Equal("3x", snapshot.CommonValues["window-scale"]);
@@ -60,7 +60,7 @@ public sealed class EditorPlaySettingsCaptureTests : IDisposable {
         document.CommonValues["frame-rate"] = "120";
         store.Save(document);
 
-        bool captured = EditorPlaySettingsCapture.TryCapture(store, "ps2", CreateCapability(), false, 99, out EditorPlaySettingsSnapshot snapshot, out string failure);
+        bool captured = EditorPlaySettingsCapture.TryCapture(store, "ps2", CreateCapability(), null, false, 99, out EditorPlaySettingsSnapshot snapshot, out string failure);
 
         Assert.False(captured);
         Assert.Null(snapshot);

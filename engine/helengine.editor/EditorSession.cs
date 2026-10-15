@@ -3677,7 +3677,7 @@ namespace helengine.editor {
                     PlayPreparationInputs = CapturePlayPreparationInputs(playPlatform.PlatformId);
                 }
 
-                if (!EditorPlaySettingsCapture.TryCapture(PlaySettingsStore, playPlatform.PlatformId, playPlatform.PlayerCapability, waitForDebugger, Environment.ProcessId, out EditorPlaySettingsSnapshot playSettings, out string playSettingsFailure)) {
+                if (!EditorPlaySettingsCapture.TryCapture(PlaySettingsStore, playPlatform.PlatformId, playPlatform.PlayerCapability, playPlatform.VideoModeCapability, waitForDebugger, Environment.ProcessId, out EditorPlaySettingsSnapshot playSettings, out string playSettingsFailure)) {
                     Logger.WriteError(playSettingsFailure);
                     return;
                 }

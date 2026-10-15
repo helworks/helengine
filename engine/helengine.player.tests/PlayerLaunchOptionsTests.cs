@@ -31,7 +31,8 @@ namespace helengine.player.tests {
                 true,
                 false,
                 60d,
-                new Dictionary<string, string>());
+                new Dictionary<string, string>(),
+                null);
             PlayerPlaySettingsFile.Write(PlaySettingsPath, settings);
         }
 
