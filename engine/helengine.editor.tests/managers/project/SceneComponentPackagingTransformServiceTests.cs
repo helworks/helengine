@@ -529,8 +529,31 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures authored sprite components that persist their texture field through the automatic editor payload contract still package successfully.
+        /// Ensures moved textures retain their authored identity during component packaging.
         /// </summary>
+        [Fact]
+        public void TryTransform_WhenTextureAndIdentityMetadataMove_ResolvesOriginalReference() {
+            WriteTextureSourceFile();
+            string originalPath = Path.Combine(ProjectRootPath, "assets", "Images", "Menu", "helengine-logo.png");
+            SceneAssetReference originalReference;
+            using (EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(ProjectRootPath)) {
+                originalReference = resolver.CreateFileReference(originalPath, AssetEntryKind.Image);
+            }
+            SceneComponentAssetRecord record = CreateSpriteRecord(originalReference);
+            string movedPath = Path.Combine(ProjectRootPath, "assets", "textures", "helengine-logo.png");
+            Directory.CreateDirectory(Path.GetDirectoryName(movedPath));
+            File.Move(originalPath, movedPath);
+            File.Move(originalPath + ".hmeta", movedPath + ".hmeta");
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            Assert.True(service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord));
+            SceneAssetReference packaged = ReadAutomaticComponentAssetReference<SpriteComponent>(transformedRecord, nameof(SpriteComponent.Texture));
+            Assert.StartsWith("cooked/imported/", packaged.RelativePath, StringComparison.Ordinal);
+            Assert.True(File.Exists(Path.Combine(BuildRootPath, packaged.RelativePath)));
+            Assert.False(File.Exists(originalPath));
+            Assert.Equal("Images/Menu/helengine-logo.png", originalReference.RelativePath);
+        }
+
+        /// <summary>Verifies a sprite texture packages through the ordinary authored field contract.</summary>
         [Fact]
         public void TryTransform_WhenSpriteComponentUsesAuthoredTextureField_RewritesSpritePayload() {
             SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
@@ -1203,10 +1226,13 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Creates one automatic reflected sprite-component record for packaging verification.
         /// </summary>
+        /// <param name="textureReference">Existing authored reference, or null to create the default test texture.</param>
         /// <returns>Serialized sprite-component record.</returns>
-        SceneComponentAssetRecord CreateSpriteRecord() {
+        SceneComponentAssetRecord CreateSpriteRecord(SceneAssetReference textureReference = null) {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
-            WriteTextureSourceFile();
+            if (textureReference == null) {
+                WriteTextureSourceFile();
+            }
             SpriteComponent spriteComponent = new SpriteComponent {
                 Texture = new TestRuntimeTexture(),
                 Size = new int2(128, 32),
@@ -1216,7 +1242,7 @@ namespace helengine.editor.tests {
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(
                 nameof(SpriteComponent.Texture),
-                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemTexture("Images/Menu/helengine-logo.png"));
+                textureReference ?? global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemTexture("Images/Menu/helengine-logo.png"));
 
             return descriptor.SerializeComponent(spriteComponent, 0, saveState);
         }
