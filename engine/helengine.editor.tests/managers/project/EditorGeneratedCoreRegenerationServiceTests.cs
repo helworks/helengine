@@ -622,6 +622,93 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies an actual locked scratch file cannot hide an earlier codegen process failure, while cleanup-only errors retain their type.
+    /// </summary>
+    /// <param name="failCodegen">Whether the shader codegen process fails before cleanup encounters the locked file.</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Regenerate_when_scratch_is_locked_preserves_codegen_and_cleanup_failures(bool failCodegen) {
+        string platformId = "locked-scratch-" + Guid.NewGuid().ToString("N");
+        string generatedCoreRootPath = Path.Combine(RootPath, "locked-scratch-output");
+        string platformScratchRootPath = EditorGeneratedCoreRegenerationService.ResolveGeneratedCoreScratchRootPath(
+            generatedCoreRootPath, platformId);
+        string readyPath = Path.Combine(RootPath, "shader-ready");
+        string gatePath = Path.Combine(RootPath, "shader-continue");
+        string codegenPath = CreateGatedShaderCodegenTool(Path.Combine(RootPath, "locked-scratch-codegen"), readyPath, gatePath, failCodegen);
+        EditorGeneratedCoreRegenerationService service = new();
+        Task<Exception> regeneration = Task.Run(() => Record.Exception(() => service.Regenerate(
+            CreatePlatformDefinition(platformId, runtimeGenerationContract: null),
+            CreateDefaultCodegenProfile(),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            generatedCoreRootPath,
+            codegenPath,
+            [],
+            [],
+            CancellationToken.None)));
+
+        try {
+            using CancellationTokenSource gateTimeout = new(TimeSpan.FromSeconds(20));
+            while (!File.Exists(readyPath) && !regeneration.IsCompleted) {
+                await Task.Delay(20, gateTimeout.Token);
+            }
+            if (!File.Exists(readyPath)) {
+                Assert.Fail($"Shader codegen stopped before reaching the scratch-file gate: {await regeneration}");
+            }
+            string markerPath = Directory.EnumerateFiles(platformScratchRootPath, "GeneratedMarker.cpp", SearchOption.AllDirectories).Single();
+            using FileStream lockedScratch = new(markerPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            File.WriteAllText(gatePath, "continue");
+            Exception failure = await regeneration.WaitAsync(TimeSpan.FromSeconds(20));
+
+            if (failCodegen) {
+                AggregateException aggregate = Assert.IsType<AggregateException>(failure);
+                Assert.Equal(2, aggregate.InnerExceptions.Count);
+                InvalidOperationException codegenFailure = Assert.IsType<InvalidOperationException>(aggregate.InnerExceptions[0]);
+                Assert.Contains("9", codegenFailure.Message, StringComparison.Ordinal);
+                Assert.Contains("RunProcess", codegenFailure.StackTrace, StringComparison.Ordinal);
+                Assert.IsType<IOException>(aggregate.InnerExceptions[1]);
+            } else {
+                Assert.IsType<IOException>(failure);
+                Assert.Contains("DeleteDirectoryIfPresent", failure.StackTrace, StringComparison.Ordinal);
+            }
+        } finally {
+            File.WriteAllText(gatePath, "continue");
+            await regeneration.WaitAsync(TimeSpan.FromSeconds(20));
+            DeleteDirectoryIfPresent(platformScratchRootPath);
+        }
+    }
+
+    /// <summary>
+    /// Verifies a real shader codegen failure retains its original exception when scratch cleanup succeeds.
+    /// </summary>
+    [Fact]
+    public void Regenerate_when_shader_codegen_fails_deletes_scratch_and_preserves_original_failure() {
+        string platformId = "failed-shader-" + Guid.NewGuid().ToString("N");
+        string generatedCoreRootPath = Path.Combine(RootPath, "failed-shader-output");
+        string platformScratchRootPath = EditorGeneratedCoreRegenerationService.ResolveGeneratedCoreScratchRootPath(
+            generatedCoreRootPath, platformId);
+        string gatePath = Path.Combine(RootPath, "shader-continue");
+        File.WriteAllText(gatePath, "continue");
+        string readyPath = Path.Combine(RootPath, "shader-ready");
+        string codegenPath = CreateGatedShaderCodegenTool(Path.Combine(RootPath, "failed-shader-codegen"), readyPath, gatePath, true);
+        EditorGeneratedCoreRegenerationService service = new();
+
+        InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => service.Regenerate(
+            CreatePlatformDefinition(platformId, runtimeGenerationContract: null),
+            CreateDefaultCodegenProfile(),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            generatedCoreRootPath,
+            codegenPath,
+            [],
+            [],
+            CancellationToken.None));
+
+        Assert.True(File.Exists(readyPath));
+        Assert.Contains("RunProcess", failure.StackTrace, StringComparison.Ordinal);
+        AssertScratchWorkspaceIsClean(platformScratchRootPath);
+    }
+
+    /// <summary>
     /// Verifies successful regeneration removes one generated-core scratch workspace after merging the final output tree.
     /// </summary>
     [Fact]
@@ -1369,6 +1456,31 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             PlatformCodegenLanguage.Cpp,
             PlatformSerializationEndianness.LittleEndian,
             []);
+    }
+
+    /// <summary>
+    /// Wraps the existing fake codegen process with a shader-only gate so tests can hold a real scratch file open before cleanup.
+    /// </summary>
+    /// <param name="codegenRootPath">Workspace-owned directory containing the fake codegen and bundled runtime support.</param>
+    /// <param name="readyPath">File written after shader scratch output exists.</param>
+    /// <param name="gatePath">File whose creation allows the shader process to finish.</param>
+    /// <param name="failCodegen">Whether the shader invocation exits with an error after the gate opens.</param>
+    /// <returns>Absolute path of the gated codegen command file.</returns>
+    static string CreateGatedShaderCodegenTool(string codegenRootPath, string readyPath, string gatePath, bool failCodegen) {
+        string innerCodegenPath = CreateFakeCodegenTool(codegenRootPath);
+        string codegenPath = Path.Combine(codegenRootPath, "gated-codegen.cmd");
+        File.WriteAllText(codegenPath,
+            "@echo off\r\n"
+            + $"call \"{innerCodegenPath}\" %*\r\n"
+            + "if errorlevel 1 exit /b %errorlevel%\r\n"
+            + "echo %* | findstr /C:\"helengine.shader.csproj\" >nul\r\n"
+            + "if errorlevel 1 exit /b 0\r\n"
+            + $"> \"{readyPath}\" echo ready\r\n"
+            + ":wait\r\n"
+            + $"if exist \"{gatePath}\" exit /b {(failCodegen ? 9 : 0)}\r\n"
+            + "ping -n 2 127.0.0.1 >nul\r\n"
+            + "goto wait\r\n");
+        return codegenPath;
     }
 
     /// <summary>

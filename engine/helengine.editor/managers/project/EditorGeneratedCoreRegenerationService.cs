@@ -110,6 +110,7 @@ namespace helengine.editor {
             }
             Directory.CreateDirectory(generatedCoreOutputRoot);
             AppendRegenerationLog(regenerationLogPath, $"regeneration-start platform={platformDefinition.PlatformId} codegen={fullCodegenToolPath}");
+            Exception regenerationException = null;
             try {
                 IReadOnlyList<string> portableInputPreprocessorSymbols = ResolvePortableInputPreprocessorSymbols(platformDefinition);
                 IReadOnlyList<string> combinedPreprocessorSymbols = CombineAdditionalPreprocessorSymbols(
@@ -214,6 +215,7 @@ namespace helengine.editor {
                 WriteGeneratedCoreTranslationUnit(generatedCoreOutputRoot);
                 AppendRegenerationLog(regenerationLogPath, "unity-translation-unit-complete");
             } catch (Exception ex) {
+                regenerationException = ex;
                 AppendRegenerationLog(regenerationLogPath, $"regeneration-failed {ex}");
                 throw;
             } finally {
@@ -223,6 +225,12 @@ namespace helengine.editor {
                     AppendRegenerationLog(regenerationLogPath, $"cleanup-complete path={tempRoot}");
                 } catch (Exception cleanupException) {
                     AppendRegenerationLog(regenerationLogPath, $"cleanup-failed {cleanupException}");
+                    if (regenerationException != null) {
+                        throw new AggregateException(
+                            "Generated-core regeneration failed and its scratch workspace cleanup also failed.",
+                            regenerationException,
+                            cleanupException);
+                    }
                     throw;
                 }
             }
