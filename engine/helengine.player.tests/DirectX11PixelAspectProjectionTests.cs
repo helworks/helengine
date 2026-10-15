@@ -7,7 +7,8 @@ namespace helengine.player.tests {
     /// Renders a real DirectX11 frame and reads the projection the camera pass used: a window without a reported pixel
     /// aspect projects with square pixels exactly as before, and a window whose host reports a pixel aspect projects with
     /// the displayed aspect, so a framebuffer shown 4:3 keeps the scene's proportions. The pixel aspect always comes from
-    /// the surface being drawn into, whatever output tag the camera carries.
+    /// the surface being drawn into, whatever output tag the camera carries, and a camera drawing into a render target
+    /// always projects with square pixels.
     /// </summary>
     [SupportedOSPlatform("windows")]
     public sealed class DirectX11PixelAspectProjectionTests {
@@ -48,6 +49,40 @@ namespace helengine.player.tests {
         [Fact]
         public void SquareSecondaryWindow_ProjectsWithSquarePixelsBesideANonSquarePrimary() {
             StaTestThread.Run(() => Assert.Equal(32d / 12d, RenderAndReadProjectionAspect(true, 0.5d, string.Empty, true), 4));
+        }
+
+        /// <summary>
+        /// A camera that renders into a render target (a minimap or mirror texture) projects with square pixels even
+        /// when the window being drawn reports a non-square pixel aspect: the texture's pixels are not shown through that
+        /// window's display stretch.
+        /// </summary>
+        [Fact]
+        public void RenderTargetCamera_InANonSquareWindow_ProjectsWithSquarePixels() {
+            StaTestThread.Run(() => {
+                using CapturingDirectX11Renderer3D renderer = new CapturingDirectX11Renderer3D();
+                using Form window = CreateOffDesktopWindow();
+                renderer.AddWindow(window.Handle, ClientWidth, ClientHeight);
+                renderer.SetWindowPixelAspect(window.Handle, 0.5d);
+
+                using Core core = new Core(new CoreInitializationOptions {
+                    ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+                });
+                core.Initialize(renderer, renderer.Render2D, null, new PlatformInfo("windows", "test"));
+                using RenderTarget target = renderer.CreateRenderTarget(ClientWidth, ClientHeight);
+                Entity cameraEntity = new Entity(core) { LayerMask = 1 };
+                cameraEntity.InitComponents();
+                cameraEntity.InitChildren();
+                cameraEntity.AddComponent(new CameraComponent {
+                    LayerMask = 1,
+                    RenderTarget = target,
+                    ClearSettings = new CameraClearSettings(true, new float4(0, 0, 1, 1), true, 1, false, 0)
+                });
+
+                renderer.Draw();
+
+                float4x4 projection = renderer.LastCameraProjection;
+                Assert.Equal(32d / 12d, (double)projection.M22 / projection.M11, 4);
+            });
         }
 
         /// <summary>
