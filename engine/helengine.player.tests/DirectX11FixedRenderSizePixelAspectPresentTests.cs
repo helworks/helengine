@@ -51,25 +51,33 @@ namespace helengine.player.tests {
         }
 
         /// <summary>
-        /// The real PS2 case: columns are stretched by a non-integer factor. A 640x448 framebuffer is shown 1195 pixels wide
-        /// at 2x (1.867 client pixels per column), and a 640x512 framebuffer 683 pixels wide at 1x (1.067 per column). A
-        /// full-frame pattern of alternating 1-pixel columns must reach the window with every rendered column present
-        /// exactly once, in order, each between floor(r) and floor(r)+1 client pixels wide.
+        /// The real PS2 case: columns are stretched by a non-integer factor. A 640x448 framebuffer shown 4:3 is 1195 pixels
+        /// wide at 2x (1.867 client pixels per column), and a 640x512 framebuffer 683 pixels wide at 1x (1.067 per column).
+        /// The 320- and 256-wide modes are shown 3:2 and 22:15 by gsKit's integer magnification: 320x224 is 336 pixels wide at
+        /// 1x (1.05 per column) and 256x224 is 329 pixels wide at 1x (1.285 per column). A full-frame pattern of alternating
+        /// 1-pixel columns must reach the window with every rendered column present exactly once, in order, each between
+        /// floor(r) and floor(r)+1 client pixels wide.
         /// </summary>
         /// <param name="renderWidth">Fixed render width.</param>
         /// <param name="renderHeight">Fixed render height.</param>
-        /// <param name="clientWidth">Window client width: round(renderWidth * pixelAspect * k).</param>
+        /// <param name="displayAspectWidth">Width term of the aspect the whole framebuffer is shown at.</param>
+        /// <param name="displayAspectHeight">Height term of the aspect the whole framebuffer is shown at.</param>
+        /// <param name="clientWidth">Window client width: round(k * renderHeight * displayAspectWidth / displayAspectHeight).</param>
         /// <param name="clientHeight">Window client height: renderHeight * k.</param>
         [Theory]
-        [InlineData(640, 448, 1195, 896)]
-        [InlineData(640, 512, 683, 512)]
-        public void FixedRenderSizeWindow_WithANonIntegerColumnStretch_KeepsEveryRenderedColumn(int renderWidth, int renderHeight, int clientWidth, int clientHeight) {
-            StaTestThread.Run(() => RenderColumnsAndAssert(renderWidth, renderHeight, 4d * renderHeight / (3d * renderWidth), clientWidth, clientHeight));
+        [InlineData(640, 448, 4, 3, 1195, 896)]
+        [InlineData(640, 512, 4, 3, 683, 512)]
+        [InlineData(320, 224, 3, 2, 336, 224)]
+        [InlineData(256, 224, 22, 15, 329, 224)]
+        public void FixedRenderSizeWindow_WithANonIntegerColumnStretch_KeepsEveryRenderedColumn(int renderWidth, int renderHeight, int displayAspectWidth, int displayAspectHeight, int clientWidth, int clientHeight) {
+            double pixelAspect = (double)displayAspectWidth * renderHeight / ((double)displayAspectHeight * renderWidth);
+
+            StaTestThread.Run(() => RenderColumnsAndAssert(renderWidth, renderHeight, pixelAspect, clientWidth, clientHeight));
         }
 
         /// <summary>
-        /// Renders two frames of a full-frame sprite whose texture alternates red and green 1-pixel columns, shown 4:3 in an
-        /// off-desktop window, and checks every presented row: only the two colours appear, there is one run per rendered
+        /// Renders two frames of a full-frame sprite whose texture alternates red and green 1-pixel columns, shown at the
+        /// given pixel aspect in an off-desktop window, and checks every presented row: only the two colours appear, there is one run per rendered
         /// column starting with red, and every run is floor(r) or floor(r)+1 pixels wide for r = client width / render width.
         /// </summary>
         /// <param name="renderWidth">Fixed render width.</param>

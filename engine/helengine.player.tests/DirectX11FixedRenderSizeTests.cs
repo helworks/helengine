@@ -25,11 +25,11 @@ namespace helengine.player.tests {
             Assert.Throws<ArgumentException>(() => DirectX11FixedRenderSize.ValidateMagnification(clientWidth, clientHeight, renderWidth, renderHeight, 1d));
         }
 
-        /// <summary>A 4:3 client of round(k*H*4/3) x k*H is accepted for PS2 framebuffers.</summary>
+        /// <summary>A 4:3 client of round(k*H*4/3) x k*H is accepted for framebuffers shown 4:3 (the PS2 640- and 512-wide modes).</summary>
         [Theory]
         [InlineData(1195, 896, 640, 448, 2)]
         [InlineData(896, 672, 640, 224, 3)]
-        [InlineData(299, 224, 256, 224, 1)]
+        [InlineData(597, 448, 512, 224, 2)]
         [InlineData(683, 512, 512, 512, 1)]
         [InlineData(683, 512, 640, 256, 2)]
         public void ValidateMagnification_ForAFourByThreeDisplay_AcceptsTheStretchedWidth(int clientWidth, int clientHeight, int renderWidth, int renderHeight, int expected) {
@@ -48,6 +48,22 @@ namespace helengine.player.tests {
             double pixelAspect = 4d * renderHeight / (3d * renderWidth);
 
             Assert.Throws<ArgumentException>(() => DirectX11FixedRenderSize.ValidateMagnification(clientWidth, clientHeight, renderWidth, renderHeight, pixelAspect));
+        }
+
+        /// <summary>
+        /// The 320- and 256-wide PS2 modes are shown 3:2 and 22:15 (gsKit's integer magnification), so their client is
+        /// round(k*H*DAW/DAH) x k*H, and the 4:3 width for the same height is rejected.
+        /// </summary>
+        [Theory]
+        [InlineData(320, 224, 3, 2, 336, 224, 299)]
+        [InlineData(320, 256, 3, 2, 768, 512, 683)]
+        [InlineData(256, 224, 22, 15, 329, 224, 299)]
+        [InlineData(256, 256, 22, 15, 751, 512, 683)]
+        public void ValidateMagnification_ForAWiderThanFourByThreeDisplay_AcceptsOnlyItsOwnWidth(int renderWidth, int renderHeight, int displayAspectWidth, int displayAspectHeight, int clientWidth, int clientHeight, int fourByThreeClientWidth) {
+            double pixelAspect = (double)displayAspectWidth * renderHeight / ((double)displayAspectHeight * renderWidth);
+
+            Assert.Equal(clientHeight / renderHeight, DirectX11FixedRenderSize.ValidateMagnification(clientWidth, clientHeight, renderWidth, renderHeight, pixelAspect));
+            Assert.Throws<ArgumentException>(() => DirectX11FixedRenderSize.ValidateMagnification(fourByThreeClientWidth, clientHeight, renderWidth, renderHeight, pixelAspect));
         }
 
         /// <summary>At 1x the client width is the 4:3 width of the render height.</summary>

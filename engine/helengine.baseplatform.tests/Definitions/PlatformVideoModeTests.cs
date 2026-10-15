@@ -52,11 +52,17 @@ namespace helengine.baseplatform.tests.Definitions {
             Assert.Throws<ArgumentOutOfRangeException>(() => new PlatformVideoMode("m", 320, 224, true, double.PositiveInfinity, 60d, 4, 3));
         }
 
-        /// <summary>A square-pixel mode has pixel aspect exactly 1; a 4:3 mode on a 640x448 framebuffer has 14/15.</summary>
+        /// <summary>
+        /// A square-pixel mode has pixel aspect exactly 1; a 4:3 mode on a 640x448 framebuffer has 14/15. A display aspect
+        /// other than 4:3 is used as declared: the PS2 320x224 mode shown 3:2 has 21/20, and the 256x224 mode shown 22:15
+        /// has 77/60.
+        /// </summary>
         [Fact]
         public void PixelAspect_FollowsTheDisplayAspect() {
             Assert.Equal(1d, new PlatformVideoMode("square", 640, 480, true, 60d, 60d, 4, 3).PixelAspect);
             Assert.Equal(14d / 15d, new PlatformVideoMode("ntsc-640x448i", 640, 448, false, 59.94d, 60d, 4, 3).PixelAspect, 12);
+            Assert.Equal(21d / 20d, new PlatformVideoMode("ntsc-320x224p", 320, 224, true, 59.94d, 60d, 3, 2).PixelAspect, 12);
+            Assert.Equal(77d / 60d, new PlatformVideoMode("ntsc-256x224p", 256, 224, true, 59.94d, 60d, 22, 15).PixelAspect, 12);
         }
 
         /// <summary>The capability resolves each id and fails naming an unknown id and the platform.</summary>
