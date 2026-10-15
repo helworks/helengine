@@ -31,6 +31,10 @@ namespace helengine {
         readonly IReadOnlyList<TriggerEvent3D> TriggerEventsView;
         readonly List<HelPhysicsBodyHandle3D> RetiredBodyHandlesValue;
 
+        /// <summary>Owns the fixed-step synchronizer and its preflight buffers for this binder lifetime.</summary>
+        [NativeOwnedMember]
+        HelPhysicsEntitySynchronizer3D SynchronizerValue;
+
         /// <summary>
         /// Marks permanent binder-local identifier exhaustion after the final positive integer has been assigned.
         /// </summary>
@@ -77,7 +81,7 @@ namespace helengine {
             TriggerEventsView = TriggerEventsValue.AsReadOnly();
             RetiredBodyHandlesValue = new List<HelPhysicsBodyHandle3D>();
             NextBindingId = 1;
-            Synchronizer = new HelPhysicsEntitySynchronizer3D(this);
+            SynchronizerValue = new HelPhysicsEntitySynchronizer3D(this);
             World.ClaimSceneBinderOwnership(this);
         }
 
@@ -97,7 +101,7 @@ namespace helengine {
             TriggerEventsView = TriggerEventsValue.AsReadOnly();
             RetiredBodyHandlesValue = new List<HelPhysicsBodyHandle3D>();
             NextBindingId = 1;
-            Synchronizer = new HelPhysicsEntitySynchronizer3D(this);
+            SynchronizerValue = new HelPhysicsEntitySynchronizer3D(this);
             World.ClaimSceneBinderOwnership(this);
         }
         /// <summary>
@@ -113,7 +117,7 @@ namespace helengine {
         /// <summary>
         /// Gets the entity synchronizer that coordinates this binder's standalone fixed-step flow.
         /// </summary>
-        public HelPhysicsEntitySynchronizer3D Synchronizer { get; }
+        public HelPhysicsEntitySynchronizer3D Synchronizer => SynchronizerValue;
 
         /// <summary>
         /// Recursively binds every supported physics entity in one root hierarchy.
@@ -167,6 +171,7 @@ namespace helengine {
         /// Synchronizes authored input and advances the owned world by its exact configured fixed step.
         /// </summary>
         public void Step() {
+            if (IsDisposedValue) throw new InvalidOperationException("The HelPhysics scene binder has been disposed.");
             Synchronizer.Step();
             RefreshTriggerEvents();
             PruneRetiredHandles();
@@ -461,6 +466,7 @@ namespace helengine {
         /// Releases every binding without stepping the owned world.
         /// </summary>
         public void Dispose() {
+            NativeOwnership.DisposeAndRelease(ref SynchronizerValue);
             if (IsDisposedValue) {
                 return;
             }

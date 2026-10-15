@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Coordinates transactional entity validation, world input, fixed stepping, and entity write-back for one scene binder.
     /// </summary>
-    public sealed class HelPhysicsEntitySynchronizer3D {
+    public sealed class HelPhysicsEntitySynchronizer3D : IDisposable {
         /// <summary>
         /// Stores the accepted squared-length tolerance around normalized engine quaternions.
         /// </summary>
@@ -14,7 +14,15 @@ namespace helengine {
         readonly HelPhysicsSceneBinder3D Binder;
 
         /// <summary>Stores precomputed controller motions until the complete batch is validated.</summary>
-        readonly List<HelPhysicsCharacterControllerMotion3D> ControllerMotionsValue;
+        [NativeOwnedMember]
+        List<HelPhysicsCharacterControllerMotion3D> ControllerMotionsValue;
+
+        /// <summary>Stores preflight path samples in deterministic binding order until batch acceptance.</summary>
+        [NativeOwnedMember]
+        List<HelPhysicsKinematicPathSample3D> KinematicSamplesValue;
+
+        /// <summary>Prevents use of buffers after their owning scene binder has retired.</summary>
+        bool IsDisposed;
 
         /// <summary>
         /// Initializes a synchronizer for one explicit scene binder.
@@ -24,6 +32,7 @@ namespace helengine {
         public HelPhysicsEntitySynchronizer3D(HelPhysicsSceneBinder3D binder) {
             Binder = binder ?? throw new ArgumentNullException(nameof(binder));
             ControllerMotionsValue = new List<HelPhysicsCharacterControllerMotion3D>();
+            KinematicSamplesValue = new List<HelPhysicsKinematicPathSample3D>();
         }
 
         /// <summary>
@@ -67,6 +76,7 @@ namespace helengine {
             return motion;
         }
         public void SynchronizeKinematicBody(Entity entity) {
+            ThrowIfDisposed();
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
@@ -90,6 +100,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Bound dynamic entity to synchronize.</param>
         public void SynchronizeDynamicBody(Entity entity) {
+            ThrowIfDisposed();
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
@@ -114,6 +125,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Bound dynamic entity to synchronize.</param>
         public void SynchronizeDynamicBodyVelocity(Entity entity) {
+            ThrowIfDisposed();
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
@@ -130,9 +142,12 @@ namespace helengine {
                 ToPhysicsVector(binding.RigidBody.AngularVelocity));
         }
         public void SynchronizeBeforeStep() {
+            ThrowIfDisposed();
             ControllerMotionsValue.Clear();
+            KinematicSamplesValue.Clear();
             for (int bindingIndex = 0; bindingIndex < Binder.Bindings.Count; bindingIndex++) {
                 ControllerMotionsValue.Add(default);
+                KinematicSamplesValue.Add(default);
             }
             int activeKinematicCount = ValidateBindingsAndKinematicInputs();
             for (int bindingIndex = 0; bindingIndex < Binder.Bindings.Count; bindingIndex++) {
@@ -168,6 +183,7 @@ namespace helengine {
         /// Copies current dynamic world pose and velocity into engine entities after a completed fixed step.
         /// </summary>
         public void SynchronizeAfterStep() {
+            ThrowIfDisposed();
             for (int bindingIndex = 0; bindingIndex < Binder.Bindings.Count; bindingIndex++) {
                 HelPhysicsEntityBinding3D binding = Binder.Bindings[bindingIndex];
                 if (!binding.IsValid) {
@@ -184,6 +200,14 @@ namespace helengine {
                     continue;
                 }
 
+                if (binding.KinematicMotion != null) {
+                    ResolveLocalPose(binding.Entity, ToEngineVector(snapshot.Position), ToEngineQuaternion(snapshot.Orientation), out float3 pathLocalPosition, out float4 pathLocalOrientation);
+                    binding.Entity.LocalPosition = pathLocalPosition;
+                    binding.Entity.LocalOrientation = pathLocalOrientation;
+                    binding.RigidBody.LinearVelocity = ToEngineVector(snapshot.LinearVelocity);
+                    binding.KinematicMotionElapsedSeconds = KinematicSamplesValue[bindingIndex].ElapsedSeconds;
+                    continue;
+                }
                 if (binding.Description.BodyKind != BodyKind3D.Dynamic) {
                     continue;
                 }
@@ -201,9 +225,22 @@ namespace helengine {
         /// Synchronizes validated kinematic input, advances exactly one configured fixed step, and publishes dynamic output.
         /// </summary>
         public void Step() {
+            ThrowIfDisposed();
             SynchronizeBeforeStep();
             Binder.World.StepForSceneBinder(Binder, Binder.World.Settings.FixedStepSeconds);
             SynchronizeAfterStep();
+        }
+
+        /// <summary>Releases both native preflight buffers exactly once when the owning binder is disposed.</summary>
+        public void Dispose() {
+            IsDisposed = true;
+            NativeOwnership.Release(ref ControllerMotionsValue);
+            NativeOwnership.Release(ref KinematicSamplesValue);
+        }
+
+        /// <summary>Rejects stale managed references before accessing retired native preflight storage.</summary>
+        void ThrowIfDisposed() {
+            if (IsDisposed) throw new InvalidOperationException("The HelPhysics entity synchronizer has been disposed.");
         }
 
         /// <summary>
@@ -220,11 +257,19 @@ namespace helengine {
                 } else if (binding.Description.BodyKind == BodyKind3D.Dynamic) {
                     ValidateDynamicParentTransform(binding.Entity);
                 } else if (binding.Description.BodyKind == BodyKind3D.Kinematic) {
+                    float3 position = binding.Entity.Position;
+                    float3 velocity = binding.RigidBody.LinearVelocity;
+                    if (binding.KinematicMotion != null) {
+                        HelPhysicsKinematicPathSample3D sample = ComputeKinematicPathSample(binding);
+                        KinematicSamplesValue[bindingIndex] = sample;
+                        position = sample.Position;
+                        velocity = sample.Velocity;
+                    }
                     bool isActive = Binder.World.ValidateKinematicState(
                         binding.BodyHandle,
-                        ToPhysicsVector(binding.Entity.Position),
+                        ToPhysicsVector(position),
                         ToPhysicsQuaternion(binding.Entity.Orientation),
-                        ToPhysicsVector(binding.RigidBody.LinearVelocity),
+                        ToPhysicsVector(velocity),
                         ToPhysicsVector(binding.RigidBody.AngularVelocity));
                     if (isActive) {
                         activeKinematicCount++;
@@ -247,9 +292,9 @@ namespace helengine {
 
                 Binder.World.SetKinematicState(
                     binding.BodyHandle,
-                    ToPhysicsVector(binding.Entity.Position),
+                    ToPhysicsVector(binding.KinematicMotion != null ? KinematicSamplesValue[bindingIndex].Position : binding.Entity.Position),
                     ToPhysicsQuaternion(binding.Entity.Orientation),
-                    ToPhysicsVector(binding.RigidBody.LinearVelocity),
+                    ToPhysicsVector(binding.KinematicMotion != null ? KinematicSamplesValue[bindingIndex].Velocity : binding.RigidBody.LinearVelocity),
                     ToPhysicsVector(binding.RigidBody.AngularVelocity));
             }
         }
@@ -271,13 +316,18 @@ namespace helengine {
             int boxColliderCount = 0;
             int sphereColliderCount = 0;
             int controllerCount = 0;
+            int pathCount = 0;
+            bool hasOriginalPath = binding.KinematicMotion == null;
             bool hasOriginalRigidBody = false;
             bool hasOriginalBoxCollider = false;
             bool hasOriginalSphereCollider = false;
             bool hasOriginalController = false;
             for (int componentIndex = 0; componentIndex < binding.Entity.Components.Count; componentIndex++) {
                 Component component = binding.Entity.Components[componentIndex];
-                if (component is RigidBody3DComponent rigidBody) {
+                if (component is KinematicMotion3DComponent path) {
+                    pathCount++;
+                    if (ReferenceEquals(path, binding.KinematicMotion)) hasOriginalPath = true;
+                } else if (component is RigidBody3DComponent rigidBody) {
                     rigidBodyCount++;
                     if (ReferenceEquals(rigidBody, binding.RigidBody)) {
                         hasOriginalRigidBody = true;
@@ -303,6 +353,10 @@ namespace helengine {
                 }
             }
 
+            if (binding.KinematicMotion != null && (!hasOriginalPath || pathCount != 1)) {
+                throw new InvalidOperationException("A bound path body must retain exactly its original KinematicMotion3DComponent.");
+            }
+
             if (binding.Controller != null) {
                 if (controllerCount != 1 || !hasOriginalController) {
                     throw new InvalidOperationException("A bound controller entity must retain exactly its original CharacterController3DComponent.");
@@ -320,6 +374,39 @@ namespace helengine {
             } else if (binding.RigidBody.BodyKind != binding.Description.BodyKind) {
                 throw new InvalidOperationException("A bound entity body mode cannot change after HelPhysics reservation.");
             }
+        }
+
+        /// <summary>Evaluates the existing linear or ping-pong local path and preflights its world-space displacement.</summary>
+        HelPhysicsKinematicPathSample3D ComputeKinematicPathSample(HelPhysicsEntityBinding3D binding) {
+            KinematicMotion3DComponent path = binding.KinematicMotion;
+            ValidateFiniteVector(path.StartLocalPosition, "Kinematic path start must be finite.");
+            ValidateFiniteVector(path.EndLocalPosition, "Kinematic path end must be finite.");
+            ValidateDynamicParentTransform(binding.Entity);
+            double duration = path.TravelDurationSeconds;
+            double elapsed = binding.KinematicMotionElapsedSeconds + Binder.World.Settings.FixedStepSeconds;
+            if (!double.IsFinite(duration) || duration <= 0d || !double.IsFinite(elapsed)) {
+                throw new InvalidOperationException("Kinematic path duration and elapsed time must remain finite.");
+            }
+            double progress;
+            if (path.PingPong) {
+                double wrapped = elapsed % (duration * 2d);
+                progress = wrapped <= duration ? wrapped / duration : 1d - ((wrapped - duration) / duration);
+            } else {
+                progress = Math.Min(1d, Math.Max(0d, elapsed / duration));
+            }
+            float3 start = path.StartLocalPosition;
+            float3 end = path.EndLocalPosition;
+            float3 position = new float3((float)(start.X + ((double)end.X - start.X) * progress), (float)(start.Y + ((double)end.Y - start.Y) * progress), (float)(start.Z + ((double)end.Z - start.Z) * progress));
+            if (binding.Entity.Parent != null) {
+                Entity parent = binding.Entity.Parent;
+                float3 scale = parent.Scale;
+                position = parent.Position + float4.RotateVector(new float3(position.X * scale.X, position.Y * scale.Y, position.Z * scale.Z), parent.Orientation);
+            }
+            ValidateFiniteVector(position, "Kinematic path world target must be finite.");
+            float3 current = ToEngineVector(binding.GetBodySnapshot().Position);
+            float3 velocity = (position - current) / (float)Binder.World.Settings.FixedStepSeconds;
+            ValidateFiniteVector(velocity, "Kinematic path displacement velocity must be finite.");
+            return new HelPhysicsKinematicPathSample3D(position, velocity, elapsed);
         }
 
         static void ValidateControllerInput(HelPhysicsEntityBinding3D binding) {

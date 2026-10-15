@@ -71,14 +71,27 @@ cbuffer EmissiveColorBuffer : register(b7)
     float4 emissiveColorValue;
 };
 
+#if defined(HEL_API_WEBGPU)
+Texture2D<float> shadowAtlasTexture : register(t1);
+SamplerComparisonState shadowAtlasSampler : register(s1);
+#else
 Texture2D shadowAtlasTexture : register(t1);
 SamplerState shadowAtlasSampler : register(s1);
+#endif
 #if !defined(HELENGINE_WIIU_DIRECTIONAL_SHADOWS_ONLY)
+#if defined(HEL_API_WEBGPU)
+TextureCube<float> pointShadowTexture0 : register(t2);
+TextureCube<float> pointShadowTexture1 : register(t3);
+TextureCube<float> pointShadowTexture2 : register(t4);
+TextureCube<float> pointShadowTexture3 : register(t5);
+SamplerComparisonState pointShadowSampler : register(s2);
+#else
 TextureCube pointShadowTexture0 : register(t2);
 TextureCube pointShadowTexture1 : register(t3);
 TextureCube pointShadowTexture2 : register(t4);
 TextureCube pointShadowTexture3 : register(t5);
 SamplerState pointShadowSampler : register(s2);
+#endif
 #endif
 Texture2D DiffuseTexture : register(t0);
 SamplerState DiffuseTextureSampler : register(s0);
@@ -114,25 +127,44 @@ PS_IN VS(VS_IN input)
 }
 
 #if !defined(HELENGINE_WIIU_DIRECTIONAL_SHADOWS_ONLY)
+#if defined(HEL_API_WEBGPU)
+float SamplePointShadowVisibility(int textureIndex, float3 sampleDirection, float referenceDepth)
+{
+    if (textureIndex == 0)
+    {
+        return pointShadowTexture0.SampleCmpLevelZero(pointShadowSampler, sampleDirection, referenceDepth);
+    }
+    if (textureIndex == 1)
+    {
+        return pointShadowTexture1.SampleCmpLevelZero(pointShadowSampler, sampleDirection, referenceDepth);
+    }
+    if (textureIndex == 2)
+    {
+        return pointShadowTexture2.SampleCmpLevelZero(pointShadowSampler, sampleDirection, referenceDepth);
+    }
+    return pointShadowTexture3.SampleCmpLevelZero(pointShadowSampler, sampleDirection, referenceDepth);
+}
+#else
 float SamplePointShadowTexture(int textureIndex, float3 sampleDirection)
 {
     if (textureIndex == 0)
     {
-        return pointShadowTexture0.Sample(pointShadowSampler, sampleDirection).r;
+        return pointShadowTexture0.SampleLevel(pointShadowSampler, sampleDirection, 0.0f).r;
     }
 
     if (textureIndex == 1)
     {
-        return pointShadowTexture1.Sample(pointShadowSampler, sampleDirection).r;
+        return pointShadowTexture1.SampleLevel(pointShadowSampler, sampleDirection, 0.0f).r;
     }
 
     if (textureIndex == 2)
     {
-        return pointShadowTexture2.Sample(pointShadowSampler, sampleDirection).r;
+        return pointShadowTexture2.SampleLevel(pointShadowSampler, sampleDirection, 0.0f).r;
     }
 
-    return pointShadowTexture3.Sample(pointShadowSampler, sampleDirection).r;
+    return pointShadowTexture3.SampleLevel(pointShadowSampler, sampleDirection, 0.0f).r;
 }
+#endif
 #endif
 
 float DistributionGgx(float3 normal, float3 halfVector, float roughness)
@@ -231,9 +263,13 @@ float3 EvaluateForwardLight(
                 if (shadowUv.x >= 0.0f && shadowUv.x <= 1.0f && shadowUv.y >= 0.0f && shadowUv.y <= 1.0f && shadowNdc.z >= 0.0f && shadowNdc.z <= 1.0f)
                 {
                     float2 atlasUv = shadowAtlasRect.xy + (shadowUv * shadowAtlasRect.zw);
-                    float sampledDepth = shadowAtlasTexture.Sample(shadowAtlasSampler, atlasUv).r;
                     float shadowBias = 0.0015f;
+#if defined(HEL_API_WEBGPU)
+                    float shadowVisibility = shadowAtlasTexture.SampleCmpLevelZero(shadowAtlasSampler, atlasUv, shadowNdc.z - shadowBias);
+#else
+                    float sampledDepth = shadowAtlasTexture.SampleLevel(shadowAtlasSampler, atlasUv, 0.0f).r;
                     float shadowVisibility = (shadowNdc.z - shadowBias) <= sampledDepth ? 1.0f : 0.0f;
+#endif
                     attenuation *= lerp(1.0f, shadowVisibility, shadowSlotMetadata.y);
                 }
             }
@@ -248,9 +284,13 @@ float3 EvaluateForwardLight(
                 int pointShadowTextureIndex = (int)(shadowSlotMetadata.w + 0.5f);
                 float3 sampleDirection = lightToSurface / distanceToSurface;
                 float currentDepth = saturate(distanceToSurface / positionAndRange.w);
-                float sampledDepth = SamplePointShadowTexture(pointShadowTextureIndex, sampleDirection);
                 float shadowBias = 0.01f;
+#if defined(HEL_API_WEBGPU)
+                float shadowVisibility = SamplePointShadowVisibility(pointShadowTextureIndex, sampleDirection, currentDepth - shadowBias);
+#else
+                float sampledDepth = SamplePointShadowTexture(pointShadowTextureIndex, sampleDirection);
                 float shadowVisibility = (currentDepth - shadowBias) <= sampledDepth ? 1.0f : 0.0f;
+#endif
                 attenuation *= lerp(1.0f, shadowVisibility, shadowSlotMetadata.y);
             }
         }
@@ -309,7 +349,7 @@ float3 EvaluateWiiUDirectionalLight(
             if (shadowUv.x >= 0.0f && shadowUv.x <= 1.0f && shadowUv.y >= 0.0f && shadowUv.y <= 1.0f && shadowNdc.z >= 0.0f && shadowNdc.z <= 1.0f)
             {
                 float2 atlasUv = shadowAtlasRect.xy + (shadowUv * shadowAtlasRect.zw);
-                float sampledDepth = shadowAtlasTexture.Sample(shadowAtlasSampler, atlasUv).r;
+                float sampledDepth = shadowAtlasTexture.SampleLevel(shadowAtlasSampler, atlasUv, 0.0f).r;
                 float shadowBias = 0.0015f;
                 float wiiuShadowReceiverDepth = (shadowNdc.z * 0.5f) + 0.5f;
                 float shadowVisibility = (wiiuShadowReceiverDepth - shadowBias) <= sampledDepth ? 1.0f : 0.0f;

@@ -189,7 +189,9 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Application base directory could not be resolved.");
             }
 
-            string packagedShaderPath = Path.GetFullPath(Path.Combine(baseDirectory, "shaders", BuiltInShaderDirectoryName, shaderFileName));
+            string packagedShaderPath = shaderFileName == "MissingMaterial.fx"
+                ? Path.GetFullPath(Path.Combine(baseDirectory, "shaders", shaderFileName))
+                : Path.GetFullPath(Path.Combine(baseDirectory, "shaders", BuiltInShaderDirectoryName, shaderFileName));
             if (File.Exists(packagedShaderPath)) {
                 return packagedShaderPath;
             }
@@ -210,7 +212,9 @@ namespace helengine.editor {
         string TryResolveSourceBuildShaderPath(string shaderFileName) {
             try {
                 string sourceRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
-                string shaderPath = Path.Combine(sourceRootPath, "engine", "helengine.editor", "shaders", BuiltInShaderDirectoryName, shaderFileName);
+                string shaderPath = shaderFileName == "MissingMaterial.fx"
+                    ? Path.Combine(sourceRootPath, "engine", "helengine.directx11", "shaders", shaderFileName)
+                    : Path.Combine(sourceRootPath, "engine", "helengine.editor", "shaders", BuiltInShaderDirectoryName, shaderFileName);
                 string fullShaderPath = Path.GetFullPath(shaderPath);
                 return File.Exists(fullShaderPath) ? fullShaderPath : null;
             } catch (InvalidOperationException) {

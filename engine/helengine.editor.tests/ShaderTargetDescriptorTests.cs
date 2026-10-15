@@ -4,6 +4,29 @@ namespace helengine.editor.tests;
 /// Verifies the shared shader target descriptor table stays complete and round-trips every compile target through its persisted name.
 /// </summary>
 public sealed class ShaderTargetDescriptorTests {
+    /// <summary>WebGPU has a stable persisted identifier and its own API define.</summary>
+    [Fact]
+    public void WebGpu_has_stable_identity_and_define() {
+        Assert.True(Enum.TryParse("WebGpu", out ShaderCompileTarget target));
+        Assert.Equal(10, (int)target);
+        ShaderTargetDescriptor descriptor = ShaderTargetDescriptors.Get(target);
+        Assert.Equal("webgpu", descriptor.Name);
+        Assert.Equal("HEL_API_WEBGPU", descriptor.DefineName);
+        Assert.Equal(target, ShaderTargetNames.ParseTarget("WEBGPU"));
+    }
+
+    /// <summary>Adding a browser target must preserve serialized identities of existing shader packages.</summary>
+    [Fact]
+    public void Existing_target_numeric_values_are_preserved() {
+        ShaderCompileTarget[] targets = [ShaderCompileTarget.DirectX9, ShaderCompileTarget.DirectX11,
+            ShaderCompileTarget.DirectX12, ShaderCompileTarget.Vulkan, ShaderCompileTarget.Metal,
+            ShaderCompileTarget.PsVita, ShaderCompileTarget.WiiU, ShaderCompileTarget.Ps3,
+            ShaderCompileTarget.Xbox360, ShaderCompileTarget.Xbox];
+        for (int index = 0; index < targets.Length; index++) {
+            Assert.Equal(index, (int)targets[index]);
+        }
+    }
+
     /// <summary>Native callers borrow the shared descriptor instead of taking cleanup responsibility for it.</summary>
     [Fact]
     public void Get_declares_borrowed_return_for_shared_descriptors() {

@@ -97,6 +97,7 @@ namespace helengine.editor {
         /// <param name="shaderAssetId">Persistent shader identity saved by a material.</param>
         /// <returns>Built-in HLSL file name that owns the shader source.</returns>
         static string ResolveBuiltInShaderFileName(string shaderAssetId) {
+            if (shaderAssetId == "MissingMaterial") return "MissingMaterial.fx";
             return string.Concat(shaderAssetId, ".hlsl");
         }
 

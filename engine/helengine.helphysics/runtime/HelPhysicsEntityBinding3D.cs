@@ -39,6 +39,7 @@ namespace helengine {
             Description = description ?? throw new ArgumentNullException(nameof(description));
             Lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
             IsValid = true;
+            KinematicMotion = FindKinematicMotion(entity, rigidBody.BodyKind);
         }
 
         /// <summary>
@@ -71,6 +72,7 @@ namespace helengine {
             Description = description ?? throw new ArgumentNullException(nameof(description));
             Lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
             IsValid = true;
+            KinematicMotion = FindKinematicMotion(entity, rigidBody.BodyKind);
         }
         /// <summary>
         /// Initializes one controller-only association backed by an internal kinematic body.
@@ -125,6 +127,25 @@ namespace helengine {
 
         /// <summary>Stores vertical velocity between controller fixed steps.</summary>
         internal float ControllerVerticalVelocity { get; set; }
+
+        /// <summary>Gets the original optional local-space path for a kinematic rigid body.</summary>
+        internal KinematicMotion3DComponent KinematicMotion { get; }
+
+        /// <summary>Stores path time published only after a completed fixed step.</summary>
+        internal double KinematicMotionElapsedSeconds { get; set; }
+
+        /// <summary>Finds the optional authored path without changing ordinary externally driven bodies.</summary>
+        [NativeBorrowedReturn]
+        static KinematicMotion3DComponent FindKinematicMotion(Entity entity, BodyKind3D bodyKind) {
+            if (bodyKind != BodyKind3D.Kinematic) return null;
+            KinematicMotion3DComponent result = null;
+            for (int index = 0; index < entity.Components.Count; index++) {
+                if (entity.Components[index] is KinematicMotion3DComponent motion) {
+                    if (result == null) result = motion;
+                }
+            }
+            return result;
+        }
 
         /// <summary>
         /// Gets the generation-safe body identity issued by the owning world.
