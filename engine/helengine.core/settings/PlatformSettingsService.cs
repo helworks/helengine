@@ -64,7 +64,9 @@ namespace helengine {
         }
         /// <summary>Preflights all values before backend work and publishes active state only after successful application.</summary>
         void ApplyCandidate([NativeTakesOwnership] PlatformSettingsState candidate, string presetId, bool startup) {
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             try {
+#endif
                 ConfigurationValue.Validate(candidate);
                 for (int index = 0; index < ConfigurationValue.SettingCount; index++) {
                     PlatformRuntimeSettingDefinition definition = ConfigurationValue.GetDefinitionAt(index);
@@ -95,9 +97,11 @@ namespace helengine {
                 }
                 NativeOwnership.DisposeAndRelease(ref ActiveValue);
                 ActiveValue = candidate; ActivePresetIdValue = presetId;
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             } catch {
                 candidate.Dispose(); NativeOwnership.Delete(candidate); throw;
             }
+#endif
         }
         /// <summary>Compares portable values without boxing for non-runtime-mutable setting validation.</summary>
         static bool EqualsValue(PlatformSettingValue left, PlatformSettingValue right) {

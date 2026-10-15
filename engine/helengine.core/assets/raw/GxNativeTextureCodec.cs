@@ -47,8 +47,12 @@ namespace helengine {
             if (Read(colors, 12) != asset.Width || Read(colors, 16) != asset.Height || Read(colors, 20) != (uint)bytes || Read(colors, 32) != count * 2 || Read(colors, 36) != (uint)asset.AlphaPrecision || colors.Length != HeaderLength + bytes ||
                 (format.IsIndexed ? asset.PaletteColors == null || asset.PaletteColors.Length != count * 2 : asset.PaletteColors != null && asset.PaletteColors.Length != 0)) throw new ArgumentException("GXN1 dimensions, alpha metadata or native buffer lengths disagree.");
             GxNativeTextureLayout layout = new GxNativeTextureLayout(format, asset.Width, asset.Height, (int)count);
+#if HELENGINE_CODEGEN_FATAL_ONLY
+            ValidateIndices(asset.Colors, layout);
+#else
             try { ValidateIndices(asset.Colors, layout); }
             catch { NativeOwnership.Release(ref layout); throw; }
+#endif
             return layout;
         }
         /// <summary>Allocates an owning asset before writing direct native pixels, releasing it if any packing operation fails.</summary>
@@ -62,13 +66,17 @@ namespace helengine {
         [NativeOwnedReturn]
         static TextureAsset CreateDirectAsset(TextureAsset source, byte[] rgba, GxNativeTextureLayout layout, TextureAssetAlphaPrecision alpha) {
             TextureAsset asset = CreateAsset(source, layout, alpha);
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             try {
+#endif
                 if (layout.Format.HardwareFormat == 14) GxNativeTextureCmprCodec.Encode(rgba, layout, alpha, asset.Colors, HeaderLength);
                 else for (int y = 0; y < layout.StorageHeight; y++) for (int x = 0; x < layout.StorageWidth; x++) {
                     int sourcePixel = (Math.Min(y, source.Height - 1) * source.Width + Math.Min(x, source.Width - 1)) * 4;
                     GxNativeTexturePixelCodec.EncodePixel(rgba, sourcePixel, layout, alpha, asset.Colors, HeaderLength, x, y);
                 }
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             } catch { NativeOwnership.DisposeAndRelease(ref asset); throw; }
+#endif
             return asset;
         }
         /// <summary>Validates generic indexed storage and authored indices before allocating native output.</summary>
@@ -86,10 +94,14 @@ namespace helengine {
         [NativeOwnedReturn]
         static TextureAsset CreateGenericIndexedAsset(TextureAsset source, GxNativeTextureLayout layout, TextureAssetAlphaPrecision alpha, int entries) {
             TextureAsset asset = CreateAsset(source, layout, alpha);
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             try {
+#endif
                 PackPalette(source.PaletteColors, entries, layout, alpha, asset.PaletteColors);
                 for (int y = 0; y < layout.StorageHeight; y++) for (int x = 0; x < layout.StorageWidth; x++) GxNativeTexturePixelCodec.WriteIndex(asset.Colors, HeaderLength, layout, x, y, SourceIndex(source, Math.Min(y, source.Height - 1) * source.Width + Math.Min(x, source.Width - 1)));
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             } catch { NativeOwnership.DisposeAndRelease(ref asset); throw; }
+#endif
             return asset;
         }
         /// <summary>Constructs a temporary validated layout for explicit full-width native index sources.</summary>
@@ -103,17 +115,23 @@ namespace helengine {
         [NativeOwnedReturn]
         static TextureAsset CreateExplicitIndexedAsset(TextureAsset source, ushort[] indices, byte[] palette, GxNativeTextureLayout layout, TextureAssetAlphaPrecision alpha, int entries) {
             TextureAsset asset = CreateAsset(source, layout, alpha);
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             try {
+#endif
                 PackPalette(palette, entries, layout, alpha, asset.PaletteColors);
                 for (int y = 0; y < layout.StorageHeight; y++) for (int x = 0; x < layout.StorageWidth; x++) GxNativeTexturePixelCodec.WriteIndex(asset.Colors, HeaderLength, layout, x, y, indices[Math.Min(y, source.Height - 1) * source.Width + Math.Min(x, source.Width - 1)]);
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             } catch { NativeOwnership.DisposeAndRelease(ref asset); throw; }
+#endif
             return asset;
         }
         /// <summary>Allocates all owned asset buffers and writes the canonical little-endian descriptor.</summary>
         [NativeOwnedReturn]
         static TextureAsset CreateAsset(TextureAsset source, GxNativeTextureLayout layout, TextureAssetAlphaPrecision alpha) {
             TextureAsset asset = new TextureAsset();
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             try {
+#endif
                 asset.Id = source.Id; asset.RuntimeAssetId = source.RuntimeAssetId; asset.AuthoringAssetId = source.AuthoringAssetId;
                 asset.FormerAuthoringAssetIds = CopyFormerIds(source.FormerAuthoringAssetIds); asset.IsEngineOwned = source.IsEngineOwned;
                 asset.Width = source.Width; asset.Height = source.Height; asset.ColorFormat = TextureAssetColorFormat.GxNative; asset.AlphaPrecision = alpha;
@@ -123,7 +141,9 @@ namespace helengine {
                 Write(asset.Colors, 12, source.Width); Write(asset.Colors, 16, source.Height); Write(asset.Colors, 20, (uint)layout.TexelLength);
                 Write(asset.Colors, 24, layout.Format.TlutFormat < 0 ? uint.MaxValue : (uint)layout.Format.TlutFormat);
                 Write(asset.Colors, 28, (uint)layout.PaletteEntryCount); Write(asset.Colors, 32, (uint)layout.PaletteLength); Write(asset.Colors, 36, (uint)alpha);
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             } catch { NativeOwnership.DisposeAndRelease(ref asset); throw; }
+#endif
             return asset;
         }
         /// <summary>Decodes validated native storage into newly owned logical RGBA pixels.</summary>

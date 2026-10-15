@@ -46,10 +46,14 @@ namespace helengine {
             if (ReadWord(colors, 0) != Magic || ReadWord(colors, 4) != 1 || ReadWord(colors, 52) != 0 || ReadWord(colors, 56) != 0 || ReadWord(colors, 60) != 0) throw new ArgumentException("Invalid VGT1 magic, version or reserved words.");
             if (!VitaNativeTextureFormatCatalog.TryGetHardwareFormat(ReadWord(colors, 8), out VitaNativeTextureFormatDefinition format) || !format.SupportsAlpha(asset.AlphaPrecision)) throw new ArgumentException("Unknown GXM format word or invalid intrinsic alpha policy.");
             VitaNativeTextureLayout layout = new VitaNativeTextureLayout(format, asset.Width, asset.Height, (VitaNativeTextureLayoutType)ReadWord(colors, 12));
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             try {
+#endif
                 if (ReadWord(colors, 16) != (uint)layout.RealWidth || ReadWord(colors, 20) != (uint)layout.RealHeight || ReadWord(colors, 24) != (uint)layout.StorageWidth || ReadWord(colors, 28) != (uint)layout.StorageHeight || ReadWord(colors, 32) != (uint)layout.PitchBytes || ReadWord(colors, 36) != (uint)layout.TexelLength || ReadWord(colors, 40) != (uint)layout.PaletteEntryCount || ReadWord(colors, 44) != (uint)layout.PaletteLength || ReadWord(colors, 48) != (uint)asset.AlphaPrecision || colors.Length != HeaderLength + layout.TexelLength) throw new ArgumentException("VGT1 layout or asset metadata is not canonical.");
                 ValidatePalette(asset.PaletteColors, layout); ValidateNativeIndices(colors, HeaderLength, layout);
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             } catch { NativeOwnership.Release(ref layout); throw; }
+#endif
             return layout;
         }
         /// <summary>Creates a layout before packing borrowed decoded pixels.</summary>
@@ -63,8 +67,12 @@ namespace helengine {
         [NativeOwnedReturn]
         static TextureAsset CreateRgbaAsset(TextureAsset source, byte[] rgba, [NativeNoEscape] VitaNativeTextureLayout layout, TextureAssetAlphaPrecision alpha) {
             TextureAsset asset = CreateAsset(source, layout, alpha);
+#if HELENGINE_CODEGEN_FATAL_ONLY
+            VitaNativeTexturePixelCodec.Encode(rgba, layout, alpha, asset.Colors, HeaderLength);
+#else
             try { VitaNativeTexturePixelCodec.Encode(rgba, layout, alpha, asset.Colors, HeaderLength); }
             catch { NativeOwnership.DisposeAndRelease(ref asset); throw; }
+#endif
             return asset;
         }
         /// <summary>Validates generic index bytes and real authored palette entries before allocating native indices.</summary>
@@ -81,7 +89,9 @@ namespace helengine {
         [NativeOwnedReturn]
         static TextureAsset CreateIndexedAsset(TextureAsset source, [NativeNoEscape] VitaNativeTextureLayout layout, TextureAssetAlphaPrecision alpha) {
             TextureAsset asset = CreateAsset(source, layout, alpha);
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             try {
+#endif
                 for (int index = 0; index < source.PaletteColors.Length / 4; index++) VitaNativeTexturePixelCodec.EncodePaletteColor(source.PaletteColors, index * 4, layout.Format, alpha, asset.PaletteColors, index * 4);
                 for (int y = 0; y < layout.StorageHeight; y++) for (int x = 0; x < layout.StorageWidth; x++) {
                     int value = SourceIndex(source, Math.Min(y, source.Height - 1) * source.Width + Math.Min(x, source.Width - 1));
@@ -89,7 +99,9 @@ namespace helengine {
                     if (layout.Format.IndexBitDepth == 4) asset.Colors[HeaderLength + pixel / 2] |= (byte)(value << (pixel % 2 * 4));
                     else asset.Colors[HeaderLength + pixel] = (byte)value;
                 }
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             } catch { NativeOwnership.DisposeAndRelease(ref asset); throw; }
+#endif
             return asset;
         }
         /// <summary>Copies borrowed native bytes into an owning asset only after exact length validation.</summary>
@@ -106,7 +118,9 @@ namespace helengine {
         [NativeOwnedReturn]
         static TextureAsset CreateAsset(TextureAsset source, [NativeNoEscape] VitaNativeTextureLayout layout, TextureAssetAlphaPrecision alpha) {
             TextureAsset asset = new TextureAsset();
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             try {
+#endif
                 asset.Id = source.Id; asset.RuntimeAssetId = source.RuntimeAssetId; asset.AuthoringAssetId = source.AuthoringAssetId; asset.IsEngineOwned = source.IsEngineOwned;
                 asset.FormerAuthoringAssetIds = CopyFormerIds(source.FormerAuthoringAssetIds);
                 asset.Width = source.Width; asset.Height = source.Height; asset.ColorFormat = TextureAssetColorFormat.VitaNative; asset.AlphaPrecision = alpha;
@@ -114,7 +128,9 @@ namespace helengine {
                 WriteWord(asset.Colors, 0, Magic); WriteWord(asset.Colors, 4, 1); WriteWord(asset.Colors, 8, layout.Format.HardwareFormat); WriteWord(asset.Colors, 12, (uint)layout.LayoutType);
                 WriteWord(asset.Colors, 16, (uint)layout.RealWidth); WriteWord(asset.Colors, 20, (uint)layout.RealHeight); WriteWord(asset.Colors, 24, (uint)layout.StorageWidth); WriteWord(asset.Colors, 28, (uint)layout.StorageHeight);
                 WriteWord(asset.Colors, 32, (uint)layout.PitchBytes); WriteWord(asset.Colors, 36, (uint)layout.TexelLength); WriteWord(asset.Colors, 40, (uint)layout.PaletteEntryCount); WriteWord(asset.Colors, 44, (uint)layout.PaletteLength); WriteWord(asset.Colors, 48, (uint)alpha);
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             } catch { NativeOwnership.DisposeAndRelease(ref asset); throw; }
+#endif
             return asset;
         }
         /// <summary>Decodes validated native storage and explicitly rejects shader-only preview interpretations.</summary>
@@ -122,11 +138,15 @@ namespace helengine {
         static byte[] DecodePixels(TextureAsset asset, [NativeNoEscape] VitaNativeTextureLayout layout) {
             if (!layout.Format.SupportsPreview) throw new NotSupportedException(layout.Format.UnsupportedReason);
             byte[] rgba = new byte[layout.RealWidth * layout.RealHeight * 4];
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             try {
+#endif
                 if (layout.Format.IsIndexed) {
                     for (int y = 0; y < layout.RealHeight; y++) for (int x = 0; x < layout.RealWidth; x++) VitaNativeTexturePixelCodec.DecodePaletteColor(asset.PaletteColors, NativeIndex(asset.Colors, HeaderLength, layout, x, y) * 4, layout.Format, rgba, (y * layout.RealWidth + x) * 4);
                 } else VitaNativeTexturePixelCodec.Decode(asset.Colors, HeaderLength, layout, rgba);
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             } catch { NativeOwnership.Release(ref rgba); throw; }
+#endif
             return rgba;
         }
         /// <summary>Checks native palette length without admitting palettes on direct textures.</summary>

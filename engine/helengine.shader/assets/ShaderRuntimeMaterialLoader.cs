@@ -126,10 +126,11 @@ namespace helengine {
 
         /// <summary>
         /// Resolves one imported texture asset id into the packaged texture path used by shader-backed runtime material loading.
+        /// Platform player adapters use it to locate the texture a cooked material references, exactly as the runtime does.
         /// </summary>
         /// <param name="assetId">Imported texture asset identifier stored on the packaged material asset.</param>
         /// <returns>Runtime asset path of the packaged texture payload.</returns>
-        static string ResolveImportedTexturePackagePath(string assetId) {
+        public static string ResolveImportedTexturePackagePath(string assetId) {
             if (string.IsNullOrWhiteSpace(assetId)) {
                 throw new InvalidOperationException("Packaged material assets must include an imported texture asset id before imported textures can be resolved.");
             }

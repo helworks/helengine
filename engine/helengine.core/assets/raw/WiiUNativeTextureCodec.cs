@@ -37,9 +37,13 @@ namespace helengine {
             if (VitaNativeTextureCodec.ReadWord(colors, 0) != Magic || VitaNativeTextureCodec.ReadWord(colors, 4) != 1 || VitaNativeTextureCodec.ReadWord(colors, 52) != 0 || VitaNativeTextureCodec.ReadWord(colors, 60) != 0 || asset.PaletteColors != null && asset.PaletteColors.Length != 0) throw new ArgumentException("Invalid WGT1 magic, version, reserved words or palette.");
             if (!WiiUNativeTextureFormatCatalog.TryGetHardwareFormat(VitaNativeTextureCodec.ReadWord(colors, 8), out WiiUNativeTextureFormatDefinition format) || !format.SupportsAlpha(asset.AlphaPrecision)) throw new ArgumentException("Unknown GX2 format or incompatible alpha metadata.");
             WiiUNativeTextureLayout layout = new WiiUNativeTextureLayout(format, asset.Width, asset.Height);
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             try {
+#endif
                 if (VitaNativeTextureCodec.ReadWord(colors, 12) != layout.TileMode || VitaNativeTextureCodec.ReadWord(colors, 16) != (uint)layout.RealWidth || VitaNativeTextureCodec.ReadWord(colors, 20) != (uint)layout.RealHeight || VitaNativeTextureCodec.ReadWord(colors, 24) != (uint)layout.StorageWidth || VitaNativeTextureCodec.ReadWord(colors, 28) != (uint)layout.StorageHeight || VitaNativeTextureCodec.ReadWord(colors, 32) != (uint)layout.PitchBytes || VitaNativeTextureCodec.ReadWord(colors, 36) != (uint)layout.TexelLength || VitaNativeTextureCodec.ReadWord(colors, 40) != format.ComponentMap || VitaNativeTextureCodec.ReadWord(colors, 44) != layout.EndianSwap || VitaNativeTextureCodec.ReadWord(colors, 48) != (uint)asset.AlphaPrecision || VitaNativeTextureCodec.ReadWord(colors, 56) != (uint)layout.UvPlaneOffset || colors.Length != HeaderLength + layout.TexelLength) throw new ArgumentException("WGT1 native storage or sampler metadata is not canonical.");
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             } catch { NativeOwnership.Release(ref layout); throw; }
+#endif
             return layout;
         }
         /// <summary>Creates a layout before packing borrowed source pixels into an owning asset.</summary>
@@ -53,8 +57,12 @@ namespace helengine {
         [NativeOwnedReturn]
         static TextureAsset CreateRgbaAsset(TextureAsset source, byte[] rgba, [NativeNoEscape] WiiUNativeTextureLayout layout, TextureAssetAlphaPrecision alpha) {
             TextureAsset asset = CreateAsset(source, layout, alpha);
+#if HELENGINE_CODEGEN_FATAL_ONLY
+            WiiUNativeTexturePixelCodec.Encode(rgba, layout, alpha, asset.Colors, HeaderLength);
+#else
             try { WiiUNativeTexturePixelCodec.Encode(rgba, layout, alpha, asset.Colors, HeaderLength); }
             catch { NativeOwnership.DisposeAndRelease(ref asset); throw; }
+#endif
             return asset;
         }
         /// <summary>Copies borrowed canonical native bytes only after complete length validation.</summary>
@@ -67,21 +75,29 @@ namespace helengine {
         [NativeOwnedReturn]
         static TextureAsset CreateAsset(TextureAsset source, [NativeNoEscape] WiiUNativeTextureLayout layout, TextureAssetAlphaPrecision alpha) {
             TextureAsset asset = new TextureAsset();
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             try {
+#endif
                 asset.Id = source.Id; asset.RuntimeAssetId = source.RuntimeAssetId; asset.AuthoringAssetId = source.AuthoringAssetId; asset.IsEngineOwned = source.IsEngineOwned; asset.FormerAuthoringAssetIds = CopyFormerIds(source.FormerAuthoringAssetIds);
                 asset.Width = source.Width; asset.Height = source.Height; asset.ColorFormat = TextureAssetColorFormat.WiiUNative; asset.AlphaPrecision = alpha; asset.Colors = new byte[HeaderLength + layout.TexelLength];
                 VitaNativeTextureCodec.WriteWord(asset.Colors, 0, Magic); VitaNativeTextureCodec.WriteWord(asset.Colors, 4, 1); VitaNativeTextureCodec.WriteWord(asset.Colors, 8, layout.Format.HardwareFormat); VitaNativeTextureCodec.WriteWord(asset.Colors, 12, layout.TileMode);
                 VitaNativeTextureCodec.WriteWord(asset.Colors, 16, (uint)layout.RealWidth); VitaNativeTextureCodec.WriteWord(asset.Colors, 20, (uint)layout.RealHeight); VitaNativeTextureCodec.WriteWord(asset.Colors, 24, (uint)layout.StorageWidth); VitaNativeTextureCodec.WriteWord(asset.Colors, 28, (uint)layout.StorageHeight);
                 VitaNativeTextureCodec.WriteWord(asset.Colors, 32, (uint)layout.PitchBytes); VitaNativeTextureCodec.WriteWord(asset.Colors, 36, (uint)layout.TexelLength); VitaNativeTextureCodec.WriteWord(asset.Colors, 40, layout.Format.ComponentMap); VitaNativeTextureCodec.WriteWord(asset.Colors, 44, layout.EndianSwap); VitaNativeTextureCodec.WriteWord(asset.Colors, 48, (uint)alpha); VitaNativeTextureCodec.WriteWord(asset.Colors, 56, (uint)layout.UvPlaneOffset);
+#if !HELENGINE_CODEGEN_FATAL_ONLY
             } catch { NativeOwnership.DisposeAndRelease(ref asset); throw; }
+#endif
             return asset;
         }
         /// <summary>Reconstructs sampled pixels and releases partially decoded output on invalid compressed input.</summary>
         [NativeOwnedReturn]
         static byte[] DecodePixels(TextureAsset asset, [NativeNoEscape] WiiUNativeTextureLayout layout) {
             if (!layout.Format.SupportsPreview) throw new NotSupportedException(layout.Format.UnsupportedReason); byte[] rgba = new byte[layout.RealWidth * layout.RealHeight * 4];
+#if HELENGINE_CODEGEN_FATAL_ONLY
+            WiiUNativeTexturePixelCodec.Decode(asset.Colors, HeaderLength, layout, rgba);
+#else
             try { WiiUNativeTexturePixelCodec.Decode(asset.Colors, HeaderLength, layout, rgba); }
             catch { NativeOwnership.Release(ref rgba); throw; }
+#endif
             return rgba;
         }
         /// <summary>Finds a borrowed declared format and validates its intrinsic alpha policies.</summary>
