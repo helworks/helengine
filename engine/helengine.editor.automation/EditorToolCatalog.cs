@@ -42,11 +42,28 @@ public static class EditorToolCatalog
         InputSchemas = new ReadOnlyDictionary<string, JsonSchema>(Schemas);
     }
 
-    /// <summary>Returns all 107 tool definitions in the order declared by the embedded contract.</summary>
-    /// <returns>A read-only list with input/output schemas and conservative ownership metadata.</returns>
+    /// <summary>Returns detached definitions for all 107 tools in the embedded contract's order.</summary>
+    /// <returns>A read-only snapshot whose mutable definitions cannot alter the shared catalog.</returns>
     public static IReadOnlyList<EditorToolDefinition> GetTools()
     {
-        return Tools;
+        List<EditorToolDefinition> Snapshot = new(Tools.Count);
+        foreach (EditorToolDefinition Definition in Tools)
+        {
+            Snapshot.Add(new EditorToolDefinition
+            {
+                Name = Definition.Name,
+                InputSchema = Definition.InputSchema.Clone(),
+                OutputSchema = Definition.OutputSchema.Clone(),
+                Mutates = Definition.Mutates,
+                Undoable = Definition.Undoable,
+                Persistence = Definition.Persistence,
+                OwnerTask = Definition.OwnerTask,
+                FunctionalSource = Definition.FunctionalSource,
+                BehaviorTest = Definition.BehaviorTest
+            });
+        }
+
+        return new ReadOnlyCollection<EditorToolDefinition>(Snapshot);
     }
 
     /// <summary>Evaluates one tool argument object against its compiled JSON Schema.</summary>

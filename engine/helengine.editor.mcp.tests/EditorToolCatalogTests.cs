@@ -87,8 +87,55 @@ public sealed class EditorToolCatalogTests
                 Assert.Equal(500, limit.GetProperty("maximum").GetInt32());
                 Assert.Equal(100, limit.GetProperty("default").GetInt32());
             }
+        }
 
-            Assert.DoesNotContain("implemented", string.Join(" ", definitionType.GetProperties().Select(property => property.Name)), StringComparison.OrdinalIgnoreCase);
+        Assembly automationAssembly = typeof(EditorToolCatalog).Assembly;
+        string resourceName = automationAssembly.GetManifestResourceNames()
+            .Single(name => name.EndsWith(".editor-tools.json", StringComparison.Ordinal));
+        using Stream resource = automationAssembly.GetManifestResourceStream(resourceName);
+        using JsonDocument catalog = JsonDocument.Parse(resource);
+        foreach (JsonElement definition in catalog.RootElement.GetProperty("tools").EnumerateArray())
+        {
+            Assert.False(definition.TryGetProperty("implemented", out _));
+        }
+    }
+
+    /// <summary>
+    /// Verifies consumers cannot mutate the shared catalog or desynchronize its input validators.
+    /// </summary>
+    [Fact]
+    public void Catalog_returns_detached_tool_definitions()
+    {
+        const string ToolName = "list_editors";
+        EditorToolDefinition exposedDefinition = Assert.Single(EditorToolCatalog.GetTools(), definition => definition.Name == ToolName);
+        string originalName = exposedDefinition.Name;
+        JsonElement originalInputSchema = exposedDefinition.InputSchema.Clone();
+        JsonElement originalOutputSchema = exposedDefinition.OutputSchema.Clone();
+        bool originalMutates = exposedDefinition.Mutates;
+
+        using JsonDocument replacementSchema = JsonDocument.Parse("""{"type":"object","additionalProperties":true}""");
+        using JsonDocument unknownArguments = JsonDocument.Parse("""{"consumer_mutation":true}""");
+
+        try
+        {
+            exposedDefinition.Name = "consumer_mutated_name";
+            exposedDefinition.InputSchema = replacementSchema.RootElement.Clone();
+            exposedDefinition.OutputSchema = replacementSchema.RootElement.Clone();
+            exposedDefinition.Mutates = !originalMutates;
+
+            Assert.False(EditorToolCatalog.TryValidateInputArguments(ToolName, unknownArguments.RootElement, out _));
+
+            EditorToolDefinition catalogDefinition = Assert.Single(EditorToolCatalog.GetTools(), definition => definition.Name == ToolName);
+            Assert.Equal(originalInputSchema.GetRawText(), catalogDefinition.InputSchema.GetRawText());
+            Assert.Equal(originalOutputSchema.GetRawText(), catalogDefinition.OutputSchema.GetRawText());
+            Assert.Equal(originalMutates, catalogDefinition.Mutates);
+        }
+        finally
+        {
+            exposedDefinition.Name = originalName;
+            exposedDefinition.InputSchema = originalInputSchema;
+            exposedDefinition.OutputSchema = originalOutputSchema;
+            exposedDefinition.Mutates = originalMutates;
         }
     }
 
