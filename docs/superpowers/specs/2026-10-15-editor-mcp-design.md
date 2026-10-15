@@ -2,7 +2,7 @@
 
 Data: 2026-10-15.
 
-Status: desenho consolidado a partir das decisões aprovadas na conversa; esta especificação escrita aguarda revisão de Helena antes do plano de implementação. Não representa funcionalidade já implementada.
+Status: especificação escrita aprovada por Helena em 2026-10-15. O próximo artefato é o plano de implementação, sujeito a revisão antes da execução. Não representa funcionalidade já implementada.
 
 ## 1. Objetivo e decisões aprovadas
 
