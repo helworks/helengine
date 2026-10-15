@@ -4795,15 +4795,15 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 Phase B starts only after the Phase A exit check passes.
 
 **Phase B rulings (Helena, 2026-10-14).** They supersede the B1 "open" rows and the earlier "keep Aspect, pixel aspect is open" note in this plan.
-- Every PS2 video mode is displayed 4:3, for 3D and for UI. The engine gains a per-output-window **pixel aspect** (the displayed width of one framebuffer pixel divided by its displayed height), supplied by the platform's video mode. 3D projection uses it, and `ReferenceCanvasFitComponent` and `ViewportComponent` fit the authored canvas in display space. A window whose host never reports a pixel aspect has square pixels (1) and behaves exactly as before; tests pin that.
+- Every PS2 video mode is displayed at the aspect gsKit's integer horizontal magnification really gives it, for 3D and for UI: 4:3 for the 640- and 512-wide modes, 3:2 for the 320-wide modes and 22:15 for the 256-wide modes (Helena's "option 1" ruling of 2026-10-15 after the B13 review; it replaces "4:3 for every mode"). gsKit 8ef73d05 sets `MagH+1 = floor(2880/W)` and `MagV = 0`; with the 2560-VCK 640x448 picture as the 4:3 reference a mode is shown `4(MagH+1)W : 3*2560` and its pixel aspect is `(MagH+1)*H/1920`. The engine gains a per-output-window **pixel aspect** (the displayed width of one framebuffer pixel divided by its displayed height), supplied by the platform's video mode. 3D projection uses it, and `ReferenceCanvasFitComponent` and `ViewportComponent` fit the authored canvas in display space. A window whose host never reports a pixel aspect has square pixels (1) and behaves exactly as before; tests pin that.
 - The PS2 runtime's own projection (`Ps2RenderManager3D.cpp:1260-1266`) and the DirectX11 renderer (`DirectX11Renderer3D.cs:901`/`1025`) use the same mechanism.
-- The Play window for a non-square mode is `round(k*H*4/3)` x `k*H`, with the smallest k that drops no pixel column (carry M3).
+- The Play window for a non-square mode is `round(k*H*DAW/DAH)` x `k*H` for the mode's display aspect DAW:DAH (4:3, 3:2 or 22:15 on the PS2), with the smallest k that drops no pixel column (carry M3).
 - `Ps2DiscLayoutWriter` writes `VMODE = NTSC` or `VMODE = PAL` to SYSTEM.CNF.
 - The PAL 640x512 VRAM reduction (245,760 fewer texture bytes than today) is accepted.
 - The 224-row gsKit buffer allocation is verified from the gsKit source (Task B13 Step 1) and fixed explicitly if needed (Task B15 Step 6). A PCSX2 run still needs Helena's permission (Task B16).
 
 **Decisions this revision makes where the rulings are silent (flagged for Helena):**
-1. **The display aspect lives on each `PlatformVideoMode`** (`DisplayAspectWidth`/`DisplayAspectHeight`, all 12 PS2 modes 4:3), and `PixelAspect` is derived from it. The PS2 boot record keeps its 16-byte layout: the native side derives the same 4:3 from the constant `GsGlobal->Aspect = GS_ASPECT_4_3`, and the builder refuses to encode a mode that is not 4:3 (Task B11).
+1. **The display aspect lives on each `PlatformVideoMode`** (`DisplayAspectWidth`/`DisplayAspectHeight`), and `PixelAspect` is derived from it. The PS2 modes declare it through `Ps2GsDisplayAspect`, which derives it from gsKit's magnification (4:3 for 640/512, 3:2 for 320, 22:15 for 256). The PS2 boot record keeps its 16-byte layout: the native reader derives the same aspect from the width (`MagH = 2880/W - 1`, `PixelAspect = (MagH+1)*H/1920`), and the builder refuses to encode a mode whose declared aspect differs from the gsKit-derived one (Task B11). `GsGlobal->Aspect = GS_ASPECT_4_3` plays no part: gsKit stores it but never reads it for the display.
 2. **An explicit `window-scale` below the minimum multiple is raised to it**, and the player logs one line saying so. `fit` starts at the minimum multiple. Example: `1x` on `ntsc-640x224p` opens at 3x.
 3. **Glyphs follow the display-uniform scale** `min(widthScale * pixelAspect, heightScale)`. Glyph height on the TV is correct. Glyph width is still drawn in square framebuffer pixels, because `TextComponent.FontScale` is one number; see the open item in Task B3.
 4. **Client width rounds half away from zero** (`DirectX11FixedRenderSize.ResolveClientWidth` is the only implementation; `PlayerWindowLayout` calls it). No PS2 mode lands on a half pixel.
@@ -8657,7 +8657,8 @@ Audit rows 1-4, 7, 9, 49 and 50, plus the conditional allocation fix for row 24.
 - Produces:
   - boot log `video mode: <NTSC|PAL> <W>x<H><i|p>`, then `vram frame0=<a> frame1=<b> z=<c> textures=<d> page-grid-bytes=<n>` after the screen is set up;
   - a missing or invalid record halts through `FatalHalt("video mode boot record ...")`, never falling back to 640x448 (the ps2sdk debug console that shows the halt keeps its own NTSC mode, audit row 10);
-  - the core's main window has pixel aspect `4H / 3W` before the startup scene loads, so B2's projection, B3's fits and B14's PS2 projection all show the mode 4:3.
+  - the core's main window has pixel aspect `(MagH+1)*H/1920` (the reader's `PixelAspect`) before the startup scene loads, so B2's projection, B3's fits and B14's PS2 projection all show the mode at the display aspect gsKit's magnification gives it (4:3, 3:2 or 22:15);
+  - after `gsKit_init_screen`, a check that gsKit picked the magnification the reader assumed (`GsGlobal->MagH == ActiveVideoSettings.MagH` and `GsGlobal->DW == (ActiveVideoSettings.MagH + 1) * Width`), halting through `FatalHalt` on a mismatch, so a gsKit update cannot silently change the display aspect.
 
 - [ ] **Step 1: Record the builder-test baseline**
 
@@ -8715,7 +8716,7 @@ In `Run`, between the `InitializeRuntime` and `InitializeGraphics` blocks (the C
             }
 ```
 
-In `InitializeGraphics`, replace the `Mode`, `Interlace`, `Field`, `Width` and `Height` assignments with the code below. Keep `Aspect = GS_ASPECT_4_3` (audit row 5: it is the 4:3 the ruling asks for, and the reader's `PixelAspect` derives from it) and the CT16/Z16/double-buffer/Z settings. Delete `Ps2DefaultFramebufferWidth/Height`.
+In `InitializeGraphics`, replace the `Mode`, `Interlace`, `Field`, `Width` and `Height` assignments with the code below. Keep `Aspect = GS_ASPECT_4_3` (audit row 5) and the CT16/Z16/double-buffer/Z settings, but do not rely on it: gsKit stores `Aspect` and never reads it for the display. The displayed aspect follows gsKit's magnification (4:3, 3:2 or 22:15), which the reader's `MagH` and `PixelAspect` mirror. Delete `Ps2DefaultFramebufferWidth/Height`.
 
 ```cpp
         GsGlobal->Mode = ActiveVideoSettings.IsPal ? GS_MODE_PAL : GS_MODE_NTSC;
@@ -8741,6 +8742,15 @@ Right after the existing `EngineRenderManager3D->AddWindow(0, ...)` call:
 ```
 
 The startup scene loads after `InitializeGraphics`, so every camera and reference-canvas fit sees the pixel aspect from the first frame. The log line lets B16 confirm on PCSX2 that the buffers sit at least `page-grid-bytes` apart.
+
+Right after `gsKit_init_screen(GsGlobal);` (and after Step 6's block, if any), check that gsKit picked the magnification the reader assumed, so the pixel aspect handed to the core matches the picture on the TV:
+
+```cpp
+        if (GsGlobal->MagH != ActiveVideoSettings.MagH || GsGlobal->DW != (ActiveVideoSettings.MagH + 1) * ActiveVideoSettings.Width) {
+            FatalHalt(std::string("gsKit magnification differs from the video mode reader: MagH=") + std::to_string(GsGlobal->MagH)
+                + " DW=" + std::to_string(GsGlobal->DW) + ", expected MagH=" + std::to_string(ActiveVideoSettings.MagH));
+        }
+```
 
 - [ ] **Step 6: Re-place the buffers on the page grid (only for B13 outcome B)**
 
@@ -8774,12 +8784,12 @@ cd /c/dev/helworks/helengine-ps2
 git add src/platform/ps2/Ps2BootHost.hpp builder.tests/Ps2NativeBuildInputsTests.cs builder.tests/Ps2RenderManager3DSourceTests.cs
 git diff src/platform/ps2/Ps2BootHost.cpp > /c/dev/helworks/builds/helengine-ps2/b15-boothost.patch
 # Edit the patch: delete every hunk that is not this task's (keep only the constant deletion, the initializer,
-# LoadVideoModeBootRecord, the Run call, the GsGlobal assignments, the SetWindowPixelAspect + vram log lines and,
+# LoadVideoModeBootRecord, the Run call, the GsGlobal assignments, the MagH/DW check, the SetWindowPixelAspect + vram log lines and,
 # for outcome B, the page-grid block), then:
 git apply --cached /c/dev/helworks/builds/helengine-ps2/b15-boothost.patch
 git diff --cached --numstat
 git diff --cached src/platform/ps2/Ps2BootHost.cpp
-git commit -m "feat(ps2): boot gsKit into the project's video mode and show it 4:3
+git commit -m "feat(ps2): boot gsKit into the project's video mode at its gsKit display aspect
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 git status --short
@@ -8800,7 +8810,7 @@ Run `.\dotnetw.cmd test` on `engine\helengine.core.tests\helengine.core.tests.cs
 
 - [ ] **Step 2: Ask Helena before any emulator run**
 
-Ask: "May I boot demodisc in PCSX2 for `ntsc-640x448i`, `ntsc-512x448i`, `ntsc-320x224p` and `pal-640x256p` to confirm from the boot log that gsKit was initialised with each mode, that the frame and Z buffers sit on the page grid, and that the menu renders? May I also capture the PCSX2 window with PrintWindow to check that round UI elements and the 3D scene look 4:3?" Without a yes, stop here and report.
+Ask: "May I boot demodisc in PCSX2 for `ntsc-640x448i`, `ntsc-512x448i`, `ntsc-320x224p` and `pal-640x256p` to confirm from the boot log that gsKit was initialised with each mode, that the frame and Z buffers sit on the page grid, and that the menu renders? May I also capture the PCSX2 window with PrintWindow to check that round UI elements and the 3D scene look round at each mode's display aspect, which follows gsKit's magnification (4:3 for `ntsc-640x448i`, `ntsc-512x448i` and `pal-640x256p`, 3:2 for `ntsc-320x224p`)?" Without a yes, stop here and report.
 
 - [ ] **Step 3: With her yes, run the four boots**
 
