@@ -35,6 +35,20 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures nested-value readers can be declared without depending on transitive native includes.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerHeader_WhenSchemaNeedsNestedReaderHelper_DeclaresEngineBinaryReader() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(AmbientLightComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string header = generator.GenerateNativeDeserializerHeader(schema);
+
+            Assert.Contains("::EngineBinaryReader* reader", header, StringComparison.Ordinal);
+            Assert.Contains("class EngineBinaryReader;", header, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures supported reflected member schemas emit ordinal reader source without editor tagged-field lookup.
         /// </summary>
         [Fact]
