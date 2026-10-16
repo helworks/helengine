@@ -333,7 +333,7 @@ namespace helengine {
                 isSelectingText = true;
                 UpdateTextDisplay();
             } else if (state == PointerInteraction.Hover && isSelectingText) {
-                if (Core.Instance.Input.GetMouseLeftButtonState() != ButtonState.Pressed) {
+                if (!Core.Instance.Input.GetPointerState().IsButtonDown(InputPointerButton.Primary)) {
                     isSelectingText = false;
                 } else {
                     EditState.SetSelection(EditState.SelectionAnchorPosition, ResolveCursorPositionFromClick(relPos.X));
