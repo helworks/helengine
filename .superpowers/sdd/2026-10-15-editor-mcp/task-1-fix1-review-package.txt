@@ -1,0 +1,129 @@
+﻿cf9bdfdd fix: isolate editor tool catalog snapshots
+ .../EditorToolCatalog.cs                           | 23 ++++++++--
+ .../EditorToolCatalogTests.cs                      | 49 +++++++++++++++++++++-
+ 2 files changed, 68 insertions(+), 4 deletions(-)
+diff --git a/engine/helengine.editor.automation/EditorToolCatalog.cs b/engine/helengine.editor.automation/EditorToolCatalog.cs
+index 8c53cac6..be193dd2 100644
+--- a/engine/helengine.editor.automation/EditorToolCatalog.cs
++++ b/engine/helengine.editor.automation/EditorToolCatalog.cs
+@@ -35,25 +35,42 @@ public static class EditorToolCatalog
+             Definition.OutputSchema = Definition.OutputSchema.Clone();
+             Definitions.Add(Definition);
+             Schemas.Add(Definition.Name, JsonSchema.Build(Definition.InputSchema));
+             JsonSchema.Build(Definition.OutputSchema);
+         }
+ 
+         Tools = new ReadOnlyCollection<EditorToolDefinition>(Definitions);
+         InputSchemas = new ReadOnlyDictionary<string, JsonSchema>(Schemas);
+     }
+ 
+-    /// <summary>Returns all 107 tool definitions in the order declared by the embedded contract.</summary>
+-    /// <returns>A read-only list with input/output schemas and conservative ownership metadata.</returns>
++    /// <summary>Returns detached definitions for all 107 tools in the embedded contract's order.</summary>
++    /// <returns>A read-only snapshot whose mutable definitions cannot alter the shared catalog.</returns>
+     public static IReadOnlyList<EditorToolDefinition> GetTools()
+     {
+-        return Tools;
++        List<EditorToolDefinition> Snapshot = new(Tools.Count);
++        foreach (EditorToolDefinition Definition in Tools)
++        {
++            Snapshot.Add(new EditorToolDefinition
++            {
++                Name = Definition.Name,
++                InputSchema = Definition.InputSchema.Clone(),
++                OutputSchema = Definition.OutputSchema.Clone(),
++                Mutates = Definition.Mutates,
++                Undoable = Definition.Undoable,
++                Persistence = Definition.Persistence,
++                OwnerTask = Definition.OwnerTask,
++                FunctionalSource = Definition.FunctionalSource,
++                BehaviorTest = Definition.BehaviorTest
++            });
++        }
++
++        return new ReadOnlyCollection<EditorToolDefinition>(Snapshot);
+     }
+ 
+     /// <summary>Evaluates one tool argument object against its compiled JSON Schema.</summary>
+     /// <param name="ToolName">The case-sensitive tool name registered in the catalog.</param>
+     /// <param name="Arguments">The candidate JSON value supplied by a client.</param>
+     /// <param name="Errors">A read-only collection explaining schema errors or an unknown tool.</param>
+     /// <returns>True only when the tool exists and JsonSchema.Net accepts the complete input.</returns>
+     public static bool TryValidateInputArguments(string ToolName, JsonElement Arguments, out IReadOnlyList<string> Errors)
+     {
+         if (!InputSchemas.TryGetValue(ToolName, out JsonSchema Schema))
+diff --git a/engine/helengine.editor.mcp.tests/EditorToolCatalogTests.cs b/engine/helengine.editor.mcp.tests/EditorToolCatalogTests.cs
+index c6a315bd..26078e6a 100644
+--- a/engine/helengine.editor.mcp.tests/EditorToolCatalogTests.cs
++++ b/engine/helengine.editor.mcp.tests/EditorToolCatalogTests.cs
+@@ -80,22 +80,69 @@ public sealed class EditorToolCatalogTests
+                 Assert.Contains("operation_id", required);
+             }
+ 
+             if (new[] { "scenes_list", "entities_list", "component_types_list", "components_list", "assets_list", "asset_dependencies_get", "jobs_list", "logs_read", "project_commands_list" }.Contains(name, StringComparer.Ordinal))
+             {
+                 JsonElement limit = inputSchema.GetProperty("properties").GetProperty("limit");
+                 Assert.Equal(1, limit.GetProperty("minimum").GetInt32());
+                 Assert.Equal(500, limit.GetProperty("maximum").GetInt32());
+                 Assert.Equal(100, limit.GetProperty("default").GetInt32());
+             }
++        }
++
++        Assembly automationAssembly = typeof(EditorToolCatalog).Assembly;
++        string resourceName = automationAssembly.GetManifestResourceNames()
++            .Single(name => name.EndsWith(".editor-tools.json", StringComparison.Ordinal));
++        using Stream resource = automationAssembly.GetManifestResourceStream(resourceName);
++        using JsonDocument catalog = JsonDocument.Parse(resource);
++        foreach (JsonElement definition in catalog.RootElement.GetProperty("tools").EnumerateArray())
++        {
++            Assert.False(definition.TryGetProperty("implemented", out _));
++        }
++    }
++
++    /// <summary>
++    /// Verifies consumers cannot mutate the shared catalog or desynchronize its input validators.
++    /// </summary>
++    [Fact]
++    public void Catalog_returns_detached_tool_definitions()
++    {
++        const string ToolName = "list_editors";
++        EditorToolDefinition exposedDefinition = Assert.Single(EditorToolCatalog.GetTools(), definition => definition.Name == ToolName);
++        string originalName = exposedDefinition.Name;
++        JsonElement originalInputSchema = exposedDefinition.InputSchema.Clone();
++        JsonElement originalOutputSchema = exposedDefinition.OutputSchema.Clone();
++        bool originalMutates = exposedDefinition.Mutates;
++
++        using JsonDocument replacementSchema = JsonDocument.Parse("""{"type":"object","additionalProperties":true}""");
++        using JsonDocument unknownArguments = JsonDocument.Parse("""{"consumer_mutation":true}""");
++
++        try
++        {
++            exposedDefinition.Name = "consumer_mutated_name";
++            exposedDefinition.InputSchema = replacementSchema.RootElement.Clone();
++            exposedDefinition.OutputSchema = replacementSchema.RootElement.Clone();
++            exposedDefinition.Mutates = !originalMutates;
++
++            Assert.False(EditorToolCatalog.TryValidateInputArguments(ToolName, unknownArguments.RootElement, out _));
+ 
+-            Assert.DoesNotContain("implemented", string.Join(" ", definitionType.GetProperties().Select(property => property.Name)), StringComparison.OrdinalIgnoreCase);
++            EditorToolDefinition catalogDefinition = Assert.Single(EditorToolCatalog.GetTools(), definition => definition.Name == ToolName);
++            Assert.Equal(originalInputSchema.GetRawText(), catalogDefinition.InputSchema.GetRawText());
++            Assert.Equal(originalOutputSchema.GetRawText(), catalogDefinition.OutputSchema.GetRawText());
++            Assert.Equal(originalMutates, catalogDefinition.Mutates);
++        }
++        finally
++        {
++            exposedDefinition.Name = originalName;
++            exposedDefinition.InputSchema = originalInputSchema;
++            exposedDefinition.OutputSchema = originalOutputSchema;
++            exposedDefinition.Mutates = originalMutates;
+         }
+     }
+ 
+     /// <summary>
+     /// Verifies strict schemas reject unknown properties, wrong types, and invalid discriminated objects.
+     /// </summary>
+     [Fact]
+     public void Schemas_reject_unknown_and_wrong_typed_fields()
+     {
+         bool unknownFieldAccepted = ValidateInput("list_editors", """{"unexpected":true}""");

@@ -2,7 +2,7 @@
 
 Data: 2026-10-15.
 
-Status: especificação escrita aprovada por Helena em 2026-10-15. O próximo artefato é o plano de implementação, sujeito a revisão antes da execução. Não representa funcionalidade já implementada.
+Status: especificação aprovada em 2026-10-15, revisada por orientação de Helena para substituir a descoberta em arquivos por um coordenador local independente e considerar Windows, Linux e macOS. O mecanismo de autenticação/bootstrap dessa revisão permanece pendente. Não representa funcionalidade já implementada.
 
 ## 1. Objetivo e decisões aprovadas
 
@@ -13,7 +13,9 @@ Decisões aprovadas:
 - Cada instância do editor hospeda seu próprio servidor MCP HTTP.
 - O acesso é local, em `127.0.0.1`.
 - A porta é escolhida automaticamente ao abrir o servidor.
-- Um conector local, configurado uma única vez em cada cliente, recebe MCP por stdio e se conecta ao editor por HTTP.
+- Um processo coordenador local independente mantém em memória o registro vivo das instâncias. O primeiro editor o inicia sob demanda; ele permanece entre fechamentos enquanto houver outros editores registrados e encerra após o último unregister ou expiração da lease.
+- Um conector local, configurado uma única vez em cada cliente, recebe MCP por stdio, consulta o coordenador e encaminha as chamadas diretamente ao servidor HTTP do editor escolhido.
+- O endereço loopback de descoberta do coordenador é estável e configurável uma única vez; não há valor numérico de porta fixado nesta especificação.
 - A conversa escolhe explicitamente a instância por uma operação de bind. As chamadas seguintes carregam o identificador desse vínculo.
 - As ferramentas usam operações do editor compartilhadas com a interface, extraindo serviços onde a lógica ainda estiver em painéis.
 - A API trabalha com estado vivo, salvamento explícito, histórico compartilhado, alvos e escopos explícitos, detecção de conflito e acompanhamento de operações demoradas.
@@ -26,22 +28,23 @@ O sucesso é verificável: depois da instalação inicial do conector, abrir ou 
 ```mermaid
 flowchart LR
     A[Codex ou Claude Code] -->|MCP stdio; configuração fixa| B[Conector Helengine]
-    B -->|descoberta local| R[Registros de instâncias]
+    B -->|descoberta loopback| R[Coordenador local; registros em memória]
     B -->|MCP HTTP; vínculo explícito| C[Servidor da instância escolhida]
+    C -->|registro, heartbeat e unregister| R
     C --> D[API de operações do editor]
     U[Interface do editor] --> D
     D --> S[Serviços de cena, histórico, assets, projeto e execução]
 ```
 
-O conector é iniciado pelo cliente MCP. Sua duração acompanha a conexão que o cliente mantém; não se presume um processo exclusivo por conversa. Não há dependência de um daemon central nem de uma porta HTTP fixa compartilhada.
+O conector é iniciado pelo cliente MCP. Sua duração acompanha a conexão que o cliente mantém; não se presume um processo exclusivo por conversa. O coordenador é um processo local independente, iniciado sob demanda pelo primeiro editor e encerrado quando não há mais instâncias vivas. Ele atende somente descoberta e registro; não é proxy MCP nem gateway para chamadas de ferramenta.
 
 Responsabilidades lógicas:
 
 | Componente | Responsabilidade |
 | --- | --- |
 | Host MCP do editor | Listener HTTP, autenticação local, identidade da instância, protocolo MCP e encerramento ordenado |
-| Registro de instâncias | Publicar e consultar os editores disponíveis, incluindo projeto, identidade e endereço atual |
-| Conector | Descobrir instâncias, conectar ao destino, preservar vínculos explícitos e adaptar stdio/HTTP |
+| Coordenador local | Manter registros vivos em memória, leases, health/protocol check e lifecycle concorrente do processo |
+| Conector | Consultar descoberta, conectar diretamente ao editor, preservar vínculos explícitos e adaptar stdio/HTTP |
 | Catálogo de ferramentas | Esquemas e descrições das operações, metadados de capacidade e compatibilidade |
 | API de operações | Validar alvos, revisões e escopos; executar pelos serviços compartilhados; produzir resultados estruturados |
 | Coordenação de execução | Encaminhar acesso ao estado vivo para a thread do editor e acompanhar trabalhos demorados |
@@ -52,7 +55,7 @@ O MCP embutido também permanece utilizável diretamente por um cliente HTTP que
 
 ## 3. Descoberta e identidade
 
-Ao iniciar, o editor solicita ao sistema operacional uma porta livre por bind com porta zero. O registro só é publicado depois de o endpoint estar pronto.
+Cada editor solicita ao sistema operacional uma porta livre por bind com porta zero para seu próprio endpoint MCP. O registro só é enviado depois de o endpoint estar pronto. O coordenador tem um endereço loopback estável, configurável uma única vez, e mantém os registros apenas em memória.
 
 Cada registro contém:
 
@@ -61,13 +64,17 @@ Cada registro contém:
 - versão do editor e versão do contrato de automação;
 - nome do projeto, raiz absoluta canônica e geração do projeto aberto;
 - endpoint HTTP efetivo e estado de disponibilidade;
-- referência local ao material de autenticação da instância.
+- informação de lease/heartbeat para detectar uma instância que caiu sem unregister.
 
-Os registros pertencem ao usuário do sistema operacional e ficam fora dos arquivos versionados do projeto. A publicação é atômica. O diretório e as credenciais têm acesso restrito ao usuário; endereços e credenciais não são buscados em conteúdo arbitrário do projeto.
+O coordenador é iniciado sob demanda pelo primeiro editor. Somente o processo coordenador faz bind e mantém o listener; os editores não abrem nem transferem esse socket. Em inicializações concorrentes, processos candidatos disputam o bind exclusivo: apenas o vencedor continua servindo, e os candidatos que perderam encerram. Os editores verificam saúde e versão do serviço com tentativas limitadas durante início e encerramento. Se a porta estiver ocupada por um processo que não responde ao protocolo esperado, a inicialização falha com diagnóstico; nenhum processo externo é encerrado. O valor numérico da porta não é escolhido aqui.
 
-`list_editors` consulta os registros e verifica os candidatos. Um registro em disco não prova que o editor continua aberto. Antes de vincular, o conector autentica a conexão e verifica se a identidade retornada pelo endpoint corresponde à registrada. PID ou porta isoladamente não são suficientes.
+`list_editors` consulta o coordenador e verifica os candidatos no endpoint do editor. Um registro em memória não prova que o endpoint ainda está vivo. Antes de vincular, o conector verifica identidade e compatibilidade no endpoint. PID ou porta isoladamente não são suficientes. O coordenador nunca encaminha chamadas MCP: depois da descoberta, o conector fala diretamente com o editor selecionado.
 
-No encerramento normal, o editor retira seu registro. Após crash, entradas obsoletas são identificadas pela verificação do endpoint e da identidade. A limpeza não remove o registro de uma execução nova que reutilizou PID ou porta.
+No encerramento normal, o editor faz unregister antes de parar seu host HTTP. O coordenador continua vivo enquanto houver outras instâncias registradas; após o último unregister, inicia seu encerramento ordenado. Se o editor cair, a lease expira e o coordenador remove o registro obsoleto. Uma queda do coordenador não encerra os editores: eles detectam a indisponibilidade, ajudam a iniciar novamente o processo com posse exclusiva e registram de novo suas identidades/endpoints após o health/protocol check. Retry é limitado e nenhuma mutação é repetida automaticamente durante reconexão.
+
+Registrar uma instância e decidir encerrar por ausência de instâncias são operações serializadas no coordenador. Se o registro novo vencer a corrida, ele impede o encerramento por lista vazia; se o encerramento vencer, o registro é recusado e o editor tenta iniciar/contatar o próximo coordenador. Não confirmar um novo registro e depois encerrar por uma decisão anterior de lista vazia. A mesma regra vale para expiração da última lease. Um coordenador recém-iniciado aguarda o registro inicial por prazo limitado, evitando tanto sair antes do primeiro registro quanto ficar órfão se o editor iniciador cair.
+
+As credenciais de cada editor permanecem privadas e não fazem parte das respostas públicas de descoberta. A autenticação/bootstrap para iniciar o coordenador, registrar editores, consultar descoberta e obter autorização para conectar ainda é uma decisão de arquitetura pendente; esta especificação não escolhe um mecanismo nem reduz isolamento entre usuários do sistema.
 
 Projetos com o mesmo nome, cópias em diretórios diferentes e duas instâncias do mesmo projeto aparecem como destinos distintos. O nome ajuda na escolha, mas a chamada de bind usa `instance_id`.
 
@@ -232,17 +239,19 @@ O índice estrutural consultado estava datado de 2026-09-23 e sinalizava altera�
 
 O projeto de editor inspecionado tem alvo `net9.0`; o host Windows usa `net9.0-windows`. A escolha de biblioteca MCP e hospedagem HTTP deve comprovar compatibilidade com esses projetos e com sua distribuição antes de ser fixada no plano. Não se assume que uma atualização do runtime faz parte deste trabalho.
 
+O MCP deve acompanhar o editor no Windows, Linux e macOS. HTTP local, coordenador de descoberta, credenciais e vínculo por conversa são requisitos nas três plataformas. A plataforma da máquina de desenvolvimento não determina a arquitetura do produto nem autoriza introduzir uma versão mínima de Windows por conveniência de implementação. A autenticação/bootstrap e a privacidade entre usuários precisam permanecer corretas nas três plataformas; seu mecanismo ainda está pendente.
+
 ## 11. Transporte, acesso local e integração com clientes
 
 O endpoint usa MCP Streamable HTTP. A implementação fixa uma combinação de versão de protocolo e SDK suportada pelos clientes testados; não adota uma revisão draft apenas por ser mais recente. A sessão de transporte MCP, quando existir na versão escolhida, não substitui `binding_id`.
 
-O listener aceita apenas loopback. A instância usa credencial própria, gerada para sua execução e guardada localmente com acesso restrito. O conector obtém a credencial fora do contexto da conversa. Logs, ferramentas de descoberta e resultados não expõem o segredo.
+O listener MCP de cada editor aceita apenas loopback. Cada instância conserva credencial própria e privada, obtida fora do contexto da conversa; logs, ferramentas de descoberta e resultados não expõem segredos. A autenticação/bootstrap do coordenador, registro, consulta de descoberta e autorização para conectar permanece uma decisão pendente. Não se presume que a descoberta loopback entregue credenciais sem autenticação nem que o coordenador reduza o isolamento por usuário.
 
 O host valida origem quando presente e as regras de host/endpoint. O conector verifica identidade e compatibilidade antes de encaminhar operações e só usa registros locais verificados; não aceita redirecionamento silencioso para outro host.
 
 Configuração inicial: registrar o executável do conector como servidor stdio no Codex e no Claude Code. A configuração contém o comando estável, não a porta do editor. As instruções exatas de instalação usam caminhos absolutos na máquina de destino e devem considerar atualização do executável sem mudar o comando configurado.
 
-O conector pode iniciar sem editores abertos; descoberta retorna lista vazia e as ferramentas de conexão continuam utilizáveis. Abrir um editor depois deve permitir vinculá-lo sem reinstalar o servidor.
+O conector pode iniciar sem editores abertos; descoberta retorna lista vazia e as ferramentas de conexão continuam utilizáveis. Abrir um editor inicia o coordenador sob demanda e permite vinculá-lo sem reinstalar ou reconfigurar o conector. Fechar um editor não encerra o coordenador enquanto outro estiver registrado; ao fechar o último, ele encerra após unregister/expiração da lease. A porta do endpoint de cada editor continua efêmera e não exige mudança da configuração do cliente.
 
 A compatibilidade inicial deve ser validada no Codex CLI e no Claude Code. Interfaces desktop/IDE precisam de validação específica, sobretudo quanto a configuração, compartilhamento de conexões, reconexão e disponibilidade de ferramentas. Suporte documentado ao transporte não prova isolamento por conversa nem comprova essas interfaces.
 
@@ -250,13 +259,15 @@ A compatibilidade inicial deve ser validada no Codex CLI e no Claude Code. Inter
 
 ### Conexão e múltiplas instâncias
 
-1. Abrir dois editores em portas automáticas e trabalhar em cada um por vínculos diferentes.
+1. Abrir dois editores em portas MCP automáticas e trabalhar em cada um por vínculos diferentes através de um coordenador local estável.
 2. Abrir duas instâncias do mesmo projeto e distinguir seus destinos sem usar nome ou porta como identidade.
 3. Usar dois vínculos na mesma conexão MCP e comprovar que um bind novo não redireciona o anterior.
-4. Fechar e reabrir um editor, inclusive com reutilização da porta, e rejeitar o vínculo antigo.
-5. Simular registro obsoleto, endpoint com identidade divergente e credencial inválida.
-6. Iniciar o cliente antes do editor e conectar depois sem editar configuração.
-7. Repetir o fluxo nos clientes suportados e registrar suas versões e interfaces.
+4. Fechar e reabrir um editor, inclusive com reutilização da porta, e rejeitar o vínculo antigo; comprovar que o primeiro fechamento não encerra o coordenador enquanto o segundo editor estiver aberto.
+5. Simular lease expirada, endpoint com identidade divergente e credencial inválida.
+6. Iniciar o cliente antes dos editores; abrir dois editores, fechar o primeiro e comprovar que coordenador e descoberta continuam disponíveis para o segundo; fechar o último e comprovar o encerramento ordenado do coordenador.
+7. Disputar inicialização concorrente do coordenador, rejeitar um listener ocupado por processo alheio sem encerrá-lo e verificar bounded retry.
+8. Encerrar abruptamente o coordenador enquanto editores permanecem abertos; comprovar recuperação, re-registro e ausência de replay de mutação.
+9. Iniciar o cliente antes dos editores e conectar depois sem editar configuração; repetir nos clientes suportados e registrar versões e interfaces.
 
 ### Edição e estado
 
@@ -287,7 +298,7 @@ Validação automática deve focar contratos, serviços e integração HTTP/stdi
 
 1. Inventariar as operações atuais e expandir a matriz de cobertura, verificando serviços e testes proprietários.
 2. Validar a combinação de SDK/protocolo e a integração dos clientes; registrar as escolhas técnicas para revisão antes de qualquer mudança arquitetural adicional.
-3. Implementar contrato, identidades, host HTTP, registro local, conector e vínculo explícito, com testes de várias instâncias e conexões compartilhadas.
+3. Implementar contrato, identidades, host HTTP por editor, coordenador local em memória, conector e vínculo explícito, com testes de lifecycle, várias instâncias e conexões compartilhadas.
 4. Integrar despacho na thread do editor, revisões, histórico, política de salvamento, resultados de operações e shutdown.
 5. Cobrir cenas, hierarquia, componentes e overrides; depois assets, projeto, workspace, viewport e extensões, conforme dependências identificadas.
 6. Adaptar Play, builds e imports para acompanhamento de trabalhos, cancelamento suportado e diagnósticos.

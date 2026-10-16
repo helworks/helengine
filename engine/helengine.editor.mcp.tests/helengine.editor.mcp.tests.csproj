@@ -21,5 +21,6 @@
   <ItemGroup>
     <Using Include="Xunit" />
     <ProjectReference Include="..\helengine.editor.automation\helengine.editor.automation.csproj" />
+    <ProjectReference Include="..\helengine.editor.mcp.coordinator\helengine.editor.mcp.coordinator.csproj" />
   </ItemGroup>
 </Project>

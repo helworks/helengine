@@ -1,0 +1,1467 @@
+﻿950dc45f feat: discover local editor instances with private credentials
+ .../discovery/EditorInstanceRegistry.cs            | 379 ++++++++++++++++++
+ .../discovery/EditorLocalCredentialStore.cs        | 235 +++++++++++
+ .../discovery/EditorRegistryPaths.cs               | 385 ++++++++++++++++++
+ .../EditorInstanceRegistryTests.cs                 | 438 +++++++++++++++++++++
+ 4 files changed, 1437 insertions(+)
+diff --git a/engine/helengine.editor.automation/discovery/EditorInstanceRegistry.cs b/engine/helengine.editor.automation/discovery/EditorInstanceRegistry.cs
+new file mode 100644
+index 00000000..569c7c56
+--- /dev/null
++++ b/engine/helengine.editor.automation/discovery/EditorInstanceRegistry.cs
+@@ -0,0 +1,379 @@
++using System.ComponentModel;
++using System.Collections.ObjectModel;
++using System.Runtime.InteropServices;
++using Microsoft.Win32.SafeHandles;
++using System.Security.AccessControl;
++using System.Text.Json;
++using System.Text.Json.Serialization;
++using helengine.editor.automation;
++
++namespace helengine.editor.automation.discovery;
++
++/// <summary>
++/// Publishes, reads, and removes private local descriptors for running editor instances.
++/// </summary>
++public sealed class EditorInstanceRegistry
++{
++    /// <summary>File suffix for non-secret editor instance descriptors.</summary>
++    const string RegistryExtension = ".json";
++    /// <summary>Win32 information class used to rename a descriptor handle atomically.</summary>
++    const int FileRenameInfoExClass = 22;
++    /// <summary>Flag requesting replacement of an existing descriptor destination.</summary>
++    const uint ReplaceExistingFile = 0x00000001;
++    /// <summary>Flag preserving old open handles while atomically publishing a new descriptor version.</summary>
++    const uint PosixReplaceOpenFile = 0x00000002;
++    /// <summary>JSON options that reject unrecognized descriptor fields during discovery.</summary>
++    static readonly JsonSerializerOptions DescriptorJsonOptions = new()
++    {
++        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
++    };
++
++    /// <summary>Absolute protected directory holding this registry's descriptor files.</summary>
++    readonly string DirectoryPath;
++    /// <summary>Receives diagnostics for corrupt or unsafe descriptor files skipped during discovery.</summary>
++    readonly Action<string> ReportIssue;
++
++    /// <summary>Creates a registry below an absolute directory protected for the current Windows user.</summary>
++    /// <param name="DirectoryPath">The absolute private directory used for instance descriptors.</param>
++    /// <param name="ReportIssue">Receives diagnostics for corrupt or unsafe entries found during discovery.</param>
++    public EditorInstanceRegistry(string DirectoryPath, Action<string> ReportIssue)
++    {
++        if (ReportIssue == null)
++        {
++            throw new ArgumentNullException(nameof(ReportIssue));
++        }
++
++        this.DirectoryPath = EditorRegistryPaths.PreparePrivateDirectory(DirectoryPath);
++        this.ReportIssue = ReportIssue;
++    }
++
++    /// <summary>Atomically writes one descriptor under a filename derived from its exact instance identity.</summary>
++    /// <param name="Instance">The non-secret editor descriptor to publish.</param>
++    public void Publish(EditorInstanceDescriptor Instance)
++    {
++        ValidateDescriptor(Instance);
++        EditorRegistryPaths.VerifyPrivateDirectory(DirectoryPath);
++        EditorInstanceDescriptor Snapshot = CopyDescriptor(Instance);
++        string EntryPath = EditorRegistryPaths.GetEntryPath(DirectoryPath, Snapshot.InstanceId, RegistryExtension);
++
++        if (EditorRegistryPaths.TryGetAttributes(EntryPath, out FileAttributes ExistingAttributes))
++        {
++            if ((ExistingAttributes & FileAttributes.ReparsePoint) != 0 || (ExistingAttributes & FileAttributes.Directory) != 0)
++            {
++                throw new IOException("A registry destination cannot be a directory or reparse point.");
++            }
++
++            try
++            {
++                EditorInstanceDescriptor Existing = ReadDescriptor(EntryPath);
++                if (!string.Equals(Existing.InstanceId, Snapshot.InstanceId, StringComparison.Ordinal))
++                {
++                    throw new IOException("An instance identity hash collision prevents publishing this descriptor.");
++                }
++            }
++            catch (JsonException Error)
++            {
++                ReportIssue($"Replacing corrupt editor registry entry '{EntryPath}': {Error.Message}");
++            }
++            catch (InvalidDataException Error)
++            {
++                ReportIssue($"Replacing invalid editor registry entry '{EntryPath}': {Error.Message}");
++            }
++        }
++
++        byte[] DescriptorBytes = JsonSerializer.SerializeToUtf8Bytes(Snapshot);
++        WriteAtomically(EntryPath, DescriptorBytes);
++    }
++
++    /// <summary>Returns independently deserialized candidates without probing their MCP endpoints.</summary>
++    /// <returns>Valid descriptors ordered by their exact instance identity.</returns>
++    public IReadOnlyList<EditorInstanceDescriptor> ReadCandidates()
++    {
++        EditorRegistryPaths.VerifyPrivateDirectory(DirectoryPath);
++        List<EditorInstanceDescriptor> Candidates = new();
++
++        foreach (string EntryPath in Directory.EnumerateFiles(DirectoryPath, "*" + RegistryExtension, SearchOption.TopDirectoryOnly))
++        {
++            try
++            {
++                EditorRegistryPaths.VerifyPrivateDirectory(DirectoryPath);
++                if (!EditorRegistryPaths.TryGetAttributes(EntryPath, out FileAttributes Attributes))
++                {
++                    continue;
++                }
++
++                if ((Attributes & FileAttributes.ReparsePoint) != 0)
++                {
++                    ReportIssue($"Skipped reparse-point editor registry entry '{EntryPath}'.");
++                    continue;
++                }
++
++                if ((Attributes & FileAttributes.Directory) != 0)
++                {
++                    ReportIssue($"Skipped directory where an editor registry file was expected: '{EntryPath}'.");
++                    continue;
++                }
++
++                EditorInstanceDescriptor Candidate = ReadDescriptor(EntryPath);
++                ValidateDescriptor(Candidate);
++                string ExpectedPath = EditorRegistryPaths.GetEntryPath(DirectoryPath, Candidate.InstanceId, RegistryExtension);
++                if (!string.Equals(ExpectedPath, Path.GetFullPath(EntryPath), StringComparison.OrdinalIgnoreCase))
++                {
++                    throw new InvalidDataException("The descriptor identity does not match its private registry filename.");
++                }
++
++                Candidates.Add(Candidate);
++            }
++            catch (Exception Error) when (IsInvalidEntryError(Error))
++            {
++                ReportIssue($"Skipped invalid editor registry entry '{EntryPath}': {Error.Message}");
++            }
++        }
++
++        Candidates.Sort((Left, Right) => StringComparer.Ordinal.Compare(Left.InstanceId, Right.InstanceId));
++        return new ReadOnlyCollection<EditorInstanceDescriptor>(Candidates);
++    }
++
++    /// <summary>Removes only the regular descriptor whose contents still identify the requested instance.</summary>
++    /// <param name="InstanceId">The exact case-sensitive identity of the descriptor to remove.</param>
++    public void Remove(string InstanceId)
++    {
++        Remove(InstanceId, null);
++    }
++
++    /// <summary>Removes only the validated file object, even if a new entry replaces its path during cleanup.</summary>
++    /// <param name="InstanceId">The exact case-sensitive identity of the descriptor to remove.</param>
++    /// <param name="BeforeDelete">An internal synchronization action used to exercise replacement races in tests.</param>
++    internal void Remove(string InstanceId, Action BeforeDelete)
++    {
++        string EntryPath = EditorRegistryPaths.GetEntryPath(DirectoryPath, InstanceId, RegistryExtension);
++        EditorRegistryPaths.VerifyPrivateDirectory(DirectoryPath);
++        if (!EditorRegistryPaths.TryGetAttributes(EntryPath, out FileAttributes Attributes))
++        {
++            return;
++        }
++
++        if ((Attributes & FileAttributes.ReparsePoint) != 0 || (Attributes & FileAttributes.Directory) != 0)
++        {
++            ReportIssue($"Refused to remove an unsafe editor registry entry '{EntryPath}'.");
++            return;
++        }
++
++        SafeFileHandle EntryHandle;
++        try
++        {
++            EntryHandle = EditorRegistryPaths.OpenRegularFileForConditionalDelete(EntryPath);
++        }
++        catch (Win32Exception Error) when (Error.NativeErrorCode == 2 || Error.NativeErrorCode == 3)
++        {
++            return;
++        }
++        catch (Exception Error) when (IsInvalidEntryError(Error) || Error is Win32Exception)
++        {
++            ReportIssue($"Refused to remove an invalid editor registry entry '{EntryPath}': {Error.Message}");
++            return;
++        }
++
++        using (EntryHandle)
++        {
++            using FileStream Stream = new(EntryHandle, FileAccess.Read, 4096, false);
++            EditorInstanceDescriptor Existing;
++            try
++            {
++                Existing = ReadDescriptor(Stream);
++                ValidateDescriptor(Existing);
++            }
++            catch (Exception Error) when (IsInvalidEntryError(Error))
++            {
++                ReportIssue($"Refused to remove an invalid editor registry entry '{EntryPath}': {Error.Message}");
++                return;
++            }
++
++            if (!string.Equals(Existing.InstanceId, InstanceId, StringComparison.Ordinal))
++            {
++                ReportIssue($"Refused to remove registry entry '{EntryPath}' because its identity was replaced.");
++                return;
++            }
++
++            BeforeDelete?.Invoke();
++            EditorRegistryPaths.VerifyPrivateDirectory(DirectoryPath);
++            EditorRegistryPaths.DeleteOpenedFile(Stream.SafeFileHandle);
++        }
++
++    }
++
++    /// <summary>Reads and deserializes one regular registry file using strict JSON member handling.</summary>
++    /// <param name="EntryPath">The already checked descriptor file path.</param>
++    /// <returns>The descriptor stored in the file.</returns>
++    static EditorInstanceDescriptor ReadDescriptor(string EntryPath)
++    {
++        using FileStream Stream = new(EntryPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.SequentialScan);
++        return ReadDescriptor(Stream);
++    }
++
++    /// <summary>Deserializes one registry descriptor from the exact stream already opened by the caller.</summary>
++    /// <param name="Stream">The stream bound to the descriptor file object being validated.</param>
++    /// <returns>The editor instance descriptor stored in the stream.</returns>
++    static EditorInstanceDescriptor ReadDescriptor(Stream Stream)
++    {
++        EditorInstanceDescriptor Descriptor = JsonSerializer.Deserialize<EditorInstanceDescriptor>(Stream, DescriptorJsonOptions);
++        if (Descriptor == null)
++        {
++            throw new InvalidDataException("The registry entry does not contain an editor descriptor.");
++        }
++
++        return Descriptor;
++    }
++
++    /// <summary>Validates the required public fields without probing the endpoint or changing project paths.</summary>
++    /// <param name="Instance">The descriptor being published or read.</param>
++    static void ValidateDescriptor(EditorInstanceDescriptor Instance)
++    {
++        if (Instance == null)
++        {
++            throw new ArgumentNullException(nameof(Instance));
++        }
++
++        if (string.IsNullOrWhiteSpace(Instance.InstanceId) || string.IsNullOrWhiteSpace(Instance.ProjectName) ||
++            string.IsNullOrWhiteSpace(Instance.ProjectRootPath) || !Path.IsPathFullyQualified(Instance.ProjectRootPath) ||
++            string.IsNullOrWhiteSpace(Instance.ProjectGeneration) || string.IsNullOrWhiteSpace(Instance.Endpoint) ||
++            string.IsNullOrWhiteSpace(Instance.EditorVersion) || Instance.ContractVersion <= 0 || Instance.ProcessId <= 0 || Instance.StartedAt == default)
++        {
++            throw new ArgumentException("An editor descriptor must contain an identity, absolute project path, endpoint, version, process id, contract version, and start time.", nameof(Instance));
++        }
++    }
++
++    /// <summary>Creates a detached descriptor snapshot before serialization.</summary>
++    /// <param name="Instance">The caller-owned descriptor.</param>
++    /// <returns>A copy containing only the public, non-secret instance fields.</returns>
++    static EditorInstanceDescriptor CopyDescriptor(EditorInstanceDescriptor Instance)
++    {
++        return new EditorInstanceDescriptor
++        {
++            InstanceId = Instance.InstanceId,
++            ProjectName = Instance.ProjectName,
++            ProjectRootPath = Instance.ProjectRootPath,
++            ProjectGeneration = Instance.ProjectGeneration,
++            Endpoint = Instance.Endpoint,
++            ContractVersion = Instance.ContractVersion,
++            EditorVersion = Instance.EditorVersion,
++            ProcessId = Instance.ProcessId,
++            StartedAt = Instance.StartedAt
++        };
++    }
++
++    /// <summary>Creates a private same-directory temporary file and atomically replaces one descriptor.</summary>
++    /// <param name="EntryPath">The final file path inside the private root.</param>
++    /// <param name="Contents">The complete serialized file contents.</param>
++    static void WriteAtomically(string EntryPath, byte[] Contents)
++    {
++        string TempPath = EntryPath + ".tmp-" + Guid.NewGuid().ToString("N");
++        string ParentDirectory = Path.GetDirectoryName(EntryPath);
++        EditorRegistryPaths.VerifyPrivateDirectory(ParentDirectory);
++
++        if (EditorRegistryPaths.TryGetAttributes(EntryPath, out FileAttributes ExistingAttributes) &&
++            ((ExistingAttributes & FileAttributes.ReparsePoint) != 0 || (ExistingAttributes & FileAttributes.Directory) != 0))
++        {
++            throw new IOException("An atomic registry destination cannot be a directory or reparse point.");
++        }
++
++        try
++        {
++            FileSecurity FileSecurity = EditorRegistryPaths.CreatePrivateFileSecurity();
++            using (FileStream Stream = FileSystemAclExtensions.Create(new FileInfo(TempPath), FileMode.CreateNew, FileSystemRights.FullControl, FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.WriteThrough, FileSecurity))
++            {
++                Stream.Write(Contents, 0, Contents.Length);
++                Stream.Flush(true);
++
++                EditorRegistryPaths.VerifyPrivateDirectory(ParentDirectory);
++                if (EditorRegistryPaths.TryGetAttributes(EntryPath, out FileAttributes CurrentAttributes) &&
++                    ((CurrentAttributes & FileAttributes.ReparsePoint) != 0 || (CurrentAttributes & FileAttributes.Directory) != 0))
++                {
++                    throw new IOException("An atomic registry destination changed into a directory or reparse point.");
++                }
++
++                RenameAtomically(Stream.SafeFileHandle, EntryPath);
++            }
++        }
++        finally
++        {
++            if (EditorRegistryPaths.TryGetAttributes(TempPath, out FileAttributes TempAttributes) &&
++                (TempAttributes & FileAttributes.ReparsePoint) == 0 &&
++                (TempAttributes & FileAttributes.Directory) == 0)
++            {
++                File.Delete(TempPath);
++            }
++        }
++    }
++
++    /// <summary>Atomically publishes the complete temporary file, including over an open prior descriptor.</summary>
++    /// <param name="TemporaryFileHandle">The private, flushed file handle opened with delete access.</param>
++    /// <param name="EntryPath">The exact destination path in the checked private registry directory.</param>
++    static void RenameAtomically(Microsoft.Win32.SafeHandles.SafeFileHandle TemporaryFileHandle, string EntryPath)
++    {
++        byte[] FileNameBytes = System.Text.Encoding.Unicode.GetBytes(Path.GetFullPath(EntryPath));
++        int FileNameOffset = Marshal.OffsetOf<NativeFileRenameInformationEx>(nameof(NativeFileRenameInformationEx.FileName)).ToInt32();
++        int FileNameLengthOffset = Marshal.OffsetOf<NativeFileRenameInformationEx>(nameof(NativeFileRenameInformationEx.FileNameLength)).ToInt32();
++        int BufferLength = checked(Marshal.SizeOf<NativeFileRenameInformationEx>() + FileNameBytes.Length);
++        IntPtr RenameInformation = Marshal.AllocHGlobal(BufferLength);
++
++        try
++        {
++            for (int Index = 0; Index < BufferLength; Index++)
++            {
++                Marshal.WriteByte(RenameInformation, Index, 0);
++            }
++
++            Marshal.WriteInt32(RenameInformation, 0, unchecked((int)(ReplaceExistingFile | PosixReplaceOpenFile)));
++            Marshal.WriteIntPtr(RenameInformation, Marshal.OffsetOf<NativeFileRenameInformationEx>(nameof(NativeFileRenameInformationEx.RootDirectory)).ToInt32(), IntPtr.Zero);
++            Marshal.WriteInt32(RenameInformation, FileNameLengthOffset, FileNameBytes.Length);
++            Marshal.Copy(FileNameBytes, 0, IntPtr.Add(RenameInformation, FileNameOffset), FileNameBytes.Length);
++
++            if (!SetFileInformationByHandle(TemporaryFileHandle, FileRenameInfoExClass, RenameInformation, (uint)BufferLength))
++            {
++                int ErrorCode = Marshal.GetLastWin32Error();
++                throw new Win32Exception(ErrorCode, $"Windows could not atomically publish the editor registry descriptor (Win32 error {ErrorCode}: {new Win32Exception(ErrorCode).Message}).");
++            }
++        }
++        finally
++        {
++            Marshal.FreeHGlobal(RenameInformation);
++        }
++    }
++
++    /// <summary>Identifies expected invalid-entry failures that should be diagnosed without ending enumeration.</summary>
++    /// <param name="Error">The error raised while reading one candidate.</param>
++    /// <returns>True for malformed, unsafe, inaccessible, or invalid candidate files.</returns>
++    static bool IsInvalidEntryError(Exception Error)
++    {
++        return Error is IOException || Error is UnauthorizedAccessException || Error is JsonException ||
++            Error is ArgumentException || Error is System.Security.SecurityException;
++    }
++
++    /// <summary>Native FILE_RENAME_INFORMATION_EX header followed by the variable UTF-16 destination name.</summary>
++    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
++    struct NativeFileRenameInformationEx
++    {
++        /// <summary>Gets or sets replace-existing and POSIX open-handle replacement flags.</summary>
++        public uint Flags;
++
++        /// <summary>Gets or sets the optional target directory handle; zero means the full path is supplied.</summary>
++        public IntPtr RootDirectory;
++
++        /// <summary>Gets or sets the destination name length in bytes.</summary>
++        public uint FileNameLength;
++
++        /// <summary>Marks the start of the variable UTF-16 destination name.</summary>
++        public char FileName;
++    }
++
++    /// <summary>Renames a file handle atomically, optionally replacing an existing path with POSIX handle semantics.</summary>
++    /// <param name="FileHandle">An open handle with DELETE access to the source file.</param>
++    /// <param name="FileInformationClass">The FILE_INFO_BY_HANDLE_CLASS value for FILE_RENAME_INFO_EX.</param>
++    /// <param name="FileInformation">The variable-length FILE_RENAME_INFORMATION_EX buffer.</param>
++    /// <param name="BufferSize">The size in bytes of <paramref name="FileInformation"/>.</param>
++    /// <returns>True when the filesystem performed the atomic rename.</returns>
++    [DllImport("kernel32.dll", EntryPoint = "SetFileInformationByHandle", SetLastError = true)]
++    [return: MarshalAs(UnmanagedType.Bool)]
++    static extern bool SetFileInformationByHandle(Microsoft.Win32.SafeHandles.SafeFileHandle FileHandle, int FileInformationClass, IntPtr FileInformation, uint BufferSize);
++}
+diff --git a/engine/helengine.editor.automation/discovery/EditorLocalCredentialStore.cs b/engine/helengine.editor.automation/discovery/EditorLocalCredentialStore.cs
+new file mode 100644
+index 00000000..45a1cc27
+--- /dev/null
++++ b/engine/helengine.editor.automation/discovery/EditorLocalCredentialStore.cs
+@@ -0,0 +1,235 @@
++using System.ComponentModel;
++using System.Security.AccessControl;
++using System.Security.Cryptography;
++using System.Text.Json;
++using System.Text.Json.Serialization;
++using Microsoft.Win32.SafeHandles;
++
++namespace helengine.editor.automation.discovery;
++
++/// <summary>
++/// Stores one cryptographically random bearer credential per local editor instance.
++/// </summary>
++public sealed class EditorLocalCredentialStore
++{
++    /// <summary>File suffix for records containing private bearer credentials.</summary>
++    const string CredentialExtension = ".token";
++    /// <summary>JSON options that reject unrecognized private credential fields.</summary>
++    static readonly JsonSerializerOptions CredentialJsonOptions = new()
++    {
++        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
++    };
++
++    /// <summary>Absolute protected directory holding this store's credential files.</summary>
++    readonly string DirectoryPath;
++
++    /// <summary>Creates a credential store below an absolute directory protected for the current Windows user.</summary>
++    /// <param name="DirectoryPath">The absolute private directory used for bearer credentials.</param>
++    public EditorLocalCredentialStore(string DirectoryPath)
++    {
++        this.DirectoryPath = EditorRegistryPaths.PreparePrivateDirectory(DirectoryPath);
++    }
++
++    /// <summary>Creates a new 256-bit bearer token and publishes it atomically for one instance identity.</summary>
++    /// <param name="InstanceId">The exact case-sensitive identity of the editor instance.</param>
++    /// <returns>The newly created lowercase hexadecimal bearer token.</returns>
++    public string Create(string InstanceId)
++    {
++        ValidateInstanceId(InstanceId);
++        EditorRegistryPaths.VerifyPrivateDirectory(DirectoryPath);
++        string EntryPath = EditorRegistryPaths.GetEntryPath(DirectoryPath, InstanceId, CredentialExtension);
++        if (EditorRegistryPaths.TryGetAttributes(EntryPath, out FileAttributes ExistingAttributes))
++        {
++            if ((ExistingAttributes & FileAttributes.ReparsePoint) != 0 || (ExistingAttributes & FileAttributes.Directory) != 0)
++            {
++                throw new IOException("A credential destination cannot be a directory or reparse point.");
++            }
++
++            throw new IOException("A credential already exists for this editor instance.");
++        }
++
++        byte[] RandomBytes = RandomNumberGenerator.GetBytes(32);
++        string Token;
++        try
++        {
++            Token = Convert.ToHexString(RandomBytes).ToLowerInvariant();
++        }
++        finally
++        {
++            CryptographicOperations.ZeroMemory(RandomBytes);
++        }
++
++        byte[] CredentialBytes = JsonSerializer.SerializeToUtf8Bytes(new CredentialRecord
++        {
++            InstanceId = InstanceId,
++            Token = Token
++        });
++        WriteAtomically(EntryPath, CredentialBytes);
++        return Token;
++    }
++
++    /// <summary>Reads a token only when the private file still contains the exact requested instance identity.</summary>
++    /// <param name="InstanceId">The exact case-sensitive identity of the editor instance.</param>
++    /// <returns>The bearer token created for that instance.</returns>
++    public string Read(string InstanceId)
++    {
++        ValidateInstanceId(InstanceId);
++        EditorRegistryPaths.VerifyPrivateDirectory(DirectoryPath);
++        string EntryPath = EditorRegistryPaths.GetEntryPath(DirectoryPath, InstanceId, CredentialExtension);
++        if (!EditorRegistryPaths.TryGetAttributes(EntryPath, out FileAttributes Attributes))
++        {
++            throw new FileNotFoundException("No local credential exists for this editor instance.", EntryPath);
++        }
++
++        if ((Attributes & FileAttributes.ReparsePoint) != 0 || (Attributes & FileAttributes.Directory) != 0)
++        {
++            throw new IOException("A local credential cannot be read through a directory or reparse point.");
++        }
++
++        CredentialRecord Record = ReadRecord(EntryPath);
++        ValidateRecord(Record, InstanceId);
++        return Record.Token;
++    }
++
++    /// <summary>Deletes only the regular credential file whose contents still identify the requested instance.</summary>
++    /// <param name="InstanceId">The exact case-sensitive identity of the editor instance.</param>
++    public void Delete(string InstanceId)
++    {
++        Delete(InstanceId, null);
++    }
++
++    /// <summary>Deletes only the validated credential file object, preserving any replacement at its path.</summary>
++    /// <param name="InstanceId">The exact case-sensitive identity whose credential is being deleted.</param>
++    /// <param name="BeforeDelete">An internal synchronization action used to exercise replacement races in tests.</param>
++    internal void Delete(string InstanceId, Action BeforeDelete)
++    {
++        ValidateInstanceId(InstanceId);
++        EditorRegistryPaths.VerifyPrivateDirectory(DirectoryPath);
++        string EntryPath = EditorRegistryPaths.GetEntryPath(DirectoryPath, InstanceId, CredentialExtension);
++        if (!EditorRegistryPaths.TryGetAttributes(EntryPath, out FileAttributes Attributes))
++        {
++            return;
++        }
++
++        if ((Attributes & FileAttributes.ReparsePoint) != 0 || (Attributes & FileAttributes.Directory) != 0)
++        {
++            throw new IOException("Refused to delete a credential directory or reparse point.");
++        }
++
++        SafeFileHandle EntryHandle;
++        try
++        {
++            EntryHandle = EditorRegistryPaths.OpenRegularFileForConditionalDelete(EntryPath);
++        }
++        catch (Win32Exception Error) when (Error.NativeErrorCode == 2 || Error.NativeErrorCode == 3)
++        {
++            return;
++        }
++
++        using (EntryHandle)
++        {
++            using FileStream Stream = new(EntryHandle, FileAccess.Read, 4096, false);
++            CredentialRecord Record = ReadRecord(Stream);
++            ValidateRecord(Record, InstanceId);
++            BeforeDelete?.Invoke();
++            EditorRegistryPaths.VerifyPrivateDirectory(DirectoryPath);
++            EditorRegistryPaths.DeleteOpenedFile(Stream.SafeFileHandle);
++        }
++    }
++
++    /// <summary>Writes a credential to a same-directory private file before atomically publishing it without replacement.</summary>
++    /// <param name="EntryPath">The final credential path inside the secured root.</param>
++    /// <param name="Contents">The complete serialized credential record.</param>
++    static void WriteAtomically(string EntryPath, byte[] Contents)
++    {
++        string TempPath = EntryPath + ".tmp-" + Guid.NewGuid().ToString("N");
++        string ParentDirectory = Path.GetDirectoryName(EntryPath);
++        EditorRegistryPaths.VerifyPrivateDirectory(ParentDirectory);
++
++        try
++        {
++            FileSecurity FileSecurity = EditorRegistryPaths.CreatePrivateFileSecurity();
++            using (FileStream Stream = FileSystemAclExtensions.Create(new FileInfo(TempPath), FileMode.CreateNew, FileSystemRights.FullControl, FileShare.None, 4096, FileOptions.WriteThrough, FileSecurity))
++            {
++                Stream.Write(Contents, 0, Contents.Length);
++                Stream.Flush(true);
++            }
++
++            EditorRegistryPaths.VerifyPrivateDirectory(ParentDirectory);
++            if (EditorRegistryPaths.TryGetAttributes(EntryPath, out FileAttributes ExistingAttributes))
++            {
++                if ((ExistingAttributes & FileAttributes.ReparsePoint) != 0 || (ExistingAttributes & FileAttributes.Directory) != 0)
++                {
++                    throw new IOException("A credential destination cannot be a directory or reparse point.");
++                }
++
++                throw new IOException("A credential already exists for this editor instance.");
++            }
++
++            File.Move(TempPath, EntryPath);
++        }
++        finally
++        {
++            if (EditorRegistryPaths.TryGetAttributes(TempPath, out FileAttributes TempAttributes) &&
++                (TempAttributes & FileAttributes.ReparsePoint) == 0 &&
++                (TempAttributes & FileAttributes.Directory) == 0)
++            {
++                File.Delete(TempPath);
++            }
++        }
++    }
++
++    /// <summary>Reads one private JSON credential record.</summary>
++    /// <param name="EntryPath">The already checked credential file path.</param>
++    /// <returns>The stored instance identity and bearer token.</returns>
++    static CredentialRecord ReadRecord(string EntryPath)
++    {
++        using FileStream Stream = new(EntryPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.SequentialScan);
++        return ReadRecord(Stream);
++    }
++
++    /// <summary>Deserializes one credential record from the exact file stream validated for deletion.</summary>
++    /// <param name="Stream">The stream bound to the private credential file object.</param>
++    /// <returns>The identity and bearer token stored in the file.</returns>
++    static CredentialRecord ReadRecord(Stream Stream)
++    {
++        CredentialRecord Record = JsonSerializer.Deserialize<CredentialRecord>(Stream, CredentialJsonOptions);
++        return Record ?? throw new InvalidDataException("The local credential record is empty.");
++    }
++
++    /// <summary>Checks that the record identity matches and its credential is a complete 256-bit token.</summary>
++    /// <param name="Record">The deserialized credential record.</param>
++    /// <param name="ExpectedInstanceId">The exact identity selected by the caller.</param>
++    static void ValidateRecord(CredentialRecord Record, string ExpectedInstanceId)
++    {
++        if (!string.Equals(Record.InstanceId, ExpectedInstanceId, StringComparison.Ordinal))
++        {
++            throw new InvalidDataException("The local credential file does not match the requested editor instance.");
++        }
++
++        if (Record.Token == null || Record.Token.Length != 64 || Record.Token.Any(Character => !Uri.IsHexDigit(Character)))
++        {
++            throw new InvalidDataException("The local credential record does not contain a valid 256-bit token.");
++        }
++    }
++
++    /// <summary>Rejects empty instance identities before deriving a private file name.</summary>
++    /// <param name="InstanceId">The exact identity to validate.</param>
++    static void ValidateInstanceId(string InstanceId)
++    {
++        if (string.IsNullOrWhiteSpace(InstanceId))
++        {
++            throw new ArgumentException("An instance identity is required.", nameof(InstanceId));
++        }
++    }
++
++    /// <summary>Private serialized fields retained separately from public editor descriptors.</summary>
++    sealed class CredentialRecord
++    {
++        /// <summary>Gets or sets the real case-sensitive editor identity used to verify the hashed filename.</summary>
++        public string InstanceId { get; set; }
++
++        /// <summary>Gets or sets the bearer token protected by the file's user-only ACL.</summary>
++        public string Token { get; set; }
++    }
++}
+diff --git a/engine/helengine.editor.automation/discovery/EditorRegistryPaths.cs b/engine/helengine.editor.automation/discovery/EditorRegistryPaths.cs
+new file mode 100644
+index 00000000..b05131b4
+--- /dev/null
++++ b/engine/helengine.editor.automation/discovery/EditorRegistryPaths.cs
+@@ -0,0 +1,385 @@
++using System.ComponentModel;
++using System.Runtime.CompilerServices;
++using System.Runtime.InteropServices;
++using System.Security.AccessControl;
++using System.Security.Cryptography;
++using System.Security.Principal;
++using System.Text;
++using Microsoft.Win32.SafeHandles;
++
++[assembly: InternalsVisibleTo("helengine.editor.mcp.tests")]
++
++namespace helengine.editor.automation.discovery;
++
++/// <summary>
++/// Defines per-user storage locations and the private filesystem primitives used by discovery.
++/// </summary>
++public static class EditorRegistryPaths
++{
++    /// <summary>Per-user product directory under LocalApplicationData.</summary>
++    const string ProductDirectoryName = "Helengine";
++    /// <summary>Product storage root reserved for editor MCP discovery.</summary>
++    const string AutomationDirectoryName = "EditorMcp";
++    /// <summary>Subdirectory containing non-secret editor instance descriptors.</summary>
++    const string RegistryDirectoryName = "instances";
++    /// <summary>Subdirectory containing bearer credentials kept separate from descriptors.</summary>
++    const string CredentialDirectoryName = "credentials";
++    /// <summary>Win32 desired-access bit for reading an opened local file.</summary>
++    const uint GenericReadAccess = 0x80000000;
++    /// <summary>Win32 desired-access bit required to mark the opened file object for deletion.</summary>
++    const uint DeleteAccess = 0x00010000;
++    /// <summary>Win32 flag that opens a reparse point itself instead of following its target.</summary>
++    const uint FileFlagOpenReparsePoint = 0x00200000;
++    /// <summary>Win32 information class for file attributes and a reparse tag.</summary>
++    const int FileAttributeTagInformationClass = 9;
++    /// <summary>Win32 information class for file link count and delete state.</summary>
++    const int FileStandardInformationClass = 1;
++    /// <summary>Win32 information class that sets deletion on the opened file object.</summary>
++    const int FileDispositionInformationClass = 4;
++    /// <summary>Win32 attribute indicating a symbolic link, junction, or other reparse point.</summary>
++    const uint ReparsePointAttribute = 0x00000400;
++    /// <summary>Win32 attribute indicating a directory rather than a regular file.</summary>
++    const uint DirectoryAttribute = 0x00000010;
++
++    /// <summary>Returns the production directory containing editor instance descriptors.</summary>
++    /// <returns>An absolute path below the current user's local application data.</returns>
++    public static string GetRegistryDirectory()
++    {
++        return Path.Combine(GetAutomationRoot(), RegistryDirectoryName);
++    }
++
++    /// <summary>Returns the production directory containing per-instance bearer credentials.</summary>
++    /// <returns>An absolute path below the current user's local application data.</returns>
++    public static string GetCredentialDirectory()
++    {
++        return Path.Combine(GetAutomationRoot(), CredentialDirectoryName);
++    }
++
++    /// <summary>Creates or secures an absolute private directory for registry or credential data.</summary>
++    /// <param name="DirectoryPath">The caller-selected absolute directory.</param>
++    /// <returns>The full path after creation and reparse-point checks.</returns>
++    internal static string PreparePrivateDirectory(string DirectoryPath)
++    {
++        EnsureWindowsPlatform();
++        if (!Path.IsPathFullyQualified(DirectoryPath))
++        {
++            throw new ArgumentException("The private storage directory must be an absolute path.", nameof(DirectoryPath));
++        }
++
++        string FullPath = Path.GetFullPath(DirectoryPath);
++        string PathRoot = Path.GetPathRoot(FullPath);
++        if (string.Equals(FullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), PathRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
++        {
++            throw new ArgumentException("A filesystem root cannot be used as private storage.", nameof(DirectoryPath));
++        }
++
++        EnsureNoReparsePointInPath(FullPath);
++        DirectorySecurity Security = CreatePrivateDirectorySecurity();
++        DirectoryInfo Directory = FileSystemAclExtensions.CreateDirectory(Security, FullPath);
++        FileAttributes Attributes = File.GetAttributes(Directory.FullName);
++        if ((Attributes & FileAttributes.Directory) == 0 || (Attributes & FileAttributes.ReparsePoint) != 0)
++        {
++            throw new IOException("Private storage must be a real directory, not a file or reparse point.");
++        }
++
++        FileSystemAclExtensions.SetAccessControl(Directory, Security);
++        EnsureNoReparsePointInPath(Directory.FullName);
++        return Directory.FullName;
++    }
++
++    /// <summary>Confirms an initialized private directory remains a real directory inside its supplied path.</summary>
++    /// <param name="DirectoryPath">The private root to validate before each filesystem operation.</param>
++    internal static void VerifyPrivateDirectory(string DirectoryPath)
++    {
++        EnsureWindowsPlatform();
++        EnsureNoReparsePointInPath(DirectoryPath);
++        FileAttributes Attributes = File.GetAttributes(DirectoryPath);
++        if ((Attributes & FileAttributes.Directory) == 0 || (Attributes & FileAttributes.ReparsePoint) != 0)
++        {
++            throw new IOException("Private storage directory was replaced by a file or reparse point.");
++        }
++    }
++
++    /// <summary>Builds a flat entry path from the exact instance identity without exposing it as a path segment.</summary>
++    /// <param name="DirectoryPath">The already secured storage root.</param>
++    /// <param name="InstanceId">The case-sensitive identity stored in the entry contents.</param>
++    /// <param name="Extension">The fixed extension used by the owning store.</param>
++    /// <returns>A normalized child path in the storage root.</returns>
++    internal static string GetEntryPath(string DirectoryPath, string InstanceId, string Extension)
++    {
++        if (string.IsNullOrWhiteSpace(InstanceId))
++        {
++            throw new ArgumentException("An instance identity is required.", nameof(InstanceId));
++        }
++
++        if (Extension != ".json" && Extension != ".token")
++        {
++            throw new ArgumentException("Only registry and credential entries are supported.", nameof(Extension));
++        }
++
++        byte[] IdentityBytes = Encoding.UTF8.GetBytes(InstanceId);
++        string FileName = Convert.ToHexString(SHA256.HashData(IdentityBytes)).ToLowerInvariant() + Extension;
++        string EntryPath = Path.GetFullPath(Path.Combine(DirectoryPath, FileName));
++        if (!string.Equals(Path.GetDirectoryName(EntryPath), Path.GetFullPath(DirectoryPath), StringComparison.OrdinalIgnoreCase))
++        {
++            throw new IOException("A local registry entry resolved outside its private directory.");
++        }
++
++        return EntryPath;
++    }
++
++    /// <summary>Returns private directory permissions with inheritance disabled and only the current user granted.</summary>
++    /// <returns>A DACL suitable for a discovery directory.</returns>
++    internal static DirectorySecurity CreatePrivateDirectorySecurity()
++    {
++        SecurityIdentifier UserSid = GetCurrentUserSid();
++        DirectorySecurity Security = new();
++        Security.SetAccessRuleProtection(true, false);
++        Security.AddAccessRule(new FileSystemAccessRule(UserSid, FileSystemRights.FullControl, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
++        return Security;
++    }
++
++    /// <summary>Returns file permissions with inheritance disabled and only the current user granted.</summary>
++    /// <returns>A DACL suitable for a descriptor, temporary publish file, or credential file.</returns>
++    internal static FileSecurity CreatePrivateFileSecurity()
++    {
++        SecurityIdentifier UserSid = GetCurrentUserSid();
++        FileSecurity Security = new();
++        Security.SetAccessRuleProtection(true, false);
++        Security.AddAccessRule(new FileSystemAccessRule(UserSid, FileSystemRights.FullControl, AccessControlType.Allow));
++        return Security;
++    }
++
++    /// <summary>Opens one regular private file for read and conditional deletion without following a reparse point.</summary>
++    /// <param name="EntryPath">The checked file path whose identity must remain attached to its open handle.</param>
++    /// <returns>An open handle with read and delete access to the exact regular file at the path.</returns>
++    internal static SafeFileHandle OpenRegularFileForConditionalDelete(string EntryPath)
++    {
++        SafeFileHandle Handle = CreateFileW(EntryPath, GenericReadAccess | DeleteAccess,
++            (uint)(FileShare.Read | FileShare.Write | FileShare.Delete), IntPtr.Zero, 3, FileFlagOpenReparsePoint, IntPtr.Zero);
++        if (Handle.IsInvalid)
++        {
++            int ErrorCode = Marshal.GetLastWin32Error();
++            Handle.Dispose();
++            throw new Win32Exception(ErrorCode, $"Windows could not open the private file for identity-checked removal (Win32 error {ErrorCode}: {new Win32Exception(ErrorCode).Message}).");
++        }
++
++        try
++        {
++            if (!GetFileInformationByHandleEx(Handle, FileAttributeTagInformationClass, out NativeFileAttributeTagInformation Information, (uint)Marshal.SizeOf<NativeFileAttributeTagInformation>()))
++            {
++                int ErrorCode = Marshal.GetLastWin32Error();
++                throw new Win32Exception(ErrorCode, $"Windows could not inspect the opened private file (Win32 error {ErrorCode}: {new Win32Exception(ErrorCode).Message}).");
++            }
++
++            if ((Information.FileAttributes & ReparsePointAttribute) != 0 || (Information.FileAttributes & DirectoryAttribute) != 0)
++            {
++                throw new IOException("Conditional deletion requires an opened regular file, not a directory or reparse point.");
++            }
++
++            return Handle;
++        }
++        catch
++        {
++            Handle.Dispose();
++            throw;
++        }
++    }
++
++    /// <summary>Marks the exact file object referenced by a validated handle for deletion.</summary>
++    /// <param name="Handle">The regular private file handle whose identity has already been validated.</param>
++    internal static void DeleteOpenedFile(SafeFileHandle Handle)
++    {
++        NativeFileStandardInformation InitialInformation = GetFileStandardInformation(Handle);
++        if (InitialInformation.NumberOfLinks == 0)
++        {
++            return;
++        }
++
++        NativeFileDispositionInformation Information = new()
++        {
++            DeleteFile = 1
++        };
++        if (!SetFileInformationByHandle(Handle, FileDispositionInformationClass, ref Information, (uint)Marshal.SizeOf<NativeFileDispositionInformation>()))
++        {
++            int ErrorCode = Marshal.GetLastWin32Error();
++            if (ErrorCode == 5 && GetFileStandardInformation(Handle).NumberOfLinks == 0)
++            {
++                return;
++            }
++
++            throw new Win32Exception(ErrorCode, $"Windows could not remove the validated private file handle (Win32 error {ErrorCode}: {new Win32Exception(ErrorCode).Message}).");
++        }
++    }
++
++    /// <summary>Reads standard metadata from a file handle to determine whether its name was already replaced.</summary>
++    /// <param name="Handle">The validated file object whose remaining link count should be inspected.</param>
++    /// <returns>The standard file metadata reported for the opened object.</returns>
++    static NativeFileStandardInformation GetFileStandardInformation(SafeFileHandle Handle)
++    {
++        if (!GetFileInformationByHandleEx(Handle, FileStandardInformationClass, out NativeFileStandardInformation Information, (uint)Marshal.SizeOf<NativeFileStandardInformation>()))
++        {
++            int ErrorCode = Marshal.GetLastWin32Error();
++            throw new Win32Exception(ErrorCode, $"Windows could not inspect the opened private file's link count (Win32 error {ErrorCode}: {new Win32Exception(ErrorCode).Message}).");
++        }
++
++        return Information;
++    }
++
++    /// <summary>Ensures callers do not use a platform where the Windows ACL guarantee is unavailable.</summary>
++    internal static void EnsureWindowsPlatform()
++    {
++        if (!OperatingSystem.IsWindows())
++        {
++            throw new PlatformNotSupportedException("Editor discovery storage requires Windows filesystem ACL support.");
++        }
++    }
++
++    /// <summary>Returns the current process user's SID or fails before creating private storage.</summary>
++    /// <returns>The user SID whose access alone is granted to local discovery files.</returns>
++    static SecurityIdentifier GetCurrentUserSid()
++    {
++        using WindowsIdentity Identity = WindowsIdentity.GetCurrent();
++        return Identity.User ?? throw new InvalidOperationException("Windows did not provide a user SID for private editor storage.");
++    }
++
++    /// <summary>Native FILE_ATTRIBUTE_TAG_INFO returned for the exact file object opened by handle.</summary>
++    [StructLayout(LayoutKind.Sequential)]
++    struct NativeFileAttributeTagInformation
++    {
++        /// <summary>Gets the file attributes associated with the opened file object.</summary>
++        public uint FileAttributes;
++
++        /// <summary>Gets the tag identifying the reparse-point kind when the object is a reparse point.</summary>
++        public uint ReparseTag;
++    }
++
++    /// <summary>Native FILE_DISPOSITION_INFO payload that marks an opened file for deletion.</summary>
++    [StructLayout(LayoutKind.Sequential)]
++    struct NativeFileDispositionInformation
++    {
++        /// <summary>Gets or sets whether the opened file object should be deleted when its handles close.</summary>
++        public byte DeleteFile;
++    }
++
++    /// <summary>Native FILE_STANDARD_INFO returned for one open file object.</summary>
++    [StructLayout(LayoutKind.Sequential)]
++    struct NativeFileStandardInformation
++    {
++        /// <summary>Gets the number of filesystem bytes reserved by the file.</summary>
++        public long AllocationSize;
++
++        /// <summary>Gets the logical byte length of the file.</summary>
++        public long EndOfFile;
++
++        /// <summary>Gets the number of directory entries that currently name the file object.</summary>
++        public uint NumberOfLinks;
++
++        /// <summary>Gets whether deletion has already been requested for the file object.</summary>
++        public byte DeletePending;
++
++        /// <summary>Gets whether the file object is a directory.</summary>
++        public byte Directory;
++    }
++
++    /// <summary>Opens a file with optional reparse-point following behavior and explicit share permissions.</summary>
++    /// <param name="FileName">The absolute file path to open.</param>
++    /// <param name="DesiredAccess">The read and delete access requested for the file.</param>
++    /// <param name="ShareMode">The access other handles may request while this handle remains open.</param>
++    /// <param name="SecurityAttributes">An optional security descriptor for a newly created file.</param>
++    /// <param name="CreationDisposition">The Win32 open-existing disposition used for the file.</param>
++    /// <param name="FlagsAndAttributes">The flags that open the reparse point itself for inspection.</param>
++    /// <param name="TemplateFile">An unused optional template handle.</param>
++    /// <returns>A safe handle for the exact opened filesystem object.</returns>
++    [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, SetLastError = true)]
++    static extern SafeFileHandle CreateFileW(string FileName, uint DesiredAccess, uint ShareMode, IntPtr SecurityAttributes, uint CreationDisposition, uint FlagsAndAttributes, IntPtr TemplateFile);
++
++    /// <summary>Queries selected metadata from the opened file object without resolving its path again.</summary>
++    /// <param name="Handle">The handle whose metadata should be read.</param>
++    /// <param name="FileInformationClass">The native class value for FILE_ATTRIBUTE_TAG_INFO.</param>
++    /// <param name="Information">The file attributes and reparse tag returned by Windows.</param>
++    /// <param name="BufferSize">The exact size of the native information structure.</param>
++    /// <returns>True when Windows filled the requested metadata structure.</returns>
++    [DllImport("kernel32.dll", EntryPoint = "GetFileInformationByHandleEx", SetLastError = true)]
++    [return: MarshalAs(UnmanagedType.Bool)]
++    static extern bool GetFileInformationByHandleEx(SafeFileHandle Handle, int FileInformationClass, out NativeFileAttributeTagInformation Information, uint BufferSize);
++
++    /// <summary>Queries standard metadata from an opened filesystem object without resolving its path again.</summary>
++    /// <param name="Handle">The handle whose standard metadata should be read.</param>
++    /// <param name="FileInformationClass">The native class value for FILE_STANDARD_INFO.</param>
++    /// <param name="Information">The allocation, length, link count, and deletion state returned by Windows.</param>
++    /// <param name="BufferSize">The exact size of the native information structure.</param>
++    /// <returns>True when Windows filled the requested metadata structure.</returns>
++    [DllImport("kernel32.dll", EntryPoint = "GetFileInformationByHandleEx", SetLastError = true)]
++    [return: MarshalAs(UnmanagedType.Bool)]
++    static extern bool GetFileInformationByHandleEx(SafeFileHandle Handle, int FileInformationClass, out NativeFileStandardInformation Information, uint BufferSize);
++
++    /// <summary>Applies file disposition to the file object referenced by an open handle.</summary>
++    /// <param name="Handle">The validated regular file handle to mark for deletion.</param>
++    /// <param name="FileInformationClass">The native class value for FILE_DISPOSITION_INFO.</param>
++    /// <param name="Information">The delete disposition requested for this file object.</param>
++    /// <param name="BufferSize">The exact size of the native disposition structure.</param>
++    /// <returns>True when Windows accepted the disposition on the opened file object.</returns>
++    [DllImport("kernel32.dll", EntryPoint = "SetFileInformationByHandle", SetLastError = true)]
++    [return: MarshalAs(UnmanagedType.Bool)]
++    static extern bool SetFileInformationByHandle(SafeFileHandle Handle, int FileInformationClass, ref NativeFileDispositionInformation Information, uint BufferSize);
++
++    /// <summary>Rejects any existing path component that is a symbolic link, junction, or other reparse point.</summary>
++    /// <param name="FullPath">The absolute root path to check without following reparse points.</param>
++    static void EnsureNoReparsePointInPath(string FullPath)
++    {
++        string PathRoot = Path.GetPathRoot(FullPath);
++        if (string.IsNullOrEmpty(PathRoot))
++        {
++            throw new ArgumentException("Private storage path must have a filesystem root.", nameof(FullPath));
++        }
++
++        string CurrentPath = PathRoot;
++        string RelativePath = FullPath.Substring(PathRoot.Length);
++        string[] Segments = RelativePath.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
++        foreach (string Segment in Segments)
++        {
++            CurrentPath = Path.Combine(CurrentPath, Segment);
++            if (TryGetAttributes(CurrentPath, out FileAttributes Attributes) && (Attributes & FileAttributes.ReparsePoint) != 0)
++            {
++                throw new IOException($"Private storage path contains a reparse point: '{CurrentPath}'.");
++            }
++        }
++    }
++
++    /// <summary>Reads file attributes without following a missing path into a fallback location.</summary>
++    /// <param name="PathName">The exact path whose attributes should be queried.</param>
++    /// <param name="Attributes">The discovered attributes, or zero when the path does not exist.</param>
++    /// <returns>True when an entry exists at the path.</returns>
++    internal static bool TryGetAttributes(string PathName, out FileAttributes Attributes)
++    {
++        try
++        {
++            Attributes = File.GetAttributes(PathName);
++            return true;
++        }
++        catch (FileNotFoundException)
++        {
++            Attributes = 0;
++            return false;
++        }
++        catch (DirectoryNotFoundException)
++        {
++            Attributes = 0;
++            return false;
++        }
++    }
++
++    /// <summary>Resolves the stable production root below LocalApplicationData without creating it.</summary>
++    /// <returns>The per-user Helengine editor MCP storage root.</returns>
++    static string GetAutomationRoot()
++    {
++        string LocalApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
++        if (string.IsNullOrWhiteSpace(LocalApplicationData) || !Path.IsPathFullyQualified(LocalApplicationData))
++        {
++            throw new InvalidOperationException("Windows LocalApplicationData is unavailable for private editor discovery.");
++        }
++
++        return Path.Combine(LocalApplicationData, ProductDirectoryName, AutomationDirectoryName);
++    }
++}
+diff --git a/engine/helengine.editor.mcp.tests/EditorInstanceRegistryTests.cs b/engine/helengine.editor.mcp.tests/EditorInstanceRegistryTests.cs
+new file mode 100644
+index 00000000..ffda09ed
+--- /dev/null
++++ b/engine/helengine.editor.mcp.tests/EditorInstanceRegistryTests.cs
+@@ -0,0 +1,438 @@
++using System.ComponentModel;
++using System.Diagnostics;
++using System.Security.Cryptography;
++using System.Runtime.InteropServices;
++using System.Security.AccessControl;
++using System.Security.Principal;
++using System.Text.Json;
++using helengine.editor.automation;
++using helengine.editor.automation.discovery;
++
++namespace helengine.editor.mcp.tests;
++
++/// <summary>
++/// Exercises real local registry and credential files, including their Windows access checks.
++/// </summary>
++public sealed class EditorInstanceRegistryTests
++{
++    /// <summary>Environment variable that points tests to a visible task-specific artifacts directory.</summary>
++    const string ArtifactsEnvironmentVariable = "HELENGINE_EDITOR_MCP_ARTIFACTS";
++
++    /// <summary>
++    /// Verifies registry replacement stays atomic and descriptor and credential files remain private.
++    /// </summary>
++    [Fact]
++    public async Task Publish_is_atomic_and_private()
++    {
++        RequireWindows();
++        string Artifacts = GetArtifactsRoot();
++        string RegistryDirectory = GetFixtureDirectory("atomic-registry");
++        string CredentialDirectory = GetFixtureDirectory("private-credentials");
++        List<string> Issues = new();
++        EditorInstanceRegistry Registry = new(RegistryDirectory, Issues.Add);
++        EditorLocalCredentialStore Credentials = new(CredentialDirectory);
++        const string InstanceId = "atomic-instance";
++        string LargeProjectName = new('P', 128 * 1024);
++
++        Registry.Publish(CreateInstance(InstanceId, LargeProjectName, Path.Combine(Artifacts, "never-started-project")));
++        string EntryPath = Assert.Single(Directory.GetFiles(RegistryDirectory, "*.json"));
++        using ManualResetEventSlim Start = new(false);
++        using ManualResetEventSlim FirstRead = new(false);
++        List<string> InvalidSnapshots = new();
++        int ReadCount = 0;
++
++        Task Writer = Task.Run(() =>
++        {
++            Start.Wait();
++            FirstRead.Wait();
++            for (int Index = 0; Index < 24; Index++)
++            {
++                Registry.Publish(CreateInstance(InstanceId, LargeProjectName + Index, Path.Combine(Artifacts, "never-started-project")));
++            }
++        });
++
++        Task Reader = Task.Run(() =>
++        {
++            Start.Wait();
++            do
++            {
++                Interlocked.Increment(ref ReadCount);
++                try
++                {
++                    using FileStream Stream = new(EntryPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.SequentialScan);
++                    EditorInstanceDescriptor DirectSnapshot = JsonSerializer.Deserialize<EditorInstanceDescriptor>(Stream);
++                    if (DirectSnapshot == null || DirectSnapshot.InstanceId != InstanceId ||
++                        !DirectSnapshot.ProjectName.StartsWith(LargeProjectName, StringComparison.Ordinal) ||
++                        DirectSnapshot.ProjectRootPath != Path.Combine(Artifacts, "never-started-project"))
++                    {
++                        lock (InvalidSnapshots)
++                        {
++                            InvalidSnapshots.Add($"The direct descriptor read was incomplete or changed identity; targetExists={File.Exists(EntryPath)}.");
++                        }
++                    }
++                }
++                catch (Exception Error)
++                {
++                    lock (InvalidSnapshots)
++                    {
++                        InvalidSnapshots.Add($"The direct descriptor read failed with {Error.GetType().Name}: {Error.Message}; targetExists={File.Exists(EntryPath)}.");
++                    }
++                }
++
++                FirstRead.Set();
++                Thread.Yield();
++            }
++            while (!Writer.IsCompleted);
++        });
++
++        Start.Set();
++        await Task.WhenAll(Writer, Reader);
++
++        Assert.True(ReadCount > 0);
++        Assert.True(InvalidSnapshots.Count == 0, InvalidSnapshots.FirstOrDefault());
++        Assert.Empty(Issues);
++        EditorInstanceDescriptor Latest = Assert.Single(Registry.ReadCandidates());
++        Assert.Equal(InstanceId, Latest.InstanceId);
++        Assert.Equal(LargeProjectName + "23", Latest.ProjectName);
++
++        string Credential = Credentials.Create(InstanceId);
++        Assert.Equal(Credential, Credentials.Read(InstanceId));
++        EditorInstanceDescriptor Published = Assert.Single(Registry.ReadCandidates());
++        string DescriptorJson = JsonSerializer.Serialize(Published);
++        using JsonDocument DescriptorDocument = JsonDocument.Parse(DescriptorJson);
++        Assert.False(DescriptorDocument.RootElement.TryGetProperty("credential", out _));
++        Assert.DoesNotContain(Credential, DescriptorJson, StringComparison.Ordinal);
++
++        string RegistryFile = Assert.Single(Directory.GetFiles(RegistryDirectory, "*.json"));
++        string CredentialFile = Assert.Single(Directory.GetFiles(CredentialDirectory, "*.token"));
++        AssertPrivateAccess(RegistryDirectory, RegistryFile);
++        AssertPrivateAccess(CredentialDirectory, CredentialFile);
++    }
++
++    /// <summary>
++    /// Verifies one corrupt record reports a diagnostic without suppressing a healthy candidate.
++    /// </summary>
++    [Fact]
++    public void Corrupt_entry_does_not_hide_healthy_instances()
++    {
++        RequireWindows();
++        string RegistryDirectory = GetFixtureDirectory("corrupt-entry");
++        List<string> Issues = new();
++        EditorInstanceRegistry Registry = new(RegistryDirectory, Issues.Add);
++        Registry.Publish(CreateInstance("healthy-instance", "Healthy Project", GetArtifactsRoot()));
++        File.WriteAllText(Path.Combine(RegistryDirectory, "manual-corrupt.json"), "{ this is not json");
++
++        IReadOnlyList<EditorInstanceDescriptor> Candidates = Registry.ReadCandidates();
++
++        Assert.Equal(1, Candidates.Count);
++        Assert.Equal("healthy-instance", Candidates[0].InstanceId);
++        Assert.Contains(Issues, Issue => Issue.Contains("manual-corrupt.json", StringComparison.OrdinalIgnoreCase));
++    }
++
++    /// <summary>
++    /// Verifies project name and root path do not collapse two editor instance identities.
++    /// </summary>
++    [Fact]
++    public void Same_name_and_same_project_keep_distinct_instances()
++    {
++        RequireWindows();
++        string RegistryDirectory = GetFixtureDirectory("distinct-instances");
++        EditorInstanceRegistry Registry = new(RegistryDirectory, _ => { });
++        string ProjectRoot = Path.Combine(GetArtifactsRoot(), "Shared Project");
++        Registry.Publish(CreateInstance("instance-copy-a", "Same Project", ProjectRoot));
++        Registry.Publish(CreateInstance("instance-copy-b", "Same Project", ProjectRoot));
++
++        IReadOnlyList<EditorInstanceDescriptor> Candidates = Registry.ReadCandidates();
++
++        Assert.Equal(2, Candidates.Count);
++        Assert.Equal(2, Candidates.Select(Candidate => Candidate.InstanceId).Distinct(StringComparer.Ordinal).Count());
++        Assert.All(Candidates, Candidate =>
++        {
++            Assert.Equal("Same Project", Candidate.ProjectName);
++            Assert.Equal(ProjectRoot, Candidate.ProjectRootPath);
++        });
++    }
++
++    /// <summary>
++    /// Verifies cleanup for an old identity cannot remove its same-project replacement.
++    /// </summary>
++    [Fact]
++    public void Cleanup_cannot_remove_replacement()
++    {
++        RequireWindows();
++        string RegistryDirectory = GetFixtureDirectory("replacement-cleanup");
++        EditorInstanceRegistry Registry = new(RegistryDirectory, _ => { });
++        string CredentialDirectory = GetFixtureDirectory("replacement-credentials");
++        EditorLocalCredentialStore Credentials = new(CredentialDirectory);
++        string ProjectRoot = Path.Combine(GetArtifactsRoot(), "Replaced Project");
++        Registry.Publish(CreateInstance("old-instance", "Same Project", ProjectRoot));
++        string OldCredential = Credentials.Create("old-instance");
++        Registry.Publish(CreateInstance("replacement-instance", "Same Project", ProjectRoot));
++        string ReplacementCredential = Credentials.Create("replacement-instance");
++        string ReplacementCredentialForOldInstance = null;
++
++        Registry.Remove("old-instance", () => Registry.Publish(CreateInstance("old-instance", "Replaced Same Identity", ProjectRoot)));
++        Credentials.Delete("old-instance", () =>
++        {
++            string CredentialPath = EditorRegistryPaths.GetEntryPath(CredentialDirectory, "old-instance", ".token");
++            string TemporaryPath = CredentialPath + ".replacement-" + Guid.NewGuid().ToString("N");
++            ReplacementCredentialForOldInstance = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
++            byte[] ReplacementBytes = JsonSerializer.SerializeToUtf8Bytes(new
++            {
++                InstanceId = "old-instance",
++                Token = ReplacementCredentialForOldInstance
++            });
++            using (FileStream Stream = FileSystemAclExtensions.Create(new FileInfo(TemporaryPath), FileMode.CreateNew, FileSystemRights.FullControl, FileShare.None, 4096, FileOptions.WriteThrough, EditorRegistryPaths.CreatePrivateFileSecurity()))
++            {
++                Stream.Write(ReplacementBytes, 0, ReplacementBytes.Length);
++                Stream.Flush(true);
++            }
++
++            File.Delete(CredentialPath);
++            File.Move(TemporaryPath, CredentialPath);
++        });
++
++        IReadOnlyList<EditorInstanceDescriptor> Remaining = Registry.ReadCandidates();
++        Assert.Equal(2, Remaining.Count);
++        Assert.Contains(Remaining, Candidate => Candidate.InstanceId == "replacement-instance");
++        Assert.Contains(Remaining, Candidate => Candidate.InstanceId == "old-instance" && Candidate.ProjectName == "Replaced Same Identity");
++        Assert.Equal(ReplacementCredential, Credentials.Read("replacement-instance"));
++        Assert.Equal(ReplacementCredentialForOldInstance, Credentials.Read("old-instance"));
++        Assert.NotEqual(OldCredential, ReplacementCredential);
++
++        Registry.Remove("replacement-instance");
++        Credentials.Delete("replacement-instance");
++        Assert.DoesNotContain(Registry.ReadCandidates(), Candidate => Candidate.InstanceId == "replacement-instance");
++        Assert.Throws<FileNotFoundException>(() => Credentials.Read("replacement-instance"));
++    }
++
++    /// <summary>
++    /// Verifies Unicode project roots retain their exact casing through a filesystem round trip.
++    /// </summary>
++    [Fact]
++    public void Unicode_and_case_paths_roundtrip()
++    {
++        RequireWindows();
++        string Artifacts = GetArtifactsRoot();
++        string ProjectRootOnDisk = Path.Combine(Artifacts, "Projects", "Helengine-Café-Ω", "Scene Editor");
++        Directory.CreateDirectory(ProjectRootOnDisk);
++        string ProjectRootSpelling = ProjectRootOnDisk.ToUpperInvariant();
++        Assert.True(Directory.Exists(ProjectRootSpelling));
++
++        EditorInstanceRegistry Registry = new(GetFixtureDirectory("unicode-path"), _ => { });
++        Registry.Publish(CreateInstance("unicode-instance", "Café Ω", ProjectRootSpelling));
++
++        EditorInstanceDescriptor Candidate = Assert.Single(Registry.ReadCandidates());
++
++        Assert.Equal(ProjectRootSpelling, Candidate.ProjectRootPath);
++        Assert.Contains("CAFÉ-Ω", Candidate.ProjectRootPath, StringComparison.Ordinal);
++    }
++
++    /// <summary>
++    /// Verifies a directory junction in a requested private storage path is rejected before writing through it.
++    /// </summary>
++    [Fact]
++    public void Private_storage_path_rejects_directory_junctions()
++    {
++        RequireWindows();
++        string Artifacts = GetArtifactsRoot();
++        string TargetDirectory = Path.Combine(Artifacts, "junction-target-" + Guid.NewGuid().ToString("N"));
++        string JunctionPath = Path.Combine(Artifacts, "junction-link-" + Guid.NewGuid().ToString("N"));
++        Directory.CreateDirectory(TargetDirectory);
++
++        try
++        {
++            ProcessStartInfo StartInfo = new("cmd.exe")
++            {
++                UseShellExecute = false,
++                CreateNoWindow = true,
++                RedirectStandardOutput = true,
++                RedirectStandardError = true
++            };
++            StartInfo.ArgumentList.Add("/d");
++            StartInfo.ArgumentList.Add("/c");
++            StartInfo.ArgumentList.Add("mklink");
++            StartInfo.ArgumentList.Add("/J");
++            StartInfo.ArgumentList.Add(JunctionPath);
++            StartInfo.ArgumentList.Add(TargetDirectory);
++
++            using Process JunctionCreator = Process.Start(StartInfo) ?? throw new InvalidOperationException("Windows could not start the junction test helper.");
++            string StandardOutput = JunctionCreator.StandardOutput.ReadToEnd();
++            string StandardError = JunctionCreator.StandardError.ReadToEnd();
++            JunctionCreator.WaitForExit();
++            Assert.True(JunctionCreator.ExitCode == 0, $"Could not create the isolated test junction: {StandardOutput} {StandardError}");
++
++            Assert.Throws<IOException>(() => new EditorInstanceRegistry(Path.Combine(JunctionPath, "registry"), _ => { }));
++            Assert.False(Directory.Exists(Path.Combine(TargetDirectory, "registry")));
++        }
++        finally
++        {
++            if (Directory.Exists(JunctionPath))
++            {
++                Directory.Delete(JunctionPath);
++            }
++
++            if (Directory.Exists(TargetDirectory))
++            {
++                Directory.Delete(TargetDirectory, true);
++            }
++        }
++    }
++
++    /// <summary>
++    /// Creates a descriptor with stable non-secret values for a local registry scenario.
++    /// </summary>
++    /// <param name="InstanceId">The identity used to distinguish one editor process.</param>
++    /// <param name="ProjectName">The displayed project name.</param>
++    /// <param name="ProjectRoot">The project path whose spelling should be persisted.</param>
++    /// <returns>A descriptor that deliberately does not prove its HTTP endpoint is live.</returns>
++    static EditorInstanceDescriptor CreateInstance(string InstanceId, string ProjectName, string ProjectRoot)
++    {
++        return new EditorInstanceDescriptor
++        {
++            InstanceId = InstanceId,
++            ProjectName = ProjectName,
++            ProjectRootPath = ProjectRoot,
++            ProjectGeneration = "generation-one",
++            Endpoint = "http://127.0.0.1:1/mcp",
++            ContractVersion = 1,
++            EditorVersion = "test-editor",
++            ProcessId = Environment.ProcessId,
++            StartedAt = DateTimeOffset.UtcNow
++        };
++    }
++
++    /// <summary>
++    /// Returns a unique fixture path below the visible artifacts directory supplied by the test command.
++    /// </summary>
++    /// <param name="Name">The behavior being exercised by the fixture.</param>
++    /// <returns>An absolute path reserved for this test invocation.</returns>
++    static string GetFixtureDirectory(string Name)
++    {
++        string Artifacts = GetArtifactsRoot();
++        return Path.Combine(Artifacts, "task02-fixtures", Name + "-" + Guid.NewGuid().ToString("N"));
++    }
++
++    /// <summary>
++    /// Requires an explicit visible artifacts root and refuses to fall back to a temporary directory.
++    /// </summary>
++    /// <returns>The absolute path configured by the task's PowerShell test command.</returns>
++    static string GetArtifactsRoot()
++    {
++        string Artifacts = Environment.GetEnvironmentVariable(ArtifactsEnvironmentVariable);
++        Assert.False(string.IsNullOrWhiteSpace(Artifacts), $"Set {ArtifactsEnvironmentVariable} to the task artifacts directory.");
++        Assert.True(Path.IsPathFullyQualified(Artifacts), $"{ArtifactsEnvironmentVariable} must be an absolute path.");
++        return Path.GetFullPath(Artifacts);
++    }
++
++    /// <summary>
++    /// Ensures the native ACL test runs on the supported Windows local-storage platform.
++    /// </summary>
++    static void RequireWindows()
++    {
++        Assert.True(OperatingSystem.IsWindows(), "The local registry's ACL contract is Windows-specific.");
++    }
++
++    /// <summary>
++    /// Performs native effective-rights checks for the owner and an unrelated built-in service SID.
++    /// </summary>
++    /// <param name="DirectoryPath">The protected directory under test.</param>
++    /// <param name="FilePath">The protected atomically published file under test.</param>
++    static void AssertPrivateAccess(string DirectoryPath, string FilePath)
++    {
++        SecurityIdentifier CurrentUser = WindowsIdentity.GetCurrent().User;
++        SecurityIdentifier UnauthorizedUser = new(WellKnownSidType.NetworkServiceSid, null);
++        Assert.NotEqual(CurrentUser, UnauthorizedUser);
++
++        DirectorySecurity DirectoryAcl = FileSystemAclExtensions.GetAccessControl(new DirectoryInfo(DirectoryPath));
++        FileSecurity FileAcl = FileSystemAclExtensions.GetAccessControl(new FileInfo(FilePath));
++        FileSystemRights RequiredRights = FileSystemRights.ReadData | FileSystemRights.WriteData | FileSystemRights.Delete;
++
++        Assert.Equal(RequiredRights, GetEffectiveRights(DirectoryAcl, CurrentUser) & RequiredRights);
++        Assert.Equal(RequiredRights, GetEffectiveRights(FileAcl, CurrentUser) & RequiredRights);
++        Assert.Equal((FileSystemRights)0, GetEffectiveRights(DirectoryAcl, UnauthorizedUser) & RequiredRights);
++        Assert.Equal((FileSystemRights)0, GetEffectiveRights(FileAcl, UnauthorizedUser) & RequiredRights);
++
++        using FileStream Stream = new(FilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
++        Stream.Flush(true);
++    }
++
++    /// <summary>
++    /// Evaluates effective access rights for a SID using the Windows ACL API without changing machine state.
++    /// </summary>
++    /// <param name="Security">The access control whose DACL should be checked.</param>
++    /// <param name="UserSid">The SID whose effective file rights are being evaluated.</param>
++    /// <returns>The effective rights returned by Windows for that SID and DACL.</returns>
++    static FileSystemRights GetEffectiveRights(FileSystemSecurity Security, SecurityIdentifier UserSid)
++    {
++        byte[] DescriptorBytes = Security.GetSecurityDescriptorBinaryForm();
++        RawSecurityDescriptor Descriptor = new(DescriptorBytes, 0);
++        GenericAcl Dacl = Descriptor.DiscretionaryAcl;
++        Assert.NotNull(Dacl);
++        byte[] DaclBytes = new byte[Dacl.BinaryLength];
++        Dacl.GetBinaryForm(DaclBytes, 0);
++        byte[] SidBytes = new byte[UserSid.BinaryLength];
++        UserSid.GetBinaryForm(SidBytes, 0);
++        IntPtr DaclPointer = Marshal.AllocHGlobal(DaclBytes.Length);
++        IntPtr SidPointer = Marshal.AllocHGlobal(SidBytes.Length);
++
++        try
++        {
++            Marshal.Copy(DaclBytes, 0, DaclPointer, DaclBytes.Length);
++            Marshal.Copy(SidBytes, 0, SidPointer, SidBytes.Length);
++            NativeTrustee Trustee = new()
++            {
++                MultipleTrustee = IntPtr.Zero,
++                MultipleTrusteeOperation = 0,
++                TrusteeForm = 0,
++                TrusteeType = 0,
++                Name = SidPointer
++            };
++
++            uint Error = GetEffectiveRightsFromAclW(DaclPointer, ref Trustee, out uint Rights);
++            if (Error != 0)
++            {
++                throw new Win32Exception((int)Error, "Windows could not evaluate the test directory ACL.");
++            }
++
++            return (FileSystemRights)Rights;
++        }
++        finally
++        {
++            Marshal.FreeHGlobal(SidPointer);
++            Marshal.FreeHGlobal(DaclPointer);
++        }
++    }
++
++    /// <summary>
++    /// Native trustee layout passed to GetEffectiveRightsFromAclW for a SID-based ACL check.
++    /// </summary>
++    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
++    struct NativeTrustee
++    {
++        /// <summary>Gets or sets an optional second trustee in a compound access check.</summary>
++        public IntPtr MultipleTrustee;
++
++        /// <summary>Gets or sets the multiple-trustee operation value; zero means none.</summary>
++        public int MultipleTrusteeOperation;
++
++        /// <summary>Gets or sets the trustee form value; zero identifies the name pointer as a SID.</summary>
++        public int TrusteeForm;
++
++        /// <summary>Gets or sets the trustee type value used by the native ACL API.</summary>
++        public int TrusteeType;
++
++        /// <summary>Gets or sets the unmanaged SID pointer used as the trustee name.</summary>
++        public IntPtr Name;
++    }
++
++    /// <summary>
++    /// Queries the effective access mask granted by one DACL to a SID without modifying the ACL.
++    /// </summary>
++    /// <param name="Acl">A pointer to the binary DACL representation.</param>
++    /// <param name="Trustee">A SID-form trustee descriptor.</param>
++    /// <param name="AccessRights">The access mask granted to the trustee by Windows.</param>
++    /// <returns>Zero when the native ACL check completed successfully.</returns>
++    [DllImport("advapi32.dll", EntryPoint = "GetEffectiveRightsFromAclW", CharSet = CharSet.Unicode)]
++    static extern uint GetEffectiveRightsFromAclW(IntPtr Acl, ref NativeTrustee Trustee, out uint AccessRights);
++}
