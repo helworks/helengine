@@ -84,9 +84,9 @@ namespace helengine {
         /// Deserializes one shader-owned raw material asset from the supplied stream after the standardized HELE header was already read.
         /// </summary>
         /// <param name="stream">Stream positioned at the serialized payload.</param>
-        /// <param name="header">Previously decoded HELE header.</param>
+        /// <param name="header">Previously decoded HELE header whose ownership transfers to this call and is released after reading.</param>
         /// <returns>Deserialized shader-owned raw material asset.</returns>
-        public static ShaderMaterialAsset Deserialize(Stream stream, EngineBinaryHeader header) {
+        public static ShaderMaterialAsset Deserialize(Stream stream, [NativeTakesOwnership] EngineBinaryHeader header) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             }

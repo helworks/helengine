@@ -468,7 +468,17 @@ namespace helengine.editor {
             platformCodegenSymbols = EditorPlatformPreprocessorSymbolService.CombineEnvironmentSymbols(
                 platformCodegenSymbols,
                 queueItem.SelectedEnvironmentId);
-            PhysicsSceneFeatureFlags3D physics3DFeatureFlags = Physics3DCodegenFeatureSymbolService.ResolveFeatureFlags(queueItem.SelectedSceneIds ?? []);
+            List<string> authoredSceneIdsForPhysics = new List<string>();
+            if (queueItem.SelectedSceneIds != null) {
+                for (int index = 0; index < queueItem.SelectedSceneIds.Count; index++) {
+                    string sceneId = queueItem.SelectedSceneIds[index];
+                    if (!string.Equals(sceneId, EngineSceneIdentifiers.GeneratedBootSceneId, StringComparison.Ordinal)) {
+                        authoredSceneIdsForPhysics.Add(sceneId);
+                    }
+                }
+            }
+
+            PhysicsSceneFeatureFlags3D physics3DFeatureFlags = Physics3DCodegenFeatureSymbolService.ResolveFeatureFlags(authoredSceneIdsForPhysics);
             IReadOnlyList<string> physics3DCodegenSymbols = physics3DFeatureFlags == PhysicsSceneFeatureFlags3D.None
                 ? []
                 : PhysicsSceneFeatureSymbolCatalog3D.BuildSymbols(physics3DFeatureFlags);

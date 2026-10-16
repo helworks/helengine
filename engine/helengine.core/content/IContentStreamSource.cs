@@ -7,7 +7,8 @@ namespace helengine {
         /// Opens one readable stream for the supplied asset path.
         /// </summary>
         /// <param name="assetPath">Runtime asset path understood by the active source.</param>
-        /// <returns>Readable stream for the requested asset path.</returns>
+        /// <returns>Readable stream whose ownership transfers to the caller, which must dispose it after reading.</returns>
+        [NativeOwnedReturn]
         Stream OpenRead(string assetPath);
     }
 }

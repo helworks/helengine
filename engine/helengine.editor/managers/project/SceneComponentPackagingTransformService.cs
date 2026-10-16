@@ -13,7 +13,15 @@ namespace helengine.editor {
     /// <summary>
     /// Rewrites shared scene component payloads into packaged runtime forms.
     /// </summary>
-    public sealed class SceneComponentPackagingTransformService {
+    public sealed class SceneComponentPackagingTransformService : IDisposable {
+        /// <summary>Resolves moved authored textures for this packaging operation.</summary>
+        EditorAssetReferenceResolver AuthoredTextureReferenceResolver;
+
+        /// <summary>Releases the identity resolver created when packaging moved textures.</summary>
+        public void Dispose() {
+            AuthoredTextureReferenceResolver?.Dispose();
+        }
+
         /// <summary>
         /// Stable serialized component id for mesh components.
         /// </summary>
@@ -1607,8 +1615,14 @@ namespace helengine.editor {
         /// <param name="reference">Serialized texture reference to rewrite.</param>
         /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
         /// <returns>Packaged file-backed texture reference.</returns>
-        SceneAssetReference RewriteFileSystemTextureReference(SceneAssetReference reference, string buildRootPath) {
+        internal SceneAssetReference RewriteFileSystemTextureReference(SceneAssetReference reference, string buildRootPath) {
             string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
+            if (!File.Exists(sourcePath)) {
+                AuthoredTextureReferenceResolver ??= new EditorAssetReferenceResolver(AssetImportManager.ProjectRootPath);
+                AssetReferenceResolution resolution = AuthoredTextureReferenceResolver.Resolve(reference, AssetEntryKind.Image);
+                sourcePath = resolution.FullPath;
+                reference = resolution.CanonicalReference;
+            }
             TextureAssetImportSettings settings;
             if (!AssetImportManager.TryLoadOrCreateTextureImportSettings(sourcePath, out settings) || settings == null) {
                 throw new InvalidOperationException($"Texture source '{reference.RelativePath}' could not create import settings for packaging.");

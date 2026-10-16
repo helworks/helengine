@@ -61,6 +61,36 @@ namespace helengine.editor.tests {
         /// Ensures packaged boot scenes rewrite scene-map helper payloads into the strict runtime format consumed by player builds.
         /// </summary>
         [Fact]
+        public void Package_WhenSceneTextureDependencyMoves_ResolvesOriginalIdentity() {
+            string sourceRelativePath = "images/logo.png";
+            WriteSourceTextureAsset(sourceRelativePath);
+            string sourcePath = Path.Combine(ProjectRootPath, "assets", sourceRelativePath);
+            SceneAssetReference reference;
+            using (EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(ProjectRootPath)) {
+                reference = resolver.CreateFileReference(sourcePath, AssetEntryKind.Image);
+            }
+            string movedPath = Path.Combine(ProjectRootPath, "assets", "textures", "logo.png");
+            Directory.CreateDirectory(Path.GetDirectoryName(movedPath));
+            File.Move(sourcePath, movedPath);
+            File.Move(sourcePath + ".hmeta", movedPath + ".hmeta");
+            string sceneId = "Scenes/MovedTexture.helen";
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = Array.Empty<SceneEntityAsset>(),
+                AssetReferences = new[] { reference }
+            });
+            using EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                new[] { new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" }) },
+                BuiltInShaderAssetLibrary);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+            Assert.Single(Directory.GetFiles(Path.Combine(BuildRootPath, "cooked", "imported")));
+            Assert.False(File.Exists(sourcePath));
+            Assert.Equal(sourceRelativePath, reference.RelativePath);
+        }
+
+        /// <summary>Verifies that scene-map components are emitted in the runtime payload format.</summary>
+        [Fact]
         public void Package_WhenSceneContainsSceneMapComponent_WritesRuntimeSceneMapPayload() {
             string sceneId = "Scenes/StartupScene.helen";
             SceneMapComponent sceneMapComponent = new SceneMapComponent {

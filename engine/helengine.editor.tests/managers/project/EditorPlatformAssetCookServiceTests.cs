@@ -236,14 +236,14 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies generated boot scene source overrides keep the canonical packaged scene path while still loading the overridden authored scene contents.
+    /// Verifies generated boot scene source overrides keep the canonical packaged scene path while still loading the overridden authored scene contents without an authored canonical file.
     /// </summary>
     [Fact]
     public void Cook_when_generated_boot_scene_uses_override_source_path_preserves_canonical_packaged_scene_path() {
         const string canonicalScenePath = "Scenes/GeneratedBootScene.helen";
         const string overrideScenePath = ".generated-build/3ds/build123/GeneratedBootScene_build123.helen";
-        WriteSceneAsset(canonicalScenePath, "CanonicalRoot", Array.Empty<SceneAssetReference>());
         WriteSceneAsset(overrideScenePath, "OverrideRoot", Array.Empty<SceneAssetReference>());
+        Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", canonicalScenePath.Replace('/', Path.DirectorySeparatorChar))));
 
         EditorPlatformAssetCookService service = new(
             ProjectRootPath,

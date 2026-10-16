@@ -2,9 +2,17 @@ namespace helengine {
     /// <summary>
     /// Resolves one explicit set of logical content paths before delegating reads.
     /// </summary>
-    public sealed class AliasedContentStreamSource : IContentStreamSource {
+    public sealed class AliasedContentStreamSource : IContentStreamSource, IDisposable {
+        /// <summary>
+        /// Borrows the underlying source; this wrapper does not own its lifetime.
+        /// </summary>
         readonly IContentStreamSource Source;
-        readonly IReadOnlyDictionary<string, string> Aliases;
+
+        /// <summary>
+        /// Owns the private alias snapshot copied from the caller's mapping.
+        /// </summary>
+        [NativeOwnedMember]
+        IReadOnlyDictionary<string, string> Aliases;
 
         /// <summary>
         /// Initializes an aliasing source around a borrowed content source.
@@ -38,11 +46,23 @@ namespace helengine {
         /// <param name="assetPath">Logical or stored asset path.</param>
         /// <returns>Readable stream from the underlying source.</returns>
         public Stream OpenRead(string assetPath) {
+            if (Aliases == null) {
+                throw new ObjectDisposedException(nameof(AliasedContentStreamSource));
+            }
             if (string.IsNullOrWhiteSpace(assetPath)) {
                 throw new ArgumentException("Asset path must be provided.", nameof(assetPath));
             }
 
-            return Source.OpenRead(Aliases.TryGetValue(assetPath, out string mappedPath) ? mappedPath : assetPath);
+            string mappedPath;
+            bool hasAlias = Aliases.TryGetValue(assetPath, out mappedPath);
+            return Source.OpenRead(hasAlias ? mappedPath : assetPath);
+        }
+
+        /// <summary>
+        /// Releases the copied alias container without disposing the borrowed underlying source.
+        /// </summary>
+        public void Dispose() {
+            NativeOwnership.Release(ref Aliases);
         }
     }
 }

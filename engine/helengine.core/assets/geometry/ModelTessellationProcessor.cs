@@ -13,7 +13,7 @@ namespace helengine {
         /// </summary>
         /// <param name="asset">Imported model asset to transform.</param>
         /// <param name="maximumEdgeLength">Largest permitted output edge length.</param>
-        public static void Apply(ModelAsset asset, double maximumEdgeLength) {
+        public static void Apply([NativeNoEscape] ModelAsset asset, double maximumEdgeLength) {
             Apply(asset, maximumEdgeLength, float3.One);
         }
 
@@ -163,7 +163,7 @@ namespace helengine {
         /// </summary>
         /// <param name="asset">Imported model asset whose geometry receives the scale.</param>
         /// <param name="scale">Finite nonzero scale to bake into the asset.</param>
-        public static void ApplyBakeScale(ModelAsset asset, float3 scale) {
+        public static void ApplyBakeScale([NativeNoEscape] ModelAsset asset, float3 scale) {
             if (asset == null) {
                 throw new ArgumentNullException(nameof(asset));
             }
@@ -200,7 +200,7 @@ namespace helengine {
         /// <param name="asset">Imported model asset to transform.</param>
         /// <param name="maximumEdgeLength">Largest permitted output edge length measured after applying <paramref name="measurementScale"/>.</param>
         /// <param name="measurementScale">Static accumulated world scale used to measure local model edges.</param>
-        public static void Apply(ModelAsset asset, double maximumEdgeLength, float3 measurementScale) {
+        public static void Apply([NativeNoEscape] ModelAsset asset, double maximumEdgeLength, float3 measurementScale) {
             if (asset == null) {
                 throw new ArgumentNullException(nameof(asset));
             }

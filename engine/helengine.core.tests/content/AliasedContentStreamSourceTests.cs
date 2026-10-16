@@ -53,13 +53,38 @@ namespace helengine.core.tests.content {
         }
 
         /// <summary>
+        /// Releases only the wrapper's owned snapshot and preserves the borrowed source across repeated disposal.
+        /// </summary>
+        [Fact]
+        public void Dispose_IsIdempotentAndDoesNotDisposeBorrowedSource() {
+            RecordingContentStreamSource source = new RecordingContentStreamSource();
+            AliasedContentStreamSource aliases = new AliasedContentStreamSource(source, new Dictionary<string, string>());
+
+            aliases.Dispose();
+            aliases.Dispose();
+
+            Assert.False(source.IsDisposed);
+            Assert.Throws<ObjectDisposedException>(() => aliases.OpenRead("asset.bin"));
+            using Stream stream = source.OpenRead("still-readable.bin");
+            Assert.NotNull(stream);
+        }
+
+        /// <summary>
         /// Records the final path sent to a delegated content source.
         /// </summary>
-        sealed class RecordingContentStreamSource : IContentStreamSource {
+        sealed class RecordingContentStreamSource : IContentStreamSource, IDisposable {
             /// <summary>
             /// Gets the most recently requested path.
             /// </summary>
             public string LastPath { get; private set; }
+
+            /// <summary>Records whether ownership cleanup reached the borrowed source.</summary>
+            public bool IsDisposed { get; private set; }
+
+            /// <summary>Marks this test source unavailable for further reads.</summary>
+            public void Dispose() {
+                IsDisposed = true;
+            }
 
             /// <summary>
             /// Records one read and returns an empty stream.
@@ -67,6 +92,7 @@ namespace helengine.core.tests.content {
             /// <param name="assetPath">Path requested by the alias source.</param>
             /// <returns>Empty readable stream.</returns>
             public Stream OpenRead(string assetPath) {
+                ObjectDisposedException.ThrowIf(IsDisposed, this);
                 LastPath = assetPath;
                 return new MemoryStream();
             }
