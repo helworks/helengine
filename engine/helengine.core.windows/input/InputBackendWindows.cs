@@ -6,7 +6,7 @@ namespace helengine {
     /// <summary>
     /// Captures raw keyboard and mouse state from a Windows host window.
     /// </summary>
-    public sealed class InputBackendWindows : IInputBackend {
+    public sealed class InputBackendWindows : IInputBackend, IInputForegroundState {
         /// <summary>
         /// Reads the current keyboard state for the entire desktop.
         /// </summary>
@@ -99,6 +99,11 @@ namespace helengine {
 #if DESKTOP_PLATFORM
         public bool ReceiveInputInBackground { get; set; }
 #endif
+
+        /// <summary>
+        /// Gets whether the attached Windows control currently owns foreground input focus.
+        /// </summary>
+        public bool IsForegroundActive => IsWindowReady() && IsWindowForegroundActive();
 
         /// <summary>
         /// Captures the current raw input frame from the attached window.

@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Exposes the direct 2D scene-presentation space used by one editor viewport when scene 2D content renders straight through the scene camera.
     /// </summary>
+    [RunInEditor]
     public sealed class EditorViewportDirect2DScenePresenterComponent : UpdateComponent {
         /// <summary>
         /// Camera that renders the viewport's scene content.

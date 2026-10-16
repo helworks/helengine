@@ -314,7 +314,7 @@ namespace helengine.editor.tests {
             InteractableComponent behindInteractable = CreateInteractableEntity(
                 new float3(0f, 0f, 0f),
                 new int2(1280, 720),
-                RenderOrder2D.PanelSurface);
+                16f);
             int behindHoverCount = 0;
             behindInteractable.CursorEvent += (pos, delta, state) => {
                 if (state == PointerInteraction.Hover) {
@@ -349,7 +349,7 @@ namespace helengine.editor.tests {
             InteractableComponent behindInteractable = CreateInteractableEntity(
                 new float3(0f, 0f, 0f),
                 new int2(1280, 720),
-                RenderOrder2D.PanelSurface);
+                16f);
             int behindHoverCount = 0;
             behindInteractable.CursorEvent += (pos, delta, state) => {
                 if (state == PointerInteraction.Hover) {
@@ -549,19 +549,18 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <param name="position">Top-left position in window coordinates.</param>
         /// <param name="size">Interactable size in pixels.</param>
-        /// <param name="renderOrder">Render order assigned to the visible surface.</param>
+        /// <param name="depth">Physical depth assigned to the visible surface.</param>
         /// <returns>Interactable component attached to the new entity.</returns>
-        InteractableComponent CreateInteractableEntity(float3 position, int2 size, byte renderOrder) {
+        InteractableComponent CreateInteractableEntity(float3 position, int2 size, float depth) {
             EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorUi,
-                Position = position
+                Position = new float3(position.X, position.Y, depth)
             };
 
             SpriteComponent sprite = new SpriteComponent {
                 Texture = CoreValue.RenderManager2D.PixelTexture,
                 Size = size,
-                RenderOrder2D = renderOrder
             };
             entity.AddComponent(sprite);
 

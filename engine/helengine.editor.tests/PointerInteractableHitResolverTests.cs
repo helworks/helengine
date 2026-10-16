@@ -8,10 +8,10 @@ namespace helengine.editor.tests {
     /// </summary>
     public class PointerInteractableHitResolverTests {
         /// <summary>
-        /// Ensures overlapping interactables resolve to the visually top-most render order.
+        /// Ensures overlapping interactables resolve to the visually top-most depth.
         /// </summary>
         [Fact]
-        public void ResolveTopInteractableAt_WhenTwoInteractablesOverlap_PrefersHigherRenderOrder() {
+        public void ResolveTopInteractableAt_WhenTwoInteractablesOverlap_PrefersHigherDepth() {
             InitializeCore();
             CameraComponent camera = CreateCamera(new float4(0f, 0f, 320f, 180f), EditorLayerMasks.EditorUi);
             InteractableComponent backInteractable = CreateInteractableEntity(new float3(10f, 20f, 0f), new int2(100, 60), 2);
@@ -100,7 +100,7 @@ namespace helengine.editor.tests {
             SpriteComponent rowSprite = new SpriteComponent {
                 Texture = Core.Instance.RenderManager2D.PixelTexture,
                 Size = new int2(120, 24),
-                RenderOrder2D = 7
+
             };
             rowEntity.AddComponent(rowSprite);
 
@@ -150,7 +150,7 @@ namespace helengine.editor.tests {
             SpriteComponent sprite = new SpriteComponent {
                 Texture = Core.Instance.RenderManager2D.PixelTexture,
                 Size = new int2(400, 120),
-                RenderOrder2D = 5
+
             };
             buttonEntity.AddComponent(sprite);
 
@@ -257,23 +257,23 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Creates one interactable entity with a visible sprite so render-order comparisons remain deterministic.
+        /// Creates one interactable entity with a visible sprite so depth comparisons remain deterministic.
         /// </summary>
         /// <param name="position">Top-left entity position in window-space coordinates.</param>
         /// <param name="size">Interactable size in pixels.</param>
-        /// <param name="renderOrder">2D render order assigned to the visible sprite.</param>
+        /// <param name="depth">2D depth assigned to the visible sprite.</param>
         /// <returns>Interactable component registered for hit resolution.</returns>
-        InteractableComponent CreateInteractableEntity(float3 position, int2 size, byte renderOrder) {
+        InteractableComponent CreateInteractableEntity(float3 position, int2 size, byte depth) {
             EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorUi,
-                Position = position
+                Position = new float3(position.X, position.Y, depth)
             };
 
             SpriteComponent sprite = new SpriteComponent {
                 Texture = Core.Instance.RenderManager2D.PixelTexture,
                 Size = size,
-                RenderOrder2D = renderOrder
+
             };
             entity.AddComponent(sprite);
 
@@ -290,9 +290,9 @@ namespace helengine.editor.tests {
         /// <param name="camera">Camera that owns the viewport subtree.</param>
         /// <param name="localPosition">Top-left interactable position in viewport-local coordinates.</param>
         /// <param name="size">Interactable size in pixels.</param>
-        /// <param name="renderOrder">2D render order assigned to the visible sprite.</param>
+        /// <param name="depth">2D depth assigned to the visible sprite.</param>
         /// <returns>Interactable component registered for hit resolution.</returns>
-        InteractableComponent CreateViewportBoundInteractableEntity(CameraComponent camera, float3 localPosition, int2 size, byte renderOrder) {
+        InteractableComponent CreateViewportBoundInteractableEntity(CameraComponent camera, float3 localPosition, int2 size, byte depth) {
             if (camera?.Parent == null) {
                 throw new ArgumentNullException(nameof(camera));
             }
@@ -313,14 +313,14 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorUi,
-                LocalPosition = localPosition
+                LocalPosition = new float3(localPosition.X, localPosition.Y, depth)
             };
             viewportRoot.AddChild(entity);
 
             SpriteComponent sprite = new SpriteComponent {
                 Texture = Core.Instance.RenderManager2D.PixelTexture,
                 Size = size,
-                RenderOrder2D = renderOrder
+
             };
             entity.AddComponent(sprite);
 

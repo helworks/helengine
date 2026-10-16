@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Scales the selected entity while the user drags a hovered scale gizmo handle.
     /// </summary>
+    [RunInEditor]
     public class TransformScaleGizmoDragComponent : UpdateComponent {
         InputSystem Input;
         /// <summary>
@@ -446,7 +447,7 @@ namespace helengine.editor {
             float3 axisOrigin,
             float3 axisDirection,
             out double axisParameter) {
-            if (!EditorViewportPointerRayBuilder.TryBuildPerspectiveCameraRay(SceneCamera, pointer, out float3 rayOrigin, out float3 rayDirection)) {
+            if (!EditorViewportPointerRayBuilder.TryBuildCameraRay(SceneCamera, pointer, out float3 rayOrigin, out float3 rayDirection)) {
                 axisParameter = 0.0;
                 return false;
             }
@@ -478,7 +479,7 @@ namespace helengine.editor {
             float3 planeOrigin,
             float3 planeNormal,
             out float3 planePoint) {
-            if (!EditorViewportPointerRayBuilder.TryBuildPerspectiveCameraRay(SceneCamera, pointer, out float3 rayOrigin, out float3 rayDirection)) {
+            if (!EditorViewportPointerRayBuilder.TryBuildCameraRay(SceneCamera, pointer, out float3 rayOrigin, out float3 rayDirection)) {
                 planePoint = float3.Zero;
                 return false;
             }

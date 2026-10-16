@@ -229,10 +229,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures modal checkboxes render above the modal panel instead of using panel-surface render orders.
+        /// Ensures modal checkboxes and their marks render above the owning panel.
         /// </summary>
         [Fact]
-        public void Show_WhenPlatformRowsAreCreated_UsesModalRenderOrdersForCheckBoxes() {
+        public void Show_WhenPlatformRowsAreCreated_PlacesCheckBoxesAboveModalPanel() {
             BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
@@ -245,8 +245,9 @@ namespace helengine.editor.tests {
             RoundedRectComponent background = GetPrivateField<RoundedRectComponent>(platformCheckBoxes[0], "Background");
             TextComponent checkMark = GetPrivateField<TextComponent>(platformCheckBoxes[0], "CheckMark");
 
-            Assert.Equal(RenderOrder2D.ModalForeground, background.RenderOrder2D);
-            Assert.Equal(RenderOrder2D.ModalForeground, checkMark.RenderOrder2D);
+            RoundedRectComponent panel = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
+            Assert.True(RenderDepthOrder2D.CompareDrawables(panel, background) < 0);
+            Assert.True(RenderDepthOrder2D.CompareDrawables(background, checkMark) < 0);
         }
 
         /// <summary>

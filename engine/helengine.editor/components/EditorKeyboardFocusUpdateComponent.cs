@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Polls editor input and forwards keyboard-focus commands into the owning session focus service.
     /// </summary>
+    [RunInEditor]
     public class EditorKeyboardFocusUpdateComponent : UpdateComponent {
         readonly InputSystem Input;
         readonly EditorSessionInteractionServices InteractionServices;

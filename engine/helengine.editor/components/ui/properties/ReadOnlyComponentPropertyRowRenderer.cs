@@ -34,7 +34,6 @@ namespace helengine.editor {
             valueText.Text = string.Empty;
             valueText.Color = ThemeManager.Colors.InputForegroundPrimary;
             valueText.Size = new int2(1, 1);
-            valueText.RenderOrder2D = View.TextOrder;
             valueHost.AddComponent(valueText);
 
             row.ValueHost = valueHost;

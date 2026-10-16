@@ -75,7 +75,7 @@ namespace helengine.editor {
                 return Array.Empty<EntityComponentPlatformOverrideState>();
             }
 
-            return ReadWrappedOverrides(persistedRecord.Payload);
+            return ReadWrappedOverrides(persistedRecord.Payload, persistedRecord.ComponentTypeId);
         }
 
         /// <summary>
@@ -220,7 +220,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="payload">Wrapped payload bytes.</param>
         /// <returns>Decoded platform override payload metadata.</returns>
-        IReadOnlyList<EntityComponentPlatformOverrideState> ReadWrappedOverrides(byte[] payload) {
+        IReadOnlyList<EntityComponentPlatformOverrideState> ReadWrappedOverrides(byte[] payload, string componentTypeId) {
             using MemoryStream stream = new MemoryStream(payload, writable: false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             ReadAndValidateHeader(reader);
@@ -233,8 +233,9 @@ namespace helengine.editor {
 
             List<EntityComponentPlatformOverrideState> overrides = new List<EntityComponentPlatformOverrideState>(overrideCount);
             HashSet<EditorOverrideScope> scopes = new HashSet<EditorOverrideScope>();
+            bool discardRemovedRenderOrder2D = LegacyDrawable2DComponentCompatibility.IsFormerBuiltInDrawableTypeId(componentTypeId);
             for (int index = 0; index < overrideCount; index++) {
-                EntityComponentPlatformOverrideState overrideState = ReadOverrideState(reader);
+                EntityComponentPlatformOverrideState overrideState = ReadOverrideState(reader, discardRemovedRenderOrder2D);
                 EditorOverrideScope scope = overrideState.Scope;
                 if (!scopes.Add(scope)) {
                     throw new InvalidOperationException($"Duplicate component override scope '{scope}'.");
@@ -320,8 +321,9 @@ namespace helengine.editor {
         /// Reads one platform override payload entry from the supplied reader.
         /// </summary>
         /// <param name="reader">Source reader positioned at one override entry.</param>
+        /// <param name="discardRemovedRenderOrder2D">Whether obsolete drawable order metadata should be removed from this component's legacy override.</param>
         /// <returns>Decoded platform override payload metadata.</returns>
-        EntityComponentPlatformOverrideState ReadOverrideState(EngineBinaryReader reader) {
+        EntityComponentPlatformOverrideState ReadOverrideState(EngineBinaryReader reader, bool discardRemovedRenderOrder2D) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
@@ -377,7 +379,29 @@ namespace helengine.editor {
                 overrideState.SetMemberValue(reader.ReadString(), reader.ReadString());
             }
 
+            if (discardRemovedRenderOrder2D) {
+                DiscardRemovedRenderOrder2D(overrideState);
+            }
             return overrideState;
+        }
+
+        /// <summary>
+        /// Drops legacy draw-order override metadata and removes its tagged component value when one is present.
+        /// </summary>
+        /// <param name="overrideState">Decoded platform override state to normalize.</param>
+        static void DiscardRemovedRenderOrder2D(EntityComponentPlatformOverrideState overrideState) {
+            if (overrideState == null) {
+                throw new ArgumentNullException(nameof(overrideState));
+            }
+
+            overrideState.ClearPropertyOverride(LegacyDrawable2DComponentCompatibility.RemovedRenderOrder2DFieldName);
+            overrideState.RemoveMemberValue(LegacyDrawable2DComponentCompatibility.RemovedRenderOrder2DFieldName);
+            if (EditorTaggedSceneComponentFieldReader.TryRemoveField(
+                overrideState.Payload ?? Array.Empty<byte>(),
+                LegacyDrawable2DComponentCompatibility.RemovedRenderOrder2DFieldName,
+                out byte[] filteredPayload)) {
+                overrideState.Payload = filteredPayload;
+            }
         }
 
         /// <summary>

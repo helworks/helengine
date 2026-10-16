@@ -106,7 +106,6 @@ namespace helengine.editor {
                 Text = string.Empty,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(1, GetDialogLineHeight()),
-                RenderOrder2D = DialogTextOrder
             };
             MessageHost.AddComponent(MessageText);
 
@@ -119,7 +118,6 @@ namespace helengine.editor {
 
             CancelButton = new ButtonComponent("Cancel", CancelButtonSize, DialogFont, HandleCancelClicked, 0f);
             CancelButtonHost.AddComponent(CancelButton);
-            CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
             RemoveButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
@@ -130,7 +128,6 @@ namespace helengine.editor {
 
             RemoveButton = new ButtonComponent("Remove", RemoveButtonSize, DialogFont, HandleRemoveClicked, 0f);
             RemoveButtonHost.AddComponent(RemoveButton);
-            RemoveButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
             Enabled = false;
             IsInitialized = true;

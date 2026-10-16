@@ -91,26 +91,53 @@ namespace helengine.editor {
             string effectiveCookRootPath = ResolveCookRootPath(fullOutputRootPath);
             Directory.CreateDirectory(effectiveExecutionRootPath);
             IPlatformAssetBuilder effectiveMaterialBuilder = ResolveEffectiveMaterialBuilder(materialBuilder);
+            string platformName = ResolvePlatformName(platformDefinition, materialBuilder);
+            string platformVersion = ResolvePlatformVersion(platformName);
+            StandardPlatformInputConfiguration standardInputConfiguration = ResolveStandardPlatformInputConfiguration(platformName);
 
-            using EditorPlatformBuildScenePackager packager = new(
-                ProjectRootPath,
-                Importers,
-                platformDefinition,
-                DefaultFontAsset,
-                effectiveMaterialBuilder,
-                selectedBuildProfileId,
-                selectedGraphicsProfileId,
-                BuiltInShaderAssetLibrary,
-                ScriptTypeResolver,
-                selectedEnvironmentId);
             List<string> orderedCanonicalScenePaths = ResolveOrderedCanonicalScenePaths(orderedSceneIds);
             List<string> orderedSceneIdentityPaths = ResolvePackagedSceneIdentityPaths(orderedSceneIds, orderedCanonicalScenePaths);
             List<string> orderedScenePaths = ResolveOrderedScenePaths(orderedSceneIds, scenePathOverrides);
-            EditorPlatformBuildScenePackagerResult packagerResult = packager.PackagePreservingIdentityPaths(
+            EditorScenePackageCache scenePackageCache = new(ProjectRootPath);
+            System.Diagnostics.Stopwatch scenePackageTimer = System.Diagnostics.Stopwatch.StartNew();
+            string scenePackageKey = scenePackageCache.ComputeKey(
+                platformDefinition,
+                effectiveMaterialBuilder,
+                selectedBuildProfileId,
+                selectedGraphicsProfileId,
+                selectedEnvironmentId,
                 orderedSceneIdentityPaths,
                 orderedScenePaths,
-                effectiveExecutionRootPath);
+                Importers,
+                DefaultFontAsset,
+                ScriptTypeResolver,
+                BuiltInShaderAssetLibrary);
+            long fingerprintMilliseconds = scenePackageTimer.ElapsedMilliseconds;
+            bool scenePackageCacheHit = scenePackageCache.TryRestore(
+                scenePackageKey,
+                effectiveExecutionRootPath,
+                out EditorPlatformBuildScenePackagerResult packagerResult);
+            if (!scenePackageCacheHit) {
+                using EditorPlatformBuildScenePackager packager = new(
+                    ProjectRootPath,
+                    Importers,
+                    platformDefinition,
+                    DefaultFontAsset,
+                    effectiveMaterialBuilder,
+                    selectedBuildProfileId,
+                    selectedGraphicsProfileId,
+                    BuiltInShaderAssetLibrary,
+                    ScriptTypeResolver,
+                    selectedEnvironmentId);
+                packagerResult = packager.PackagePreservingIdentityPaths(
+                    orderedSceneIdentityPaths,
+                    orderedScenePaths,
+                    effectiveExecutionRootPath);
+                scenePackageCache.Store(scenePackageKey, effectiveExecutionRootPath, packagerResult);
+            }
+            Console.WriteLine($"[cook] scene-package-cache {(scenePackageCacheHit ? "hit" : "miss")} fingerprint-ms={fingerprintMilliseconds} total-ms={scenePackageTimer.ElapsedMilliseconds}");
             PlatformCookWorkItem[] platformCookWorkItems = [.. packagerResult.PlatformCookWorkItems];
+            System.Diagnostics.Stopwatch cookStageTimer = System.Diagnostics.Stopwatch.StartNew();
             PlatformCookedArtifactDeclaration[] cookedArtifactDeclarations = CookPlatformShaderArtifacts(
                 materialBuilder,
                 platformDefinition,
@@ -118,20 +145,22 @@ namespace helengine.editor {
                 selectedGraphicsProfileId,
                 effectiveCookRootPath,
                 packagerResult);
+            Console.WriteLine($"[cook] shader-artifacts-ms={cookStageTimer.ElapsedMilliseconds}");
 
             Console.WriteLine("[helengine-editor] build scene entries begin");
+            cookStageTimer.Restart();
             PlatformBuildScene[] scenes = BuildSceneEntries(orderedSceneIds, orderedSceneIdentityPaths, effectiveCookRootPath);
             Console.WriteLine("[helengine-editor] build scene entries completed");
+            Console.WriteLine($"[cook] scene-entries-ms={cookStageTimer.ElapsedMilliseconds}");
             Console.WriteLine("[helengine-editor] build cooked artifacts begin");
+            cookStageTimer.Restart();
             PlatformBuildArtifact[] cookedArtifacts = BuildCookedArtifacts(
                 effectiveCookRootPath,
                 targetIds,
                 platformCookWorkItems,
                 cookedArtifactDeclarations);
             Console.WriteLine("[helengine-editor] build cooked artifacts completed");
-
-            string platformName = ResolvePlatformName(platformDefinition, materialBuilder);
-            string platformVersion = ResolvePlatformVersion(platformName);
+            Console.WriteLine($"[cook] artifact-manifest-ms={cookStageTimer.ElapsedMilliseconds}");
 
             PlatformBuildManifest manifest = new PlatformBuildManifest(
                 2,
@@ -149,7 +178,7 @@ namespace helengine.editor {
                 new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
                 platformCookWorkItems,
                 PlatformBuildRuntimeFeatureManifest.Empty);
-            manifest.StandardPlatformInputConfiguration = ResolveStandardPlatformInputConfiguration(manifest.PlatformName);
+            manifest.StandardPlatformInputConfiguration = standardInputConfiguration;
             return manifest;
         }
 

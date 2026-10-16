@@ -43,10 +43,6 @@ namespace helengine.editor {
         /// </summary>
         readonly FontAsset Font;
 
-        /// <summary>
-        /// Render order used for panel text.
-        /// </summary>
-        readonly byte TextOrder;
 
         /// <summary>
         /// Root entity that owns all panel controls.
@@ -149,7 +145,6 @@ namespace helengine.editor {
             ProjectRootPath = string.IsNullOrWhiteSpace(projectRootPath)
                 ? null
                 : Path.GetFullPath(projectRootPath);
-            TextOrder = RenderOrder2D.PanelForeground;
 
             RootEntity = new EditorEntity(ownerCore, interactionServices);
             RootEntity.LayerMask = layerMask;
@@ -395,7 +390,6 @@ namespace helengine.editor {
             textComponent.Font = Font;
             textComponent.Text = text;
             textComponent.Color = ThemeManager.Colors.InputForegroundPrimary;
-            textComponent.RenderOrder2D = TextOrder;
             host.AddComponent(textComponent);
             return host;
         }

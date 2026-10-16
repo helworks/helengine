@@ -32,15 +32,6 @@ namespace helengine.editor {
         const int TabStripPadding = 6;
 
         /// <summary>
-        /// Render order used by tab backgrounds to ensure they sit above title bars.
-        /// </summary>
-        readonly byte tabBackgroundOrder;
-
-        /// <summary>
-        /// Render order used by tab labels.
-        /// </summary>
-        readonly byte tabTextOrder;
-        /// <summary>
         /// Minimum drag distance before undocking a tab.
         /// </summary>
         const int DragThreshold = DockableEntity.DragUndockThreshold;
@@ -119,8 +110,6 @@ namespace helengine.editor {
             isPointerDown = false;
             isDragging = false;
             dragDelta = new int2(0, 0);
-            tabBackgroundOrder = RenderOrder2D.PanelInteractive;
-            tabTextOrder = (byte)(RenderOrder2D.PanelInteractive + 1);
             InternalEntity = true;
             Enabled = false;
         }
@@ -226,7 +215,7 @@ namespace helengine.editor {
         /// <param name="activeDock">Active dock group that owns the tab targets.</param>
         void EnsureTabCount(IReadOnlyList<DockableEntity> dockables, ushort layerMask, DockableEntity activeDock) {
             for (int i = tabs.Count; i < dockables.Count; i++) {
-                var entry = new DockTabEntry(dockables[i], font, layerMask, tabBackgroundOrder, tabTextOrder);
+                var entry = new DockTabEntry(dockables[i], font, layerMask);
                 entry.Root.LayerMask = layerMask;
                 entry.LabelHost.LayerMask = layerMask;
                 entry.Interactable.CursorEvent += (pos, delta, state) => HandleTabCursor(entry, pos, delta, state);

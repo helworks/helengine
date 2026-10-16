@@ -2,6 +2,9 @@ namespace helengine {
     /// <summary>
     /// Renders a draggable vertical scrollbar bound to a <see cref="ScrollComponent"/>, hiding itself when nothing overflows.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class ScrollBarComponent : Component {
         /// <summary>
         /// Smallest thumb length allowed regardless of how small the visible proportion becomes.
@@ -12,19 +15,6 @@ namespace helengine {
         /// Full track bounds in pixels; X is the bar thickness, Y is the track length.
         /// </summary>
         int2 SizeValue;
-        /// <summary>
-        /// Tracks whether custom render orders were supplied for the track and thumb visuals.
-        /// </summary>
-        bool HasRenderOrderOverrides;
-        /// <summary>
-        /// Render order override for the track background.
-        /// </summary>
-        byte TrackRenderOrder;
-        /// <summary>
-        /// Render order override for the draggable thumb.
-        /// </summary>
-        byte ThumbRenderOrder;
-
         /// <summary>
         /// Scroll controller this scrollbar reflects and drives.
         /// </summary>
@@ -111,25 +101,6 @@ namespace helengine {
         public bool IsVisible => VisualsRoot != null && VisualsRoot.Enabled;
 
         /// <summary>
-        /// Overrides the render order used for the track and thumb visuals.
-        /// </summary>
-        /// <param name="trackOrder">Render order for the track background.</param>
-        /// <param name="thumbOrder">Render order for the draggable thumb.</param>
-        public void SetRenderOrders(byte trackOrder, byte thumbOrder) {
-            HasRenderOrderOverrides = true;
-            TrackRenderOrder = trackOrder;
-            ThumbRenderOrder = thumbOrder;
-
-            if (Track != null) {
-                Track.RenderOrder2D = trackOrder;
-            }
-
-            if (Thumb != null) {
-                Thumb.RenderOrder2D = thumbOrder;
-            }
-        }
-
-        /// <summary>
         /// Creates the track, thumb, and interactable region when added to an enabled entity.
         /// </summary>
         /// <param name="entity">Owning entity.</param>
@@ -138,13 +109,6 @@ namespace helengine {
 
             if (!entity.Enabled) {
                 return;
-            }
-
-            byte trackOrder = RenderOrder2D.PanelSurface;
-            byte thumbOrder = RenderOrder2D.PanelForeground;
-            if (HasRenderOrderOverrides) {
-                trackOrder = TrackRenderOrder;
-                thumbOrder = ThumbRenderOrder;
             }
 
             VisualsRoot = new Entity(OwnerCore ?? throw new InvalidOperationException("Scroll-bar visuals require an owning core."));
@@ -162,8 +126,7 @@ namespace helengine {
                 Radius = SizeValue.X * 0.5f,
                 BorderThickness = 0f,
                 FillColor = ThemeManager.Colors.SurfaceInput,
-                BorderColor = ThemeManager.Colors.SurfaceInput,
-                RenderOrder2D = trackOrder
+                BorderColor = ThemeManager.Colors.SurfaceInput
             };
             VisualsRoot.AddComponent(Track);
 
@@ -187,8 +150,7 @@ namespace helengine {
             Thumb = new RoundedRectComponent {
                 Size = new int2(SizeValue.X, MinimumThumbLengthPixels),
                 Radius = SizeValue.X * 0.5f,
-                BorderThickness = 0f,
-                RenderOrder2D = thumbOrder
+                BorderThickness = 0f
             };
             ThumbHost.AddComponent(Thumb);
 

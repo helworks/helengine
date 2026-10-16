@@ -2,6 +2,7 @@ namespace helengine {
     /// <summary>
     /// Stores the authored 2D entity and component mirrored by one editor-only world-space preview proxy.
     /// </summary>
+    [RunInEditor]
     public sealed class Editor2DPreviewSourceTagComponent : Component, IEditorHiddenComponent {
         /// <summary>
         /// Initializes one preview-source tag for the supplied authored entity and component.

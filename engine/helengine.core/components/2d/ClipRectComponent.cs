@@ -2,6 +2,9 @@ namespace helengine {
     /// <summary>
     /// Declares one rectangular clip region on an entity so descendant 2D drawables can be constrained during command building.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public sealed class ClipRectComponent : Component, IClipRegion2D, IAnchorSizeProvider {
         int2 SizeValue;
 

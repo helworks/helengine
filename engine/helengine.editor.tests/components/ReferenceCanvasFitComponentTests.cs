@@ -330,6 +330,43 @@ namespace helengine.editor.tests.components {
         }
 
         /// <summary>
+        /// Ensures stretch scaling fills a 4:3 viewport while retaining independent reference-canvas axis scales.
+        /// </summary>
+        [Fact]
+        public void Update_WhenViewportStretchScalingIsEnabled_FillsTheViewportOnBothAxes() {
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
+
+            Entity menuRoot = CreateEntity(float3.Zero);
+            ViewportComponent viewport = new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                FixedSize = new int2(1280, 720),
+                ScalingMode = ViewportComponent.ReferenceCanvasStretchScalingMode,
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            };
+            menuRoot.AddComponent(viewport);
+
+            Entity panelEntity = CreateEntity(new float3(88f, 190f, 0f));
+            RoundedRectComponent panelBackground = new RoundedRectComponent {
+                Size = new int2(560, 420),
+                Radius = 18f,
+                BorderThickness = 3f
+            };
+            panelEntity.AddComponent(panelBackground);
+            menuRoot.AddChild(panelEntity);
+            menuRoot.InitializeHierarchy();
+
+            renderManager.OnWindowResize(IntPtr.Zero, 320, 240);
+            Core.Instance.Update();
+
+            Assert.Equal(new int2(320, 240), viewport.AnchorSpace.Size);
+            Assert.Equal(22f, panelEntity.LocalPosition.X);
+            Assert.InRange(Math.Abs(panelEntity.LocalPosition.Y - (190f / 3f)), 0f, 0.0001f);
+            Assert.Equal(new int2(140, 140), panelBackground.Size);
+        }
+
+        /// <summary>
         /// Ensures the fitted anchor-space instance is reused across updates instead of being replaced on each layout pass.
         /// </summary>
         [Fact]

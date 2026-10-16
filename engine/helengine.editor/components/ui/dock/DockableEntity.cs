@@ -33,18 +33,6 @@ namespace helengine.editor {
         /// </summary>
         FontAsset font;
         /// <summary>
-        /// Render order for panel background surfaces.
-        /// </summary>
-        byte backgroundOrder;
-        /// <summary>
-        /// Render order for raised surfaces like title bars.
-        /// </summary>
-        byte surfaceOrder;
-        /// <summary>
-        /// Render order for text labels.
-        /// </summary>
-        byte textOrder;
-        /// <summary>
         /// Outline rendered around the full dockable panel area.
         /// </summary>
         RoundedRectComponent panelOutline;
@@ -105,11 +93,6 @@ namespace helengine.editor {
         TextComponent? titleTextComponent;
         int2 size;
         /// <summary>
-        /// Stores baseline render orders for drawables in this dockable hierarchy.
-        /// </summary>
-        readonly Dictionary<IDrawable2D, byte> renderOrderBaseline = new Dictionary<IDrawable2D, byte>();
-
-        /// <summary>
         /// Initializes a new dockable entity with title bar, content area, and interaction handlers.
         /// </summary>
         /// <param name="font">Font used to render the title text.</param>
@@ -136,9 +119,6 @@ namespace helengine.editor {
 
             Metrics = metrics;
             this.font = font;
-            backgroundOrder = RenderOrder2D.PanelBackground;
-            surfaceOrder = RenderOrder2D.PanelSurface;
-            textOrder = RenderOrder2D.PanelForeground;
             LayerMask = 0b1000000000000000;
             InternalEntity = true;
             isDocked = false;
@@ -148,7 +128,6 @@ namespace helengine.editor {
             titleBar = new SpriteComponent();
             titleBar.Texture = OwnerCore.RenderManager2D.PixelTexture;
             titleBar.Color = new byte4(194, 49, 175, 255);
-            titleBar.RenderOrder2D = surfaceOrder;
             AddComponent(titleBar);
 
             titleBarText = new EditorEntity(OwnerCore, InteractionServices);
@@ -159,7 +138,6 @@ namespace helengine.editor {
             titleComponent.Font = font;
             titleComponent.Text = "dockable entity";
             titleComponent.Color = new byte4(255, 255, 255, 255);
-            titleComponent.RenderOrder2D = textOrder;
             titleBarText.AddComponent(titleComponent);
             titleTextComponent = titleComponent;
 
@@ -170,7 +148,6 @@ namespace helengine.editor {
             areaSprite = new SpriteComponent();
             areaSprite.Texture = OwnerCore.RenderManager2D.PixelTexture;
             areaSprite.Color = new byte4(68, 49, 194, 255);
-            areaSprite.RenderOrder2D = backgroundOrder;
             sceneViewArea.AddComponent(areaSprite);
 
             panelOutline = new RoundedRectComponent();
@@ -178,7 +155,6 @@ namespace helengine.editor {
             panelOutline.FillColor = new byte4(255, 255, 255, 0);
             panelOutline.BorderThickness = PanelOutlineThickness;
             panelOutline.BorderColor = PanelOutlineColor;
-            panelOutline.RenderOrder2D = textOrder;
             AddComponent(panelOutline);
 
             PanelMenuButtonWidth = Math.Max(TitleBarHeightPixels, Metrics.ScalePixels(24));
@@ -191,7 +167,6 @@ namespace helengine.editor {
             PanelMenuButtonBackground.BorderThickness = 0f;
             PanelMenuButtonBackground.BorderColor = new byte4(255, 255, 255, 0);
             PanelMenuButtonBackground.Radius = 0f;
-            PanelMenuButtonBackground.RenderOrder2D = surfaceOrder;
             PanelMenuButtonEntity.AddComponent(PanelMenuButtonBackground);
 
             PanelMenuButtonTextEntity = new EditorEntity(OwnerCore, InteractionServices);
@@ -203,14 +178,13 @@ namespace helengine.editor {
             PanelMenuButtonTextComponent.Font = font;
             PanelMenuButtonTextComponent.Text = PanelMenuButtonLabel;
             PanelMenuButtonTextComponent.Color = new byte4(255, 255, 255, 255);
-            PanelMenuButtonTextComponent.RenderOrder2D = textOrder;
             PanelMenuButtonTextEntity.AddComponent(PanelMenuButtonTextComponent);
 
             PanelMenuButtonInteractivity = new InteractableComponent();
             PanelMenuButtonInteractivity.CursorEvent += PanelMenuButtonInteractivity_CursorEvent;
             PanelMenuButtonEntity.AddComponent(PanelMenuButtonInteractivity);
 
-            PanelMenu = new ContextMenu(OwnerCore, font, EditorLayerMasks.EditorModalUi, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground, InteractionServices);
+            PanelMenu = new ContextMenu(OwnerCore, font, EditorLayerMasks.EditorModalUi, InteractionServices);
             AddChild(PanelMenu.Entity);
             PanelMenuItems = BuildPanelMenuItems();
 
@@ -220,7 +194,7 @@ namespace helengine.editor {
             AddComponent(titleBarInteractivity);
 
             Size = new int2(600, 600);
-            RefreshRenderOrderBias();
+            ApplyPanelDepth();
             InitializeHierarchy();
         }
 
@@ -297,7 +271,7 @@ namespace helengine.editor {
 
                 isDocked = value;
                 UpdatePanelOutline();
-                ApplyRenderOrderBias();
+                ApplyPanelDepth();
             }
         }
 
@@ -607,55 +581,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Refreshes the cached render-order baselines and reapplies docking bias.
+        /// Places this panel in the physical depth band for its current docked or floating state.
         /// </summary>
-        protected void RefreshRenderOrderBias() {
-            RegisterRenderOrderBaseline(this);
-            ApplyRenderOrderBias();
-        }
-
-        /// <summary>
-        /// Registers baseline render orders for drawables in the provided entity tree.
-        /// </summary>
-        /// <param name="entity">Root entity to scan.</param>
-        void RegisterRenderOrderBaseline(Entity entity) {
-            if (entity.Components != null) {
-                for (int i = 0; i < entity.Components.Count; i++) {
-                    var component = entity.Components[i];
-                    if (component is IDrawable2D drawable) {
-                        if (!renderOrderBaseline.ContainsKey(drawable)) {
-                            renderOrderBaseline[drawable] = drawable.RenderOrder2D;
-                        }
-                    }
-                }
-            }
-
-            if (entity.Children != null) {
-                for (int i = 0; i < entity.Children.Count; i++) {
-                    RegisterRenderOrderBaseline(entity.Children[i]);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Applies the docked or undocked render-order bias to registered drawables.
-        /// </summary>
-        void ApplyRenderOrderBias() {
-            if (renderOrderBaseline.Count == 0) {
-                RegisterRenderOrderBaseline(this);
-            }
-
-            int boost = 0;
-            if (!isDocked) {
-                boost = RenderOrder2D.FloatingPanelBias;
-            }
-            foreach (var entry in renderOrderBaseline) {
-                int adjusted = entry.Value + boost;
-                if (adjusted > byte.MaxValue) {
-                    adjusted = byte.MaxValue;
-                }
-                entry.Key.RenderOrder2D = (byte)adjusted;
-            }
+        void ApplyPanelDepth() {
+            float3 position = LocalPosition;
+            position.Z = isDocked ? EditorUiDepths.DockedPanel : EditorUiDepths.FloatingPanel;
+            LocalPosition = position;
         }
 
         /// <summary>

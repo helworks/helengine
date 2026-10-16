@@ -2,6 +2,7 @@ namespace helengine {
     /// <summary>
     /// Renders the hidden editor-only cone attached to authored spot light entities.
     /// </summary>
+    [RunInEditor]
     public class EditorSpotLightVisualComponent : MeshComponent, IEditorHiddenComponent {
         readonly helengine.editor.EngineGeneratedMaterialCache GeneratedMaterialCache;
         readonly helengine.EditorSpotLightVisualResources VisualResources;

@@ -241,10 +241,6 @@ namespace helengine.editor {
         /// </summary>
         readonly PlatformComponentMemberDescriptorResolver PlatformComponentMemberDescriptorResolver;
         /// <summary>
-        /// Render order used for label text.
-        /// </summary>
-        internal readonly byte TextOrder;
-        /// <summary>
         /// Tracks the collapsed state currently chosen for visible components.
         /// </summary>
         readonly Dictionary<Component, bool> CollapsedStates;
@@ -403,7 +399,6 @@ namespace helengine.editor {
             CustomEditorExpandedStates = new Dictionary<string, bool>();
             SceneMapDraftSourcesByComponent = new Dictionary<Component, string>();
             SceneMapDraftTargetsByComponent = new Dictionary<Component, string>();
-            TextOrder = RenderOrder2D.PanelForeground;
             CurrentPlatformId = ComponentPlatformEditingService.CommonPlatformId;
             CurrentEnvironmentId = string.Empty;
             PlatformDefinitionsById = new Dictionary<string, PlatformDefinition>(StringComparer.OrdinalIgnoreCase);
@@ -1055,7 +1050,6 @@ namespace helengine.editor {
                 row.Entity.AddChild(buttonHost);
 
                 ButtonComponent button = new ButtonComponent(label, new int2(PickButtonWidth, PickButtonHeight), Font, () => HandleMeshModifierActionButtonPressed(row), 0f);
-                button.SetRenderOrders(RenderOrder2D.PanelSurface, TextOrder);
                 button.UseHoverOnlyBackground();
                 button.UseSquareCorners();
                 button.SetTextColor(ThemeManager.Colors.AccentQuaternary);
@@ -3700,7 +3694,6 @@ namespace helengine.editor {
             SpriteComponent background = new SpriteComponent {
                 Texture = RendererResources.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.AccentSecondary,
-                RenderOrder2D = RenderOrder2D.PanelSurface,
                 Size = new int2(1, SectionHeaderHeight)
             };
             root.AddComponent(background);
@@ -3711,7 +3704,6 @@ namespace helengine.editor {
                 FillColor = new byte4(255, 255, 255, 0),
                 BorderThickness = 0f,
                 BorderColor = ResolveOverrideOutlineColor(),
-                RenderOrder2D = RenderOrder2D.PanelForeground,
                 Size = new int2(1, SectionHeaderHeight)
             };
             root.AddComponent(headerOverrideOutline);
@@ -3734,7 +3726,6 @@ namespace helengine.editor {
                 Text = string.Empty,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(1, 1),
-                RenderOrder2D = TextOrder
             };
             titleHost.AddComponent(titleText);
 
@@ -3764,12 +3755,10 @@ namespace helengine.editor {
                 new ButtonComponent("X", new int2(SectionRemoveButtonWidth, SectionHeaderHeight), Font, () => HandleSectionRemoveClicked(section), 0f));
 
             removeButtonHost.AddComponent(section.RemoveButton);
-            section.RemoveButton.SetRenderOrders(TextOrder, TextOrder);
             section.RemoveButton.UseHoverOnlyBackground();
             section.RemoveButton.UseSquareCorners();
             section.RemoveButton.SetTextColor(ThemeManager.Colors.AccentQuaternary);
             ButtonComponent revertButton = new ButtonComponent("Revert", new int2(SectionRevertButtonWidth, SectionRevertButtonHeight), Font, () => HandleSectionRevertClicked(section), 1f);
-            revertButton.SetRenderOrders(RenderOrder2D.PanelSurface, TextOrder);
             revertButton.UseHoverOnlyBackground();
             revertButton.UseSquareCorners();
             revertButton.SetTextColor(ThemeManager.Colors.AccentQuaternary);
@@ -4261,7 +4250,6 @@ namespace helengine.editor {
                 FillColor = new byte4(255, 255, 255, 0),
                 BorderThickness = OverrideOutlineThickness,
                 BorderColor = ResolveOverrideOutlineColor(),
-                RenderOrder2D = RenderOrder2D.PanelSurface,
                 Size = new int2(1, RowHeight)
             };
             rowEntity.AddComponent(overrideOutline);
@@ -4276,7 +4264,6 @@ namespace helengine.editor {
             label.Text = string.Empty;
             label.Color = ThemeManager.Colors.InputForegroundPrimary;
             label.Size = new int2(1, 1);
-            label.RenderOrder2D = TextOrder;
             labelHost.AddComponent(label);
 
             var row = new ComponentPropertyRow(kind, rowEntity, labelHost, label);
@@ -4289,7 +4276,6 @@ namespace helengine.editor {
             rowEntity.AddChild(revertButtonHost);
 
             ButtonComponent revertButton = new ButtonComponent("Revert", new int2(RevertButtonWidth, RevertButtonHeight), Font, () => HandleRowRevertClicked(row), 1f);
-            revertButton.SetRenderOrders(RenderOrder2D.PanelSurface, TextOrder);
             revertButton.UseHoverOnlyBackground();
             revertButton.UseSquareCorners();
             revertButton.SetTextColor(ThemeManager.Colors.AccentQuaternary);
@@ -4466,7 +4452,6 @@ namespace helengine.editor {
             row.Entity.AddChild(buttonHost);
 
             ButtonComponent button = new ButtonComponent("Action", new int2(PickButtonWidth, PickButtonHeight), Font, () => HandleSceneMapActionButtonPressed(row), 0f);
-            button.SetRenderOrders(RenderOrder2D.PanelSurface, TextOrder);
             button.UseHoverOnlyBackground();
             button.UseSquareCorners();
             button.SetTextColor(ThemeManager.Colors.AccentQuaternary);

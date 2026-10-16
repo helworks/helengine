@@ -92,11 +92,6 @@ namespace helengine.core.tests {
         /// </summary>
         sealed class DualDrawableComponent : Component, IDrawable2D, IDrawable3D {
             /// <summary>
-            /// Gets or sets the 2D render order for this drawable.
-            /// </summary>
-            public byte RenderOrder2D { get; set; }
-
-            /// <summary>
             /// Gets or sets the 3D render order for this drawable.
             /// </summary>
             public byte RenderOrder3D { get; set; }
@@ -126,11 +121,6 @@ namespace helengine.core.tests {
         sealed class DrawableCameraComponent : Component, IDrawable2D, ICamera {
             readonly RenderList2D RenderQueue2DValue = new RenderList2D(4);
             readonly RenderList3D RenderQueue3DValue = new RenderList3D(4);
-
-            /// <summary>
-            /// Gets or sets the 2D render order for this drawable.
-            /// </summary>
-            public byte RenderOrder2D { get; set; }
 
             /// <summary>
             /// Gets or sets the layer mask this camera renders.

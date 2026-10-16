@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Update component that forwards per-frame work into the preview panel.
     /// </summary>
+    [RunInEditor]
     public class PreviewPanelUpdater : UpdateComponent {
         /// <summary>
         /// Preview panel that owns the active preview source.

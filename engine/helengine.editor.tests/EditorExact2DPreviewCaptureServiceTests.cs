@@ -107,6 +107,69 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures each exact preview camera receives only the private 2D clone owned by its capture service.
+        /// </summary>
+        [Fact]
+        public void CaptureServices_WhenSecondCameraIsCreatedAfterFirstCapture_KeepDrawablesOnTheirOwnQueues() {
+            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            Entity textSourceEntity = new Entity(Core.Instance);
+            textSourceEntity.InitComponents();
+            textSourceEntity.InitChildren();
+            TextComponent textSource = new TextComponent {
+                Text = "Text preview",
+                Size = new int2(100, 28)
+            };
+            textSourceEntity.AddComponent(textSource);
+
+            Entity roundedRectSourceEntity = new Entity(Core.Instance);
+            roundedRectSourceEntity.InitComponents();
+            roundedRectSourceEntity.InitChildren();
+            RoundedRectComponent roundedRectSource = new RoundedRectComponent {
+                Size = new int2(80, 40)
+            };
+            roundedRectSourceEntity.AddComponent(roundedRectSource);
+
+            using EditorExact2DPreviewCaptureService textService = new EditorExact2DPreviewCaptureService(renderManager3D, Core.Instance.RenderManager2D, Core.Instance.ObjectManager, GeneratedAssetGraph.ShaderLibrary);
+            textService.CaptureTextPreview(textSourceEntity, textSource, new int2(160, 48));
+
+            using EditorExact2DPreviewCaptureService roundedRectService = new EditorExact2DPreviewCaptureService(renderManager3D, Core.Instance.RenderManager2D, Core.Instance.ObjectManager, GeneratedAssetGraph.ShaderLibrary);
+            roundedRectService.CaptureRoundedRectPreview(roundedRectSourceEntity, roundedRectSource, new int2(128, 64));
+
+            RenderList2D textQueue = Assert.IsType<RenderList2D>(textService.PreviewCamera.RenderQueue2D);
+            RenderList2D roundedRectQueue = Assert.IsType<RenderList2D>(roundedRectService.PreviewCamera.RenderQueue2D);
+            Assert.Equal(1, textQueue.Count);
+            Assert.Same(textService.PreviewTextComponent, textQueue[0]);
+            Assert.Equal(1, roundedRectQueue.Count);
+            Assert.Same(roundedRectService.PreviewRoundedRectComponent, roundedRectQueue[0]);
+
+            textService.CaptureTextPreview(textSourceEntity, textSource, new int2(320, 96));
+            roundedRectService.CaptureRoundedRectPreview(roundedRectSourceEntity, roundedRectSource, new int2(256, 128));
+            Assert.Equal(1, textQueue.Count);
+            Assert.Same(textService.PreviewTextComponent, textQueue[0]);
+            Assert.Equal(1, roundedRectQueue.Count);
+            Assert.Same(roundedRectService.PreviewRoundedRectComponent, roundedRectQueue[0]);
+
+            textService.CaptureRoundedRectPreview(roundedRectSourceEntity, roundedRectSource, new int2(256, 128));
+            Assert.Null(textService.PreviewTextComponent);
+            Assert.NotNull(textService.PreviewRoundedRectComponent);
+            Assert.Equal(1, textQueue.Count);
+            Assert.Same(textService.PreviewRoundedRectComponent, textQueue[0]);
+            Assert.Equal(1, roundedRectQueue.Count);
+            Assert.Same(roundedRectService.PreviewRoundedRectComponent, roundedRectQueue[0]);
+
+            roundedRectSourceEntity.Enabled = false;
+            roundedRectService.CaptureRoundedRectPreview(roundedRectSourceEntity, roundedRectSource, new int2(256, 128));
+            Assert.False(roundedRectService.PreviewRoundedRectComponent.Parent.Enabled);
+            Assert.Equal(0, roundedRectQueue.Count);
+
+            roundedRectSourceEntity.Enabled = true;
+            roundedRectService.CaptureRoundedRectPreview(roundedRectSourceEntity, roundedRectSource, new int2(256, 128));
+            Assert.True(roundedRectService.PreviewRoundedRectComponent.Parent.Enabled);
+            Assert.Equal(1, roundedRectQueue.Count);
+            Assert.Same(roundedRectService.PreviewRoundedRectComponent, roundedRectQueue[0]);
+        }
+
+        /// <summary>
         /// Ensures disposing the capture service releases its owned render-target resources.
         /// </summary>
         [Fact]

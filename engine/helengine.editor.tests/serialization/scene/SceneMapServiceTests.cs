@@ -596,7 +596,6 @@ namespace helengine.editor.tests.serialization.scene {
                 Color = new byte4(12, 34, 56, 78),
                 SourceRect = new float4(0.1f, 0.2f, 0.3f, 0.4f),
                 Rotation = 0.25f,
-                RenderOrder2D = 19,
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(nameof(TextComponent.Font), CreateFileReference(fontRelativePath));
@@ -619,8 +618,7 @@ namespace helengine.editor.tests.serialization.scene {
             FPSComponent fpsComponent = new FPSComponent {
                 Font = CreateFont(),
                 RefreshIntervalSeconds = 0.5d,
-                Padding = new int2(8, 6),
-                RenderOrder2D = 250
+                Padding = new int2(8, 6)
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(nameof(FPSComponent.Font), CreateGeneratedReference(fontRelativePath, providerId, assetId));

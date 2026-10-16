@@ -441,8 +441,11 @@ namespace helengine.editor {
         /// Resolves the shader compiler target required by one editor build platform.
         /// </summary>
         /// <param name="platformId">Stable platform identifier supplied by the editor build request.</param>
-        /// <returns>PS Vita for a PS Vita build; otherwise the existing DirectX 11 target.</returns>
+        /// <returns>The explicit Xbox or PS Vita target, otherwise the existing DirectX 11 target.</returns>
         internal static ShaderCompileTarget ResolveShaderCompileTarget(string platformId) {
+            if (string.Equals(platformId, "xbox", StringComparison.OrdinalIgnoreCase)) {
+                return ShaderCompileTarget.Xbox;
+            }
             return string.Equals(platformId, "psvita", StringComparison.OrdinalIgnoreCase)
                 ? ShaderCompileTarget.PsVita
                 : ShaderCompileTarget.DirectX11;

@@ -27,7 +27,6 @@ namespace helengine.editor {
             SpriteComponent background = new SpriteComponent {
                 Texture = View.RendererResources.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.AccentSecondary,
-                RenderOrder2D = RenderOrder2D.PanelSurface,
                 Size = new int2(1, ComponentPropertiesView.RowHeight)
             };
             rowEntity.AddComponent(background);

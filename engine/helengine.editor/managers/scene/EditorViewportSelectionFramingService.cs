@@ -4,14 +4,14 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorViewportSelectionFramingService {
         /// <summary>
-        /// Perspective field of view currently used by the editor scene viewport renderer.
-        /// </summary>
-        const double PerspectiveFieldOfViewRadians = Math.PI / 4.0;
-
-        /// <summary>
         /// Extra distance added beyond the framed selection radius so the target does not touch the clip plane.
         /// </summary>
         const double FarPlaneMargin = 8.0;
+
+        /// <summary>
+        /// Fractional clearance applied around the resolved selection bounds.
+        /// </summary>
+        const double FocusPaddingFactor = 1.1;
 
         /// <summary>
         /// Minimum radius used when framing point-like selections with no meaningful spatial extent.
@@ -38,20 +38,43 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Viewport camera controller must be attached to a camera entity before focus operations can run.");
             }
 
+            float4 viewport = sceneCamera.Viewport;
+            if (!float.IsFinite(viewport.Z) || !float.IsFinite(viewport.W) || viewport.Z <= 1f || viewport.W <= 1f) {
+                return;
+            }
+
             float3 focusCenter;
             double focusRadius;
             ResolveFocusBounds(selectedEntity, out focusCenter, out focusRadius);
 
-            float4 viewport = sceneCamera.Viewport;
-            double viewportWidth = Math.Max(1.0, viewport.Z);
-            double viewportHeight = Math.Max(1.0, viewport.W);
+            double viewportWidth = viewport.Z;
+            double viewportHeight = viewport.W;
             double aspectRatio = viewportWidth / viewportHeight;
-            double halfVerticalFieldOfView = PerspectiveFieldOfViewRadians * 0.5;
-            double halfHorizontalFieldOfView = Math.Atan(Math.Tan(halfVerticalFieldOfView) * aspectRatio);
-            double limitingHalfFieldOfView = Math.Min(halfVerticalFieldOfView, halfHorizontalFieldOfView);
-            double requiredDistance = focusRadius / Math.Tan(limitingHalfFieldOfView);
-            if (requiredDistance < MinimumFocusRadius) {
-                requiredDistance = MinimumFocusRadius;
+            if (!double.IsFinite(aspectRatio) || aspectRatio <= 0.0) {
+                return;
+            }
+
+            double requiredDistance;
+            if (sceneCamera is ICameraProjectionSettings projectionSettings && projectionSettings.ProjectionMode == CameraProjectionMode.Orthographic) {
+                double verticalSpan = 2.0 * focusRadius * FocusPaddingFactor * Math.Max(1.0, 1.0 / aspectRatio);
+                if (!double.IsFinite(verticalSpan) || verticalSpan < CameraProjectionUtils.MinimumOrthographicVerticalSpan || verticalSpan > float.MaxValue) {
+                    return;
+                }
+
+                projectionSettings.OrthographicVerticalSpan = (float)verticalSpan;
+                requiredDistance = Math.Max(MinimumFocusRadius, GetDistance(cameraController.Parent.Position, cameraController.GetOrbitTarget()));
+            } else {
+                float fieldOfView = sceneCamera.FieldOfView;
+                if (!float.IsFinite(fieldOfView) || fieldOfView <= 0f) {
+                    return;
+                }
+                double halfVerticalFieldOfView = CameraProjectionUtils.ClampFieldOfView(fieldOfView) * 0.5;
+                double halfHorizontalFieldOfView = Math.Atan(Math.Tan(halfVerticalFieldOfView) * aspectRatio);
+                double limitingHalfFieldOfView = Math.Min(halfVerticalFieldOfView, halfHorizontalFieldOfView);
+                requiredDistance = focusRadius * FocusPaddingFactor / Math.Tan(limitingHalfFieldOfView);
+                if (requiredDistance < MinimumFocusRadius) {
+                    requiredDistance = MinimumFocusRadius;
+                }
             }
 
             ApplyFocusedCameraTransform(cameraController, selectedEntity, focusCenter, requiredDistance);
@@ -215,8 +238,7 @@ namespace helengine.editor {
         /// <param name="requiredDistance">Required camera distance from the focus center.</param>
         void ApplyFocusedCameraTransform(EditorViewportCameraController cameraController, Entity selectedEntity, float3 focusCenter, double requiredDistance) {
             Entity cameraEntity = cameraController.Parent;
-            float3 cameraForward = float4.RotateVector(new float3(0f, 0f, -1f), cameraEntity.Orientation);
-            cameraEntity.Position = focusCenter - (cameraForward * (float)requiredDistance);
+            cameraController.SetViewPose(focusCenter, cameraEntity.Orientation, requiredDistance);
             cameraController.SetSelectionOrbitTargetOverride(selectedEntity, focusCenter);
         }
 
@@ -336,5 +358,6 @@ namespace helengine.editor {
             double deltaZ = left.Z - right.Z;
             return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
         }
+
     }
 }

@@ -318,10 +318,10 @@ namespace helengine.editor.tests {
             Assert.Equal(new float3(1f, 0f, 0f), builtModelAsset.Positions[1]);
             Assert.Equal(new float3(1f, -1f, 0f), builtModelAsset.Positions[2]);
             Assert.Equal(new float3(0f, -1f, 0f), builtModelAsset.Positions[3]);
-            Assert.Equal(new float2(0f, 1f), builtModelAsset.TexCoords[0]);
-            Assert.Equal(new float2(1f, 1f), builtModelAsset.TexCoords[1]);
-            Assert.Equal(new float2(1f, 0f), builtModelAsset.TexCoords[2]);
-            Assert.Equal(new float2(0f, 0f), builtModelAsset.TexCoords[3]);
+            Assert.Equal(new float2(0f, 0f), builtModelAsset.TexCoords[0]);
+            Assert.Equal(new float2(1f, 0f), builtModelAsset.TexCoords[1]);
+            Assert.Equal(new float2(1f, 1f), builtModelAsset.TexCoords[2]);
+            Assert.Equal(new float2(0f, 1f), builtModelAsset.TexCoords[3]);
         }
 
         /// <summary>

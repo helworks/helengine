@@ -53,14 +53,6 @@ namespace helengine.editor {
         /// </summary>
         readonly Dictionary<Entity, bool> expandedEntities;
         /// <summary>
-        /// Render order used for row background sprites.
-        /// </summary>
-        readonly byte rowBackgroundOrder;
-        /// <summary>
-        /// Render order used for row text.
-        /// </summary>
-        readonly byte rowTextOrder;
-        /// <summary>
         /// Entity currently being reparented.
         /// </summary>
         Entity TargetEntity;
@@ -83,16 +75,12 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for labels and glyphs.</param>
         /// <param name="layerMask">Layer mask applied to the picker visuals.</param>
-        /// <param name="rowBackgroundOrder">Render order used for row background sprites.</param>
-        /// <param name="rowTextOrder">Render order used for row labels and glyphs.</param>
-        public SceneHierarchyPickerView(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, ushort layerMask, byte rowBackgroundOrder, byte rowTextOrder) {
+        public SceneHierarchyPickerView(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, ushort layerMask) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
 
             this.font = font;
-            this.rowBackgroundOrder = rowBackgroundOrder;
-            this.rowTextOrder = rowTextOrder;
 
             rootEntity = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
@@ -365,8 +353,7 @@ namespace helengine.editor {
 
             SpriteComponent background = new SpriteComponent {
                 Texture = rootEntity.OwnerCore.RenderManager2D.PixelTexture,
-                Color = ThemeManager.Colors.SurfacePrimary,
-                RenderOrder2D = rowBackgroundOrder
+                Color = ThemeManager.Colors.SurfacePrimary
             };
             rowEntity.AddComponent(background);
 
@@ -385,8 +372,7 @@ namespace helengine.editor {
                 Font = font,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(ArrowSlotWidth, SceneHierarchyPanel.RowHeight),
-                RenderOrder2D = rowTextOrder
+                Size = new int2(ArrowSlotWidth, SceneHierarchyPanel.RowHeight)
             };
             arrowHost.AddComponent(arrow);
 
@@ -400,8 +386,7 @@ namespace helengine.editor {
                 Font = font,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(100, SceneHierarchyPanel.RowHeight),
-                RenderOrder2D = rowTextOrder
+                Size = new int2(100, SceneHierarchyPanel.RowHeight)
             };
             labelHost.AddComponent(label);
 

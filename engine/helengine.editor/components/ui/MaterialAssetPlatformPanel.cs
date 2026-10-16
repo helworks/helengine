@@ -82,8 +82,7 @@ namespace helengine.editor {
         /// <param name="platformId">Platform identifier represented by the panel.</param>
         /// <param name="font">Font used for text rendering.</param>
         /// <param name="layerMask">Layer mask applied to the panel hierarchy.</param>
-        /// <param name="textOrder">Render order used for text labels and values.</param>
-        public MaterialAssetPlatformPanel(Core ownerCore, EditorSessionInteractionServices interactionServices, string platformId, FontAsset font, ushort layerMask, byte textOrder) {
+        public MaterialAssetPlatformPanel(Core ownerCore, EditorSessionInteractionServices interactionServices, string platformId, FontAsset font, ushort layerMask) {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             } else if (font == null) {
@@ -105,7 +104,6 @@ namespace helengine.editor {
             SchemaLabelText.Font = font;
             SchemaLabelText.Text = SchemaLabel;
             SchemaLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            SchemaLabelText.RenderOrder2D = textOrder;
             SchemaLabelHost.AddComponent(SchemaLabelText);
 
             SchemaComboHost = new EditorEntity(ownerCore, interactionServices);

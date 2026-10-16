@@ -72,6 +72,30 @@ namespace helengine.editor {
         /// </summary>
         public bool IsSettingsOverlayOpen { get; set; }
         /// <summary>
+        /// Projection mode used by this viewport's editor camera. Missing fields in older workspace documents resolve to perspective.
+        /// </summary>
+        public CameraProjectionMode ProjectionMode { get; set; } = CameraProjectionMode.Perspective;
+        /// <summary>
+        /// Preserved orthographic vertical span used by this viewport camera.
+        /// </summary>
+        public float OrthographicVerticalSpan { get; set; }
+        /// <summary>
+        /// Indicates whether the saved orbit pivot is valid, including when it is the world origin.
+        /// </summary>
+        public bool HasOrbitPivot { get; set; }
+        /// <summary>
+        /// X coordinate of the viewport camera orbit pivot.
+        /// </summary>
+        public float OrbitPivotX { get; set; }
+        /// <summary>
+        /// Y coordinate of the viewport camera orbit pivot.
+        /// </summary>
+        public float OrbitPivotY { get; set; }
+        /// <summary>
+        /// Z coordinate of the viewport camera orbit pivot.
+        /// </summary>
+        public float OrbitPivotZ { get; set; }
+        /// <summary>
         /// Translation snap value used by the first viewport snap slot.
         /// </summary>
         public double TranslateSnap1 { get; set; }

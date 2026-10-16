@@ -8,6 +8,11 @@ namespace helengine.editor.tests.testing {
         readonly HashSet<RuntimeTexture> OwnedTextures = new HashSet<RuntimeTexture>();
 
         /// <summary>
+        /// Gets the most recent RGBA pixels submitted to one test runtime texture.
+        /// </summary>
+        public byte[] LastUpdatedTexturePixels { get; private set; }
+
+        /// <summary>
         /// Gets the runtime textures released through this test renderer.
         /// </summary>
         public List<RuntimeTexture> ReleasedTextures { get; } = new List<RuntimeTexture>();
@@ -67,6 +72,8 @@ namespace helengine.editor.tests.testing {
             if (!OwnedTextures.Contains(texture)) {
                 throw new ArgumentException("Texture was not created by this renderer.", nameof(texture));
             }
+
+            LastUpdatedTexturePixels = (byte[])rgba8.Clone();
         }
 
         /// <summary>

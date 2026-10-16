@@ -65,16 +65,6 @@ namespace helengine.editor {
         readonly AssetBrowserView BrowserView;
 
         /// <summary>
-        /// Render order used for panel surfaces.
-        /// </summary>
-        readonly byte PanelOrder;
-
-        /// <summary>
-        /// Render order used for text labels.
-        /// </summary>
-        readonly byte TextOrder;
-
-        /// <summary>
         /// Callback invoked when the user picks an asset.
         /// </summary>
         Action<AssetBrowserEntry> PickedCallback;
@@ -158,9 +148,6 @@ namespace helengine.editor {
 
             Font = font;
             Metrics = metrics;
-            PanelOrder = RenderOrder2D.ModalBackground;
-            TextOrder = RenderOrder2D.ModalForeground;
-
             DialogIsResizable = false;
             SetDialogMinimumSize(GetMinimumPanelWidthPixels(), GetMinimumPanelHeightPixels());
 
@@ -171,14 +158,9 @@ namespace helengine.editor {
                 EditorUiMetrics.Default,
                 projectPath,
                 LayerMask,
-                PanelOrder,
-                PanelOrder,
-                PanelOrder,
-                TextOrder,
                 true,
                 null,
                 dataSource ?? throw new ArgumentNullException(nameof(dataSource)));
-            BrowserView.SetToolbarButtonRenderOrders(TextOrder, TextOrder);
             BrowserView.AssetActivated += HandleAssetActivated;
             DialogContentRoot.AddChild(BrowserView.Entity);
 

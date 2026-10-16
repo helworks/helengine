@@ -39,27 +39,33 @@ namespace helengine {
         /// <summary>
         /// Gets the current membership and ordering revision of this render queue.
         /// </summary>
-        public int Version { get { return VersionValue; } }
+        public int Version { get { SortByCurrentDepth(); return VersionValue; } }
 
         /// <summary>
         /// Gets the drawable at the specified index.
         /// </summary>
         /// <param name="index">Zero-based index.</param>
-        public IDrawable2D this[int index] { get { return Items[index]; } }
+        public IDrawable2D this[int index] { get { SortByCurrentDepth(); return Items[index]; } }
 
-    /// <summary>
-    /// Adds a drawable while keeping the list ordered by render order.
-    /// </summary>
-    /// <param name="drawable">Drawable to add.</param>
-    public void Add(IDrawable2D drawable) {
-        if (ContainsReference(drawable)) {
-            return;
+        /// <summary>Reads an item after the caller has refreshed ordering through Version, avoiding repeated sorts in a batch.</summary>
+        /// <param name="index">Index in the already-prepared queue.</param>
+        /// <returns>Drawable at that ordered index.</returns>
+        internal IDrawable2D GetPreparedDrawable(int index) {
+            return Items[index];
         }
 
-        int insertIndex = FindInsertIndex(drawable != null ? drawable.RenderOrder2D : (byte)0);
-        Items.Insert(insertIndex, drawable);
-        AdvanceVersion();
-    }
+        /// <summary>
+        /// Adds a drawable and defers depth ordering until the queue is consumed.
+        /// </summary>
+        /// <param name="drawable">Drawable to add.</param>
+        public void Add(IDrawable2D drawable) {
+            if (ContainsReference(drawable)) {
+                return;
+            }
+
+            Items.Add(drawable);
+            AdvanceVersion();
+        }
 
         /// <summary>
         /// Removes every occurrence of a drawable by reference so duplicate queue entries cannot survive one unregister request.
@@ -77,11 +83,11 @@ namespace helengine {
                 removed = true;
             }
 
-        if (removed) {
-            AdvanceVersion();
-        }
+            if (removed) {
+                AdvanceVersion();
+            }
 
-        return removed;
+            return removed;
         }
 
         /// <summary>
@@ -138,54 +144,60 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(visitor));
             }
 
+            SortByCurrentDepth();
             for (int i = 0; i < Items.Count; i++) {
                 visitor.Visit(Items[i]);
             }
         }
 
         /// <summary>
-        /// Finds the index where the given render order should be inserted.
+        /// Refreshes stable depth/hierarchy order before consumption, including transform-only changes.
         /// </summary>
-        /// <param name="renderOrder">Render order to insert.</param>
-        /// <returns>Insertion index.</returns>
-    int FindInsertIndex(byte renderOrder) {
-        for (int i = 0; i < Items.Count; i++) {
-            IDrawable2D current = Items[i];
-            byte currentOrder = current != null ? current.RenderOrder2D : (byte)0;
-            if (renderOrder < currentOrder) {
-                    return i;
+        void SortByCurrentDepth() {
+            bool changed = false;
+            for (int index = 1; index < Items.Count; index++) {
+                IDrawable2D candidate = Items[index];
+                int insertionIndex = index;
+                while (insertionIndex > 0 && RenderDepthOrder2D.CompareDrawables(candidate, Items[insertionIndex - 1]) < 0) {
+                    Items[insertionIndex] = Items[insertionIndex - 1];
+                    insertionIndex--;
+                }
+                if (insertionIndex != index) {
+                    Items[insertionIndex] = candidate;
+                    changed = true;
+                }
+            }
+            if (changed) {
+                AdvanceVersion();
+            }
+        }
+
+        /// <summary>
+        /// Determines whether the queue already contains the provided drawable reference.
+        /// </summary>
+        /// <param name="drawable">Drawable to locate.</param>
+        /// <returns>True when the exact drawable instance is already queued; otherwise false.</returns>
+        bool ContainsReference(IDrawable2D drawable) {
+            for (int index = 0; index < Items.Count; index++) {
+                if (ReferenceEquals(Items[index], drawable)) {
+                    return true;
                 }
             }
 
-        return Items.Count;
-    }
+            return false;
+        }
 
-    /// <summary>
-    /// Determines whether the queue already contains the provided drawable reference.
-    /// </summary>
-    /// <param name="drawable">Drawable to locate.</param>
-    /// <returns>True when the exact drawable instance is already queued; otherwise false.</returns>
-    bool ContainsReference(IDrawable2D drawable) {
-        for (int index = 0; index < Items.Count; index++) {
-            if (ReferenceEquals(Items[index], drawable)) {
-                return true;
+        /// <summary>
+        /// Advances the queue revision while retaining a positive value after integer rollover.
+        /// </summary>
+        void AdvanceVersion() {
+            if (VersionValue == int.MaxValue) {
+                VersionValue = 1;
+                return;
             }
+
+            VersionValue++;
         }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Advances the queue revision while retaining a positive value after integer rollover.
-    /// </summary>
-    void AdvanceVersion() {
-        if (VersionValue == int.MaxValue) {
-            VersionValue = 1;
-            return;
-        }
-
-        VersionValue++;
-    }
 
     }
 }

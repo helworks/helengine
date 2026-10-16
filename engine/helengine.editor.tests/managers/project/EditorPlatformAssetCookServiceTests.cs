@@ -538,6 +538,81 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies that a fresh workspace restores an unchanged scene package and an authored asset edit creates a new entry.
+    /// </summary>
+    [Fact]
+    public void Cook_reuses_scene_package_and_invalidates_it_when_authored_assets_change() {
+        WriteSceneAsset("Scenes/MainMenu.helen", Array.Empty<SceneAssetReference>());
+        EditorPlatformAssetCookService service = new(
+            ProjectRootPath,
+            "1.0.0-engine",
+            "game",
+            "1.0.0",
+            Array.Empty<IAssetImporterRegistration>(),
+            PackagedFontAssetFactory.Create(),
+            null,
+            null,
+            BuiltInShaderAssetLibrary);
+        TestPlatformMaterialAssetBuilder builder = new();
+        string sceneCacheRootPath = Path.Combine(ProjectRootPath, "cache", "build", "scene-package", "v1");
+        string cookedScenePath = Path.Combine(BuildRootPath, "cooked", "scenes", "MainMenu.hasset");
+
+        service.Cook(builder.Definition, ["MainMenu"], BuildRootPath, ["windows"], builder);
+        byte[] firstSceneBytes = File.ReadAllBytes(cookedScenePath);
+        Assert.Single(Directory.GetDirectories(sceneCacheRootPath));
+
+        Directory.Delete(Path.Combine(BuildRootPath, "cooked"), true);
+        service.Cook(builder.Definition, ["MainMenu"], BuildRootPath, ["windows"], builder);
+        Assert.Equal(firstSceneBytes, File.ReadAllBytes(cookedScenePath));
+        Assert.Single(Directory.GetDirectories(sceneCacheRootPath));
+
+        File.WriteAllText(Path.Combine(ProjectRootPath, "assets", "new-asset.txt"), "new source content");
+        Directory.Delete(Path.Combine(BuildRootPath, "cooked"), true);
+        service.Cook(builder.Definition, ["MainMenu"], BuildRootPath, ["windows"], builder);
+        Assert.Equal(2, Directory.GetDirectories(sceneCacheRootPath).Length);
+        Assert.True(File.Exists(cookedScenePath));
+    }
+
+    /// <summary>
+    /// Ensures generated atlas work items point to the restored workspace rather than the previous build.
+    /// </summary>
+    [Fact]
+    public void Scene_package_cache_rebases_generated_work_item_sources() {
+        string firstRootPath = Path.Combine(ProjectRootPath, "first-build");
+        string secondRootPath = Path.Combine(ProjectRootPath, "second-build");
+        string generatedRelativePath = Path.Combine("generated", "editor", "fonts", "default-font-atlas.hasset");
+        string firstSourcePath = Path.Combine(firstRootPath, generatedRelativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(firstSourcePath)!);
+        File.WriteAllText(firstSourcePath, "generated atlas");
+        string firstScenePath = Path.Combine(firstRootPath, "cooked", "scenes", "MainMenu.hasset");
+        Directory.CreateDirectory(Path.GetDirectoryName(firstScenePath)!);
+        File.WriteAllText(firstScenePath, "packaged scene");
+        PlatformCookWorkItem workItem = new(
+            "windows:texture:atlas",
+            firstSourcePath,
+            "texture",
+            "windows",
+            "texture",
+            "cooked/fonts/default-font-atlas.bin",
+            "texture:atlas",
+            "source-hash",
+            "settings-hash",
+            "{}",
+            []);
+        EditorPlatformBuildScenePackagerResult packaged = new([], [workItem], []);
+        EditorScenePackageCache cache = new(ProjectRootPath);
+        string key = new string('a', 64);
+
+        cache.Store(key, firstRootPath, packaged);
+        bool restored = cache.TryRestore(key, secondRootPath, out EditorPlatformBuildScenePackagerResult restoredResult);
+
+        Assert.True(restored);
+        Assert.Equal(Path.Combine(secondRootPath, generatedRelativePath), Assert.Single(restoredResult.PlatformCookWorkItems).SourceAssetPath);
+        Assert.Equal("generated atlas", File.ReadAllText(Path.Combine(secondRootPath, generatedRelativePath)));
+        Assert.Equal("packaged scene", File.ReadAllText(Path.Combine(secondRootPath, "cooked", "scenes", "MainMenu.hasset")));
+    }
+
+    /// <summary>
     /// Verifies the editor hands an authored shader override and its filesystem include context to a shader-capable platform.
     /// </summary>
     [Fact]

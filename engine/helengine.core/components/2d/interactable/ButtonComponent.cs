@@ -2,24 +2,15 @@ namespace helengine {
     /// <summary>
     /// Simple interactable button that renders rounded rect styling and invokes a click action.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class ButtonComponent : Component, IFocusTarget, IAnchorSizeProvider {
         string Text;
         FontAsset FontValue;
         int2 SizeValue;
         Action OnClickAction;
         readonly float BorderThickness;
-        /// <summary>
-        /// Tracks whether custom render orders were supplied for the button visuals.
-        /// </summary>
-        bool HasRenderOrderOverrides;
-        /// <summary>
-        /// Render order override for the rounded rectangle background.
-        /// </summary>
-        byte BackgroundRenderOrder;
-        /// <summary>
-        /// Render order override for the button label text.
-        /// </summary>
-        byte TextRenderOrder;
         /// <summary>
         /// Transparent fill used by buttons that should only show their background during interaction.
         /// </summary>
@@ -167,25 +158,6 @@ namespace helengine {
             FocusedBorderColor = ThemeManager.Colors.AccentPrimary;
             Corners = RoundedRectCorners.All;
             UpdateCornerRadius();
-        }
-
-        /// <summary>
-        /// Overrides the render order used for the button background and label.
-        /// </summary>
-        /// <param name="backgroundOrder">Render order for the rounded rectangle background.</param>
-        /// <param name="textOrder">Render order for the label text.</param>
-        public void SetRenderOrders(byte backgroundOrder, byte textOrder) {
-            HasRenderOrderOverrides = true;
-            BackgroundRenderOrder = backgroundOrder;
-            TextRenderOrder = textOrder;
-
-            if (RoundedRect != null) {
-                RoundedRect.RenderOrder2D = backgroundOrder;
-            }
-
-            if (TextComponent != null) {
-                TextComponent.RenderOrder2D = textOrder;
-            }
         }
 
         /// <summary>
@@ -342,13 +314,6 @@ namespace helengine {
 
             if (RoundedRect != null) return;
 
-            byte backgroundOrder = RenderOrder2D.PanelSurface;
-            byte textOrder = RenderOrder2D.PanelForeground;
-            if (HasRenderOrderOverrides) {
-                backgroundOrder = BackgroundRenderOrder;
-                textOrder = TextRenderOrder;
-            }
-
             // Create rounded rectangle background
             RoundedRect = new RoundedRectComponent();
             RoundedRect.Size = SizeValue;
@@ -357,7 +322,6 @@ namespace helengine {
             RoundedRect.BorderThickness = BorderThickness;
             RoundedRect.FillColor = ThemeManager.Colors.AccentSecondary;
             RoundedRect.BorderColor = ThemeManager.Colors.AccentTertiary;
-            RoundedRect.RenderOrder2D = backgroundOrder;
             entity.AddComponent(RoundedRect);
             UpdateButtonColor();
 
@@ -385,7 +349,6 @@ namespace helengine {
             TextComponent.Font = FontValue;
             TextComponent.Color = ButtonTextColor;
             TextComponent.Size = new int2(1, 1);
-            TextComponent.RenderOrder2D = textOrder;
             TextEntity.AddComponent(TextComponent);
 
             ApplyTextLayout();

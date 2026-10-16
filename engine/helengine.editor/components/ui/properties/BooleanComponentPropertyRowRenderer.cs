@@ -36,7 +36,6 @@ namespace helengine.editor {
             rowEntity.AddChild(checkBoxHost);
 
             var checkBox = new CheckBoxComponent(new int2(ComponentPropertiesView.FieldHeight, ComponentPropertiesView.FieldHeight), View.Font);
-            checkBox.SetRenderOrders(RenderOrder2D.PanelSurface, View.TextOrder);
             checkBox.CheckedChanged += View.HandleBooleanCheckedChanged;
             checkBoxHost.AddComponent(checkBox);
 

@@ -9,20 +9,19 @@ namespace helengine.editor.tests {
     /// </summary>
     public class SceneSettingsDialogTests {
         /// <summary>
-        /// Ensures both scene-canvas textboxes use the modal dialog render orders so they remain visible above the shared panel chrome.
+        /// Ensures both scene-canvas textboxes remain above the shared panel and their labels remain above their backgrounds.
         /// </summary>
         [Fact]
-        public void Constructor_WhenDialogIsCreated_ConfiguresCanvasFieldsWithModalRenderOrders() {
+        public void Constructor_WhenDialogIsCreated_PlacesCanvasFieldsAbovePanel() {
             InitializeCore();
             SceneSettingsDialog dialog = new SceneSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), EditorUiMetrics.Default);
 
-            byte dialogPanelOrder = GetNonPublicProperty<byte>(dialog, "DialogPanelOrder");
-            byte dialogTextOrder = GetNonPublicProperty<byte>(dialog, "DialogTextOrder");
+            RoundedRectComponent panel = GetNonPublicProperty<RoundedRectComponent>(dialog, "DialogPanelBackground");
             TextBoxComponent canvasWidthField = GetNonPublicField<TextBoxComponent>(dialog, "CanvasWidthField");
             TextBoxComponent canvasHeightField = GetNonPublicField<TextBoxComponent>(dialog, "CanvasHeightField");
 
-            AssertTextBoxRenderOrders(canvasWidthField, dialogPanelOrder, dialogTextOrder);
-            AssertTextBoxRenderOrders(canvasHeightField, dialogPanelOrder, dialogTextOrder);
+            AssertTextBoxDepth(canvasWidthField, panel);
+            AssertTextBoxDepth(canvasHeightField, panel);
         }
 
         /// <summary>
@@ -81,15 +80,14 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Ensures one textbox background and text layers match the owning modal dialog shell.
         /// </summary>
-        /// <param name="textBox">Textbox that should use modal render orders.</param>
-        /// <param name="expectedBackgroundOrder">Expected render order for the textbox background.</param>
-        /// <param name="expectedTextOrder">Expected render order for the textbox text.</param>
-        void AssertTextBoxRenderOrders(TextBoxComponent textBox, byte expectedBackgroundOrder, byte expectedTextOrder) {
+        /// <param name="textBox">Textbox whose visible layers are checked.</param>
+        /// <param name="panel">Owning dialog background.</param>
+        void AssertTextBoxDepth(TextBoxComponent textBox, RoundedRectComponent panel) {
             RoundedRectComponent backgroundSprite = GetNonPublicField<RoundedRectComponent>(textBox, "BackgroundSprite");
             TextComponent textComponent = GetNonPublicField<TextComponent>(textBox, "TextComponent");
 
-            Assert.Equal(expectedBackgroundOrder, backgroundSprite.RenderOrder2D);
-            Assert.Equal(expectedTextOrder, textComponent.RenderOrder2D);
+            Assert.True(RenderDepthOrder2D.CompareDrawables(panel, backgroundSprite) < 0);
+            Assert.True(RenderDepthOrder2D.CompareDrawables(backgroundSprite, textComponent) < 0);
         }
 
         /// <summary>

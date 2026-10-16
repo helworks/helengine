@@ -151,17 +151,16 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         /// <param name="position">Top-left canvas position in pixels.</param>
         /// <param name="size">Interactable size in pixels.</param>
-        /// <param name="renderOrder">2D render order assigned to the visible sprite.</param>
+        /// <param name="depth">2D depth assigned to the visible sprite.</param>
         /// <returns>Created scene entity that should be returned by the selection bridge.</returns>
-        EditorEntity CreateInteractableEntity(float3 position, int2 size, byte renderOrder) {
+        EditorEntity CreateInteractableEntity(float3 position, int2 size, byte depth) {
             var entity = new EditorEntity(CoreValue, GeneratedAssetGraph.InteractionServices) {
                 LayerMask = EditorLayerMasks.SceneObjects,
-                Position = position
+                Position = new float3(position.X, position.Y, depth)
             };
             var sprite = new SpriteComponent {
                 Texture = CoreValue.RenderManager2D.PixelTexture,
                 Size = size,
-                RenderOrder2D = renderOrder
             };
             entity.AddComponent(sprite);
             var interactable = new InteractableComponent {

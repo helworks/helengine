@@ -340,26 +340,24 @@ namespace helengine.editor {
                 return null;
             }
 
-            if (!EditorViewportPointerRayBuilder.TryBuildPerspectiveCameraRay(sceneCamera, pointer, out float3 rayOrigin, out float3 rayDirection)) {
+            if (!EditorViewportPointerRayBuilder.TryBuildCameraRay(sceneCamera, pointer, out float3 rayOrigin, out float3 rayDirection)) {
                 return null;
             }
 
             Entity resolvedEntity = null;
-            byte resolvedRenderOrder = 0;
             double resolvedDistance = double.MaxValue;
 
             List<IDrawable3D> drawables3D = objectManager.Drawables3D;
             for (int drawableIndex = 0; drawableIndex < drawables3D.Count; drawableIndex++) {
                 IDrawable3D drawable = drawables3D[drawableIndex];
-                if (!TryResolveWorldPreviewHit(drawable, rayOrigin, rayDirection, out Entity sourceEntity, out byte renderOrder, out double distanceAlongRay)) {
+                if (!TryResolveWorldPreviewHit(drawable, rayOrigin, rayDirection, out Entity sourceEntity, out double distanceAlongRay)) {
                     continue;
                 }
 
                 if (resolvedEntity == null ||
-                    renderOrder > resolvedRenderOrder ||
-                    (renderOrder == resolvedRenderOrder && distanceAlongRay < resolvedDistance)) {
+                    distanceAlongRay < resolvedDistance ||
+                    (distanceAlongRay == resolvedDistance && RenderDepthOrder2D.CompareHierarchy(sourceEntity, resolvedEntity) > 0)) {
                     resolvedEntity = sourceEntity;
-                    resolvedRenderOrder = renderOrder;
                     resolvedDistance = distanceAlongRay;
                 }
             }
@@ -387,7 +385,6 @@ namespace helengine.editor {
         /// <param name="rayOrigin">World-space ray origin.</param>
         /// <param name="rayDirection">Normalized world-space ray direction.</param>
         /// <param name="sourceEntity">Receives the authored source entity when the ray hits the preview rectangle.</param>
-        /// <param name="renderOrder">Receives the authored render order used to prioritize overlapping 2D previews.</param>
         /// <param name="distanceAlongRay">Receives the hit distance along the ray.</param>
         /// <returns>True when the ray hits one selectable world-preview rectangle.</returns>
         static bool TryResolveWorldPreviewHit(
@@ -395,10 +392,8 @@ namespace helengine.editor {
             float3 rayOrigin,
             float3 rayDirection,
             out Entity sourceEntity,
-            out byte renderOrder,
             out double distanceAlongRay) {
             sourceEntity = null;
-            renderOrder = 0;
             distanceAlongRay = 0.0;
             if (drawable == null || drawable.Parent is not EditorEntity previewEntity || !previewEntity.Enabled) {
                 return false;
@@ -425,7 +420,6 @@ namespace helengine.editor {
             }
 
             sourceEntity = resolvedSourceEntity;
-            renderOrder = ResolveRenderOrder(sourceComponent);
             distanceAlongRay = resolvedDistanceAlongRay;
             return true;
         }
@@ -505,27 +499,6 @@ namespace helengine.editor {
 
             component = null;
             return false;
-        }
-
-        /// <summary>
-        /// Resolves the authored render order used to prioritize overlapping 2D preview hits.
-        /// </summary>
-        /// <param name="sourceComponent">Authored 2D source component mirrored by the preview proxy.</param>
-        /// <returns>Render-order value used by the authored source component.</returns>
-        static byte ResolveRenderOrder(Component sourceComponent) {
-            if (sourceComponent == null) {
-                throw new ArgumentNullException(nameof(sourceComponent));
-            }
-
-            if (sourceComponent is SpriteComponent spriteComponent) {
-                return spriteComponent.RenderOrder2D;
-            } else if (sourceComponent is TextComponent textComponent) {
-                return textComponent.RenderOrder2D;
-            } else if (sourceComponent is RoundedRectComponent roundedRectComponent) {
-                return roundedRectComponent.RenderOrder2D;
-            }
-
-            throw new InvalidOperationException($"Unsupported 2D preview source component type '{sourceComponent.GetType().FullName}'.");
         }
 
         /// <summary>

@@ -183,10 +183,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the platform selector uses the same modal render-order pattern as other dropdown controls.
+        /// Ensures the platform selector popup renders above its owning field.
         /// </summary>
         [Fact]
-        public void Show_WhenPlatformSelectorIsCreated_UsesModalRenderOrdersForTheComboBox() {
+        public void Show_WhenPlatformSelectorIsCreated_PlacesDropdownAboveTheComboBox() {
             ProfilesDialog dialog = new ProfilesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             EditorProfileSettingsDocument document = CreateProfileDocument();
 
@@ -196,8 +196,8 @@ namespace helengine.editor.tests {
             RoundedRectComponent background = GetPrivateField<RoundedRectComponent>(platformComboBox, "Background");
             RoundedRectComponent listBackground = GetPrivateField<RoundedRectComponent>(platformComboBox, "ListBackground");
 
-            Assert.Equal(RenderOrder2D.ModalBackground, background.RenderOrder2D);
-            Assert.Equal(RenderOrder2D.ModalOverlayBackground, listBackground.RenderOrder2D);
+            Assert.True(background.Parent.Position.Z > dialog.Position.Z);
+            Assert.True(RenderDepthOrder2D.CompareDrawables(background, listBackground) < 0);
         }
 
         /// <summary>

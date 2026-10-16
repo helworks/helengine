@@ -2317,8 +2317,9 @@ namespace helengine.editor.tests {
             RoundedRectComponent backgroundSprite = GetPrivateField<RoundedRectComponent>(outputDirectoryField, "BackgroundSprite");
             TextComponent textComponent = GetPrivateField<TextComponent>(outputDirectoryField, "TextComponent");
 
-            Assert.Equal(RenderOrder2D.ModalBackground, backgroundSprite.RenderOrder2D);
-            Assert.Equal(RenderOrder2D.ModalForeground, textComponent.RenderOrder2D);
+            RoundedRectComponent panel = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
+            Assert.True(RenderDepthOrder2D.CompareDrawables(panel, backgroundSprite) < 0);
+            Assert.True(RenderDepthOrder2D.CompareDrawables(backgroundSprite, textComponent) < 0);
         }
 
         /// <summary>

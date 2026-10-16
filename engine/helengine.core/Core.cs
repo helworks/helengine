@@ -118,6 +118,11 @@ namespace helengine {
         public static Core Instance { get; private set; }
 
         /// <summary>
+        /// Gets the component execution mode owned by this host, including work outside its frame loop.
+        /// </summary>
+        public virtual ComponentExecutionMode ExecutionMode => ComponentExecutionMode.Runtime;
+
+        /// <summary>
         /// Gets the initialization options used to configure core systems.
         /// </summary>
         public CoreInitializationOptions InitializationOptions { get; private set; }

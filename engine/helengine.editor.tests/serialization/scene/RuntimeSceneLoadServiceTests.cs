@@ -25,7 +25,8 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         readonly string TempRootPath;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
-        readonly EditorCore CoreValue;
+        /// <summary>Runtime host used to verify packaged gameplay lifecycle and audio playback.</summary>
+        readonly Core CoreValue;
 
         /// <summary>
         /// Next numeric scene entity id assigned to manually-authored editor entities in tests that run without an editor core.
@@ -36,19 +37,15 @@ namespace helengine.editor.tests.serialization.scene {
         /// Initializes the runtime services required by the scene-load tests.
         /// </summary>
         public RuntimeSceneLoadServiceTests() {
-            TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-runtime-scene-load-tests", Guid.NewGuid().ToString("N"));
+            TempRootPath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "artifacts", "runtime-scene-load-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
 
-            CoreValue = new EditorCore(new Project {
-                Name = "Runtime Scene Load",
-                Path = TempRootPath
-            });
+            CoreValue = new Core();
             CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
-            CoreValue.SetDefaultFontAssetForEditor(CreateFont());
             GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
         }
 
@@ -611,8 +608,7 @@ namespace helengine.editor.tests.serialization.scene {
             WriteFontAsset("fonts/default.hefont", CreateFont());
             FPSComponent fpsComponentToSerialize = new FPSComponent {
                 RefreshIntervalSeconds = 0.5d,
-                Padding = new int2(8, 6),
-                RenderOrder2D = 250
+                Padding = new int2(8, 6)
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference("Font", CreateFileFontReference("fonts/default.hefont"));
@@ -638,7 +634,6 @@ namespace helengine.editor.tests.serialization.scene {
 
             Assert.Equal(0.5d, fpsComponent.RefreshIntervalSeconds);
             Assert.Equal(new int2(8, 6), fpsComponent.Padding);
-            Assert.Equal((byte)250, fpsComponent.RenderOrder2D);
             Assert.NotNull(fpsComponent.Font);
             Assert.Equal(16f, fpsComponent.Font.LineHeight);
         }
@@ -653,8 +648,7 @@ namespace helengine.editor.tests.serialization.scene {
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
             FPSComponent fpsComponentToSerialize = new FPSComponent {
                 RefreshIntervalSeconds = 0.5d,
-                Padding = new int2(8, 6),
-                RenderOrder2D = 250
+                Padding = new int2(8, 6)
             };
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
@@ -679,7 +673,6 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Null(fpsComponent.Font);
             Assert.Equal(0.5d, fpsComponent.RefreshIntervalSeconds);
             Assert.Equal(new int2(8, 6), fpsComponent.Padding);
-            Assert.Equal((byte)250, fpsComponent.RenderOrder2D);
         }
 
         /// <summary>
@@ -694,8 +687,7 @@ namespace helengine.editor.tests.serialization.scene {
             WriteFontAsset("fonts/default.hefont", CreateFont());
             DebugComponent debugComponentToSerialize = new DebugComponent {
                 RefreshIntervalSeconds = 0.5d,
-                Padding = new int2(8, 6),
-                RenderOrder2D = 250
+                Padding = new int2(8, 6)
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference("Font", CreateFileFontReference("fonts/default.hefont"));
@@ -721,7 +713,6 @@ namespace helengine.editor.tests.serialization.scene {
 
             Assert.Equal(0.5d, debugComponent.RefreshIntervalSeconds);
             Assert.Equal(new int2(8, 6), debugComponent.Padding);
-            Assert.Equal((byte)250, debugComponent.RenderOrder2D);
             Assert.NotNull(debugComponent.Font);
             Assert.Equal(16f, debugComponent.Font.LineHeight);
         }
@@ -736,8 +727,7 @@ namespace helengine.editor.tests.serialization.scene {
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
             DebugComponent debugComponentToSerialize = new DebugComponent {
                 RefreshIntervalSeconds = 0.5d,
-                Padding = new int2(8, 6),
-                RenderOrder2D = 250
+                Padding = new int2(8, 6)
             };
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
@@ -762,7 +752,6 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Null(debugComponent.Font);
             Assert.Equal(0.5d, debugComponent.RefreshIntervalSeconds);
             Assert.Equal(new int2(8, 6), debugComponent.Padding);
-            Assert.Equal((byte)250, debugComponent.RenderOrder2D);
         }
 
         /// <summary>
@@ -1240,7 +1229,6 @@ namespace helengine.editor.tests.serialization.scene {
                 Color = new byte4(12, 34, 56, 78),
                 SourceRect = new float4(0.1f, 0.2f, 0.3f, 0.4f),
                 Rotation = 0.25f,
-                RenderOrder2D = 19,
                 FontScale = 2f,
                 Alignment = TextAlignment.Center,
                 SelectionEnabled = true
@@ -1280,7 +1268,6 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(new byte4(12, 34, 56, 78), loadedTextComponent.Color);
             Assert.Equal(new float4(0.1f, 0.2f, 0.3f, 0.4f), loadedTextComponent.SourceRect);
             Assert.Equal(0.25f, loadedTextComponent.Rotation);
-            Assert.Equal(19, loadedTextComponent.RenderOrder2D);
             Assert.Equal(2f, loadedTextComponent.FontScale);
             Assert.Equal(TextAlignment.Center, loadedTextComponent.Alignment);
             Assert.True(loadedTextComponent.SelectionEnabled);
@@ -1540,7 +1527,6 @@ namespace helengine.editor.tests.serialization.scene {
                 SourceRect = new float4(0f, 0f, 1f, 1f),
                 Size = new int2(32, 14),
                 Color = new byte4(249, 243, 255, 255),
-                RenderOrder2D = 34,
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(
@@ -1576,7 +1562,6 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(new float4(0f, 0f, 1f, 1f), loadedSpriteComponent.SourceRect);
             Assert.Equal(new int2(32, 14), loadedSpriteComponent.Size);
             Assert.Equal(new byte4(249, 243, 255, 255), loadedSpriteComponent.Color);
-            Assert.Equal(34, loadedSpriteComponent.RenderOrder2D);
         }
 
         /// <summary>
@@ -1585,7 +1570,6 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void Load_WhenSceneContainsAutomaticRoundedRectComponent_LoadsTheRoundedRectThroughTheDefaultRuntimeRegistry() {
             RoundedRectComponent roundedRectComponent = new RoundedRectComponent {
-                RenderOrder2D = 8,
                 Corners = RoundedRectCorners.All,
                 Rotation = 0.45f,
                 Color = new byte4(1, 2, 3, 4),
@@ -1621,7 +1605,6 @@ namespace helengine.editor.tests.serialization.scene {
             RoundedRectComponent loadedRoundedRectComponent = Assert.IsType<RoundedRectComponent>(
                 Assert.Single(loadedRoots[0].Components, component => component is RoundedRectComponent));
 
-            Assert.Equal(8, loadedRoundedRectComponent.RenderOrder2D);
             Assert.Equal(RoundedRectCorners.All, loadedRoundedRectComponent.Corners);
             Assert.Equal(0.45f, loadedRoundedRectComponent.Rotation);
             Assert.Equal(new byte4(1, 2, 3, 4), loadedRoundedRectComponent.Color);
@@ -1773,8 +1756,7 @@ namespace helengine.editor.tests.serialization.scene {
         byte[] WriteOlderVersionFpsComponentPayload() {
             FPSComponent fpsComponent = new FPSComponent {
                 RefreshIntervalSeconds = 0.5d,
-                Padding = new int2(8, 6),
-                RenderOrder2D = 250
+                Padding = new int2(8, 6)
             };
             byte[] payload = WriteAutomaticRuntimeComponentPayload(fpsComponent, null);
             payload[0] = 2;
@@ -1879,7 +1861,6 @@ namespace helengine.editor.tests.serialization.scene {
                 Color = new byte4(12, 34, 56, 78),
                 SourceRect = new float4(0.1f, 0.2f, 0.3f, 0.4f),
                 Rotation = 0.25f,
-                RenderOrder2D = 19,
                 SelectionEnabled = true
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();

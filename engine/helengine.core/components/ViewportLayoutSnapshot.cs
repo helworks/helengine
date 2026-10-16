@@ -165,10 +165,11 @@ namespace helengine {
         /// <param name="canvasOrigin">Origin applied to the scaled subtree root.</param>
         /// <param name="referenceWidth">Authored reference canvas width.</param>
         /// <param name="referenceHeight">Authored reference canvas height.</param>
-        public void Apply(AnchorSpace anchorSpace, float2 canvasOrigin, int referenceWidth, int referenceHeight) {
+        /// <param name="stretchCanvas">True when the viewport fills the live bounds with independent axis scales.</param>
+        public void Apply(AnchorSpace anchorSpace, float2 canvasOrigin, int referenceWidth, int referenceHeight, bool stretchCanvas) {
             double widthScale = referenceWidth > 0 ? (double)anchorSpace.Size.X / referenceWidth : 1d;
             double heightScale = referenceHeight > 0 ? (double)anchorSpace.Size.Y / referenceHeight : 1d;
-            double scalarScale = Math.Min(widthScale, heightScale);
+            double scalarScale = stretchCanvas ? heightScale : Math.Min(widthScale, heightScale);
             float positionX = ScaleFloat(LocalPosition.X, widthScale);
             float positionY = ScaleFloat(LocalPosition.Y, heightScale);
             if (IsRootEntity) {

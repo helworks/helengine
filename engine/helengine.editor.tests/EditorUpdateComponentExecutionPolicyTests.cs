@@ -11,23 +11,30 @@ namespace helengine.editor.tests {
         /// </summary>
         readonly string TempRootPath;
 
+        /// <summary>Owns the test entities and resources independently of the global current core.</summary>
+        readonly Core CoreValue;
+
         /// <summary>
         /// Initializes a core instance that can evaluate component registration and updates.
         /// </summary>
         public EditorUpdateComponentExecutionPolicyTests() {
-            TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-update-component-policy-tests", Guid.NewGuid().ToString("N"));
+            TempRootPath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "artifacts", "editor-execution-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
 
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>
         /// Deletes the temporary content root after each test.
         /// </summary>
         public void Dispose() {
+            while (CoreValue.ObjectManager.Entities.Count > 0) {
+                CoreValue.ObjectManager.Entities[CoreValue.ObjectManager.Entities.Count - 1].Dispose();
+            }
+            CoreValue.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -118,10 +125,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures plain editor entities without the explicit suppression marker continue to run update-driven component lifecycle in editor mode.
+        /// Ensures missing legacy markers cannot enable gameplay behavior in editor mode.
         /// </summary>
         [Fact]
-        public void AddComponent_WhenEditorModeAndEntityLacksSuppressionMarker_RunsLifecycleNormally() {
+        public void AddComponent_WhenEditorModeAndEntityLacksSuppressionMarker_SuppressesLifecycle() {
             EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 LayerMask = EditorLayerMasks.SceneObjects
             };
@@ -130,15 +137,15 @@ namespace helengine.editor.tests {
             EnterEditorAndRun(() => entity.AddComponent(component));
             EnterEditorAndRun(() => entity.InitializeHierarchy());
 
-            Assert.Equal(1, component.ComponentAddedCallCount);
-            Assert.Single(Core.Instance.ObjectManager.Updateables);
+            Assert.Equal(0, component.ComponentAddedCallCount);
+            Assert.Empty(Core.Instance.ObjectManager.Updateables);
         }
 
         /// <summary>
-        /// Ensures plain editor entities initialize opted-in gameplay components once the hierarchy is finalized.
+        /// Ensures hierarchy initialization cannot bypass the default gameplay suppression.
         /// </summary>
         [Fact]
-        public void InitializeHierarchy_WhenEditorModeAndEntityLacksSuppressionMarker_RunsInitializedLifecycle() {
+        public void InitializeHierarchy_WhenEditorModeAndEntityLacksSuppressionMarker_SuppressesInitializedLifecycle() {
             EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 LayerMask = EditorLayerMasks.SceneObjects
             };
@@ -147,8 +154,152 @@ namespace helengine.editor.tests {
             EnterEditorAndRun(() => entity.AddComponent(component));
             EnterEditorAndRun(() => entity.InitializeHierarchy());
 
-            Assert.Equal(1, component.ComponentInitializedCallCount);
+            Assert.Equal(0, component.ComponentInitializedCallCount);
             Assert.True(entity.IsInitialized);
+        }
+
+        /// <summary>Ensures ordinary components cannot execute gameplay through lifecycle callbacks.</summary>
+        [Fact]
+        public void PlainComponent_InEditor_SuppressesAllLifecycleCallbacks() {
+            Entity entity = new Entity(Core.Instance);
+            entity.InitComponents();
+            EditorPlainLifecycleProbeComponent component = new();
+            EnterEditorAndRun(() => {
+                entity.AddComponent(component);
+                entity.InitializeHierarchy();
+                entity.Static = true;
+                entity.Enabled = false;
+                entity.Enabled = true;
+                entity.RemoveComponent(component);
+            });
+            Assert.Equal(0, component.CallbackCount);
+            Assert.Null(component.Parent);
+            entity.Dispose();
+        }
+
+        /// <summary>Ensures a previously registered gameplay update cannot bypass editor mode.</summary>
+        [Fact]
+        public void PreviouslyRegisteredUpdate_InEditor_DoesNotExecute() {
+            using Entity entity = new Entity(Core.Instance);
+            entity.InitComponents();
+            EditorUpdateLifecycleProbeComponent component = new();
+            entity.AddComponent(component);
+            entity.InitializeHierarchy();
+            Assert.Contains(component, Core.Instance.ObjectManager.Updateables);
+            EnterEditorAndRun(() => Core.Instance.ObjectManager.Update());
+            Assert.Equal(0, component.UpdateCallCount);
+            Core.Instance.ObjectManager.Update();
+            Assert.Equal(1, component.UpdateCallCount);
+        }
+
+        /// <summary>Ensures a game subclass cannot inherit the renderer's editor execution permission.</summary>
+        [Fact]
+        public void UnmarkedRenderingSubclass_InEditor_DoesNotExecute() {
+            using Entity entity = new Entity(Core.Instance);
+            entity.InitComponents();
+            EditorUnmarkedSpriteProbeComponent component = new();
+            EnterEditorAndRun(() => entity.AddComponent(component));
+            Assert.Equal(0, component.AddedCount);
+        }
+
+        /// <summary>Ensures editor ownership suppresses scripts even outside a frame's execution scope.</summary>
+        [Fact]
+        public void EditorOwnedEntity_OutsideUpdateScope_DoesNotExecuteGameplay() {
+            using EditorCore editor = new EditorCore(null);
+            editor.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            using Entity entity = new Entity(editor);
+            entity.InitComponents();
+            EditorPlainLifecycleProbeComponent component = new();
+            entity.AddComponent(component);
+            entity.InitializeHierarchy();
+            entity.Static = true;
+            entity.RemoveComponent(component);
+            Assert.Equal(0, component.CallbackCount);
+        }
+
+        /// <summary>Ensures the opt-in applies to plain components as well as update components.</summary>
+        [Fact]
+        public void OptedInPlainComponent_InEditor_RunsFullLifecycle() {
+            using Entity entity = new Entity(CoreValue);
+            entity.InitComponents();
+            EditorOptedInPlainLifecycleProbeComponent component = new();
+            EnterEditorAndRun(() => {
+                entity.AddComponent(component);
+                entity.InitializeHierarchy();
+                entity.Static = true;
+                entity.Enabled = false;
+                entity.Enabled = true;
+                entity.RemoveComponent(component);
+            });
+            Assert.Equal(7, component.CallbackCount);
+        }
+
+        /// <summary>Ensures gameplay components retain normal lifecycle behavior in a runtime host.</summary>
+        [Fact]
+        public void PlainComponent_InRuntime_RunsFullLifecycle() {
+            using Entity entity = new Entity(CoreValue);
+            entity.InitComponents();
+            EditorPlainLifecycleProbeComponent component = new();
+            entity.AddComponent(component);
+            entity.InitializeHierarchy();
+            entity.Static = true;
+            entity.RemoveComponent(component);
+            Assert.Equal(5, component.CallbackCount);
+        }
+
+        /// <summary>Ensures implementing IUpdateable directly cannot bypass the editor's component policy.</summary>
+        [Fact]
+        public void ManuallyRegisteredPlainComponent_InEditor_DoesNotUpdate() {
+            using EditorCore editor = new EditorCore(null);
+            editor.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            using Entity entity = new Entity(editor);
+            entity.InitComponents();
+            EditorPlainLifecycleProbeComponent component = new();
+            entity.AddComponent(component);
+            editor.ObjectManager.RegisterForUpdate(component);
+            editor.ObjectManager.Update();
+            Assert.Equal(0, component.UpdateCount);
+            editor.ObjectManager.RemoveFromUpdate(component, component.UpdateOrder);
+        }
+
+        /// <summary>Ensures reparenting a suppressed renderer subclass cannot register it for rendering.</summary>
+        [Fact]
+        public void UnmarkedRenderingSubclass_ReparentedInEditor_RemainsUnregistered() {
+            using EditorCore editor = new EditorCore(null);
+            editor.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            using Entity parent = new Entity(editor);
+            parent.InitChildren();
+            using Entity child = new Entity(editor);
+            child.InitComponents();
+            EditorUnmarkedSpriteProbeComponent component = new();
+            child.AddComponent(component);
+            parent.AddChild(child);
+            Assert.DoesNotContain(component, editor.ObjectManager.Drawables2D);
+        }
+
+        /// <summary>Ensures visual components keep their registration while gameplay animation stays inactive.</summary>
+        [Fact]
+        public void EditorOwnedScene_PreservesRenderingAndSuppressesAnimation() {
+            using EditorCore editor = new EditorCore(null);
+            editor.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            using Entity entity = new Entity(editor);
+            entity.InitComponents();
+            PointLightComponent light = new();
+            SpriteComponent sprite = new();
+            AnimationPlayerComponent animation = new();
+            entity.AddComponent(light);
+            entity.AddComponent(sprite);
+            entity.AddComponent(animation);
+            entity.InitializeHierarchy();
+            Assert.Contains(light, editor.ObjectManager.PointLights);
+            Assert.Contains(sprite, editor.ObjectManager.Drawables2D);
+            Assert.DoesNotContain(animation, editor.ObjectManager.Updateables);
+            entity.Enabled = false;
+            Assert.DoesNotContain(light, editor.ObjectManager.PointLights);
+            Assert.DoesNotContain(sprite, editor.ObjectManager.Drawables2D);
+            entity.Enabled = true;
+            Assert.Contains(light, editor.ObjectManager.PointLights);
+            Assert.Contains(sprite, editor.ObjectManager.Drawables2D);
         }
 
         /// <summary>

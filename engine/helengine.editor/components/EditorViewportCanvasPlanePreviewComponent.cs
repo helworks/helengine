@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Maintains the offscreen 2D preview camera and world-space plane used to display the simulated canvas in the scene viewport.
     /// </summary>
+    [RunInEditor]
     public sealed class EditorViewportCanvasPlanePreviewComponent : UpdateComponent {
         /// <summary>
         /// Camera shown in the scene viewport that must render the world-space canvas plane.

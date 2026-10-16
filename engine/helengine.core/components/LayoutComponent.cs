@@ -2,6 +2,9 @@ namespace helengine {
     /// <summary>
     /// Resolves WinForms-style anchored layout against a selectable layout space and can expose the entity's own bounds to child layout components.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class LayoutComponent : Component, IAnchorBoundsProvider {
         /// <summary>
         /// Bit flag used to mark a left-edge anchor.

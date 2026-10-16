@@ -3,6 +3,9 @@ namespace helengine {
     /// Shared base component for authored scene lights consumed by render extraction and backend planning.
     /// Directional and spot-light orientation is derived from the owning entity forward axis defined by <see cref="LightDirectionUtility"/>.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class LightComponent : Component {
         /// <summary>
         /// Initializes one authored light component for the supplied light family.

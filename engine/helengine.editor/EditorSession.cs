@@ -1277,8 +1277,7 @@ namespace helengine.editor {
         void SynchronizeViewportOverlayCameras() {
             if (PanelInstances == null) {
                 gizmoCameraComponent.Viewport = sceneCameraComponent.Viewport;
-                gizmoCameraComponent.NearPlaneDistance = sceneCameraComponent.NearPlaneDistance;
-                gizmoCameraComponent.FarPlaneDistance = sceneCameraComponent.FarPlaneDistance;
+                EditorViewportCameraProjectionSynchronizer.Synchronize(sceneCameraComponent, gizmoCameraComponent);
                 return;
             }
 
@@ -1286,8 +1285,9 @@ namespace helengine.editor {
             for (int index = 0; index < viewportInstances.Count; index++) {
                 if (viewportInstances[index].Controller is ViewportWorkspacePanelController viewportController) {
                     viewportController.ViewportState.GizmoCamera.Viewport = viewportController.ViewportState.SceneCamera.Viewport;
-                    viewportController.ViewportState.GizmoCamera.NearPlaneDistance = viewportController.ViewportState.SceneCamera.NearPlaneDistance;
-                    viewportController.ViewportState.GizmoCamera.FarPlaneDistance = viewportController.ViewportState.SceneCamera.FarPlaneDistance;
+                    EditorViewportCameraProjectionSynchronizer.Synchronize(
+                        viewportController.ViewportState.SceneCamera,
+                        viewportController.ViewportState.GizmoCamera);
                 }
             }
         }
@@ -2324,7 +2324,8 @@ namespace helengine.editor {
                 floatingTitleBarHeight = titleBar.Height;
             }
 
-            controller.Dockable.Position = EditorWorkspacePanelCoordinator.ResolveCenteredFloatingPanelPosition(LastLayoutWidth, LastLayoutHeight, floatingTitleBarHeight, descriptor.DefaultSize);
+            float3 floatingPosition = EditorWorkspacePanelCoordinator.ResolveCenteredFloatingPanelPosition(LastLayoutWidth, LastLayoutHeight, floatingTitleBarHeight, descriptor.DefaultSize);
+            controller.Dockable.Position = new float3(floatingPosition.X, floatingPosition.Y, EditorUiDepths.FloatingPanel);
             InitializeWorkspacePanelInstance(instance);
             return instance;
         }
@@ -2716,7 +2717,7 @@ namespace helengine.editor {
                 instance.Dockable.Title = string.IsNullOrWhiteSpace(panel.Title) ? instance.DisplayTitle : panel.Title;
 
                 if (floatingPanelsByInstanceId.TryGetValue(panel.InstanceId, out EditorWorkspaceFloatingPanelDocument floatingPanel)) {
-                    instance.Dockable.Position = new float3(floatingPanel.X, floatingPanel.Y, 0f);
+                    instance.Dockable.Position = new float3(floatingPanel.X, floatingPanel.Y, EditorUiDepths.FloatingPanel);
                     instance.Dockable.Size = new int2(floatingPanel.Width, floatingPanel.Height);
                 }
             }

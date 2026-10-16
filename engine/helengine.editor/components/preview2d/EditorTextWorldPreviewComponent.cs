@@ -2,6 +2,7 @@ namespace helengine {
     /// <summary>
     /// Renders one editor-only world-space mesh proxy for an authored text component.
     /// </summary>
+    [RunInEditor]
     public sealed class EditorTextWorldPreviewComponent : EditorExact2DWorldPreviewComponentBase {
         /// <summary>
         /// Authored text component mirrored by this preview proxy.

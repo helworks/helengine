@@ -35,6 +35,7 @@ namespace helengine {
             [NativeNoEscape] IReadOnlyList<RenderFrameShadowCasterSubmission> shadowCasterSubmissions) {
             Camera = camera ?? throw new ArgumentNullException(nameof(camera));
             DrawableSubmissionsValue = CopyDrawableSubmissions(drawableSubmissions);
+            TransparentDepthSorter.Sort(DrawableSubmissionsValue, camera);
             LightSubmissionsValue = CopyLightSubmissions(lightSubmissions);
             ShadowCasterSubmissionsValue = CopyShadowCasterSubmissions(shadowCasterSubmissions);
         }

@@ -2,6 +2,9 @@ namespace helengine {
     /// <summary>
     /// Specialized button used to render and manage tab-style selections with rounded top corners and explicit active-state styling.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class TabComponent : ButtonComponent {
         /// <summary>
         /// Gets a value indicating whether the tab is currently selected.

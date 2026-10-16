@@ -2,6 +2,9 @@ namespace helengine {
     /// <summary>
     /// Exposes a reusable logical viewport that can follow the current screen or a camera and can optionally scale one authored subtree against a reference canvas.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class ViewportComponent : UpdateComponent, IAnchorBoundsProvider, ICameraBoundViewportOwner {
         /// <summary>
         /// Binding mode that resolves the viewport from the current screen size.
@@ -32,6 +35,11 @@ namespace helengine {
         /// Scaling mode that fits the authored subtree into the resolved viewport using one reference canvas.
         /// </summary>
         public const byte ReferenceCanvasScalingMode = 1;
+
+        /// <summary>
+        /// Scaling mode that fills the resolved viewport and scales the authored subtree independently on each axis.
+        /// </summary>
+        public const byte ReferenceCanvasStretchScalingMode = 2;
 
         /// <summary>
         /// Stores the selected viewport binding mode.
@@ -222,7 +230,7 @@ namespace helengine {
         public AnchorSpace AnchorSpace {
             get {
                 RefreshSubscriptions();
-                if (ScalingModeValue == ReferenceCanvasScalingMode) {
+                if (IsReferenceCanvasScalingActive()) {
                     return CurrentAnchorSpaceValue;
                 }
 
@@ -328,7 +336,7 @@ namespace helengine {
             base.Update();
             RefreshSubscriptions();
 
-            if (Parent == null || ScalingModeValue != ReferenceCanvasScalingMode) {
+            if (Parent == null || !IsReferenceCanvasScalingActive()) {
                 return;
             }
 
@@ -612,7 +620,12 @@ namespace helengine {
             CurrentAnchorSpaceValue.Update(resolvedAnchorSpaceSize, resolvedAnchorSpaceOrigin);
             CurrentCanvasOriginValue = resolvedCanvasOrigin;
             for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
-                LayoutSnapshotsValue[snapshotIndex].Apply(CurrentAnchorSpaceValue, resolvedCanvasOrigin, ReferenceWidthValue, ReferenceHeightValue);
+                LayoutSnapshotsValue[snapshotIndex].Apply(
+                    CurrentAnchorSpaceValue,
+                    resolvedCanvasOrigin,
+                    ReferenceWidthValue,
+                    ReferenceHeightValue,
+                    ScalingModeValue == ReferenceCanvasStretchScalingMode);
             }
 
             for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
@@ -630,6 +643,10 @@ namespace helengine {
         /// <returns>Anchor-space size that descendants should use for local anchoring.</returns>
         int2 ResolveCurrentAnchorSpaceSize() {
             int2 viewportBounds = ResolveAnchorBounds();
+            if (ScalingModeValue == ReferenceCanvasStretchScalingMode) {
+                return viewportBounds;
+            }
+
             double liveWidth = viewportBounds.X > 0 ? viewportBounds.X : ReferenceWidthValue;
             double liveHeight = viewportBounds.Y > 0 ? viewportBounds.Y : ReferenceHeightValue;
             if (LiveViewportMatchesReferenceAspect(liveWidth, liveHeight)) {
@@ -707,7 +724,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Viewport-space origin correction expressed in local pixels.</returns>
         float2 ResolveViewportAnchorOrigin() {
-            if (ScalingModeValue == ReferenceCanvasScalingMode) {
+            if (IsReferenceCanvasScalingActive()) {
                 return new float2(-CurrentCanvasOriginValue.X, -CurrentCanvasOriginValue.Y);
             }
 
@@ -722,6 +739,14 @@ namespace helengine {
             }
 
             return new float2(0f, 0f);
+        }
+
+        /// <summary>
+        /// Returns whether the viewport owns reference-canvas scaling, preserving either fit or stretch behavior.
+        /// </summary>
+        bool IsReferenceCanvasScalingActive() {
+            return ScalingModeValue == ReferenceCanvasScalingMode
+                || ScalingModeValue == ReferenceCanvasStretchScalingMode;
         }
 
         /// <summary>

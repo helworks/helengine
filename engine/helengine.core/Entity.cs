@@ -647,7 +647,10 @@ namespace helengine {
         protected virtual void ParentStaticChange(bool newEnabled) {
             if (ComponentsValue != null) {
                 for (int i = 0; i < ComponentsValue.Count; i++) {
-                    ComponentsValue[i].ParentStaticChange(newEnabled);
+                    Component component = ComponentsValue[i];
+                    if (ComponentExecutionPolicy.ShouldRunComponentLifecycle(component, this)) {
+                        component.ParentStaticChange(newEnabled);
+                    }
                 }
             }
 
@@ -677,6 +680,9 @@ namespace helengine {
             if (entity.Components != null) {
                 for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
                     Component component = entity.Components[componentIndex];
+                    if (!ComponentExecutionPolicy.ShouldRunComponentLifecycle(component, entity)) {
+                        continue;
+                    }
                     if (component is IDrawable2D drawable2D) {
                         entity.OwnerCore.ObjectManager.RemoveFromRender2D(drawable2D);
                         entity.OwnerCore.ObjectManager.RegisterForRender2D(drawable2D);

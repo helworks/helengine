@@ -41,6 +41,16 @@ namespace helengine {
         /// <summary>
         /// PlayStation 3 RSX vertex and fragment programs compiled by the Docker SDK.
         /// </summary>
-        Ps3
+        Ps3,
+
+        /// <summary>
+        /// Xbox 360 shader target.
+        /// </summary>
+        Xbox360 = 8,
+
+        /// <summary>
+        /// Original Xbox NV2A vertex microcode and pixel register-combiner artifact target.
+        /// </summary>
+        Xbox = 9
     }
 }

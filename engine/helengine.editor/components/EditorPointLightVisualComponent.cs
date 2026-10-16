@@ -2,6 +2,7 @@ namespace helengine {
     /// <summary>
     /// Renders the hidden editor-only visual attached to authored point light entities.
     /// </summary>
+    [RunInEditor]
     public class EditorPointLightVisualComponent : MeshComponent, IEditorHiddenComponent {
         readonly helengine.editor.EngineGeneratedMaterialCache GeneratedMaterialCache;
         readonly helengine.EditorPointLightVisualResources VisualResources;

@@ -1763,7 +1763,10 @@ namespace helengine.editor {
             }
 
             string unitySourceContents = unityBuilder.ToString();
-            File.WriteAllText(unitySourcePath, unitySourceContents);
+            if (!File.Exists(unitySourcePath)
+                || !string.Equals(File.ReadAllText(unitySourcePath), unitySourceContents, StringComparison.Ordinal)) {
+                File.WriteAllText(unitySourcePath, unitySourceContents);
+            }
         }
 
         /// <summary>

@@ -2,6 +2,9 @@ namespace helengine {
     /// <summary>
     /// Tracks wheel-driven list scrolling for a rectangular viewport, acts as its own clip region, derives the visible range when needed, and can translate a bound content root automatically.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class ScrollComponent : UpdateComponent, IClipRegion2D {
         /// <summary>
         /// Standard mouse-wheel delta used to represent one notch on Windows-compatible devices.

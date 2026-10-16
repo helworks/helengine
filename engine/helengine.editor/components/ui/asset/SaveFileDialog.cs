@@ -58,10 +58,6 @@ namespace helengine.editor {
         /// </summary>
         const float PanelBorderThickness = 2f;
         /// <summary>
-        /// Render order used by the fullscreen modal backdrop behind the panel.
-        /// </summary>
-        const byte BackdropOrder = RenderOrder2D.ModalBackground - 1;
-        /// <summary>
         /// Width reserved on the right side of the host title bar for the minimize, maximize, and close button cluster.
         /// </summary>
         const int HostTitleBarButtonGapWidth = EditorDialogBase.CloseButtonWidth * 3;
@@ -191,14 +187,6 @@ namespace helengine.editor {
         /// </summary>
         readonly ButtonComponent SaveButton;
         /// <summary>
-        /// Render order used for panel backgrounds.
-        /// </summary>
-        readonly byte PanelOrder;
-        /// <summary>
-        /// Render order used for text labels.
-        /// </summary>
-        readonly byte TextOrder;
-        /// <summary>
         /// Cached panel size used for layout.
         /// </summary>
         int2 PanelSize;
@@ -309,15 +297,9 @@ namespace helengine.editor {
             InternalEntity = true;
             Name = "SaveFileDialog";
 
-            PanelOrder = RenderOrder2D.ModalBackground;
-            byte toolbarOrder = RenderOrder2D.ModalBackground;
-            byte rowBackgroundOrder = RenderOrder2D.ModalBackground;
-            byte iconBackgroundOrder = RenderOrder2D.ModalBackground;
-            TextOrder = RenderOrder2D.ModalForeground;
-
             BackdropRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
-                Position = float3.Zero,
+                Position = new float3(0f, 0f, EditorUiDepths.ModalBackdrop),
                 InternalEntity = true
             };
             AddChild(BackdropRoot);
@@ -332,7 +314,6 @@ namespace helengine.editor {
             BackdropTopSurface = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = new byte4(0, 0, 0, 144),
-                RenderOrder2D = BackdropOrder,
                 Size = new int2(0, 0)
             };
             BackdropTopRoot.AddComponent(BackdropTopSurface);
@@ -352,7 +333,6 @@ namespace helengine.editor {
             BackdropBodySurface = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = new byte4(0, 0, 0, 144),
-                RenderOrder2D = BackdropOrder,
                 Size = new int2(0, 0)
             };
             BackdropBodyRoot.AddComponent(BackdropBodySurface);
@@ -364,7 +344,7 @@ namespace helengine.editor {
 
             PanelRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
-                Position = float3.Zero
+                Position = new float3(0f, 0f, EditorUiDepths.ModalPanel)
             };
             AddChild(PanelRoot);
 
@@ -373,7 +353,6 @@ namespace helengine.editor {
                 BorderColor = ThemeManager.Colors.AccentTertiary,
                 BorderThickness = PanelBorderThickness,
                 Radius = PanelRadius,
-                RenderOrder2D = PanelOrder,
                 Size = new int2(0, 0)
             };
             PanelRoot.AddComponent(PanelBackground);
@@ -387,7 +366,6 @@ namespace helengine.editor {
             HeaderBackground = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfacePrimary,
-                RenderOrder2D = PanelOrder,
                 Size = new int2(0, 0)
             };
             HeaderRoot.AddComponent(HeaderBackground);
@@ -409,7 +387,6 @@ namespace helengine.editor {
                 Text = "Save Scene",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f)))),
-                RenderOrder2D = TextOrder
             };
             HeaderHost.AddComponent(HeaderText);
 
@@ -420,14 +397,9 @@ namespace helengine.editor {
                 EditorUiMetrics.Default,
                 projectPath,
                 LayerMask,
-                toolbarOrder,
-                rowBackgroundOrder,
-                iconBackgroundOrder,
-                TextOrder,
                 false,
                 null,
                 dataSource ?? throw new ArgumentNullException(nameof(dataSource)));
-            BrowserView.SetToolbarButtonRenderOrders(TextOrder, TextOrder);
             BrowserView.AssetActivated += HandleAssetActivated;
             PanelRoot.AddChild(BrowserView.Entity);
 
@@ -442,7 +414,6 @@ namespace helengine.editor {
                 Text = "File Name",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f)))),
-                RenderOrder2D = TextOrder
             };
             FileNameLabelHost.AddComponent(FileNameLabel);
 
@@ -466,7 +437,6 @@ namespace helengine.editor {
                 Text = string.Empty,
                 Color = ThemeManager.Colors.StateWarning,
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f)))),
-                RenderOrder2D = TextOrder
             };
             StatusHost.AddComponent(StatusText);
 
@@ -478,7 +448,6 @@ namespace helengine.editor {
 
             CancelButton = new ButtonComponent("Cancel", GetCancelButtonSize(), font, Hide, 0f);
             CancelButtonHost.AddComponent(CancelButton);
-            CancelButton.SetRenderOrders(TextOrder, TextOrder);
 
             SaveButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
@@ -488,7 +457,6 @@ namespace helengine.editor {
 
             SaveButton = new ButtonComponent("Save", GetSaveButtonSize(), font, HandleSaveClicked, 0f);
             SaveButtonHost.AddComponent(SaveButton);
-            SaveButton.SetRenderOrders(TextOrder, TextOrder);
 
             Enabled = false;
             IsInitialized = true;
@@ -866,7 +834,7 @@ namespace helengine.editor {
         /// Applies the current panel position to the panel root entity.
         /// </summary>
         void ApplyPanelPosition() {
-            PanelRoot.Position = new float3(PanelPosition.X, PanelPosition.Y, 0.1f);
+            PanelRoot.Position = new float3(PanelPosition.X, PanelPosition.Y, EditorUiDepths.ModalPanel);
         }
 
         /// <summary>

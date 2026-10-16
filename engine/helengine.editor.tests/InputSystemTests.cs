@@ -8,10 +8,10 @@ namespace helengine.editor.tests {
     /// </summary>
     public class InputSystemTests {
         /// <summary>
-        /// Ensures overlapping interactables route hover to the higher render-order element instead of the one registered later.
+        /// Ensures overlapping interactables route hover to the higher depth element instead of the one registered later.
         /// </summary>
         [Fact]
-        public void Update_WhenHigherRenderOrderInteractableOverlapsLowerOrder_UsesTheHigherOrderInteractable() {
+        public void Update_WhenHigherDepthInteractableOverlapsLowerOrder_UsesTheHigherOrderInteractable() {
             TestInputBackend input = InitializeCore();
             CreateUiCamera(320, 240);
 
@@ -57,7 +57,6 @@ namespace helengine.editor.tests {
             SpriteComponent sprite = new SpriteComponent {
                 Texture = Core.Instance.RenderManager2D.PixelTexture,
                 Size = new int2(80, 40),
-                RenderOrder2D = 220
             };
             entity.AddComponent(sprite);
 
@@ -458,35 +457,34 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Creates one visible interactable entity with the supplied layout and render order.
+        /// Creates one visible interactable entity with the supplied layout and depth.
         /// </summary>
         /// <param name="position">Top-left position in window coordinates.</param>
         /// <param name="size">Interactable size in pixels.</param>
-        /// <param name="renderOrder">Render order assigned to the visible surface.</param>
+        /// <param name="depth">Render order assigned to the visible surface.</param>
         /// <returns>Interactable component used for pointer routing.</returns>
-        InteractableComponent CreateInteractableEntity(float3 position, int2 size, byte renderOrder) {
-            return CreateInteractableEntity(position, size, renderOrder, EditorLayerMasks.EditorUi);
+        InteractableComponent CreateInteractableEntity(float3 position, int2 size, byte depth) {
+            return CreateInteractableEntity(position, size, depth, EditorLayerMasks.EditorUi);
         }
 
         /// <summary>
-        /// Creates one visible interactable entity with the supplied layout, render order, and layer mask.
+        /// Creates one visible interactable entity with the supplied layout, depth, and layer mask.
         /// </summary>
         /// <param name="position">Top-left position in window coordinates.</param>
         /// <param name="size">Interactable size in pixels.</param>
-        /// <param name="renderOrder">Render order assigned to the visible surface.</param>
+        /// <param name="depth">Render order assigned to the visible surface.</param>
         /// <param name="layerMask">Layer mask assigned to the entity.</param>
         /// <returns>Interactable component used for pointer routing.</returns>
-        InteractableComponent CreateInteractableEntity(float3 position, int2 size, byte renderOrder, ushort layerMask) {
+        InteractableComponent CreateInteractableEntity(float3 position, int2 size, byte depth, ushort layerMask) {
             EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = layerMask,
-                Position = position
+                Position = new float3(position.X, position.Y, depth)
             };
 
             SpriteComponent sprite = new SpriteComponent {
                 Texture = Core.Instance.RenderManager2D.PixelTexture,
                 Size = size,
-                RenderOrder2D = renderOrder
             };
             entity.AddComponent(sprite);
 

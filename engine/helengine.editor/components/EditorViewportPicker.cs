@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Triggers one-frame picker renders for scene selection and transform-axis hover detection.
     /// </summary>
+    [RunInEditor]
     public class EditorViewportPicker : UpdateComponent {
         /// <summary>
         /// Picker mode used to resolve scene object selection from a click.
@@ -217,8 +218,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(sourceCamera));
             }
 
-            PickerCamera.NearPlaneDistance = sourceCamera.NearPlaneDistance;
-            PickerCamera.FarPlaneDistance = sourceCamera.FarPlaneDistance;
+            EditorViewportCameraProjectionSynchronizer.Synchronize(sourceCamera, PickerCamera);
         }
 
         /// <summary>

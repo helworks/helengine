@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Moves a camera entity when the viewport is right-click active and WASDQE input is pressed.
     /// </summary>
+    [RunInEditor]
     public class EditorViewportCameraController : UpdateComponent {
         /// <summary>
         /// Default movement speed applied per update tick.
@@ -47,7 +48,7 @@ namespace helengine.editor {
         /// <summary>
         /// Minimum orbit distance allowed between the camera and its orbit pivot.
         /// </summary>
-        const double MinOrbitDistance = 0.1;
+        const double MinOrbitDistance = 0.001;
         /// <summary>
         /// Maximum pitch angle in radians to avoid gimbal lock.
         /// </summary>
@@ -185,11 +186,143 @@ namespace helengine.editor {
         public CameraComponent Camera => camera;
 
         /// <summary>
+        /// Gets whether a viewport-owned camera gesture currently has input capture.
+        /// </summary>
+        public bool IsNavigating => isActive || isPanning || isOrbiting;
+
+        /// <summary>
+        /// Sets the camera position and orientation together with its orbit pivot and cached angular state.
+        /// </summary>
+        /// <param name="pivot">World-space orbit pivot.</param>
+        /// <param name="orientation">Camera orientation to apply.</param>
+        /// <param name="distance">Positive distance from the camera to the pivot.</param>
+        public void SetViewPose(float3 pivot, float4 orientation, double distance) {
+            if (!float.IsFinite(pivot.X) || !float.IsFinite(pivot.Y) || !float.IsFinite(pivot.Z)) {
+                throw new ArgumentOutOfRangeException(nameof(pivot), "The orbit pivot must contain only finite values.");
+            }
+            if (!float.IsFinite(orientation.X) || !float.IsFinite(orientation.Y) || !float.IsFinite(orientation.Z) || !float.IsFinite(orientation.W)) {
+                throw new ArgumentOutOfRangeException(nameof(orientation), "The camera orientation must contain only finite values.");
+            }
+            if (!double.IsFinite(distance) || distance < MinOrbitDistance) {
+                throw new ArgumentOutOfRangeException(nameof(distance), distance, "The camera distance must be finite and at least the minimum orbit distance.");
+            }
+            if (Parent == null) {
+                throw new InvalidOperationException("The viewport camera controller must be attached before setting its view pose.");
+            }
+
+            double orientationLengthSquared =
+                (orientation.X * orientation.X) +
+                (orientation.Y * orientation.Y) +
+                (orientation.Z * orientation.Z) +
+                (orientation.W * orientation.W);
+            if (!double.IsFinite(orientationLengthSquared) || orientationLengthSquared <= MinLengthSquared) {
+                throw new ArgumentOutOfRangeException(nameof(orientation), "The camera orientation must have non-zero magnitude.");
+            }
+
+            float4 normalizedOrientation = orientation;
+            normalizedOrientation.Normalize();
+
+            Parent.Orientation = normalizedOrientation;
+            Parent.Position = pivot - (GetForward(normalizedOrientation) * (float)distance);
+            virtualTarget = pivot;
+            orbitDistance = distance;
+            hasVirtualTargetState = true;
+            yaw = Math.Atan2(-GetForward(normalizedOrientation).X, -GetForward(normalizedOrientation).Z);
+            pitch = Math.Clamp(Math.Asin(GetForward(normalizedOrientation).Y), -MaxPitch, MaxPitch);
+            hasOrientationState = true;
+
+            Entity selectedEntity = EditorSessionInteractionServices.From(Parent).Selection.SelectedEntity;
+            if (selectedEntity != null) {
+                selectionOrbitTargetOverrideEntity = selectedEntity;
+                selectionOrbitTargetOverride = pivot;
+                hasSelectionOrbitTargetOverride = true;
+            } else {
+                selectionOrbitTargetOverrideEntity = null;
+                hasSelectionOrbitTargetOverride = false;
+            }
+        }
+
+        /// <summary>
+        /// Switches projection while preserving the current orbit pivot, orientation, and apparent vertical scale.
+        /// </summary>
+        /// <param name="mode">Projection mode to select.</param>
+        public void SetProjectionMode(CameraProjectionMode mode) {
+            if (mode != CameraProjectionMode.Perspective && mode != CameraProjectionMode.Orthographic) {
+                throw new ArgumentOutOfRangeException(nameof(mode), mode, "The requested projection mode is not supported.");
+            }
+
+            if (camera is not ICameraProjectionSettings projectionSettings) {
+                throw new InvalidOperationException("The viewport camera does not expose optional projection settings.");
+            }
+            if (projectionSettings.ProjectionMode == mode) {
+                return;
+            }
+
+            float4 viewport = camera.Viewport;
+            if (!float.IsFinite(viewport.Z) || !float.IsFinite(viewport.W) || viewport.Z <= 1f || viewport.W <= 1f) {
+                throw new InvalidOperationException("Viewport dimensions must be positive before changing camera projection.");
+            }
+
+            float fieldOfView = camera.FieldOfView;
+            if (!float.IsFinite(fieldOfView) || fieldOfView <= 0f) {
+                throw new InvalidOperationException("Camera field of view must be finite and positive before changing projection.");
+            }
+            double tangent = Math.Tan(CameraProjectionUtils.ClampFieldOfView(fieldOfView) * 0.5);
+            if (!double.IsFinite(tangent) || tangent <= 0.0) {
+                throw new InvalidOperationException("Camera field of view cannot be converted to a finite projection scale.");
+            }
+
+            float3 pivot = ResolveOrbitTarget();
+            double currentDistance = GetDistance(Parent.Position, pivot);
+            if (!double.IsFinite(currentDistance) || currentDistance < MinOrbitDistance) {
+                currentDistance = Math.Max(orbitDistance, MinOrbitDistance);
+            }
+
+            float4 orientation = Parent.Orientation;
+            if (mode == CameraProjectionMode.Orthographic) {
+                double span = 2.0 * currentDistance * tangent;
+                if (!double.IsFinite(span) || span < CameraProjectionUtils.MinimumOrthographicVerticalSpan || span > float.MaxValue) {
+                    throw new InvalidOperationException("The current perspective view cannot be represented by a supported orthographic span.");
+                }
+                projectionSettings.OrthographicVerticalSpan = (float)span;
+                projectionSettings.ProjectionMode = CameraProjectionMode.Orthographic;
+            } else {
+                double span = projectionSettings.OrthographicVerticalSpan;
+                if (!double.IsFinite(span) || span < CameraProjectionUtils.MinimumOrthographicVerticalSpan) {
+                    throw new InvalidOperationException("The current orthographic span is not valid.");
+                }
+                double perspectiveDistance = span / (2.0 * tangent);
+                if (!double.IsFinite(perspectiveDistance) || perspectiveDistance < MinOrbitDistance || perspectiveDistance > float.MaxValue) {
+                    throw new InvalidOperationException("The current orthographic view cannot be represented by a supported perspective distance.");
+                }
+
+                projectionSettings.ProjectionMode = CameraProjectionMode.Perspective;
+                currentDistance = perspectiveDistance;
+            }
+
+            SetViewPose(pivot, orientation, currentDistance);
+        }
+
+        /// <summary>
         /// Gets the current orbit pivot used by camera pan, orbit, and wheel zoom interactions.
         /// </summary>
         /// <returns>Current world-space orbit target.</returns>
         public float3 GetOrbitTarget() {
             return ResolveOrbitTarget();
+        }
+
+        /// <summary>
+        /// Rebuilds the legacy virtual pivot directly in front of the current camera using the default orbit distance.
+        /// </summary>
+        public void ResetOrbitTargetFromCamera() {
+            if (Parent == null) {
+                throw new InvalidOperationException("The viewport camera controller must be attached before its orbit target is initialized.");
+            }
+
+            orbitDistance = DefaultOrbitDistance;
+            InitializeYawPitchFromOrientation();
+            hasOrientationState = true;
+            UpdateVirtualTargetFromCamera();
         }
 
         /// <summary>
@@ -204,6 +337,38 @@ namespace helengine.editor {
             }
 
             hasVirtualTargetState = true;
+        }
+
+        /// <summary>
+        /// Restores the orbit pivot and cached angles without changing the serialized camera position or orientation.
+        /// </summary>
+        /// <param name="orbitTarget">Restored world-space orbit pivot.</param>
+        /// <param name="distance">Restored camera-to-pivot distance.</param>
+        public void SetOrbitState(float3 orbitTarget, double distance) {
+            if (!float.IsFinite(orbitTarget.X) || !float.IsFinite(orbitTarget.Y) || !float.IsFinite(orbitTarget.Z)) {
+                throw new ArgumentOutOfRangeException(nameof(orbitTarget), "The orbit pivot must contain only finite values.");
+            }
+            if (!double.IsFinite(distance) || distance < MinOrbitDistance) {
+                throw new ArgumentOutOfRangeException(nameof(distance), distance, "The camera-to-pivot distance must be finite and positive.");
+            }
+            if (Parent == null) {
+                throw new InvalidOperationException("The viewport camera controller must be attached before orbit state is restored.");
+            }
+
+            virtualTarget = orbitTarget;
+            orbitDistance = distance;
+            hasVirtualTargetState = true;
+            InitializeYawPitchFromOrientation();
+            hasOrientationState = true;
+            Entity selectedEntity = EditorSessionInteractionServices.From(Parent).Selection.SelectedEntity;
+            if (selectedEntity != null) {
+                selectionOrbitTargetOverrideEntity = selectedEntity;
+                selectionOrbitTargetOverride = orbitTarget;
+                hasSelectionOrbitTargetOverride = true;
+            } else {
+                selectionOrbitTargetOverrideEntity = null;
+                hasSelectionOrbitTargetOverride = false;
+            }
         }
 
         /// <summary>
@@ -363,10 +528,16 @@ namespace helengine.editor {
                 } else {
                     int2 delta = input.GetMouseDelta();
                     if (delta.X != 0 || delta.Y != 0) {
-                        double panScale = panSpeed;
+                        float4 viewport = camera.Viewport;
+                        if (viewport.Z <= 1f || viewport.W <= 1f) {
+                            return;
+                        }
+                        double verticalWorldUnitsPerPixel = CameraProjectionUtils.GetWorldUnitsPerPixel(camera, orbitDistance, viewport.W);
+                        double panSpeedRatio = panSpeed / DefaultPanSpeed;
+                        double horizontalWorldUnitsPerPixel = verticalWorldUnitsPerPixel * (viewport.Z / viewport.W);
                         float3 panMove =
-                            right * (float)(-delta.X * panScale) +
-                            up * (float)(delta.Y * panScale);
+                            right * (float)(-delta.X * horizontalWorldUnitsPerPixel * panSpeedRatio) +
+                            up * (float)(delta.Y * verticalWorldUnitsPerPixel * panSpeedRatio);
                         Parent.Position += panMove;
                         virtualTarget += panMove;
                     }
@@ -406,6 +577,21 @@ namespace helengine.editor {
 
             double notchDelta = wheelDelta / WheelDeltaPerNotch;
             double zoomDistance = notchDelta * wheelZoomSpeed;
+            if (camera is ICameraProjectionSettings projectionSettings && projectionSettings.ProjectionMode == CameraProjectionMode.Orthographic) {
+                double span = projectionSettings.OrthographicVerticalSpan;
+                if (!double.IsFinite(span) || span < CameraProjectionUtils.MinimumOrthographicVerticalSpan) {
+                    return;
+                }
+
+                double zoomFactor = Math.Exp(-zoomDistance * 0.1);
+                if (!double.IsFinite(zoomFactor) || zoomFactor <= 0.0) {
+                    return;
+                }
+                double updatedSpan = Math.Clamp(span * zoomFactor, CameraProjectionUtils.MinimumOrthographicVerticalSpan, float.MaxValue);
+                projectionSettings.OrthographicVerticalSpan = (float)updatedSpan;
+                return;
+            }
+
             Parent.Position += forward * (float)zoomDistance;
             UpdateOrbitDistanceFromTarget();
         }
@@ -510,7 +696,7 @@ namespace helengine.editor {
         /// </summary>
         void InitializeYawPitchFromOrientation() {
             float3 forward = GetForward(Parent.Orientation);
-            yaw = Math.Atan2(forward.X, -forward.Z);
+            yaw = Math.Atan2(-forward.X, -forward.Z);
             pitch = Math.Asin(forward.Y);
             pitch = Math.Clamp(pitch, -MaxPitch, MaxPitch);
         }

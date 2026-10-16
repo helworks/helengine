@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Drives transient build-dialog feedback animations that need per-frame updates, such as the invalid scene-list shake.
     /// </summary>
+    [RunInEditor]
     public class BuildDialogFeedbackUpdateComponent : UpdateComponent {
         /// <summary>
         /// Dialog instance whose transient feedback state should be advanced.

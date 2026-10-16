@@ -738,7 +738,12 @@ namespace helengine.editor {
             PlatformCookWorkItemIds.Clear();
             CookedArtifactDeclarations.Clear();
             CookedArtifactDeclarationsByPath.Clear();
-            EnsureGeneratedStandardMaterialAssets(fullBuildRootPath);
+            // The initial Xbox shader subset has no ForwardStandardShader/PBR implementation.
+            // Do not add an unused desktop dependency; actual generated-material references
+            // still reach EnsureGeneratedStandardMaterialAssets and are rejected explicitly.
+            if (!UsesXboxAuthoredShaderSubset()) {
+                EnsureGeneratedStandardMaterialAssets(fullBuildRootPath);
+            }
 
             for (int index = 0; index < sceneIds.Count; index++) {
                 string sceneId = sceneIds[index];
@@ -2701,6 +2706,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
         void EnsureGeneratedStandardMaterialAssets(string buildRootPath) {
+            if (UsesXboxAuthoredShaderSubset()) {
+                throw new InvalidOperationException("Xbox shader profile requires an explicit authored material; generated ForwardStandardShader materials are not supported by the initial NV2A subset.");
+            }
             string shaderAssetId = StandardShaderAssetId;
             if (ShouldWriteGeneratedStandardShaderAsset()) {
                 ShaderAsset shaderAsset = BuiltInShaderAssetLibrary.Load(ShaderCompileTarget.DirectX11, StandardShaderFileName);
@@ -2758,6 +2766,14 @@ namespace helengine.editor {
         /// <returns>True when the shared shader-backed standard material should be staged; otherwise false.</returns>
         bool ShouldWriteGeneratedStandardShaderAsset() {
             return !UsesCookedPlatformOwnedMaterialResolution();
+        }
+
+        /// <summary>
+        /// Identifies the opt-in Xbox raw shader subset, which cannot implicitly supply the desktop standard material.
+        /// </summary>
+        bool UsesXboxAuthoredShaderSubset() {
+            return string.Equals(TargetPlatformId, "xbox", StringComparison.OrdinalIgnoreCase)
+                && PlatformDefinition?.RuntimeGenerationContract?.MaterialResolutionMode == RuntimeMaterialResolutionMode.RawShaderBacked;
         }
 
         /// <summary>

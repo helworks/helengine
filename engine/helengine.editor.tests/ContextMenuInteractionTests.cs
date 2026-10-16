@@ -268,7 +268,7 @@ namespace helengine.editor.tests {
             SpriteComponent blockerSurface = GetPrivateField<SpriteComponent>(menu, "BackgroundBlockerSurface");
 
             Assert.Single(rows, row => row.Entity.Enabled);
-            Assert.True(blockerSurface.RenderOrder2D < rows[0].Background.RenderOrder2D);
+            Assert.True(RenderDepthOrder2D.CompareDrawables(blockerSurface, rows[0].Background) < 0);
         }
 
         /// <summary>
@@ -435,7 +435,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Input-bound context menu.</returns>
         ContextMenu CreateMenu() {
-            ContextMenu menu = new ContextMenu(Core.Instance, CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground, InteractionServices);
+            ContextMenu menu = new ContextMenu(Core.Instance, CreateFont(), 0b0000000000000010, InteractionServices);
             menu.SetInput(Core.Instance.Input);
             menu.Entity.InitializeHierarchy();
             return menu;

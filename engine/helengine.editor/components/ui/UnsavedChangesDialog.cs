@@ -163,7 +163,6 @@ namespace helengine.editor {
                 Text = "Do you want to save changes to the current map?",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
-                RenderOrder2D = DialogTextOrder
             };
             MessageHost.AddComponent(MessageText);
 
@@ -181,7 +180,6 @@ namespace helengine.editor {
             FooterBoundsSurface = new SpriteComponent {
                 Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = new byte4(0, 0, 0, 0),
-                RenderOrder2D = RenderOrder2D.ModalInput,
                 Size = GetFooterBoundsSize()
             };
             FooterHost.AddComponent(FooterBoundsSurface);
@@ -198,7 +196,6 @@ namespace helengine.editor {
 
             SaveButton = new ButtonComponent("Save", GetSaveButtonSize(), DialogFont, HandleSaveClicked, 0f);
             SaveButtonHost.AddComponent(SaveButton);
-            SaveButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
             DontSaveButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
@@ -209,7 +206,6 @@ namespace helengine.editor {
 
             DontSaveButton = new ButtonComponent("Don't Save", GetDontSaveButtonSize(), DialogFont, HandleDontSaveClicked, 0f);
             DontSaveButtonHost.AddComponent(DontSaveButton);
-            DontSaveButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
             CancelButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
@@ -220,7 +216,6 @@ namespace helengine.editor {
 
             CancelButton = new ButtonComponent("Cancel", GetCancelButtonSize(), DialogFont, HandleCancelClicked, 0f);
             CancelButtonHost.AddComponent(CancelButton);
-            CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
             Enabled = false;
             IsInitialized = true;

@@ -9,7 +9,6 @@ namespace helengine.editor {
         /// <param name="font">Font used to render the row.</param>
         /// <param name="layerMask">Layer mask applied to row entities.</param>
         /// <param name="buttonSize">Size assigned to the selectable environment button.</param>
-        /// <param name="textOrder">Render order used by row text.</param>
         /// <param name="onClicked">Callback invoked when the row is selected.</param>
         public EnvironmentsDialogRow(
             Core ownerCore,
@@ -17,7 +16,6 @@ namespace helengine.editor {
             FontAsset font,
             ushort layerMask,
             int2 buttonSize,
-            byte textOrder,
             Action<ButtonComponent> onClicked) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
@@ -33,7 +31,6 @@ namespace helengine.editor {
 
             ButtonComponent selectButton = null;
             selectButton = new ButtonComponent(string.Empty, buttonSize, font, () => onClicked(selectButton), 0f);
-            selectButton.SetRenderOrders(textOrder, textOrder);
             selectButton.SetHoverCursor(PointerCursorKind.Hand);
             SelectHost.AddComponent(selectButton);
             SelectButton = selectButton;
@@ -46,8 +43,7 @@ namespace helengine.editor {
             ProtectedText = new TextComponent {
                 Font = font,
                 Text = string.Empty,
-                Color = ThemeManager.Colors.StateWarning,
-                RenderOrder2D = textOrder
+                Color = ThemeManager.Colors.StateWarning
             };
             ProtectedHost.AddComponent(ProtectedText);
             EnvironmentIndex = -1;

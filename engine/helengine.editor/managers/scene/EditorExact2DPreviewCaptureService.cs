@@ -78,7 +78,7 @@ namespace helengine.editor {
             PreviewCameraComponentValue = EditorExact2DPreviewSceneFactory.CreatePreviewCameraComponent(PreviewSizeValue);
             PreviewCameraEntity.AddComponent(PreviewCameraComponentValue);
 
-            PreviewContentEntity = EditorExact2DPreviewSceneFactory.CreatePreviewContentEntity(ownerCore);
+            PreviewContentEntity = EditorExact2DPreviewSceneFactory.CreatePreviewContentEntity(ownerCore, PreviewCameraComponentValue);
             PreviewMaterialValue = EditorExact2DPreviewMaterialFactory.Create(Render3D, Render2D.PixelTexture, BuiltInShaderLibrary);
         }
 
@@ -276,7 +276,6 @@ namespace helengine.editor {
             PreviewTextComponentValue.Font = sourceComponent.Font;
             PreviewTextComponentValue.FontScale = sourceComponent.FontScale;
             PreviewTextComponentValue.Alignment = sourceComponent.Alignment;
-            PreviewTextComponentValue.RenderOrder2D = sourceComponent.RenderOrder2D;
         }
 
         /// <summary>
@@ -290,7 +289,6 @@ namespace helengine.editor {
             PreviewContentEntity.LocalScale = float3.One;
             PreviewContentEntity.Enabled = sourceEntity.Enabled;
 
-            PreviewRoundedRectComponentValue.RenderOrder2D = sourceComponent.RenderOrder2D;
             PreviewRoundedRectComponentValue.Corners = sourceComponent.Corners;
             PreviewRoundedRectComponentValue.Rotation = sourceComponent.Rotation;
             PreviewRoundedRectComponentValue.Color = sourceComponent.Color;

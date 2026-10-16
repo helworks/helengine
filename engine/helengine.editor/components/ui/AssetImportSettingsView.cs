@@ -91,10 +91,6 @@ namespace helengine.editor {
         /// </summary>
         readonly FontAsset Font;
         /// <summary>
-        /// Render order used for label and status text.
-        /// </summary>
-        readonly byte TextOrder;
-        /// <summary>
         /// Root entity that owns view visuals.
         /// </summary>
         readonly EditorEntity RootEntity;
@@ -417,8 +413,6 @@ namespace helengine.editor {
             TextureColorFormatValues = new List<string>(Enum.GetNames<TextureAssetColorFormat>());
             TextureAlphaPrecisionValues = new List<string>(Enum.GetNames<TextureAssetAlphaPrecision>());
             TextureIndexingMethodValues = new List<string>(Enum.GetNames<TextureAssetIndexingMethod>());
-            TextOrder = RenderOrder2D.PanelForeground;
-
             RootEntity = new EditorEntity(ownerCore, interactionServices);
             RootEntity.LayerMask = layerMask;
             RootEntity.InternalEntity = true;
@@ -431,7 +425,6 @@ namespace helengine.editor {
             ImporterLabelText.Font = font;
             ImporterLabelText.Text = ImporterLabel;
             ImporterLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            ImporterLabelText.RenderOrder2D = TextOrder;
             ImporterLabelHost.AddComponent(ImporterLabelText);
 
             ComboHost = new EditorEntity(ownerCore, interactionServices);
@@ -450,7 +443,6 @@ namespace helengine.editor {
             ProcessorLabelText.Font = font;
             ProcessorLabelText.Text = ProcessorLabel;
             ProcessorLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            ProcessorLabelText.RenderOrder2D = TextOrder;
             ProcessorLabelHost.AddComponent(ProcessorLabelText);
 
             ProcessorPanelRoot = new EditorEntity(ownerCore, interactionServices);
@@ -464,7 +456,6 @@ namespace helengine.editor {
                 BorderThickness = 2f,
                 Radius = 6f,
                 Corners = RoundedRectCorners.BottomLeft | RoundedRectCorners.BottomRight,
-                RenderOrder2D = RenderOrder2D.PanelSurface,
                 Size = new int2(1, 1)
             };
             ProcessorPanelRoot.AddComponent(ProcessorPanelBackground);
@@ -485,7 +476,6 @@ namespace helengine.editor {
             FlipWindingLabelText.Font = font;
             FlipWindingLabelText.Text = FlipWindingLabel;
             FlipWindingLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            FlipWindingLabelText.RenderOrder2D = TextOrder;
             FlipWindingLabelHost.AddComponent(FlipWindingLabelText);
 
             FlipWindingCheckBoxHost = new EditorEntity(ownerCore, interactionServices);
@@ -504,7 +494,6 @@ namespace helengine.editor {
             TessellateLabelText.Font = font;
             TessellateLabelText.Text = TessellateLabel;
             TessellateLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            TessellateLabelText.RenderOrder2D = TextOrder;
             TessellateLabelHost.AddComponent(TessellateLabelText);
 
             TessellateCheckBoxHost = new EditorEntity(ownerCore, interactionServices);
@@ -523,7 +512,6 @@ namespace helengine.editor {
             TessellationMaxEdgeLengthLabelText.Font = font;
             TessellationMaxEdgeLengthLabelText.Text = TessellationMaxEdgeLengthLabel;
             TessellationMaxEdgeLengthLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            TessellationMaxEdgeLengthLabelText.RenderOrder2D = TextOrder;
             TessellationMaxEdgeLengthLabelHost.AddComponent(TessellationMaxEdgeLengthLabelText);
 
             TessellationMaxEdgeLengthTextBoxHost = new EditorEntity(ownerCore, interactionServices);
@@ -542,7 +530,6 @@ namespace helengine.editor {
             TextureMaxResolutionLabelText.Font = font;
             TextureMaxResolutionLabelText.Text = TextureMaxResolutionLabel;
             TextureMaxResolutionLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            TextureMaxResolutionLabelText.RenderOrder2D = TextOrder;
             TextureMaxResolutionLabelHost.AddComponent(TextureMaxResolutionLabelText);
 
             TextureMaxResolutionTextBoxHost = new EditorEntity(ownerCore, interactionServices);
@@ -561,7 +548,6 @@ namespace helengine.editor {
             TextureColorFormatLabelText.Font = font;
             TextureColorFormatLabelText.Text = TextureColorFormatLabel;
             TextureColorFormatLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            TextureColorFormatLabelText.RenderOrder2D = TextOrder;
             TextureColorFormatLabelHost.AddComponent(TextureColorFormatLabelText);
 
             TextureColorFormatComboBoxHost = new EditorEntity(ownerCore, interactionServices);
@@ -580,7 +566,6 @@ namespace helengine.editor {
             TextureAlphaPrecisionLabelText.Font = font;
             TextureAlphaPrecisionLabelText.Text = TextureAlphaPrecisionLabel;
             TextureAlphaPrecisionLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            TextureAlphaPrecisionLabelText.RenderOrder2D = TextOrder;
             TextureAlphaPrecisionLabelHost.AddComponent(TextureAlphaPrecisionLabelText);
 
             TextureAlphaPrecisionComboBoxHost = new EditorEntity(ownerCore, interactionServices);
@@ -599,7 +584,6 @@ namespace helengine.editor {
             TextureIndexingMethodLabelText.Font = font;
             TextureIndexingMethodLabelText.Text = TextureIndexingMethodLabel;
             TextureIndexingMethodLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            TextureIndexingMethodLabelText.RenderOrder2D = TextOrder;
             TextureIndexingMethodLabelHost.AddComponent(TextureIndexingMethodLabelText);
 
             TextureIndexingMethodComboBoxHost = new EditorEntity(ownerCore, interactionServices);
@@ -618,7 +602,6 @@ namespace helengine.editor {
             FontPixelSizeLabelText.Font = font;
             FontPixelSizeLabelText.Text = FontPixelSizeLabel;
             FontPixelSizeLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            FontPixelSizeLabelText.RenderOrder2D = TextOrder;
             FontPixelSizeLabelHost.AddComponent(FontPixelSizeLabelText);
 
             FontPixelSizeTextBoxHost = new EditorEntity(ownerCore, interactionServices);
@@ -638,7 +621,6 @@ namespace helengine.editor {
             VramPreviewText.Font = font;
             VramPreviewText.Text = string.Empty;
             VramPreviewText.Color = ThemeManager.Colors.InputForegroundSecondary;
-            VramPreviewText.RenderOrder2D = TextOrder;
             VramPreviewHost.AddComponent(VramPreviewText);
 
             ApplyHost = new EditorEntity(ownerCore, interactionServices);
@@ -656,7 +638,6 @@ namespace helengine.editor {
             StatusText.Font = font;
             StatusText.Text = string.Empty;
             StatusText.Color = ThemeManager.Colors.InputForegroundSecondary;
-            StatusText.RenderOrder2D = TextOrder;
             StatusHost.AddComponent(StatusText);
 
             Hide();

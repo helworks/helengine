@@ -2,7 +2,8 @@ namespace helengine {
     /// <summary>
     /// Provides the shared mesh-proxy behavior used by editor-only world-space 2D preview components.
     /// </summary>
-    public abstract class EditorWorldSpace2DPreviewComponentBase : MeshComponent, IEditorHiddenComponent {
+    [RunInEditor]
+    public abstract class EditorWorldSpace2DPreviewComponentBase : MeshComponent, IEditorHiddenComponent, IRenderHierarchySource {
         /// <summary>
         /// Backing material owned by this preview component.
         /// </summary>

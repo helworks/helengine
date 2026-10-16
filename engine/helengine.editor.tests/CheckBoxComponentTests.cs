@@ -37,22 +37,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures render-order overrides update both checkbox visuals.
+        /// Ensures checkbox visuals follow their host depth while the check mark remains in front.
         /// </summary>
         [Fact]
-        public void SetRenderOrders_WhenCalledAfterComponentAdded_UpdatesBackgroundAndCheckMarkRenderOrder() {
+        public void HostDepthChanged_MovesBackgroundAndCheckMarkTogether() {
             InitializeCore();
             EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             CheckBoxComponent checkBox = new CheckBoxComponent(new int2(20, 20), CreateFont(), true);
             entity.AddComponent(checkBox);
 
-            checkBox.SetRenderOrders(RenderOrder2D.ModalForeground, RenderOrder2D.ModalForeground);
+            entity.Position = new float3(0f, 0f, 240f);
 
             RoundedRectComponent background = GetPrivateField<RoundedRectComponent>(checkBox, "Background");
             TextComponent checkMark = GetPrivateField<TextComponent>(checkBox, "CheckMark");
 
-            Assert.Equal(RenderOrder2D.ModalForeground, background.RenderOrder2D);
-            Assert.Equal(RenderOrder2D.ModalForeground, checkMark.RenderOrder2D);
+            Assert.Equal(240f, background.Parent.Position.Z);
+            Assert.True(checkMark.Parent.Position.Z > background.Parent.Position.Z);
+            Assert.True(RenderDepthOrder2D.CompareDrawables(background, checkMark) < 0);
+            entity.Position = new float3(0f, 0f, 300f);
+            Assert.Equal(300f, background.Parent.Position.Z);
+            Assert.True(checkMark.Parent.Position.Z > 300f);
             Assert.Equal(string.Empty, checkMark.Text);
         }
 

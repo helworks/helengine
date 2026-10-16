@@ -2,6 +2,9 @@ namespace helengine {
     /// <summary>
     /// Represents one authored point light in the scene.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class PointLightComponent : LightComponent {
         /// <summary>
         /// Initializes one authored point light with default local-light parameters.

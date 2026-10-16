@@ -75,6 +75,63 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures orthographic selection framing fits tiny off-origin bounds for portrait and wide viewport shapes.
+        /// </summary>
+        /// <param name="viewportWidth">Viewport width in pixels.</param>
+        /// <param name="viewportHeight">Viewport height in pixels.</param>
+        [Theory]
+        [InlineData(400, 800)]
+        [InlineData(1200, 600)]
+        public void FocusSelection_WhenOrthographicAndSelectionIsTiny_UsesAspectCompensatedSpan(int viewportWidth, int viewportHeight) {
+            EditorViewportCameraComponent camera = new EditorViewportCameraComponent {
+                Viewport = new float4(0f, 0f, viewportWidth, viewportHeight),
+                ProjectionMode = CameraProjectionMode.Orthographic,
+                OrthographicVerticalSpan = 1f,
+                FarPlaneDistance = 5000f
+            };
+            EditorViewportCameraController controller = CreateCameraController(camera, out EditorEntity cameraEntity);
+            cameraEntity.Position = new float3(0f, 0f, 100f);
+            controller.SetOrbitTarget(float3.Zero);
+            Entity selectedEntity = CreateViewportEntity(new int2(8, 4));
+            selectedEntity.LocalPosition = new float3(1000f, 500f, 0f);
+            EditorViewportSelectionFramingService service = new EditorViewportSelectionFramingService();
+            double expectedRadius = Math.Sqrt(20.0);
+            double aspectRatio = (double)viewportWidth / viewportHeight;
+            double minimumFittingSpan = 2.0 * expectedRadius * Math.Max(1.0, 1.0 / aspectRatio);
+
+            service.FocusSelection(camera, controller, selectedEntity);
+
+            Assert.Equal(new float3(1004f, 498f, 0f), controller.GetOrbitTarget());
+            Assert.True(camera.OrthographicVerticalSpan >= minimumFittingSpan);
+            AssertPointIsVisibleOrthographic(cameraEntity, camera, new float3(1000f, 500f, 0f));
+            AssertPointIsVisibleOrthographic(cameraEntity, camera, new float3(1008f, 500f, 0f));
+            AssertPointIsVisibleOrthographic(cameraEntity, camera, new float3(1000f, 496f, 0f));
+            AssertPointIsVisibleOrthographic(cameraEntity, camera, new float3(1008f, 496f, 0f));
+        }
+
+        /// <summary>
+        /// Ensures a zero-sized viewport cannot move a camera or change its orthographic frame during focus.
+        /// </summary>
+        [Fact]
+        public void FocusSelection_WhenViewportHasZeroDimension_DoesNotChangeCameraOrSpan() {
+            EditorViewportCameraComponent camera = new EditorViewportCameraComponent {
+                Viewport = new float4(0f, 0f, 400f, 0f),
+                ProjectionMode = CameraProjectionMode.Orthographic,
+                OrthographicVerticalSpan = 10f
+            };
+            EditorViewportCameraController controller = CreateCameraController(camera, out EditorEntity cameraEntity);
+            cameraEntity.Position = new float3(5f, 6f, 7f);
+            float3 initialPosition = cameraEntity.Position;
+            Entity selectedEntity = CreateViewportEntity(new int2(8, 4));
+            EditorViewportSelectionFramingService service = new EditorViewportSelectionFramingService();
+
+            service.FocusSelection(camera, controller, selectedEntity);
+
+            Assert.Equal(initialPosition, cameraEntity.Position);
+            Assert.Equal(10f, camera.OrthographicVerticalSpan);
+        }
+
+        /// <summary>
         /// Ensures viewport selection extent resolves from the full fixed viewport size.
         /// </summary>
         [Fact]
@@ -221,6 +278,26 @@ namespace helengine.editor.tests {
             Assert.True(viewPoint.Z < 0f);
             Assert.True(halfHorizontal <= Math.Tan(horizontalFieldOfView * 0.5) + 0.0001);
             Assert.True(halfVertical <= Math.Tan(verticalFieldOfView * 0.5) + 0.0001);
+        }
+
+        /// <summary>
+        /// Asserts that a point lies within the active orthographic horizontal and vertical extents.
+        /// </summary>
+        /// <param name="cameraEntity">Entity that owns the scene camera transform.</param>
+        /// <param name="camera">Camera whose orthographic span defines the view.</param>
+        /// <param name="worldPoint">World-space point that should remain visible.</param>
+        void AssertPointIsVisibleOrthographic(EditorEntity cameraEntity, EditorViewportCameraComponent camera, float3 worldPoint) {
+            float4 viewport = camera.Viewport;
+            double aspectRatio = viewport.Z / viewport.W;
+            float3 relativePoint = worldPoint - cameraEntity.Position;
+            float4 inverseOrientation = float4.Inverse(cameraEntity.Orientation);
+            float3 viewPoint = float4.RotateVector(relativePoint, inverseOrientation);
+            double halfVerticalSpan = camera.OrthographicVerticalSpan * 0.5;
+            double halfHorizontalSpan = halfVerticalSpan * aspectRatio;
+
+            Assert.True(viewPoint.Z < 0f);
+            Assert.True(Math.Abs(viewPoint.X) <= halfHorizontalSpan + 0.0001);
+            Assert.True(Math.Abs(viewPoint.Y) <= halfVerticalSpan + 0.0001);
         }
     }
 }

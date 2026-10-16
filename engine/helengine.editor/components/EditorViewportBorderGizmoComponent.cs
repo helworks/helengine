@@ -2,6 +2,7 @@ namespace helengine {
     /// <summary>
     /// Renders one editor-only world-space border gizmo that mirrors an authored viewport entity.
     /// </summary>
+    [RunInEditor]
     public sealed class EditorViewportBorderGizmoComponent : MeshComponent, IEditorHiddenComponent {
         /// <summary>
         /// Authored entity that owns the mirrored viewport component.

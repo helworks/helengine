@@ -721,7 +721,7 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Creates lightweight editor sessions suitable for workspace-instance tests.
         /// </summary>
-        sealed class EditorSessionHarness : IDisposable {
+        internal sealed class EditorSessionHarness : IDisposable {
             readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
             readonly EditorCore CoreValue;
             readonly TestGeneratedAssetGraph GeneratedAssetGraph;
@@ -1284,6 +1284,22 @@ namespace helengine.editor.tests {
             /// <returns>Viewport workspace controller for the supplied instance.</returns>
             public ViewportWorkspacePanelController GetViewportControllerForTest(EditorWorkspacePanelInstance instance) {
                 return GetViewportController(instance);
+            }
+
+            /// <summary>
+            /// Applies viewport UI metrics using the font resources owned by this test session.
+            /// </summary>
+            /// <param name="viewport">Viewport whose scaled chrome and overlay should be refreshed.</param>
+            /// <param name="metrics">Scaled metrics to apply.</param>
+            public void ApplyUiMetricsToViewportForTest(EditorViewport viewport, EditorUiMetrics metrics) {
+                if (viewport == null) {
+                    throw new ArgumentNullException(nameof(viewport));
+                }
+                if (metrics == null) {
+                    throw new ArgumentNullException(nameof(metrics));
+                }
+
+                viewport.ApplyUiMetrics(Font, Font, metrics);
             }
 
             /// <summary>

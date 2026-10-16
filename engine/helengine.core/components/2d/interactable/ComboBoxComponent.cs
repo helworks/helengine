@@ -2,6 +2,9 @@ namespace helengine {
     /// <summary>
     /// Renders a selectable combo box with a drop-down list of items.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class ComboBoxComponent : Component, IFocusTarget {
         /// <summary>
         /// Horizontal padding applied to label text.
@@ -15,6 +18,10 @@ namespace helengine {
         /// Vertical gap between the main control and the drop-down list.
         /// </summary>
         const int ListGap = 2;
+        /// <summary>
+        /// Physical local-Z offset that places the open list above nested sibling controls.
+        /// </summary>
+        const float DropdownRootDepth = 1f;
         /// <summary>
         /// ASCII glyph used to indicate the drop-down arrow.
         /// </summary>
@@ -30,10 +37,6 @@ namespace helengine {
         /// </summary>
         [NativeOwnedMember]
         List<ComboBoxItemVisual> ItemVisuals;
-        /// <summary>
-        /// Tracks whether custom render orders were supplied for the combo-box visuals.
-        /// </summary>
-        bool HasRenderOrderOverrides;
 
         /// <summary>
         /// Font used to render text in the control.
@@ -98,22 +101,6 @@ namespace helengine {
         /// </summary>
         RoundedRectComponent ListBackground;
 
-        /// <summary>
-        /// Render order for the main background.
-        /// </summary>
-        byte BackgroundOrder;
-        /// <summary>
-        /// Render order for the main text elements.
-        /// </summary>
-        byte TextOrder;
-        /// <summary>
-        /// Render order for the list background.
-        /// </summary>
-        byte ListBackgroundOrder;
-        /// <summary>
-        /// Render order for item labels.
-        /// </summary>
-        byte ListTextOrder;
 
         /// <summary>
         /// Raised when a new item is selected.
@@ -217,36 +204,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Overrides the render order used for the combo-box control and drop-down visuals.
-        /// </summary>
-        /// <param name="backgroundOrder">Render order for the main control background.</param>
-        /// <param name="textOrder">Render order for the main control text.</param>
-        /// <param name="listBackgroundOrder">Render order for the drop-down background and item backgrounds.</param>
-        /// <param name="listTextOrder">Render order for the drop-down item labels.</param>
-        public void SetRenderOrders(byte backgroundOrder, byte textOrder, byte listBackgroundOrder, byte listTextOrder) {
-            HasRenderOrderOverrides = true;
-            this.BackgroundOrder = backgroundOrder;
-            this.TextOrder = textOrder;
-            this.ListBackgroundOrder = listBackgroundOrder;
-            this.ListTextOrder = listTextOrder;
-            ApplyRenderOrders();
-        }
-
-        /// <summary>
-        /// Applies the standard docked-panel presentation used by editor and runtime tool panels.
-        /// </summary>
-        public void UsePanelPresentation() {
-            SetRenderOrders(RenderOrder2D.PanelSurface, RenderOrder2D.PanelForeground, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
-        }
-
-        /// <summary>
-        /// Applies the modal presentation used by dialog-hosted combo boxes and keeps the drop-down above other modal controls.
-        /// </summary>
-        public void UseModalPresentation() {
-            SetRenderOrders(RenderOrder2D.ModalBackground, RenderOrder2D.ModalForeground, RenderOrder2D.ModalOverlayBackground, RenderOrder2D.ModalOverlayForeground);
-        }
-
-        /// <summary>
         /// Gets the selected item text.
         /// </summary>
         public string SelectedItem {
@@ -324,17 +281,12 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            if (!HasRenderOrderOverrides) {
-                UsePanelPresentation();
-            }
-
             Background = new RoundedRectComponent();
             Background.Size = SizeValue;
             Background.Radius = GetCornerRadius(SizeValue);
             Background.BorderThickness = 2f;
             Background.FillColor = ThemeManager.Colors.SurfaceInput;
             Background.BorderColor = ThemeManager.Colors.AccentTertiary;
-            Background.RenderOrder2D = BackgroundOrder;
             entity.AddComponent(Background);
 
             Interactable = new InteractableComponent();
@@ -355,7 +307,6 @@ namespace helengine {
             LabelText = new TextComponent();
             LabelText.Font = FontValue;
             LabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            LabelText.RenderOrder2D = TextOrder;
             LabelEntity.AddComponent(LabelText);
 
             ArrowEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Combo-box visuals require an owning core."));
@@ -367,7 +318,6 @@ namespace helengine {
             ArrowText = new TextComponent();
             ArrowText.Font = FontValue;
             ArrowText.Color = ThemeManager.Colors.InputForegroundSecondary;
-            ArrowText.RenderOrder2D = TextOrder;
             ArrowEntity.AddComponent(ArrowText);
 
             ListRoot = new Entity(OwnerCore ?? throw new InvalidOperationException("Combo-box visuals require an owning core."));
@@ -377,7 +327,6 @@ namespace helengine {
             entity.AddChild(ListRoot);
 
             ListBackground = new RoundedRectComponent();
-            ListBackground.RenderOrder2D = ListBackgroundOrder;
             ListBackground.BorderThickness = 1f;
             ListBackground.FillColor = ThemeManager.Colors.SurfacePrimary;
             ListBackground.BorderColor = ThemeManager.Colors.AccentTertiary;
@@ -391,33 +340,6 @@ namespace helengine {
             UpdateLabelText();
             UpdateLayout();
             UpdateDropdownVisibility();
-        }
-
-        /// <summary>
-        /// Applies the currently configured render orders to all constructed visuals.
-        /// </summary>
-        void ApplyRenderOrders() {
-            if (Background != null) {
-                Background.RenderOrder2D = BackgroundOrder;
-            }
-
-            if (LabelText != null) {
-                LabelText.RenderOrder2D = TextOrder;
-            }
-
-            if (ArrowText != null) {
-                ArrowText.RenderOrder2D = TextOrder;
-            }
-
-            if (ListBackground != null) {
-                ListBackground.RenderOrder2D = ListBackgroundOrder;
-            }
-
-            for (int i = 0; i < ItemVisuals.Count; i++) {
-                ComboBoxItemVisual entry = ItemVisuals[i];
-                entry.Background.RenderOrder2D = ListBackgroundOrder;
-                entry.Label.RenderOrder2D = ListTextOrder;
-            }
         }
 
         /// <summary>
@@ -703,7 +625,7 @@ namespace helengine {
                 }
             }
 
-            ListRoot.Position = new float3(0f, listOffsetY, 0.2f);
+            ListRoot.Position = new float3(0f, listOffsetY, DropdownRootDepth);
             ListBackground.Size = new int2(SizeValue.X, listHeight);
             if (Background != null) {
                 ListBackground.Radius = Background.Radius;
@@ -792,7 +714,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Newly created item visual.</returns>
         ComboBoxItemVisual CreateItemVisual() {
-            ComboBoxItemVisual entry = new ComboBoxItemVisual(OwnerCore ?? throw new InvalidOperationException("Combo-box visuals require an owning core."), FontValue, ListRoot.LayerMask, ListBackgroundOrder, ListTextOrder);
+            ComboBoxItemVisual entry = new ComboBoxItemVisual(OwnerCore ?? throw new InvalidOperationException("Combo-box visuals require an owning core."), FontValue, ListRoot.LayerMask);
             entry.Background.FillColor = ThemeManager.Colors.SurfaceInput;
             entry.Background.BorderColor = ThemeManager.Colors.AccentTertiary;
             entry.Label.Color = ThemeManager.Colors.InputForegroundPrimary;

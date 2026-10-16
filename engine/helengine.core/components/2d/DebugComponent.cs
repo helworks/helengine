@@ -154,9 +154,9 @@ namespace helengine {
         int2 PaddingValue = new int2(8, 6);
 
         /// <summary>
-        /// Stores the current render order used by every overlay row.
+        /// Physical depth used to keep the diagnostics overlay above ordinary screen-space content.
         /// </summary>
-        byte RenderOrder2DValue = 250;
+        const float OverlayDepth = 250f;
 
         /// <summary>
         /// Initializes a new debug overlay with no implicit font fallback.
@@ -190,21 +190,6 @@ namespace helengine {
             set {
                 PaddingValue = value;
                 ApplyPadding();
-            }
-        }
-
-        /// <summary>
-        /// Gets or sets the render order used by the overlay text rows.
-        /// </summary>
-        public byte RenderOrder2D {
-            get { return RenderOrder2DValue; }
-            set {
-                if (RenderOrder2DValue == value) {
-                    return;
-                }
-
-                RenderOrder2DValue = value;
-                ApplyRenderOrder();
             }
         }
 
@@ -410,7 +395,6 @@ namespace helengine {
 
                     component.SyncAdditionalLineRows();
                     component.ApplyFont();
-                    component.ApplyRenderOrder();
                     component.ApplyVisibleText();
                 }
             }
@@ -438,13 +422,11 @@ namespace helengine {
                 ResetSamplingWindow();
                 ApplyVisibleText();
                 ApplyPadding();
-                ApplyRenderOrder();
                 return;
             }
 
             ApplyFont();
             ApplyPadding();
-            ApplyRenderOrder();
             ApplyVisibleText();
         }
 
@@ -637,39 +619,7 @@ namespace helengine {
                 return;
             }
 
-            OverlayHost.LocalPosition = new float3(Padding.X, Padding.Y, 0f);
-        }
-
-        /// <summary>
-        /// Applies the configured render order to every overlay row.
-        /// </summary>
-        void ApplyRenderOrder() {
-            if (!EnsureOverlayHierarchyIsLive()) {
-                ReleaseOverlayReferences();
-                return;
-            }
-
-            if (UpdateFpsTextComponent != null) {
-                UpdateFpsTextComponent.RenderOrder2D = RenderOrder2D;
-            }
-            if (RenderFpsTextComponent != null) {
-                RenderFpsTextComponent.RenderOrder2D = RenderOrder2D;
-            }
-            if (ResidentMemoryTextComponent != null) {
-                ResidentMemoryTextComponent.RenderOrder2D = RenderOrder2D;
-            }
-            if (CommittedMemoryTextComponent != null) {
-                CommittedMemoryTextComponent.RenderOrder2D = RenderOrder2D;
-            }
-            if (Drawables2DTextComponent != null) {
-                Drawables2DTextComponent.RenderOrder2D = RenderOrder2D;
-            }
-            if (Drawables3DTextComponent != null) {
-                Drawables3DTextComponent.RenderOrder2D = RenderOrder2D;
-            }
-            for (int index = 0; index < AdditionalLineTextComponents.Count; index++) {
-                AdditionalLineTextComponents[index].RenderOrder2D = RenderOrder2D;
-            }
+            OverlayHost.LocalPosition = new float3(Padding.X, Padding.Y, OverlayDepth);
         }
 
         /// <summary>

@@ -55,8 +55,8 @@ public sealed class EditorRuntimeNativeManifestWriter {
             string headerPath = Path.Combine(runtimeRootPath, "runtime_startup_manifest.hpp");
             string sourcePath = Path.Combine(runtimeRootPath, "runtime_startup_manifest.cpp");
 
-            File.WriteAllText(headerPath, BuildStartupManifestHeaderContents());
-            File.WriteAllText(sourcePath, BuildStartupManifestSourceContents(cookedManifest, startupSceneRelativePath));
+            WriteTextIfChanged(headerPath, BuildStartupManifestHeaderContents());
+            WriteTextIfChanged(sourcePath, BuildStartupManifestSourceContents(cookedManifest, startupSceneRelativePath));
         }
 
         /// <summary>
@@ -68,8 +68,8 @@ public sealed class EditorRuntimeNativeManifestWriter {
             string headerPath = Path.Combine(runtimeRootPath, "runtime_scene_catalog_manifest.hpp");
             string sourcePath = Path.Combine(runtimeRootPath, "runtime_scene_catalog_manifest.cpp");
 
-            File.WriteAllText(headerPath, BuildSceneCatalogManifestHeaderContents());
-            File.WriteAllText(sourcePath, BuildSceneCatalogManifestSourceContents(cookedManifest));
+            WriteTextIfChanged(headerPath, BuildSceneCatalogManifestHeaderContents());
+            WriteTextIfChanged(sourcePath, BuildSceneCatalogManifestSourceContents(cookedManifest));
         }
 
         /// <summary>
@@ -81,8 +81,8 @@ public sealed class EditorRuntimeNativeManifestWriter {
             string headerPath = Path.Combine(runtimeRootPath, "runtime_code_module_manifest.hpp");
             string sourcePath = Path.Combine(runtimeRootPath, "runtime_code_module_manifest.cpp");
 
-            File.WriteAllText(headerPath, BuildCodeModuleManifestHeaderContents());
-            File.WriteAllText(sourcePath, BuildCodeModuleManifestSourceContents(cookedManifest.CodeModules));
+            WriteTextIfChanged(headerPath, BuildCodeModuleManifestHeaderContents());
+            WriteTextIfChanged(sourcePath, BuildCodeModuleManifestSourceContents(cookedManifest.CodeModules));
         }
 
         /// <summary>
@@ -94,8 +94,8 @@ public sealed class EditorRuntimeNativeManifestWriter {
             string headerPath = Path.Combine(runtimeRootPath, "runtime_physics3d_scene_feature_manifest.hpp");
             string sourcePath = Path.Combine(runtimeRootPath, "runtime_physics3d_scene_feature_manifest.cpp");
 
-            File.WriteAllText(headerPath, BuildPhysics3DSceneFeatureManifestHeaderContents());
-            File.WriteAllText(sourcePath, BuildPhysics3DSceneFeatureManifestSourceContents(cookedManifest));
+            WriteTextIfChanged(headerPath, BuildPhysics3DSceneFeatureManifestHeaderContents());
+            WriteTextIfChanged(sourcePath, BuildPhysics3DSceneFeatureManifestSourceContents(cookedManifest));
         }
 
         /// <summary>
@@ -107,8 +107,21 @@ public sealed class EditorRuntimeNativeManifestWriter {
             string headerPath = Path.Combine(runtimeRootPath, "runtime_standard_platform_input_manifest.hpp");
             string sourcePath = Path.Combine(runtimeRootPath, "runtime_standard_platform_input_manifest.cpp");
 
-            File.WriteAllText(headerPath, BuildStandardPlatformInputManifestHeaderContents());
-            File.WriteAllText(sourcePath, BuildStandardPlatformInputManifestSourceContents(cookedManifest));
+            WriteTextIfChanged(headerPath, BuildStandardPlatformInputManifestHeaderContents());
+            WriteTextIfChanged(sourcePath, BuildStandardPlatformInputManifestSourceContents(cookedManifest));
+        }
+
+        /// <summary>
+        /// Writes generated source only when its text changes so native dependency timestamps remain stable across identical builds.
+        /// </summary>
+        /// <param name="path">Generated file destination.</param>
+        /// <param name="contents">Complete generated file contents.</param>
+        static void WriteTextIfChanged(string path, string contents) {
+            if (File.Exists(path) && string.Equals(File.ReadAllText(path), contents, StringComparison.Ordinal)) {
+                return;
+            }
+
+            File.WriteAllText(path, contents);
         }
 
         /// <summary>

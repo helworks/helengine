@@ -37,6 +37,9 @@ namespace helengine {
         /// </summary>
         public Project Project { get; private set; }
 
+        /// <inheritdoc />
+        public override ComponentExecutionMode ExecutionMode => ComponentExecutionMode.Editor;
+
         /// <summary>
         /// Gets the allocator that owns numeric scene entity ids for the active editor host.
         /// </summary>

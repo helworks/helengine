@@ -2,6 +2,9 @@ namespace helengine {
     /// <summary>
     /// Provides a hit-testable region that raises pointer events.
     /// </summary>
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+    [RunInEditor]
+#endif
     public class InteractableComponent : Component, IInteractable2D {
         /// <summary>
         /// Gets or sets the cursor the host should display while this interactable is hovered.

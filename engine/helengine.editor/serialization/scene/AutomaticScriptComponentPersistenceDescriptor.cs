@@ -148,10 +148,17 @@ namespace helengine.editor {
                     schema.Members.Select(member => member.Name),
                     StringComparer.Ordinal);
                 foreach (string fieldName in reader.FieldNames) {
-                    if (!currentFieldNames.Contains(fieldName)) {
-                        unsupportedFieldName = fieldName;
-                        break;
+                    if (currentFieldNames.Contains(fieldName)) {
+                        continue;
                     }
+                    if (string.Equals(fieldName, LegacyDrawable2DComponentCompatibility.RemovedRenderOrder2DFieldName, StringComparison.Ordinal)
+                        && LegacyDrawable2DComponentCompatibility.IsFormerBuiltInDrawableType(component.GetType())) {
+                        matchedTaggedField = true;
+                        continue;
+                    }
+
+                    unsupportedFieldName = fieldName;
+                    break;
                 }
 
                 if (reader.FieldNames.Count == 0 && schema.Members.Count == 0) {

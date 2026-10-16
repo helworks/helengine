@@ -1249,14 +1249,14 @@ namespace helengine.render.validation {
                 OverlaySpriteMargin,
                 OverlaySpriteMargin,
                 new byte4(255, 32, 32, 255),
-                10,
+                10f,
                 pixelTexture);
             CreateOverlaySprite(
                 core,
                 secondSpriteX,
                 OverlaySpriteMargin,
                 new byte4(255, 240, 32, 255),
-                11,
+                11f,
                 pixelTexture);
             CreateTransparentCenterOverlay(core, pixelTexture);
         }
@@ -1267,23 +1267,22 @@ namespace helengine.render.validation {
         /// <param name="x">Left position in pixels.</param>
         /// <param name="y">Top position in pixels.</param>
         /// <param name="color">Sprite tint color.</param>
-        /// <param name="renderOrder">Render order used for deterministic layering.</param>
+        /// <param name="depth">Entity depth used for deterministic layering.</param>
         /// <param name="texture">Texture used by the sprite.</param>
-        void CreateOverlaySprite(Core core, int x, int y, byte4 color, byte renderOrder, RuntimeTexture texture) {
+        void CreateOverlaySprite(Core core, int x, int y, byte4 color, float depth, RuntimeTexture texture) {
             if (core == null) {
                 throw new ArgumentNullException(nameof(core));
             }
             var overlayEntity = new Entity(core) {
                 LayerMask = ValidationSceneLayerMask,
-                Position = new float3(x, y, 0f)
+                Position = new float3(x, y, depth)
             };
             overlayEntity.InitComponents();
 
             var sprite = new SpriteComponent {
                 Texture = texture,
                 Color = color,
-                Size = new int2(OverlaySpriteWidth, OverlaySpriteHeight),
-                RenderOrder2D = renderOrder
+                Size = new int2(OverlaySpriteWidth, OverlaySpriteHeight)
             };
             overlayEntity.AddComponent(sprite);
         }
@@ -1305,7 +1304,7 @@ namespace helengine.render.validation {
                 centerX,
                 centerY,
                 new byte4(255, 255, 255, 0),
-                12,
+                12f,
                 texture);
         }
 

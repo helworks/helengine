@@ -2,6 +2,7 @@ namespace helengine {
     /// <summary>
     /// Hidden editor-only component that stores per-component scene persistence metadata for one entity.
     /// </summary>
+    [RunInEditor]
     public class EntitySaveComponent : Component, IEditorHiddenComponent {
         /// <summary>
         /// Save-state containers keyed by the live component instance they describe.

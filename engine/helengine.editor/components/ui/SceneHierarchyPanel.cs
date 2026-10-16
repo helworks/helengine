@@ -55,14 +55,6 @@ namespace helengine.editor {
         /// </summary>
         readonly List<ContextMenuItem> rowContextMenuItems;
         /// <summary>
-        /// Render order used for row backgrounds.
-        /// </summary>
-        readonly byte rowBackgroundOrder;
-        /// <summary>
-        /// Render order used for row text.
-        /// </summary>
-        readonly byte rowTextOrder;
-        /// <summary>
         /// Snapshot of the node list accepted by the most recent row relayout, used to skip redundant
         /// relayouts while the per-frame hierarchy refresh finds no structural changes.
         /// </summary>
@@ -102,9 +94,6 @@ namespace helengine.editor {
             Title = "Scene";
             MinSize = new int2(metrics.ScalePixels(220), metrics.ScalePixels(160));
 
-            rowBackgroundOrder = RenderOrder2D.PanelSurface;
-            rowTextOrder = RenderOrder2D.PanelForeground;
-
             contentRoot = new EditorEntity(OwnerCore, InteractionServices);
             contentRoot.LayerMask = LayerMask;
             contentRoot.Position = new float3(0, TitleBarHeightPixels, 0.05f);
@@ -139,7 +128,7 @@ namespace helengine.editor {
             lastLayoutNodeNames = new List<string>(64);
             expandedEntities = new Dictionary<Entity, bool>();
             parentEntities = new HashSet<Entity>();
-            hierarchyContextMenu = new ContextMenu(OwnerCore, font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground, InteractionServices);
+            hierarchyContextMenu = new ContextMenu(OwnerCore, font, LayerMask, InteractionServices);
             AddChild(hierarchyContextMenu.Entity);
             rowContextMenuItems = new List<ContextMenuItem> {
                 new ContextMenuItem("Reparent", HandleReparentRequested)
@@ -497,13 +486,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="count">Required row count.</param>
         void EnsureRowCount(int count) {
-            bool created = false;
             for (int i = rows.Count; i < count; i++) {
                 rows.Add(CreateRow());
-                created = true;
-            }
-            if (created) {
-                RefreshRenderOrderBias();
             }
         }
 
@@ -543,7 +527,6 @@ namespace helengine.editor {
             var background = new SpriteComponent();
             background.Texture = OwnerCore.RenderManager2D.PixelTexture;
             background.Color = ThemeManager.Colors.SurfacePrimary;
-            background.RenderOrder2D = rowBackgroundOrder;
             rowEntity.AddComponent(background);
 
             var interactable = new InteractableComponent();
@@ -560,7 +543,6 @@ namespace helengine.editor {
             arrow.Text = string.Empty;
             arrow.Color = ThemeManager.Colors.InputForegroundPrimary;
             arrow.Size = new int2(GetArrowSlotWidthPixels(), GetRowHeightPixels());
-            arrow.RenderOrder2D = rowTextOrder;
             arrowHost.AddComponent(arrow);
 
             var labelHost = new EditorEntity(OwnerCore, InteractionServices);
@@ -573,7 +555,6 @@ namespace helengine.editor {
             text.Text = string.Empty;
             text.Color = ThemeManager.Colors.InputForegroundPrimary;
             text.Size = new int2(100, GetRowHeightPixels());
-            text.RenderOrder2D = rowTextOrder;
             labelHost.AddComponent(text);
 
             SceneHierarchyRow row = null;

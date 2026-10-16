@@ -1039,7 +1039,6 @@ namespace helengine.editor.tests.serialization.scene {
                 Color = new byte4(12, 34, 56, 78),
                 SourceRect = new float4(0.1f, 0.2f, 0.3f, 0.4f),
                 FontScale = 0.25f,
-                RenderOrder2D = 19,
                 SelectionEnabled = false
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();

@@ -65,6 +65,73 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures a removed 2D draw-order override and its detached payload field are discarded for former built-in drawable components.
+        /// </summary>
+        [Fact]
+        public void ReadOverrideStates_WhenLegacyRenderOrder2DOverrideExists_ForBuiltInDrawableDiscardsItAndResavesCleanPayload() {
+            ComponentPlatformOverridePayloadService service = new ComponentPlatformOverridePayloadService();
+            EditorTaggedSceneComponentFieldWriter fieldWriter = new EditorTaggedSceneComponentFieldWriter();
+            fieldWriter.WriteField("Label", writer => writer.WriteString("Platform label"));
+            fieldWriter.WriteField("RenderOrder2D", writer => writer.WriteByte(211));
+            EntityComponentPlatformOverrideState overrideState = new EntityComponentPlatformOverrideState {
+                Payload = fieldWriter.BuildPayload(),
+                Scope = new EditorOverrideScope("windows")
+            };
+            overrideState.SetPropertyOverride("RenderOrder2D");
+            overrideState.SetMemberValue("RenderOrder2D", "211");
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetScopedPlatformOverride(overrideState.Scope, overrideState);
+            SceneComponentAssetRecord wrappedRecord = service.Wrap(new SceneComponentAssetRecord {
+                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(RoundedRectComponent)),
+                ComponentIndex = 0,
+                Payload = new byte[] { 1, 2, 3 }
+            }, saveState);
+
+            EntityComponentPlatformOverrideState loadedOverride = Assert.Single(service.ReadOverrideStates(wrappedRecord));
+            SceneComponentAssetRecord resavedRecord = service.Wrap(service.UnwrapBaseRecord(wrappedRecord), CreateSaveStateWith(loadedOverride));
+            EntityComponentPlatformOverrideState resavedOverride = Assert.Single(service.ReadOverrideStates(resavedRecord));
+            EditorTaggedSceneComponentFieldReader resavedPayload = new EditorTaggedSceneComponentFieldReader(resavedOverride.Payload);
+
+            Assert.False(loadedOverride.HasPropertyOverride("RenderOrder2D"));
+            Assert.False(loadedOverride.HasMemberValue("RenderOrder2D"));
+            Assert.False(resavedPayload.TryGetFieldReader("RenderOrder2D", out EngineBinaryReader obsoleteFieldReader));
+            Assert.Null(obsoleteFieldReader);
+        }
+
+        /// <summary>
+        /// Ensures same-named custom component override data is preserved instead of being mistaken for removed built-in drawable metadata.
+        /// </summary>
+        [Fact]
+        public void ReadOverrideStates_WhenRenderOrder2DOverrideExists_ForCustomComponentPreservesIt() {
+            ComponentPlatformOverridePayloadService service = new ComponentPlatformOverridePayloadService();
+            EditorTaggedSceneComponentFieldWriter fieldWriter = new EditorTaggedSceneComponentFieldWriter();
+            fieldWriter.WriteField("RenderOrder2D", writer => writer.WriteByte(173));
+            EntityComponentPlatformOverrideState overrideState = new EntityComponentPlatformOverrideState {
+                Payload = fieldWriter.BuildPayload(),
+                Scope = new EditorOverrideScope("windows")
+            };
+            overrideState.SetPropertyOverride("RenderOrder2D");
+            overrideState.SetMemberValue("RenderOrder2D", "173");
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetScopedPlatformOverride(overrideState.Scope, overrideState);
+            SceneComponentAssetRecord wrappedRecord = service.Wrap(new SceneComponentAssetRecord {
+                ComponentTypeId = "sample.gameplay.ColorComponent, gameplay",
+                ComponentIndex = 0,
+                Payload = new byte[] { 1, 2, 3 }
+            }, saveState);
+
+            EntityComponentPlatformOverrideState loadedOverride = Assert.Single(service.ReadOverrideStates(wrappedRecord));
+            EditorTaggedSceneComponentFieldReader payloadReader = new EditorTaggedSceneComponentFieldReader(loadedOverride.Payload);
+            Assert.True(loadedOverride.HasPropertyOverride("RenderOrder2D"));
+            Assert.True(loadedOverride.TryGetMemberValue("RenderOrder2D", out string memberValue));
+            Assert.Equal("173", memberValue);
+            Assert.True(payloadReader.TryGetFieldReader("RenderOrder2D", out EngineBinaryReader fieldReader));
+            using (fieldReader) {
+                Assert.Equal(173, fieldReader.ReadByte());
+            }
+        }
+
+        /// <summary>
         /// Ensures unordered override maps produce the same wrapped bytes regardless of insertion order.
         /// </summary>
         [Fact]
@@ -133,6 +200,21 @@ namespace helengine.editor.tests.serialization.scene {
 
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetPlatformOverride("windows", overrideState);
+            return saveState;
+        }
+
+        /// <summary>
+        /// Wraps one restored override state in a save-state for the subsequent scene-save pass.
+        /// </summary>
+        /// <param name="overrideState">Restored override metadata to persist again.</param>
+        /// <returns>Save-state containing the override on its original scope.</returns>
+        static EntityComponentSaveState CreateSaveStateWith(EntityComponentPlatformOverrideState overrideState) {
+            if (overrideState == null) {
+                throw new ArgumentNullException(nameof(overrideState));
+            }
+
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetScopedPlatformOverride(overrideState.Scope, overrideState);
             return saveState;
         }
 

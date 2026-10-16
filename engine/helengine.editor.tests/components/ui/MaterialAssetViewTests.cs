@@ -116,7 +116,7 @@ public sealed class MaterialAssetViewTests : IDisposable {
     /// </summary>
     [Fact]
     public void UpdateLayout_when_schema_row_is_laid_out_uses_a_forty_sixty_split() {
-        MaterialAssetPlatformPanel panel = new MaterialAssetPlatformPanel(CoreValue, InteractionServices, "windows", CreateFont(), 1, RenderOrder2D.PanelForeground);
+        MaterialAssetPlatformPanel panel = new MaterialAssetPlatformPanel(CoreValue, InteractionServices, "windows", CreateFont(), 1);
 
         panel.UpdateLayout(0, 0, 200);
 

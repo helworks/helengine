@@ -50,9 +50,11 @@ No repository copy is made: the wrapper builds the authored project in place and
 
 Builds targeting the same output are serialized across projects by an output lock. This is in addition to the project lock, so different projects can overlap only when they use different output paths. `HELENGINE_BUILD_INVOCATION_ID` is a wrapper/waiter internal correlation contract (a canonical GUID), not a normal user setting to place in project or shell configuration.
 
+Windows builds retain CMake/Ninja objects and content-mirrored generated C++ between runs. Builds through the wrapper keep them in the selected `-CacheRoot` platform/profile slice. Direct editor builds use the authored project's ignored `cache/build/windows/<profile>/` directory. Generated files with unchanged contents keep their modification times, so Ninja can skip their compilation on the next build.
+
 ### Native Stable-Cache Smoke
 
-The real Windows native smoke requires the sibling platform source at `C:\dev\helworks\helengine-windows`, Visual Studio C++ developer tools, `cmake.exe`, Ninja, the Windows builder assembly, and the published external codegen tool (including its MSBuild BuildHost companion). It copies only the tiny authored-project fixture into a disposable child of `C:\tmp`, configures disposable platform settings, and runs the production wrapper twice. Both invocations must use the same cache, produce a non-empty `helengine_windows.exe`, and leave a current successful build-state file.
+The real Windows native smoke requires the sibling platform source at `C:\dev\helworks\helengine-windows`, Visual Studio C++ developer tools, `cmake.exe`, Ninja, the Windows builder assembly, and the published external codegen tool (including its MSBuild BuildHost companion). It copies only the tiny authored-project fixture into a disposable child of `C:\dev\helworks\builds\ncs`, configures disposable platform settings, and runs the production wrapper twice. Both invocations must use the same cache, produce a non-empty `helengine_windows.exe`, and leave a current successful build-state file.
 
 Run it explicitly; it is intentionally not part of the default fast suite because it depends on the external Windows platform repository and native toolchain:
 

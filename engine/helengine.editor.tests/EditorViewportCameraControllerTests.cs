@@ -108,6 +108,81 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures switching projection modes preserves the orbit pivot, camera orientation, and apparent scale.
+        /// </summary>
+        [Fact]
+        public void SetProjectionMode_RoundTrip_PreservesPivotOrientationAndScale() {
+            EditorEntity cameraEntity = CreateEditorCameraEntity(out EditorViewportCameraComponent camera);
+            EditorViewportCameraController controller = CreateController(cameraEntity, camera);
+            float3 pivot = new float3(3f, -2f, 5f);
+            float4 orientation;
+            float4.CreateFromYawPitchRoll(0.35f, -0.2f, 0f, out orientation);
+            const double distance = 18.0;
+            controller.SetViewPose(pivot, orientation, distance);
+            double initialScale = CameraProjectionUtils.GetWorldUnitsPerPixel(camera, distance, camera.Viewport.W);
+
+            controller.SetProjectionMode(CameraProjectionMode.Orthographic);
+            double orthographicScale = CameraProjectionUtils.GetWorldUnitsPerPixel(camera, distance, camera.Viewport.W);
+            float3 orthographicPosition = cameraEntity.Position;
+            controller.SetProjectionMode(CameraProjectionMode.Perspective);
+            double restoredScale = CameraProjectionUtils.GetWorldUnitsPerPixel(camera, distance, camera.Viewport.W);
+
+            Assert.Equal(pivot, controller.GetOrbitTarget());
+            Assert.Equal(orientation, cameraEntity.Orientation);
+            Assert.Equal(initialScale, orthographicScale, 5);
+            Assert.Equal(initialScale, restoredScale, 5);
+            Assert.Equal(orthographicPosition, cameraEntity.Position);
+        }
+
+        /// <summary>
+        /// Ensures orthographic pan converts pointer movement into world units at the current viewport scale.
+        /// </summary>
+        [Fact]
+        public void Update_WhenOrthographicMiddleMousePans_UsesWorldUnitsPerPixel() {
+            TestInputBackend input = InitializeCore();
+            EditorEntity cameraEntity = CreateEditorCameraEntity(out EditorViewportCameraComponent camera);
+            cameraEntity.Position = new float3(0f, 0f, 10f);
+            camera.Viewport = new float4(0f, 0f, 1000f, 1000f);
+            camera.ProjectionMode = CameraProjectionMode.Orthographic;
+            camera.OrthographicVerticalSpan = 20f;
+            EditorViewportCameraController controller = CreateController(cameraEntity, camera);
+            controller.PanSpeed = EditorViewportCameraController.DefaultPanSpeed;
+            controller.SetOrbitTarget(float3.Zero);
+
+            CompleteInputFrame(input, CreateMouseState(200, 150, 0));
+            AdvanceInput(input, CreateMouseState(200, 150, 0, ButtonState.Released, ButtonState.Pressed));
+            CompleteControllerFrame(input, controller);
+            AdvanceInput(input, CreateMouseState(210, 150, 0, ButtonState.Released, ButtonState.Pressed));
+            controller.Update();
+
+            Assert.Equal(-0.2f, cameraEntity.Position.X, 4);
+            Assert.Equal(-0.2f, controller.GetOrbitTarget().X, 4);
+        }
+
+        /// <summary>
+        /// Ensures orthographic wheel zoom changes the visible span while preserving camera pose and orbit pivot.
+        /// </summary>
+        [Fact]
+        public void Update_WhenOrthographicWheelScrolls_ChangesSpanWithoutMovingCamera() {
+            TestInputBackend input = InitializeCore();
+            EditorEntity cameraEntity = CreateEditorCameraEntity(out EditorViewportCameraComponent camera);
+            cameraEntity.Position = new float3(0f, 0f, 10f);
+            camera.ProjectionMode = CameraProjectionMode.Orthographic;
+            camera.OrthographicVerticalSpan = 20f;
+            EditorViewportCameraController controller = CreateController(cameraEntity, camera);
+            controller.SetOrbitTarget(float3.Zero);
+            float3 initialPosition = cameraEntity.Position;
+
+            CompleteInputFrame(input, CreateMouseState(150, 150, 0));
+            AdvanceInput(input, CreateMouseState(150, 150, 120));
+            controller.Update();
+
+            Assert.True(camera.OrthographicVerticalSpan < 20f);
+            Assert.Equal(initialPosition, cameraEntity.Position);
+            Assert.Equal(float3.Zero, controller.GetOrbitTarget());
+        }
+
+        /// <summary>
         /// Ensures wheel input outside the viewport does not move the camera.
         /// </summary>
         [Fact]
@@ -432,6 +507,20 @@ namespace helengine.editor.tests {
             EditorViewportCameraController controller = new EditorViewportCameraController(camera, (ownerCore ?? CoreValue).Input);
             cameraEntity.AddComponent(controller);
             return controller;
+        }
+
+        /// <summary>
+        /// Creates an editor viewport camera whose optional projection state can be changed by the controller.
+        /// </summary>
+        /// <param name="camera">Receives the editor viewport camera component.</param>
+        /// <returns>Entity owning the camera and its transform.</returns>
+        EditorEntity CreateEditorCameraEntity(out EditorViewportCameraComponent camera) {
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices);
+            camera = new EditorViewportCameraComponent {
+                Viewport = new float4(100f, 100f, 300f, 200f)
+            };
+            cameraEntity.AddComponent(camera);
+            return cameraEntity;
         }
 
         /// <summary>

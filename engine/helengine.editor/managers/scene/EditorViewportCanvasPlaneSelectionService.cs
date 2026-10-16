@@ -4,19 +4,6 @@ namespace helengine.editor {
     /// </summary>
     public static class EditorViewportCanvasPlaneSelectionService {
         /// <summary>
-        /// Default camera forward axis before viewport-camera rotation is applied.
-        /// </summary>
-        static readonly float3 DefaultForward = new float3(0f, 0f, -1f);
-        /// <summary>
-        /// Default camera up axis before viewport-camera rotation is applied.
-        /// </summary>
-        static readonly float3 DefaultUp = new float3(0f, 1f, 0f);
-        /// <summary>
-        /// Perspective field of view used by the editor scene camera renderer.
-        /// </summary>
-        const double SceneViewportFieldOfViewRadians = Math.PI / 4.0;
-
-        /// <summary>
         /// Resolves one selectable 2D scene entity for a pointer that hit the world-space canvas plane.
         /// </summary>
         /// <param name="previewComponent">Canvas preview component that owns the plane entity and offscreen preview camera.</param>
@@ -112,8 +99,10 @@ namespace helengine.editor {
             int2 pointer,
             EditorEntity planeEntity,
             out float3 hitPoint) {
-            float3 rayOrigin = viewportCameraEntity.Position;
-            float3 rayDirection = BuildPointerRayDirection(viewportCameraEntity, viewport, pointer);
+            if (!TryBuildPointerRay(viewportCameraEntity, viewport, pointer, out float3 rayOrigin, out float3 rayDirection)) {
+                hitPoint = default;
+                return false;
+            }
             double directionZ = rayDirection.Z;
             if (Math.Abs(directionZ) <= double.Epsilon) {
                 hitPoint = default;
@@ -138,29 +127,22 @@ namespace helengine.editor {
         /// <param name="viewport">Viewport rectangle captured at pick time.</param>
         /// <param name="pointer">Pointer position in window coordinates.</param>
         /// <returns>Normalized ray direction that leaves the viewport camera through the pointer location.</returns>
-        static float3 BuildPointerRayDirection(Entity viewportCameraEntity, float4 viewport, int2 pointer) {
-            if (viewport.Z <= 0f) {
-                throw new InvalidOperationException("Viewport width must be positive.");
-            }
-            if (viewport.W <= 0f) {
-                throw new InvalidOperationException("Viewport height must be positive.");
+        static bool TryBuildPointerRay(Entity viewportCameraEntity, float4 viewport, int2 pointer, out float3 rayOrigin, out float3 rayDirection) {
+            if (viewportCameraEntity == null) {
+                throw new ArgumentNullException(nameof(viewportCameraEntity));
             }
 
-            double viewportWidth = viewport.Z;
-            double viewportHeight = viewport.W;
-            double normalizedX = ((pointer.X - viewport.X) / viewportWidth) * 2.0 - 1.0;
-            double normalizedY = 1.0 - (((pointer.Y - viewport.Y) / viewportHeight) * 2.0);
-            double tangent = Math.Tan(SceneViewportFieldOfViewRadians * 0.5);
-            double aspectRatio = viewportWidth / viewportHeight;
+            if (viewportCameraEntity.Components != null) {
+                for (int componentIndex = 0; componentIndex < viewportCameraEntity.Components.Count; componentIndex++) {
+                    if (viewportCameraEntity.Components[componentIndex] is CameraComponent sceneCamera) {
+                        return EditorViewportPointerRayBuilder.TryBuildCameraRay(sceneCamera, viewport, pointer, out rayOrigin, out rayDirection);
+                    }
+                }
+            }
 
-            float4 orientation = viewportCameraEntity.Orientation;
-            float3 forward = float4.RotateVector(DefaultForward, orientation);
-            float3 up = float4.RotateVector(DefaultUp, orientation);
-            float3 right = float3.Normalize(float3.Cross(forward, up));
-            double offsetX = normalizedX * tangent * aspectRatio;
-            double offsetY = normalizedY * tangent;
-            float3 direction = forward + (right * (float)offsetX) + (up * (float)offsetY);
-            return float3.Normalize(direction);
+            rayOrigin = float3.Zero;
+            rayDirection = float3.Zero;
+            return false;
         }
 
         /// <summary>

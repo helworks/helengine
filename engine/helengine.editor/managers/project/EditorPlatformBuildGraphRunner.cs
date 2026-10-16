@@ -1,6 +1,7 @@
 using helengine;
 using helengine.baseplatform.Builders;
 using helengine.baseplatform.Definitions;
+using helengine.baseplatform.Descriptors;
 using helengine.baseplatform.Manifest;
 using helengine.baseplatform.Profiles;
 using helengine.baseplatform.Reporting;
@@ -9,6 +10,7 @@ using helengine.baseplatform.Targets;
 using helengine.files;
 using helengine.platforms;
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -172,7 +174,10 @@ namespace helengine.editor {
                 selectedCodegenProfile,
                 previousBuildProfile,
                 selectedBuildProfile);
-            EditorPlatformBuildGraphWorkspace workspace = WorkspaceFactory.Create(PlatformDescriptor.Id, queueItem.QueueItemId);
+            EditorPlatformBuildGraphWorkspace workspace = WorkspaceFactory.Create(
+                PlatformDescriptor.Id,
+                selectedBuildProfileId,
+                queueItem.QueueItemId);
 
             ResetExecutionDirectories(
                 workspace.ExecutionRootPath,
@@ -327,7 +332,27 @@ namespace helengine.editor {
             }
 
             string phaseLogPath = Path.Combine(workspace.LogsRootPath, "build-phases.log");
-            string line = DateTime.UtcNow.ToString("O") + " " + phaseName + Environment.NewLine;
+            DateTime now = DateTime.UtcNow;
+            if (File.Exists(phaseLogPath)) {
+                string previousLine = File.ReadLines(phaseLogPath).LastOrDefault();
+                int separatorIndex = previousLine?.IndexOf(' ') ?? -1;
+                if (separatorIndex > 0
+                    && DateTime.TryParseExact(
+                        previousLine.Substring(0, separatorIndex),
+                        "O",
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.RoundtripKind,
+                        out DateTime previousTime)) {
+                    string durationLogPath = Path.Combine(workspace.LogsRootPath, "build-phase-durations.csv");
+                    if (!File.Exists(durationLogPath)) {
+                        File.WriteAllText(durationLogPath, "phase,duration_ms" + Environment.NewLine);
+                    }
+                    double durationMilliseconds = (now - previousTime).TotalMilliseconds;
+                    File.AppendAllText(durationLogPath,
+                        phaseName + "," + durationMilliseconds.ToString("F0", System.Globalization.CultureInfo.InvariantCulture) + Environment.NewLine);
+                }
+            }
+            string line = now.ToString("O") + " " + phaseName + Environment.NewLine;
             File.AppendAllText(phaseLogPath, line);
             Console.WriteLine($"[build] {phaseName}");
         }
@@ -1273,25 +1298,51 @@ namespace helengine.editor {
             IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
             string selectedMediaProfileId,
             string selectedStorageProfileId) {
+            string builderWorkingRootPath = workspace.BuilderWorkingRootPath;
+            string generatedCoreRootPath = workspace.GeneratedCoreRootPath;
+            string nativeCacheSliceRootPath = Path.GetDirectoryName(workspace.NativeObjectCacheRootPath);
+            if (string.IsNullOrWhiteSpace(nativeCacheSliceRootPath)) {
+                throw new InvalidOperationException($"Could not resolve native cache profile root from '{workspace.NativeObjectCacheRootPath}'.");
+            }
+            Directory.CreateDirectory(workspace.NativeObjectCacheRootPath);
+            using FileStream nativeBuildLock = AcquireNativeBuildLock(workspace.NativeObjectCacheRootPath);
+            generatedCoreRootPath = Path.Combine(nativeCacheSliceRootPath, "generated-core");
+            EditorNativeBuildCache.SyncGeneratedCore(
+                workspace.GeneratedCoreRootPath,
+                generatedCoreRootPath,
+                ResolveBuilderOwnedGeneratedCorePaths(workspace.GeneratedCoreRootPath, generatedCoreRootPath),
+                Path.Combine(nativeCacheSliceRootPath, "generated-core-editor"));
+            string nativeObjectCacheRootPath = Path.Combine(
+                workspace.NativeObjectCacheRootPath,
+                ComputeNativeCacheFingerprint(
+                    queueItem,
+                    selectedBuildProfileId,
+                    selectedGraphicsProfileId,
+                    selectedCodegenProfileId,
+                    queueItem.SelectedEnvironmentId,
+                    builder.Descriptor,
+                    selectedCodegenOptionValues));
+
             PlatformBuildRequest request = BuildRequest(
                 queueItem,
                 cookedManifest,
                 workspace.CookRootPath,
-                workspace.BuilderWorkingRootPath,
+                builderWorkingRootPath,
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
                 selectedCodegenProfileId,
                 selectedCodegenOptionValues,
                 selectedMediaProfileId,
-                workspace.GeneratedCoreRootPath,
-                selectedStorageProfileId);
+                generatedCoreRootPath,
+                selectedStorageProfileId,
+                nativeObjectCacheRootPath);
             EditorPlatformBuildProgressReporter progressReporter = new();
             EditorPlatformBuildDiagnosticCollector diagnosticCollector = new();
             string detectedFeatureSummary = BuildDetectedFeatureSummary(workspace.GeneratedCoreRootPath);
 
             string previousWorkingDirectory = Directory.GetCurrentDirectory();
             try {
-                StageBuilderPackageSourceRoot(workspace.PackageRootPath, workspace.BuilderWorkingRootPath);
+                StageBuilderPackageSourceRoot(workspace.PackageRootPath, builderWorkingRootPath);
                 Directory.SetCurrentDirectory(workspace.PackageRootPath);
                 PlatformBuildReport report = builder.BuildAsync(request, progressReporter, diagnosticCollector, CancellationToken.None).GetAwaiter().GetResult();
                 if (!report.Succeeded) {
@@ -1361,7 +1412,8 @@ namespace helengine.editor {
             IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
             string selectedMediaProfileId,
             string generatedCoreRootPath,
-            string selectedStorageProfileId) {
+            string selectedStorageProfileId,
+            string nativeObjectCacheRootPath) {
             if (cookedManifest == null) {
                 throw new ArgumentNullException(nameof(cookedManifest));
             }
@@ -1446,7 +1498,159 @@ namespace helengine.editor {
                 generatedCoreRootPath,
                 selectedMediaProfileId,
                 selectedStorageProfileId,
-                queueItem.SelectedEnvironmentId);
+                queueItem.SelectedEnvironmentId,
+                nativeObjectCacheRootPath);
+        }
+
+        /// <summary>
+        /// Produces a stable cache namespace from editor-controlled profile and code-generation inputs.
+        /// </summary>
+        /// <param name="buildProfileId">Selected native build profile.</param>
+        /// <param name="graphicsProfileId">Selected graphics profile.</param>
+        /// <param name="codegenProfileId">Selected code-generation profile.</param>
+        /// <param name="codegenOptions">Effective code-generation option values.</param>
+        /// <returns>Lowercase SHA-256 cache namespace.</returns>
+        string ComputeNativeCacheFingerprint(
+            EditorBuildQueueItemDocument queueItem,
+            string buildProfileId,
+            string graphicsProfileId,
+            string codegenProfileId,
+            string environmentId,
+            PlatformBuilderDescriptor builderDescriptor,
+            IReadOnlyDictionary<string, string> codegenOptions) {
+            StringBuilder fingerprintInput = new();
+            fingerprintInput.Append(PlatformDescriptor.Id).Append('\n')
+                .Append(buildProfileId).Append('\n')
+                .Append(graphicsProfileId).Append('\n')
+                .Append(codegenProfileId).Append('\n')
+                .Append(environmentId).Append('\n')
+                .Append(builderDescriptor.BuilderId).Append('@').Append(builderDescriptor.BuilderVersion).Append('\n');
+            AppendFingerprintOptions(fingerprintInput, "build", queueItem.SelectedBuildOptionValues);
+            AppendFingerprintOptions(fingerprintInput, "graphics", queueItem.SelectedGraphicsOptionValues);
+            AppendFingerprintOptions(fingerprintInput, "codegen", codegenOptions);
+            return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(fingerprintInput.ToString()))).ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Appends option keys and values in deterministic key order to one cache fingerprint input.
+        /// </summary>
+        /// <param name="fingerprintInput">Builder receiving the canonical input.</param>
+        /// <param name="category">Option category name.</param>
+        /// <param name="options">Option values to include.</param>
+        static void AppendFingerprintOptions(
+            StringBuilder fingerprintInput,
+            string category,
+            IReadOnlyDictionary<string, string> options) {
+            if (options == null) {
+                return;
+            }
+            foreach (KeyValuePair<string, string> option in options.OrderBy(pair => pair.Key, StringComparer.Ordinal)) {
+                fingerprintInput.Append(category).Append(':').Append(option.Key).Append('=').Append(option.Value).Append('\n');
+            }
+        }
+
+        /// <summary>
+        /// Acquires an exclusive cross-process lock for one persistent native cache root.
+        /// </summary>
+        /// <param name="nativeCacheRootPath">Native cache root being built.</param>
+        /// <returns>An open file stream that holds the lock until disposed.</returns>
+        static FileStream AcquireNativeBuildLock(string nativeCacheRootPath) {
+            string lockPath = Path.Combine(nativeCacheRootPath, ".editor-build.lock");
+            while (true) {
+                try {
+                    return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                } catch (IOException exception) when ((exception.HResult & 0xFFFF) == 32 || (exception.HResult & 0xFFFF) == 33) {
+                    Thread.Sleep(100);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Resolves generated files that are written by a platform builder after the editor mirrors generated core.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Fresh generated-core tree used to discover current per-type Vita deserializers.</param>
+        /// <param name="generatedCoreCacheRootPath">Stable generated-core tree containing builder-owned outputs from prior builds.</param>
+        /// <returns>Builder-owned relative paths that the editor must preserve during source synchronization.</returns>
+        IReadOnlyCollection<string> ResolveBuilderOwnedGeneratedCorePaths(string generatedCoreRootPath, string generatedCoreCacheRootPath) {
+            if (string.Equals(PlatformDescriptor.Id, "windows", StringComparison.OrdinalIgnoreCase)) {
+                return EditorWindowsNativeBuildCache.BuilderOwnedRelativePaths;
+            } else if (string.Equals(PlatformDescriptor.Id, "ps2", StringComparison.OrdinalIgnoreCase)) {
+                return [
+                    Path.Combine("runtime", "runtime_ps2_asset_path_manifest.hpp"),
+                    Path.Combine("runtime", "runtime_ps2_asset_path_manifest.cpp"),
+                    Path.Combine("runtime", "runtime_scene_catalog_manifest.hpp"),
+                    Path.Combine("runtime", "runtime_scene_catalog_manifest.cpp")
+                ];
+            } else if (string.Equals(PlatformDescriptor.Id, "gamecube", StringComparison.OrdinalIgnoreCase)) {
+                return [
+                    Path.Combine("runtime", "gamecube_runtime_scene_manifest.hpp"),
+                    Path.Combine("runtime", "gamecube_runtime_scene_manifest.inl")
+                ];
+            } else if (string.Equals(PlatformDescriptor.Id, "wii", StringComparison.OrdinalIgnoreCase)) {
+                return [
+                    Path.Combine("runtime", "wii_runtime_scene_manifest.hpp"),
+                    Path.Combine("runtime", "wii_runtime_scene_manifest.inl")
+                ];
+            } else if (string.Equals(PlatformDescriptor.Id, "wiiu", StringComparison.OrdinalIgnoreCase)) {
+                return [Path.Combine("runtime", "wiiu_runtime_scene_manifest.hpp")];
+            } else if (string.Equals(PlatformDescriptor.Id, "n64", StringComparison.OrdinalIgnoreCase)) {
+                return [
+                    "n64_runtime_scene_catalog.hpp",
+                    "n64_runtime_scene_catalog.cpp"
+                ];
+            } else if (string.Equals(PlatformDescriptor.Id, "switch", StringComparison.OrdinalIgnoreCase)) {
+                return [
+                    Path.Combine("runtime", "runtime_startup_manifest.hpp"),
+                    Path.Combine("runtime", "runtime_startup_manifest.cpp"),
+                    Path.Combine("runtime", "runtime_scene_catalog_manifest.hpp"),
+                    Path.Combine("runtime", "runtime_scene_catalog_manifest.cpp"),
+                    Path.Combine("runtime", "runtime_code_module_manifest.hpp"),
+                    Path.Combine("runtime", "runtime_code_module_manifest.cpp"),
+                    Path.Combine("runtime", "runtime_physics3d_scene_feature_manifest.hpp"),
+                    Path.Combine("runtime", "runtime_physics3d_scene_feature_manifest.cpp"),
+                    Path.Combine("runtime", "runtime_standard_platform_input_manifest.hpp"),
+                    Path.Combine("runtime", "runtime_standard_platform_input_manifest.cpp"),
+                    "helengine_core_unity.cpp"
+                ];
+            } else if (string.Equals(PlatformDescriptor.Id, "psp", StringComparison.OrdinalIgnoreCase)) {
+                return [
+                    Path.Combine("runtime", "runtime_startup_manifest.hpp"),
+                    Path.Combine("runtime", "runtime_startup_manifest.cpp"),
+                    Path.Combine("runtime", "runtime_scene_catalog_manifest.hpp"),
+                    Path.Combine("runtime", "runtime_scene_catalog_manifest.cpp")
+                ];
+            } else if (string.Equals(PlatformDescriptor.Id, "psvita", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(PlatformDescriptor.Id, "ps-vita", StringComparison.OrdinalIgnoreCase)) {
+                List<string> builderOwnedPaths = [
+                    "GeneratedRuntimeComponentDeserializerRegistration.hpp",
+                    "GeneratedRuntimeComponentDeserializerRegistration.cpp",
+                    "PsVitaUnsupportedRuntimeComponent.hpp",
+                    "PsVitaUnsupportedRuntimeComponent.cpp",
+                    "PsVitaUnsupportedRuntimeComponentDeserializer.hpp",
+                    "PsVitaUnsupportedRuntimeComponentDeserializer.cpp",
+                    "psvita-generated-runtime-deserializers.manifest",
+                    Path.Combine("runtime", "runtime_code_module_manifest.cpp"),
+                    Path.Combine("runtime", "runtime_scene_catalog_manifest.cpp"),
+                    Path.Combine("runtime", "runtime_startup_manifest.cpp"),
+                    "helengine_core_unity.cpp"
+                ];
+                foreach (string generatedRootPath in new[] { generatedCoreRootPath, generatedCoreCacheRootPath }) {
+                    if (!Directory.Exists(generatedRootPath)) {
+                        continue;
+                    }
+                    foreach (string generatedPath in Directory.EnumerateFiles(generatedRootPath, "*", SearchOption.AllDirectories)) {
+                        string fileName = Path.GetFileName(generatedPath);
+                        if (fileName.StartsWith("GeneratedRuntime", StringComparison.Ordinal)
+                            && (fileName.EndsWith("Deserializer.hpp", StringComparison.Ordinal)
+                                || fileName.EndsWith("Deserializer.cpp", StringComparison.Ordinal))) {
+                            builderOwnedPaths.Add(Path.GetRelativePath(generatedRootPath, generatedPath));
+                        }
+                    }
+                }
+                return builderOwnedPaths;
+            }
+
+            return Array.Empty<string>();
         }
 
         /// <summary>

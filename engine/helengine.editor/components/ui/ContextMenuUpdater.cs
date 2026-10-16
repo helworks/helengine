@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Update component that forwards frame updates to a context menu.
     /// </summary>
+    [RunInEditor]
     public class ContextMenuUpdater : UpdateComponent {
         /// <summary>
         /// Context menu driven by this updater.

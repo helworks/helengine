@@ -108,7 +108,6 @@ namespace helengine.editor {
                 Color = request.Color,
                 Rotation = request.Rotation,
                 FontScale = request.FontScale,
-                RenderOrder2D = request.RenderOrder2D,
                 Alignment = request.Alignment
             };
             sourceEntity.AddComponent(sourceComponent);
@@ -236,8 +235,6 @@ namespace helengine.editor {
             builder.Append((int)request.Alignment);
             builder.Append('|');
             builder.Append(request.Rotation.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
-            builder.Append('|');
-            builder.Append(request.RenderOrder2D);
 
             byte[] bytes = Encoding.UTF8.GetBytes(builder.ToString());
             byte[] hash = SHA256.HashData(bytes);

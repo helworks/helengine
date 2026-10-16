@@ -9,9 +9,7 @@ namespace helengine.editor {
         /// <param name="font">Font used to render the queue-row text.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the queue row.</param>
         /// <param name="layerMask">Layer mask applied to the row hierarchy.</param>
-        /// <param name="panelOrder">Render order used for row backgrounds and separators.</param>
-        /// <param name="textOrder">Render order used for row labels and buttons.</param>
-        public BuildDialogQueueRow(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics, ushort layerMask, byte panelOrder, byte textOrder) {
+        public BuildDialogQueueRow(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics, ushort layerMask) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -32,7 +30,6 @@ namespace helengine.editor {
                 BorderColor = ThemeManager.Colors.SurfacePrimary,
                 BorderThickness = 0f,
                 Radius = 0f,
-                RenderOrder2D = panelOrder,
                 Size = new int2(
                     metrics.ScalePixels(BuildDialog.QueueColumnWidth - 4),
                     metrics.ScalePixels(BuildDialog.QueueRowHeight))
@@ -49,7 +46,6 @@ namespace helengine.editor {
             Separator = new SpriteComponent {
                 Texture = Root.OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.AccentTertiary,
-                RenderOrder2D = panelOrder,
                 Size = new int2(
                     metrics.ScalePixels(BuildDialog.QueueColumnWidth - 4),
                     metrics.ScalePixels(1))
@@ -70,7 +66,6 @@ namespace helengine.editor {
                     metrics.ScalePixels(28)),
                 font,
                 HandleRemoveButtonClicked);
-            RemoveButton.SetRenderOrders(panelOrder, textOrder);
             RemoveButtonHost.AddComponent(RemoveButton);
 
             TextHost = new EditorEntity(ownerCore, interactionServices) {
@@ -84,7 +79,6 @@ namespace helengine.editor {
                 Font = font,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                RenderOrder2D = textOrder,
                 Size = new int2(1, metrics.ScalePixels(BuildDialog.QueueRowHeight))
             };
             TextHost.AddComponent(Text);

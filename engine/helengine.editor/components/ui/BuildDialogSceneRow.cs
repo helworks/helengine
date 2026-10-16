@@ -9,9 +9,7 @@ namespace helengine.editor {
         /// <param name="font">Font used by the scene label and order field.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the row controls.</param>
         /// <param name="layerMask">Layer mask applied to the row hierarchy.</param>
-        /// <param name="panelOrder">Render order used for panel-background controls.</param>
-        /// <param name="textOrder">Render order used for text and checkbox visuals.</param>
-        public BuildDialogSceneRow(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics, ushort layerMask, byte panelOrder, byte textOrder) {
+        public BuildDialogSceneRow(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics, ushort layerMask) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -40,7 +38,6 @@ namespace helengine.editor {
                     metrics.ScalePixels(BuildDialog.SceneOrderFieldHeight)),
                 font,
                 string.Empty);
-            OrderField.SetRenderOrders(panelOrder, textOrder);
             OrderHost.AddComponent(OrderField);
 
             LabelHost = new EditorEntity(ownerCore, interactionServices) {
@@ -53,8 +50,7 @@ namespace helengine.editor {
             LabelText = new TextComponent {
                 Font = font,
                 Text = string.Empty,
-                Color = ThemeManager.Colors.InputForegroundPrimary,
-                RenderOrder2D = textOrder
+                Color = ThemeManager.Colors.InputForegroundPrimary
             };
             LabelHost.AddComponent(LabelText);
 
@@ -71,7 +67,6 @@ namespace helengine.editor {
                     metrics.ScalePixels(18)),
                 font,
                 false);
-            CheckBox.SetRenderOrders(panelOrder, textOrder);
             CheckBoxHost.AddComponent(CheckBox);
         }
 

@@ -189,7 +189,6 @@ namespace helengine.editor.tests {
             contentEntity.AddComponent(new SpriteComponent {
                 Texture = CoreValue.RenderManager2D.PixelTexture,
                 Size = new int2(100, 60),
-                RenderOrder2D = 4
             });
             contentEntity.AddComponent(new InteractableComponent {
                 Size = new int2(100, 60)
@@ -229,7 +228,6 @@ namespace helengine.editor.tests {
             SpriteComponent spriteComponent = new SpriteComponent {
                 Size = new int2(100, 60),
                 Texture = CoreValue.RenderManager2D.PixelTexture,
-                RenderOrder2D = 4
             };
             sourceEntity.AddComponent(spriteComponent);
 
@@ -247,6 +245,56 @@ namespace helengine.editor.tests {
                 GeneratedAssetGraph.ObjectManager);
 
             Assert.Same(sourceEntity, selectedEntity);
+        }
+
+        /// <summary>
+        /// Ensures overlapping preview selection follows ray depth and authored sibling order after transforms change.
+        /// </summary>
+        [Fact]
+        public void ResolveWorldPreview_UsesDistanceThenSourceHierarchy() {
+            CameraComponent camera = CreateSceneCamera(new float4(0f, 0f, 500f, 400f));
+            camera.Parent.LocalPosition = new float3(0f, 0f, 100f);
+            Entity parent = new Entity(CoreValue);
+            parent.InitComponents();
+            parent.InitChildren();
+            Entity first = CreateWorldPreviewSource(parent, 0f);
+            Entity second = CreateWorldPreviewSource(parent, -10f);
+            int2 pointer = new int2(250, 200);
+
+            Assert.Same(first, EditorViewportDirect2DPresentationService.ResolveSelectableWorldPreviewEntityAtPointer(
+                camera, camera.Viewport, pointer, GeneratedAssetGraph.ObjectManager));
+            second.LocalPosition = new float3(-50f, -30f, 10f);
+            Assert.Same(second, EditorViewportDirect2DPresentationService.ResolveSelectableWorldPreviewEntityAtPointer(
+                camera, camera.Viewport, pointer, GeneratedAssetGraph.ObjectManager));
+            second.LocalPosition = new float3(-50f, -30f, 0f);
+            Assert.Same(second, EditorViewportDirect2DPresentationService.ResolveSelectableWorldPreviewEntityAtPointer(
+                camera, camera.Viewport, pointer, GeneratedAssetGraph.ObjectManager));
+            parent.RemoveChild(first);
+            parent.AddChild(first);
+            Assert.Same(first, EditorViewportDirect2DPresentationService.ResolveSelectableWorldPreviewEntityAtPointer(
+                camera, camera.Viewport, pointer, GeneratedAssetGraph.ObjectManager));
+        }
+
+        /// <summary>Creates a selectable sprite and its registered world-preview proxy.</summary>
+        /// <param name="parent">Authored parent controlling sibling order.</param>
+        /// <param name="depth">Local depth of the source plane.</param>
+        /// <returns>The authored sprite entity.</returns>
+        Entity CreateWorldPreviewSource(Entity parent, float depth) {
+            Entity source = new Entity(CoreValue) {
+                LocalPosition = new float3(-50f, -30f, depth)
+            };
+            source.InitComponents();
+            parent.AddChild(source);
+            SpriteComponent sprite = new SpriteComponent {
+                Size = new int2(100, 60),
+                Texture = CoreValue.RenderManager2D.PixelTexture
+            };
+            source.AddComponent(sprite);
+            EditorEntity proxy = new EditorEntity(CoreValue, InteractionServices) { InternalEntity = true };
+            proxy.AddComponent(new Editor2DPreviewSourceTagComponent(source, sprite));
+            proxy.AddComponent(new EditorSpriteWorldPreviewComponent(source, sprite, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources));
+            InteractionServices.WorldSpace2DPreviewRegistry.Register(source, proxy);
+            return source;
         }
 
         /// <summary>
@@ -275,12 +323,12 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <param name="position">Top-left entity position in window-space coordinates.</param>
         /// <param name="size">Interactable size in pixels.</param>
-        /// <param name="renderOrder">2D render order assigned to the visible sprite.</param>
+        /// <param name="depth">2D depth assigned to the visible sprite.</param>
         /// <returns>Interactable component registered for hit resolution.</returns>
-        InteractableComponent CreateSceneInteractableEntity(float3 position, int2 size, byte renderOrder) {
+        InteractableComponent CreateSceneInteractableEntity(float3 position, int2 size, byte depth) {
             Entity entity = new Entity(CoreValue) {
                 LayerMask = EditorLayerMasks.SceneObjects,
-                Position = position
+                Position = new float3(position.X, position.Y, depth)
             };
             entity.InitComponents();
             entity.InitChildren();
@@ -288,7 +336,6 @@ namespace helengine.editor.tests {
             SpriteComponent sprite = new SpriteComponent {
                 Texture = CoreValue.RenderManager2D.PixelTexture,
                 Size = size,
-                RenderOrder2D = renderOrder
             };
             entity.AddComponent(sprite);
 

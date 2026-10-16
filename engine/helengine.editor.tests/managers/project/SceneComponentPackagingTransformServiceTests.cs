@@ -1071,7 +1071,6 @@ namespace helengine.editor.tests {
                 SourceRect = new float4(0f, 0f, 1f, 1f),
                 Rotation = 0.25f,
                 FontScale = 2f,
-                RenderOrder2D = 19,
                 SelectionEnabled = true,
                 ConvertTextToSprite = convertTextToSprite,
                 Alignment = TextAlignment.Center
@@ -1099,7 +1098,6 @@ namespace helengine.editor.tests {
                 SourceRect = new float4(0f, 0f, 1f, 1f),
                 Rotation = 0.25f,
                 FontScale = 2f,
-                RenderOrder2D = 19,
                 SelectionEnabled = true,
                 ConvertTextToSprite = convertTextToSprite,
                 Alignment = TextAlignment.Center
@@ -1130,7 +1128,6 @@ namespace helengine.editor.tests {
                 SourceRect = new float4(0f, 0f, 1f, 1f),
                 Rotation = 0.25f,
                 FontScale = 2f,
-                RenderOrder2D = 19,
                 SelectionEnabled = true,
                 Alignment = TextAlignment.Center
             };
@@ -1143,7 +1140,6 @@ namespace helengine.editor.tests {
                 SourceRect = new float4(0f, 0f, 1f, 1f),
                 Rotation = 0.25f,
                 FontScale = fontScale,
-                RenderOrder2D = 19,
                 SelectionEnabled = true,
                 Alignment = TextAlignment.Center
             };
@@ -1216,7 +1212,6 @@ namespace helengine.editor.tests {
                 Size = new int2(128, 32),
                 Color = new byte4(255, 255, 255, 255),
                 SourceRect = new float4(0f, 0f, 1f, 1f),
-                RenderOrder2D = 19,
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(
@@ -1414,8 +1409,7 @@ namespace helengine.editor.tests {
             DebugComponent debugComponent = new DebugComponent {
                 Font = CreatePackagedFontAsset(),
                 RefreshIntervalSeconds = 0.5f,
-                Padding = new int2(2, 3),
-                RenderOrder2D = 17
+                Padding = new int2(2, 3)
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(nameof(DebugComponent.Font), fontReference);

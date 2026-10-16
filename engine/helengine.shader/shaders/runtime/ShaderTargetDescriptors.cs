@@ -70,7 +70,9 @@ namespace helengine {
                 new ShaderTargetDescriptor(ShaderCompileTarget.Metal, "metal", "HEL_API_METAL"),
                 new ShaderTargetDescriptor(ShaderCompileTarget.PsVita, "psvita", "HEL_API_PSVITA"),
                 new ShaderTargetDescriptor(ShaderCompileTarget.WiiU, "wiiu", "HEL_API_WIIU"),
-                new ShaderTargetDescriptor(ShaderCompileTarget.Ps3, "ps3", "HEL_API_PS3")
+                new ShaderTargetDescriptor(ShaderCompileTarget.Ps3, "ps3", "HEL_API_PS3"),
+                new ShaderTargetDescriptor(ShaderCompileTarget.Xbox360, "x360", "HEL_API_X360"),
+                new ShaderTargetDescriptor(ShaderCompileTarget.Xbox, "xbox", "HEL_API_XBOX")
             };
         }
 

@@ -377,6 +377,37 @@ namespace helengine.editor.tests.managers.rendering {
         }
 
         /// <summary>
+        /// Ensures a cached text-only command stream changes composition after a depth-only edit.
+        /// </summary>
+        [Fact]
+        public void Build_DepthOnlyChange_ReordersCachedTextCommands() {
+            Entity firstEntity = CreateEntity(new float3(0, 0, 0), true);
+            Entity secondEntity = CreateEntity(new float3(0, 0, 1), true);
+            TextComponent first = new TextComponent {
+                Font = CreateFont(), Text = "A", Size = new int2(20, 20), Color = new byte4(255, 0, 0, 255)
+            };
+            TextComponent second = new TextComponent {
+                Font = first.Font, Text = "A", Size = new int2(20, 20), Color = new byte4(0, 0, 255, 255)
+            };
+            firstEntity.AddComponent(first);
+            secondEntity.AddComponent(second);
+            using RenderList2D queue = new RenderList2D(2);
+            queue.Add(first);
+            queue.Add(second);
+            using RenderCommandListBuilder2D builder = new RenderCommandListBuilder2D();
+            RenderCommandList2D commands = builder.Build(queue);
+            Assert.Equal(2, commands.Count);
+            Assert.Equal(RenderCommand2DType.GlyphQuad, commands.GetCommandType(0));
+            Assert.Equal(RenderCommand2DType.GlyphQuad, commands.GetCommandType(1));
+            Assert.Equal(first.Color, commands.GetGlyphQuadColor(commands.GetGlyphQuadPayloadIndex(0)));
+            Assert.Equal(second.Color, commands.GetGlyphQuadColor(commands.GetGlyphQuadPayloadIndex(1)));
+            firstEntity.LocalPosition = new float3(0, 0, 2);
+            commands = builder.Build(queue);
+            Assert.Equal(second.Color, commands.GetGlyphQuadColor(commands.GetGlyphQuadPayloadIndex(0)));
+            Assert.Equal(first.Color, commands.GetGlyphQuadColor(commands.GetGlyphQuadPayloadIndex(1)));
+        }
+
+        /// <summary>
         /// Creates one initialized entity configured for the supplied position and enabled state.
         /// </summary>
         /// <param name="position">World position assigned to the entity.</param>

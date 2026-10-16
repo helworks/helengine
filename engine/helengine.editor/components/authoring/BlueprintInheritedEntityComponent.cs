@@ -2,6 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Marks one expanded entity as inherited from a blueprint instance source.
     /// </summary>
+    [RunInEditor]
     public sealed class BlueprintInheritedEntityComponent : Component, IEditorHiddenComponent {
         /// <summary>
         /// Gets or sets the project-relative blueprint asset path that produced this inherited entity.
