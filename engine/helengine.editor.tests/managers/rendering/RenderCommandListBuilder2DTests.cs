@@ -33,7 +33,7 @@ namespace helengine.editor.tests.managers.rendering {
         }
 
         /// <summary>
-        /// Ensures a sprite becomes one textured-quad command with preserved texture, transform-flattened bounds, source rectangle, tint, and rotation.
+        /// Ensures a sprite becomes one textured-quad command with preserved texture, resolved corners, source rectangle, and tint without backend angle reconstruction.
         /// </summary>
         [Fact]
         public void Build_WhenQueueContainsSprite_EmitsOneTexturedQuad() {
@@ -64,10 +64,16 @@ namespace helengine.editor.tests.managers.rendering {
 
             int payloadIndex = commandList.GetTexturedQuadPayloadIndex(0);
             Assert.Same(sprite.Texture, commandList.GetTexturedQuadTexture(payloadIndex));
-            Assert.Equal(new float4(15f, 25f, 140f, 105f), commandList.GetTexturedQuadBounds(payloadIndex));
+            SpriteQuad2D quad = commandList.GetTexturedQuadGeometry(payloadIndex);
+            Assert.Equal(15f, quad.TopLeft.X, 4);
+            Assert.Equal(25f, quad.TopLeft.Y, 4);
+            Assert.Equal(15d + 140d * Math.Cos(.5d), quad.TopRight.X, 3);
+            Assert.Equal(25d + 140d * Math.Sin(.5d), quad.TopRight.Y, 3);
+            Assert.Equal(15d - 105d * Math.Sin(.5d), quad.BottomLeft.X, 3);
+            Assert.Equal(25d + 105d * Math.Cos(.5d), quad.BottomLeft.Y, 3);
             Assert.Equal(sprite.SourceRect, commandList.GetTexturedQuadSourceRect(payloadIndex));
             Assert.Equal(sprite.Color, commandList.GetTexturedQuadColor(payloadIndex));
-            Assert.Equal(0.5f, commandList.GetTexturedQuadRotation(payloadIndex), 3);
+            Assert.Equal(0f, commandList.GetTexturedQuadRotation(payloadIndex));
         }
 
         /// <summary>

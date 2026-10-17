@@ -2,9 +2,7 @@ namespace helengine {
     /// <summary>
     /// Renders a textured quad using the 2D render manager.
     /// </summary>
-#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
     [RunInEditor]
-#endif
     public class SpriteComponent : Component, ISpriteDrawable2D, IAnchorSizeProvider {
         /// <summary>
         /// Gets or sets the runtime texture to draw.
@@ -20,6 +18,12 @@ namespace helengine {
         /// Gets or sets the authored destination size of the sprite before entity-transform scale is applied.
         /// </summary>
         public int2 Size { get; set; }
+
+        /// <summary>Gets or sets the normalized point positioned at the entity origin; zero preserves top-left anchoring.</summary>
+        public float2 Pivot { get; set; }
+
+        /// <summary>Gets or sets local rotation about the pivot, in radians, using the entity positive-Z convention.</summary>
+        public float RotationRadians { get; set; }
 
         /// <summary>
         /// Gets the size used by anchor components when the sprite host participates in layout.

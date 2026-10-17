@@ -1149,6 +1149,7 @@ namespace helengine.editor {
         static List<KeyValuePair<string, string>> CreateRuntimeAssemblyReferences() {
             return new List<KeyValuePair<string, string>> {
                 new KeyValuePair<string, string>("helengine.core", typeof(Core).Assembly.Location),
+                new KeyValuePair<string, string>("helengine.managed", typeof(IScriptTypeResolver).Assembly.Location),
                 new KeyValuePair<string, string>("helengine.shader", typeof(ShaderRuntimeMaterial).Assembly.Location),
                 new KeyValuePair<string, string>("helengine.shader.compilation", typeof(ShaderCompileService).Assembly.Location),
                 new KeyValuePair<string, string>("helengine.input", typeof(InputSystem).Assembly.Location),

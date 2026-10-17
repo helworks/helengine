@@ -31,11 +31,7 @@ namespace helengine {
 
             RuntimeTexture texture = drawable.Texture;
             if (texture.IsDisposed) {
-#if HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
-                throw new InvalidOperationException("A disposed sprite texture cannot be emitted.");
-#else
                 throw new ObjectDisposedException(nameof(drawable.Texture), "A disposed sprite texture cannot be emitted.");
-#endif
             }
 
             int2 size = drawable.Size;
@@ -46,16 +42,10 @@ namespace helengine {
                 return;
             }
 
-            Entity parent = drawable.Parent;
-            float3 position = parent.Position;
-            float3 scale = parent.Scale;
-            float3 rotatedRight = float4.RotateVector(float3.UnitX, parent.Orientation);
-            float3 rotatedDown = float4.RotateVector(float3.UnitY, parent.Orientation);
-            double width = (double)size.X * scale.X;
-            double height = (double)size.Y * scale.Y;
+            SpriteQuad2D quad = Batch2DGeometry.ResolveSpriteQuad(drawable);
             float4 color = Batch2DGeometry.NormalizeColor(drawable.Color);
-            Batch2DGeometry.CreateTransformedQuad(position, rotatedRight, rotatedDown, width, height, 0d,
-                drawable.SourceRect, color, out Batch2DVertex topLeft, out Batch2DVertex topRight,
+            Batch2DGeometry.CreateSpriteQuad(quad, drawable.SourceRect, color,
+                out Batch2DVertex topLeft, out Batch2DVertex topRight,
                 out Batch2DVertex bottomRight, out Batch2DVertex bottomLeft);
 
             Batch2DRun spriteRun = new Batch2DRun(Batch2DVariant.Textured, texture,

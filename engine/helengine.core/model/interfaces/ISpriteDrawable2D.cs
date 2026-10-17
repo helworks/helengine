@@ -22,5 +22,12 @@ namespace helengine {
         /// Gets or sets the sprite dimensions.
         /// </summary>
         int2 Size { get; set; }
+
+        /// <summary>Gets or sets the normalized sprite point attached to the entity origin.</summary>
+        float2 Pivot { get; set; }
+
+        /// <summary>Gets or sets the sprite-local positive-Z rotation about its pivot, in radians.</summary>
+        float RotationRadians { get; set; }
+
     }
 }

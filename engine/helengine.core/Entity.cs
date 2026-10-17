@@ -39,6 +39,10 @@ namespace helengine {
         /// Tracks whether the cached world transform still matches this entity's local transform and its ancestor chain.
         /// </summary>
         bool WorldTransformCacheIsValid;
+        /// <summary>Retains exact affine composition, including shear, until this hierarchy's transforms change.</summary>
+        float4x4 CachedWorldTransformMatrix;
+        /// <summary>Tracks the independently lazy matrix cache without forcing decomposed-property calculation.</summary>
+        bool WorldTransformMatrixCacheIsValid;
         ushort LayerMaskValue;
         /// <summary>
         /// Stores the component container owned and released by this entity. Its entries are aliases;
@@ -175,19 +179,21 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Gets the exact world affine transform matrix by recursively composing local transforms through the full parent chain.
+        /// Gets the cached exact world affine matrix; recomposes changed local transforms through the full parent chain lazily.
         /// </summary>
         public float4x4 WorldTransformMatrix {
             get {
                 ThrowIfDisposed();
-                float4x4 localTransform = LocalTransformMatrix;
-                if (Parent == null) {
-                    return localTransform;
+                if (!WorldTransformMatrixCacheIsValid) {
+                    CachedWorldTransformMatrix = LocalTransformMatrix;
+                    if (Parent != null) {
+                        float4x4 parentWorldTransform = Parent.WorldTransformMatrix;
+                        float4x4 localTransform = CachedWorldTransformMatrix;
+                        float4x4.Multiply(ref localTransform, ref parentWorldTransform, out CachedWorldTransformMatrix);
+                    }
+                    WorldTransformMatrixCacheIsValid = true;
                 }
-
-                float4x4 parentWorldTransform = Parent.WorldTransformMatrix;
-                float4x4.Multiply(ref localTransform, ref parentWorldTransform, out float4x4 worldTransform);
-                return worldTransform;
+                return CachedWorldTransformMatrix;
             }
         }
 
@@ -657,15 +663,16 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Marks this entity's cached world transform stale and propagates the same marking to every descendant.
+        /// Marks this entity's decomposed and affine world caches stale and propagates the marking to every descendant.
         /// Descending stops at nodes that are already stale because a stale node always implies a stale subtree.
         /// </summary>
         void InvalidateWorldTransformCache() {
-            if (!WorldTransformCacheIsValid) {
+            if (!WorldTransformCacheIsValid && !WorldTransformMatrixCacheIsValid) {
                 return;
             }
 
             WorldTransformCacheIsValid = false;
+            WorldTransformMatrixCacheIsValid = false;
             if (ChildrenValue == null) {
                 return;
             }

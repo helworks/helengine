@@ -18,5 +18,6 @@
   <ItemGroup>
     <ProjectReference Include="..\helengine.physics3d\helengine.physics3d.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.core\helengine.core.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\helengine.managed\helengine.managed.csproj" SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
 </Project>

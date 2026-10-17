@@ -275,6 +275,11 @@ namespace helengine.core.tests.managers.rendering {
                     writer.Write(commands.GetTexturedQuadTexture(payload).GetHashCode());
                     WriteRect(writer, commands.GetTexturedQuadBounds(payload)); WriteRect(writer, commands.GetTexturedQuadSourceRect(payload));
                     WriteColor(writer, commands.GetTexturedQuadColor(payload)); writer.Write(commands.GetTexturedQuadRotation(payload));
+                    SpriteQuad2D quad = commands.GetTexturedQuadGeometry(payload);
+                    writer.Write(quad.TopLeft.X); writer.Write(quad.TopLeft.Y);
+                    writer.Write(quad.TopRight.X); writer.Write(quad.TopRight.Y);
+                    writer.Write(quad.BottomRight.X); writer.Write(quad.BottomRight.Y);
+                    writer.Write(quad.BottomLeft.X); writer.Write(quad.BottomLeft.Y);
                 } else if (type == RenderCommand2DType.RoundedRect) {
                     int payload = commands.GetRoundedRectPayloadIndex(index);
                     WriteRect(writer, commands.GetRoundedRectBounds(payload)); writer.Write(commands.GetRoundedRectRadius(payload));

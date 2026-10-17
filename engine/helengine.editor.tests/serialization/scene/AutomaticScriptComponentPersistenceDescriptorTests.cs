@@ -941,7 +941,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void RuntimeComponentRegistry_WhenAssemblyQualifiedEngineIdIsUsed_ThrowsUnsupportedComponentType() {
-            RuntimeComponentRegistry registry = RuntimeComponentRegistry.CreateDefault();
+            RuntimeComponentRegistry registry = RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory());
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
                 () => registry.GetDeserializer("helengine.TextComponent, helengine.core"));

@@ -44,6 +44,7 @@ namespace helengine.editor.tests.serialization.scene {
 
             CoreValue = new Core();
             CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+                RuntimeComponentDeserializerFactory = new AutomaticRuntimeComponentDeserializerFactory(),
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
@@ -67,7 +68,7 @@ namespace helengine.editor.tests.serialization.scene {
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(otherCore, contentManager);
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault()));
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory())));
             Assert.Contains("same owning core", exception.Message, StringComparison.OrdinalIgnoreCase);
 
             resolver.Dispose();
@@ -81,22 +82,30 @@ namespace helengine.editor.tests.serialization.scene {
         public void Load_WhenReferenceTargetsLaterRoot_BindsBeforeInitialization(bool incremental) {
             RuntimeSceneLoadService loader = CreateReferenceLoadService();
             SceneAsset scene = CreateReferenceScene(20u, false);
+            RuntimeSceneLoadResult trackedResult = null;
 
-            IReadOnlyList<Entity> roots;
-            if (incremental) {
-                RuntimeSceneLoadOperation operation = loader.CreateTrackedLoadOperation(scene);
-                operation.Advance();
-                Assert.False(operation.IsCompleted);
-                operation.Advance();
-                roots = operation.Result.RootEntities;
-            } else {
-                roots = loader.Load(scene);
+            try {
+                IReadOnlyList<Entity> roots;
+                if (incremental) {
+                    using RuntimeSceneLoadOperation operation = loader.CreateTrackedLoadOperation(scene);
+                    operation.Advance();
+                    Assert.False(operation.IsCompleted);
+                    while (!operation.IsCompleted) {
+                        operation.Advance();
+                    }
+                    trackedResult = operation.TakeResult();
+                    roots = trackedResult.RootEntities;
+                } else {
+                    roots = loader.Load(scene);
+                }
+
+                SceneReferenceLoadProbeComponent probe = Assert.IsType<SceneReferenceLoadProbeComponent>(
+                    Assert.Single(roots[0].Components, component => component is SceneReferenceLoadProbeComponent));
+                Assert.Same(roots[1], probe.Target.ResolvedEntity);
+                Assert.Same(roots[1], probe.TargetSeenDuringInitialization);
+            } finally {
+                trackedResult?.OwnedAssets.Dispose();
             }
-
-            SceneReferenceLoadProbeComponent probe = Assert.IsType<SceneReferenceLoadProbeComponent>(
-                Assert.Single(roots[0].Components, component => component is SceneReferenceLoadProbeComponent));
-            Assert.Same(roots[1], probe.Target.ResolvedEntity);
-            Assert.Same(roots[1], probe.TargetSeenDuringInitialization);
         }
 
         [Theory]
@@ -125,7 +134,7 @@ namespace helengine.editor.tests.serialization.scene {
 
         RuntimeSceneLoadService CreateReferenceLoadService() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue, CoreValue.ContentManager);
-            return new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            return new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
         }
 
         /// <summary>Ensures editor-only visibility metadata never suppresses a runtime-loaded entity.</summary>
@@ -188,7 +197,7 @@ namespace helengine.editor.tests.serialization.scene {
             otherCore.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("other", "test-version"));
             ContentManager contentManager = new ContentManager(new FakeContentStreamSource());
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue, contentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => new SceneManager(
                 CoreValue,
@@ -215,7 +224,7 @@ namespace helengine.editor.tests.serialization.scene {
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager, CoreValue.RenderManager2D);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 runtimeContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
 
             Assert.Equal(string.Empty, resolver.LastTextLoadStage);
             Assert.Equal(string.Empty, resolver.LastTextFontRelativePath);
@@ -269,7 +278,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void ResolveAnimationClip_WhenPackagedClipLoads_returnsTypedTrackData() {
-            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
+            using RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
             AnimationClipAsset clipAsset = new AnimationClipAsset {
                 Id = "animations/runtime-scene-load.hanim",
@@ -294,16 +303,21 @@ namespace helengine.editor.tests.serialization.scene {
 
             WriteAnimationClipAsset("animations/runtime-scene-load.hanim", clipAsset);
 
-            AnimationClipAsset loadedClip = resolver.ResolveAnimationClip(
-                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemAnimationClip("animations/runtime-scene-load.hanim"));
+            resolver.BeginOwnedAssetTracking();
+            try {
+                AnimationClipAsset loadedClip = resolver.ResolveAnimationClip(
+                    global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemAnimationClip("animations/runtime-scene-load.hanim"));
 
-            Assert.NotNull(loadedClip);
-            Assert.Equal("animations/runtime-scene-load.hanim", loadedClip.Id);
-            Assert.Equal(2f, loadedClip.Duration);
-            PositionOffsetKeyframeTrackAsset offsetTrack = Assert.Single(loadedClip.PositionOffsetTracks);
-            Assert.Equal(new float3(8f, 3f, 0f), offsetTrack.Keyframes[1].Value);
-            RotationKeyframeTrackAsset rotationTrack = Assert.Single(loadedClip.RotationTracks);
-            Assert.Equal(new float4(0f, 0f, 0.12467473f, 0.9921977f), rotationTrack.Keyframes[1].Value);
+                Assert.NotNull(loadedClip);
+                Assert.Equal("animations/runtime-scene-load.hanim", loadedClip.Id);
+                Assert.Equal(2f, loadedClip.Duration);
+                PositionOffsetKeyframeTrackAsset offsetTrack = Assert.Single(loadedClip.PositionOffsetTracks);
+                Assert.Equal(new float3(8f, 3f, 0f), offsetTrack.Keyframes[1].Value);
+                RotationKeyframeTrackAsset rotationTrack = Assert.Single(loadedClip.RotationTracks);
+                Assert.Equal(new float4(0f, 0f, 0.12467473f, 0.9921977f), rotationTrack.Keyframes[1].Value);
+            } finally {
+                resolver.CancelOwnedAssetTracking();
+            }
         }
 
         /// <summary>
@@ -457,7 +471,7 @@ namespace helengine.editor.tests.serialization.scene {
             resolver.BeginOwnedAssetTracking();
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue,
                 resolver,
-                RuntimeComponentRegistry.CreateDefault());
+                RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = [
                     new SceneEntityAsset {
@@ -493,7 +507,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void Load_WhenSceneEntityStaticFlagsDiffer_RestoresStaticFlags() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
@@ -526,7 +540,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void Load_WhenSceneEntityEnabledFlagsDiffer_RestoresEnabledFlags() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
@@ -559,7 +573,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void Load_WhenSceneEntityIdsExist_AttachesRuntimeSceneEntityIdComponents() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
@@ -623,7 +637,7 @@ namespace helengine.editor.tests.serialization.scene {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             WriteFontAsset("fonts/default.hefont", CreateFont());
             FPSComponent fpsComponentToSerialize = new FPSComponent {
                 RefreshIntervalSeconds = 0.5d,
@@ -664,7 +678,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void Load_WhenFpsPayloadOmitsFontReference_LoadsComponentWithNullFont() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             FPSComponent fpsComponentToSerialize = new FPSComponent {
                 RefreshIntervalSeconds = 0.5d,
                 Padding = new int2(8, 6)
@@ -702,7 +716,7 @@ namespace helengine.editor.tests.serialization.scene {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             WriteFontAsset("fonts/default.hefont", CreateFont());
             DebugComponent debugComponentToSerialize = new DebugComponent {
                 RefreshIntervalSeconds = 0.5d,
@@ -743,7 +757,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void Load_WhenSceneContainsDebugComponentWithoutFontReference_LoadsComponentWithNullFont() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             DebugComponent debugComponentToSerialize = new DebugComponent {
                 RefreshIntervalSeconds = 0.5d,
                 Padding = new int2(8, 6)
@@ -780,7 +794,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void Load_WhenSceneContainsOlderVersionFpsOverlay_ThrowsUnsupportedPayloadVersion() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
@@ -810,7 +824,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void Load_WhenSceneContainsGenericMeshPayload_MaterializesTheComponent() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             MeshComponent meshComponentToSerialize = new MeshComponent {
                 RenderOrder3D = 4
             };
@@ -853,7 +867,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void Load_WhenSceneContainsGenericMeshPayloadWithMultipleMaterialSlots_MaterializesEverySlot() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             MeshComponent meshComponentToSerialize = new MeshComponent {
                 RenderOrder3D = 21
             };
@@ -896,7 +910,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void Load_WhenSceneContainsCameraComponent_MaterializesTheComponent() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
@@ -931,7 +945,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void Load_WhenSceneEntityDefinesCustomLayerMask_RestoresEntityLayerMask() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
@@ -957,7 +971,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void Load_WhenSceneContainsUnknownComponent_Throws() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
@@ -985,7 +999,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void Load_WhenAutomaticComponentContainsStringDictionary_RestoresDictionaryEntries() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
@@ -1017,7 +1031,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void Load_WhenAutomaticComponentDictionaryPayloadContainsDuplicateKeys_ThrowsInvalidOperationException() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
@@ -1095,7 +1109,7 @@ namespace helengine.editor.tests.serialization.scene {
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager, CoreValue.RenderManager2D);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 runtimeContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
 
             RuntimeSceneLoadResult loadResult = loadService.LoadTracked(sceneAsset);
             IReadOnlyList<Entity> loadedRoots = loadResult.RootEntities;
@@ -1218,7 +1232,7 @@ namespace helengine.editor.tests.serialization.scene {
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager, CoreValue.RenderManager2D);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 runtimeContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
 
             RuntimeSceneLoadResult loadResult = loadService.LoadTracked(sceneAsset);
             IReadOnlyList<Entity> loadedRoots = loadResult.RootEntities;
@@ -1274,7 +1288,7 @@ namespace helengine.editor.tests.serialization.scene {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
             TextComponent loadedTextComponent = Assert.IsType<TextComponent>(
@@ -1330,7 +1344,7 @@ namespace helengine.editor.tests.serialization.scene {
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
             Entity loadedRoot = Assert.Single(loadedRoots);
@@ -1349,7 +1363,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void Load_WhenSceneContainsLightComponents_MaterializesAllSupportedLightFamilies() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
                     new SceneEntityAsset {
@@ -1473,7 +1487,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void Load_WhenSceneContainsUnsupportedAutomaticLightPayloadVersion_ThrowsUnsupportedPayloadVersion() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             byte[] unsupportedVersionPayload = WriteAutomaticRuntimeComponentPayload(new SpotLightComponent(), null);
             unsupportedVersionPayload[0] = 99;
 
@@ -1545,6 +1559,8 @@ namespace helengine.editor.tests.serialization.scene {
             SpriteComponent serializedSpriteComponent = new SpriteComponent {
                 SourceRect = new float4(0f, 0f, 1f, 1f),
                 Size = new int2(32, 14),
+                Pivot = new float2(0.5f, 0.25f),
+                RotationRadians = 0.73f,
                 Color = new byte4(249, 243, 255, 255),
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
@@ -1571,12 +1587,14 @@ namespace helengine.editor.tests.serialization.scene {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
             SpriteComponent loadedSpriteComponent = Assert.IsType<SpriteComponent>(
                 Assert.Single(loadedRoots[0].Components, component => component is SpriteComponent));
 
+            Assert.Equal(serializedSpriteComponent.Pivot, loadedSpriteComponent.Pivot);
+            Assert.Equal(serializedSpriteComponent.RotationRadians, loadedSpriteComponent.RotationRadians);
             Assert.NotNull(loadedSpriteComponent.Texture);
             Assert.Equal(new float4(0f, 0f, 1f, 1f), loadedSpriteComponent.SourceRect);
             Assert.Equal(new int2(32, 14), loadedSpriteComponent.Size);
@@ -1618,7 +1636,7 @@ namespace helengine.editor.tests.serialization.scene {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
             RoundedRectComponent loadedRoundedRectComponent = Assert.IsType<RoundedRectComponent>(
@@ -1989,7 +2007,7 @@ namespace helengine.editor.tests.serialization.scene {
                 throw new ArgumentNullException(nameof(action));
             }
 
-            ComponentExecutionContext.EnterEditor();
+            ComponentExecutionContext.EnterEditor(EditorComponentExecutionPolicy.Instance);
             try {
                 action();
             } finally {

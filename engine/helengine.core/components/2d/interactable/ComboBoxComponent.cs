@@ -2,9 +2,7 @@ namespace helengine {
     /// <summary>
     /// Renders a selectable combo box with a drop-down list of items.
     /// </summary>
-#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
     [RunInEditor]
-#endif
     public class ComboBoxComponent : Component, IFocusTarget {
         /// <summary>
         /// Horizontal padding applied to label text.

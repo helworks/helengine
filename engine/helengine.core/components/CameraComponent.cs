@@ -2,9 +2,7 @@ namespace helengine {
     /// <summary>
     /// Provides camera state for rendering scenes in 2D and 3D.
     /// </summary>
-#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
     [RunInEditor]
-#endif
     public class CameraComponent : Component, ICamera {
         /// <summary>
         /// Cached camera draw order value.

@@ -71,6 +71,8 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
         string generatedProjectContents = File.ReadAllText(toolRunner.Invocations[0].Arguments[projectArgumentIndex + 1]);
         Assert.Contains("Reference Include=\"helengine.nativeownership\"", generatedProjectContents, StringComparison.Ordinal);
         Assert.Contains("Reference Include=\"helengine.physics\"", generatedProjectContents, StringComparison.Ordinal);
+        Assert.Contains("Reference Include=\"helengine.managed\"", generatedProjectContents, StringComparison.Ordinal);
+        Assert.Contains(typeof(IScriptTypeResolver).Assembly.Location, generatedProjectContents, StringComparison.Ordinal);
         Assert.Contains("<Compile Remove=", generatedProjectContents, StringComparison.Ordinal);
         Assert.Contains("*.tests", generatedProjectContents, StringComparison.Ordinal);
     }

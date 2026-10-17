@@ -17,5 +17,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\helengine.core\helengine.core.csproj" />
+    <ProjectReference Include="..\helengine.managed\helengine.managed.csproj" />
   </ItemGroup>
 </Project>

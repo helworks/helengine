@@ -74,7 +74,7 @@ namespace helengine {
             OwnerCore = ownerCore ?? throw new ArgumentNullException(nameof(ownerCore));
             ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
             ValidateResolverOwner();
-            ComponentRegistry = RuntimeComponentRegistry.CreateDefault();
+            ComponentRegistry = RuntimeComponentRegistry.CreateDefault(OwnerCore.InitializationOptions.RuntimeComponentDeserializerFactory);
         }
 
         /// <summary>

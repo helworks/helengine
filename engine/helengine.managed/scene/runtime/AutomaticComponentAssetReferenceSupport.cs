@@ -3,7 +3,6 @@ namespace helengine {
     /// Provides shared detection and runtime resolution for automatically persisted asset-backed component members.
     /// </summary>
     public static class AutomaticComponentAssetReferenceSupport {
-#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
         /// <summary>
         /// Message used when one reflected member type is not supported by automatic runtime asset-reference restoration.
         /// </summary>
@@ -128,6 +127,5 @@ namespace helengine {
             return valueType == expectedType ||
                 string.Equals(valueType.FullName, expectedType.FullName, StringComparison.Ordinal);
         }
-#endif
     }
 }

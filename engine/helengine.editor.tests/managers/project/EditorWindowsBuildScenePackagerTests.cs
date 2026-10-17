@@ -1036,7 +1036,7 @@ namespace helengine.editor.tests {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(Core.Instance,
                 runtimeContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
             TextComponent loadedTextComponent = Assert.IsType<TextComponent>(
                 Assert.Single(loadedRoots[0].Components, component => component is TextComponent));
@@ -1221,7 +1221,7 @@ namespace helengine.editor.tests {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(Core.Instance,
                 runtimeContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
             MeshComponent firstMeshComponent = Assert.IsType<MeshComponent>(
@@ -1262,7 +1262,7 @@ namespace helengine.editor.tests {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(Core.Instance,
                 runtimeContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
             MeshComponent firstMeshComponent = Assert.IsType<MeshComponent>(
@@ -1345,7 +1345,7 @@ namespace helengine.editor.tests {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(Core.Instance,
                 runtimeContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
             CameraComponent cameraComponent = Assert.IsType<CameraComponent>(
@@ -1431,7 +1431,7 @@ namespace helengine.editor.tests {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(Core.Instance,
                 runtimeContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
             CameraComponent cameraComponent = Assert.IsType<CameraComponent>(
@@ -1491,7 +1491,7 @@ namespace helengine.editor.tests {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(Core.Instance,
                 new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath)));
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             Entity loadedRoot = Assert.Single(loadService.Load(packagedScene));
             CameraComponent cameraComponent = Assert.IsType<CameraComponent>(
                 Assert.Single(loadedRoot.Components, component => component is CameraComponent));
@@ -1566,7 +1566,7 @@ namespace helengine.editor.tests {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(Core.Instance,
                 runtimeContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
             MeshComponent firstMeshComponent = Assert.IsType<MeshComponent>(
@@ -1618,7 +1618,7 @@ namespace helengine.editor.tests {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(Core.Instance,
                 runtimeContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
             MeshComponent firstMeshComponent = Assert.IsType<MeshComponent>(
@@ -1671,7 +1671,7 @@ namespace helengine.editor.tests {
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(Core.Instance, runtimeContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
             MeshComponent firstMeshComponent = Assert.IsType<MeshComponent>(
@@ -1724,7 +1724,7 @@ namespace helengine.editor.tests {
 
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(Core.Instance, runtimeContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
             MeshComponent firstMeshComponent = Assert.IsType<MeshComponent>(
@@ -1981,7 +1981,7 @@ namespace helengine.editor.tests {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(Core.Instance,
                 runtimeContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
             Entity loadedRoot = Assert.Single(loadedRoots);
@@ -2165,7 +2165,7 @@ namespace helengine.editor.tests {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(Core.Instance,
                 runtimeContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
             Entity loadedRoot = Assert.Single(loadedRoots);
@@ -2466,7 +2466,7 @@ namespace helengine.editor.tests {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(Core.Instance,
                 runtimeContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
             PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
@@ -2519,7 +2519,7 @@ namespace helengine.editor.tests {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(Core.Instance,
                 runtimeContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
             DirectionalLightComponent directionalLightComponent = Assert.IsType<DirectionalLightComponent>(
@@ -2578,11 +2578,13 @@ namespace helengine.editor.tests {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(Core.Instance,
                 runtimeContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
             SpriteComponent loadedSpriteComponent = Assert.IsType<SpriteComponent>(
                 Assert.Single(loadedRoots[0].Components, component => component is SpriteComponent));
 
+            Assert.Equal(new float2(0.5f, 0.25f), loadedSpriteComponent.Pivot);
+            Assert.Equal(0.73f, loadedSpriteComponent.RotationRadians);
             Assert.NotNull(loadedSpriteComponent.Texture);
             Assert.Equal(new float4(0f, 0f, 1f, 1f), loadedSpriteComponent.SourceRect);
             Assert.Equal(new int2(32, 14), loadedSpriteComponent.Size);
@@ -2639,7 +2641,7 @@ namespace helengine.editor.tests {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(Core.Instance,
                 runtimeContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
             DirectionalLightComponent directionalLightComponent = Assert.IsType<DirectionalLightComponent>(
@@ -3603,7 +3605,7 @@ namespace helengine.editor.tests {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(Core.Instance,
                 runtimeContentManager);
             resolver.BeginOwnedAssetTracking();
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault());
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(Core.Instance, resolver, RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory()));
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
 
             RigidBody3DComponent loadedGroundRigidBody = Assert.IsType<RigidBody3DComponent>(
@@ -4029,7 +4031,7 @@ namespace helengine.editor.tests {
                 throw new ArgumentNullException(nameof(scriptTypeResolver));
             }
 
-            RuntimeComponentRegistry registry = RuntimeComponentRegistry.CreateDefault();
+            RuntimeComponentRegistry registry = RuntimeComponentRegistry.CreateDefault(new AutomaticRuntimeComponentDeserializerFactory());
             if (componentTypeIds == null) {
                 return registry;
             }
@@ -4985,6 +4987,8 @@ namespace helengine.editor.tests {
             SpriteComponent spriteComponent = new SpriteComponent {
                 SourceRect = new float4(0f, 0f, 1f, 1f),
                 Size = new int2(32, 14),
+                Pivot = new float2(0.5f, 0.25f),
+                RotationRadians = 0.73f,
                 Color = new byte4(249, 243, 255, 255),
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();

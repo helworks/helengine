@@ -232,16 +232,10 @@ namespace helengine.directx11 {
 
             var context = Device.ImmediateContext;
             ShaderResourceView resourceView;
-            int textureWidth;
-            int textureHeight;
             if (drawable.Texture is DirectX11TextureResource textureData) {
                 resourceView = textureData.Resource;
-                textureWidth = textureData.Width;
-                textureHeight = textureData.Height;
             } else if (drawable.Texture is DirectX11RenderTargetResource renderTargetData) {
                 resourceView = renderTargetData.ShaderResourceView;
-                textureWidth = renderTargetData.Width;
-                textureHeight = renderTargetData.Height;
             } else {
                 throw new InvalidOperationException("Sprite textures must be DirectX11 texture or render target resources.");
             }
@@ -250,21 +244,22 @@ namespace helengine.directx11 {
             context.PixelShader.SetSampler(0, SpriteSampler);
             TrackActiveTextureSlot(0);
 
-            int2 size = drawable.Size;
-            if (size.X <= 0 || size.Y <= 0) {
-                size = new int2(textureWidth, textureHeight);
-            }
-
-            float3 pos = drawable.Parent.Position;
-            float3 scale = drawable.Parent.Scale;
-            float width = size.X * scale.X;
-            float height = size.Y * scale.Y;
-            float3 rotatedRight = float4.RotateVector(float3.UnitX, drawable.Parent.Orientation);
-            float rotation = (float)Math.Atan2(rotatedRight.Y, rotatedRight.X);
+            SpriteQuad2D quad = Batch2DGeometry.ResolveSpriteQuad(drawable);
+            float2 right = quad.TopRight - quad.TopLeft;
+            float2 down = quad.BottomLeft - quad.TopLeft;
             byte4 color = drawable.Color;
 
-            float4x4 transposedWorld;
-            float4x4.Transpose(ref ProjectionMatrix2D, out transposedWorld);
+            // The shader supplies unit coordinates with Y negated. Preserve the complete
+            // resolved affine basis, including shear, before the screen projection.
+            float4x4 spriteWorld = float4x4.Identity;
+            spriteWorld.M11 = right.X;
+            spriteWorld.M12 = -right.Y;
+            spriteWorld.M21 = -down.X;
+            spriteWorld.M22 = down.Y;
+            spriteWorld.M41 = quad.TopLeft.X;
+            spriteWorld.M42 = -quad.TopLeft.Y;
+            float4x4.Multiply(ref spriteWorld, ref ProjectionMatrix2D, out float4x4 spriteProjection);
+            float4x4.Transpose(ref spriteProjection, out float4x4 transposedWorld);
 
             context.VertexShader.SetConstantBuffer(0, SpriteConstantBuffer);
             context.PixelShader.SetConstantBuffer(0, SpriteConstantBuffer);
@@ -272,8 +267,8 @@ namespace helengine.directx11 {
             var shaderData = new SpriteShaderData {
                 worldViewProj = transposedWorld,
                 sourceRect = drawable.SourceRect,
-                destRect = new float4(pos.X, pos.Y, width, height),
-                spriteTransform = new float4(rotation, 0f, 0f, 0f),
+                destRect = new float4(0f, 0f, 1f, 1f),
+                spriteTransform = new float4(0f, 0f, 0f, 0f),
                 color = new float4(color.X / 255.0f, color.Y / 255.0f, color.Z / 255.0f, color.W / 255.0f)
             };
             context.UpdateSubresource(ref shaderData, SpriteConstantBuffer);

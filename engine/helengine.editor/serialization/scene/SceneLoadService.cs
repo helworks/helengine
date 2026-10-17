@@ -93,7 +93,7 @@ namespace helengine.editor {
             }
 
             EntityReferenceTable = new SceneEntityReferenceTable();
-            ComponentExecutionContext.EnterEditor();
+            ComponentExecutionContext.EnterEditor(EditorComponentExecutionPolicy.Instance);
             try {
                 SceneEntityAsset[] rootEntities = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
                 List<EditorEntity> loadedRoots = new List<EditorEntity>(rootEntities.Length);

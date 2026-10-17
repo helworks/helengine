@@ -190,8 +190,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             symbols,
             symbol => Assert.Equal("DESKTOP_PLATFORM", symbol),
             symbol => Assert.Equal(EditorPlatformPreprocessorSymbolService.RuntimeSupportsRenderManager2DTextureReleaseFlushSymbol, symbol),
-            symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION", symbol),
-            symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", symbol));
+            symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION", symbol));
     }
 
     /// <summary>
@@ -214,8 +213,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             symbol => Assert.Equal(EditorPlatformPreprocessorSymbolService.RuntimeTextureResolutionCookedPlatformOwnedSymbol, symbol),
             symbol => Assert.Equal(EditorPlatformPreprocessorSymbolService.RuntimeModelResolutionCookedPlatformOwnedSymbol, symbol),
             symbol => Assert.Equal(EditorPlatformPreprocessorSymbolService.RuntimeAllowRootedPackagedPathsSymbol, symbol),
-            symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION", symbol),
-            symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", symbol));
+            symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION", symbol));
     }
 
     /// <summary>
@@ -1625,11 +1623,12 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Resolves the helengine repository root from the current test assembly location.
+    /// Resolves the active helengine checkout from the test source independently of artifact placement.
     /// </summary>
+    /// <param name="sourcePath">Compiler-supplied source file in the active checkout.</param>
     /// <returns>Absolute repository root path.</returns>
-    static string ResolveRepositoryRootPath() {
-        string currentPath = AppContext.BaseDirectory;
+    static string ResolveRepositoryRootPath([System.Runtime.CompilerServices.CallerFilePath] string sourcePath = "") {
+        string currentPath = Path.GetDirectoryName(sourcePath);
         while (!string.IsNullOrWhiteSpace(currentPath)) {
             string rootMarkerPath = Path.Combine(currentPath, "engine", "helengine.editor", "helengine.editor.csproj");
             if (File.Exists(rootMarkerPath)) {
@@ -1644,7 +1643,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             currentPath = parentDirectory.FullName;
         }
 
-        throw new InvalidOperationException("Could not resolve the helengine repository root from the current test assembly location.");
+        throw new InvalidOperationException("Could not resolve the helengine repository root from the test source location.");
     }
 
     /// <summary>

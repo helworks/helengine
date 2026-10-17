@@ -1,4 +1,3 @@
-#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
 namespace helengine {
     /// <summary>
     /// Restores the asset-backed members of packaged scripted-component payloads by decoding the encoded scene asset references
@@ -82,4 +81,3 @@ namespace helengine {
         }
     }
 }
-#endif

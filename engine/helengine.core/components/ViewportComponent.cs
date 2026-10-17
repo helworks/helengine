@@ -2,9 +2,7 @@ namespace helengine {
     /// <summary>
     /// Exposes a reusable logical viewport that can follow the current screen or a camera and can optionally scale one authored subtree against a reference canvas.
     /// </summary>
-#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
     [RunInEditor]
-#endif
     public class ViewportComponent : UpdateComponent, IAnchorBoundsProvider, ICameraBoundViewportOwner, IAuthoredLayoutOwner {
         /// <summary>
         /// Binding mode that resolves the viewport from the current screen size.
@@ -139,6 +137,9 @@ namespace helengine {
         /// Tracks whether the authored subtree should be re-evaluated on the next update.
         /// </summary>
         bool PendingScaleApplyValue;
+
+        /// <summary>Tracks whether snapshots already contain the authored values used by a completed scale pass since attachment.</summary>
+        bool HasAppliedScaleValue;
 
         /// <summary>
         /// Tracks the number of entities captured in the current viewport scaling snapshot set.
@@ -382,6 +383,7 @@ namespace helengine {
         /// <param name="entity">Entity receiving the component.</param>
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
+            HasAppliedScaleValue = false;
             RefreshSubscriptions();
             RebuildSnapshots();
             PendingScaleApplyValue = true;
@@ -438,6 +440,9 @@ namespace helengine {
 
         /// <summary>Captures the fully initialized scene subtree before its first published frame, including components added after this viewport attached.</summary>
         internal void PrepareSceneLayout() {
+            if (!HasAppliedScaleValue) {
+                ReleaseLayoutSnapshotItems();
+            }
             RebuildSnapshots();
             PendingScaleApplyValue = true;
             ApplyPendingSceneLayout();
@@ -1068,6 +1073,8 @@ namespace helengine {
             for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
                 LayoutSnapshotsValue[snapshotIndex].RefreshAnchoring();
             }
+
+            HasAppliedScaleValue = true;
 
             if (anchorSpaceChanged) {
                 RaiseAnchorBoundsChanged();

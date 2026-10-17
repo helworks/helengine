@@ -2,9 +2,7 @@ namespace helengine {
     /// <summary>
     /// Renders one reusable checkbox control with hover, press, and checked-state visuals.
     /// </summary>
-#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
     [RunInEditor]
-#endif
     public class CheckBoxComponent : Component {
         /// <summary>
         /// Size of the checkbox in pixels.

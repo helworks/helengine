@@ -118,6 +118,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.player", "..\engi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.player.tests", "..\engine\helengine.player.tests\helengine.player.tests.csproj", "{386EF0A8-A2B3-4F10-B77E-E7B860CCC0AD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.managed", "..\engine\helengine.managed\helengine.managed.csproj", "{16835354-14AF-41FA-92B5-AB299C6FDA8D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -704,6 +706,18 @@ Global
 		{386EF0A8-A2B3-4F10-B77E-E7B860CCC0AD}.Release|x64.Build.0 = Release|Any CPU
 		{386EF0A8-A2B3-4F10-B77E-E7B860CCC0AD}.Release|x86.ActiveCfg = Release|Any CPU
 		{386EF0A8-A2B3-4F10-B77E-E7B860CCC0AD}.Release|x86.Build.0 = Release|Any CPU
+		{16835354-14AF-41FA-92B5-AB299C6FDA8D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{16835354-14AF-41FA-92B5-AB299C6FDA8D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{16835354-14AF-41FA-92B5-AB299C6FDA8D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{16835354-14AF-41FA-92B5-AB299C6FDA8D}.Debug|x64.Build.0 = Debug|Any CPU
+		{16835354-14AF-41FA-92B5-AB299C6FDA8D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{16835354-14AF-41FA-92B5-AB299C6FDA8D}.Debug|x86.Build.0 = Debug|Any CPU
+		{16835354-14AF-41FA-92B5-AB299C6FDA8D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{16835354-14AF-41FA-92B5-AB299C6FDA8D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{16835354-14AF-41FA-92B5-AB299C6FDA8D}.Release|x64.ActiveCfg = Release|Any CPU
+		{16835354-14AF-41FA-92B5-AB299C6FDA8D}.Release|x64.Build.0 = Release|Any CPU
+		{16835354-14AF-41FA-92B5-AB299C6FDA8D}.Release|x86.ActiveCfg = Release|Any CPU
+		{16835354-14AF-41FA-92B5-AB299C6FDA8D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -739,6 +753,7 @@ Global
 		{6F5D6E5C-61D6-4627-9E9E-DC1CE55A7706} = {742CE7AA-AD16-402E-9E4E-D786B6889BFE}
 		{EEACFE8C-1462-48F2-BC70-97570176F77A} = {D585295F-7994-3649-1065-7AA403C41681}
 		{816DA078-1D07-4FC5-8F42-D2BB54438B64} = {D585295F-7994-3649-1065-7AA403C41681}
+		{16835354-14AF-41FA-92B5-AB299C6FDA8D} = {D585295F-7994-3649-1065-7AA403C41681}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {83CB65B8-011F-4ED7-BCD3-A6CFA935EF7E}

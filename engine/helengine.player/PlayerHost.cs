@@ -83,7 +83,8 @@ namespace helengine.player {
                 Application.DoEvents();
                 new PlayerWindowActivator(new Win32PlayerForegroundWindow(), Console.Out).Activate(window.Handle);
                 InputBackendWindows desktopInput = new InputBackendWindows(window.Handle);
-                PlayerPlatformInputBackend input = CreatePlatformInput(desktopInput, options.InputDevices);
+                IInputBackend renderInput = new PlayerMouseCoordinateInputBackend(desktopInput, renderSize, () => window.ClientSize);
+                PlayerPlatformInputBackend input = CreatePlatformInput(renderInput, desktopInput, options.InputDevices);
 
                 IContentStreamSource source = new AliasedContentStreamSource(
                     new HostFileSystemContentStreamSource(options.ContentRootPath),
@@ -96,6 +97,7 @@ namespace helengine.player {
                     AssetContentManagerConfigurator = new PlayerAdapterContentManagerConfigurator(adapter),
                     PackagedAssetPathPolicy = new ContentRootPackagedAssetPathPolicy(),
                     SceneCatalog = sceneCatalog,
+                    RuntimeComponentDeserializerFactory = new AutomaticRuntimeComponentDeserializerFactory(),
                     PlatformSettingsConfiguration = runtimeSettings,
                     PlatformSettingsBackend = adapter as IPlatformSettingsBackend
                 };
@@ -131,10 +133,11 @@ namespace helengine.player {
         /// devices, the desktop controller availability and the keyboard pad layout to stdout, where the editor shows
         /// them as <c>[player]</c> lines (the editor adds that prefix).
         /// </summary>
-        /// <param name="desktopInput">Desktop backend bound to the player window.</param>
+        /// <param name="desktopInput">Desktop input with mouse positions mapped into render pixels.</param>
+        /// <param name="foreground">Focus state of the actual desktop window.</param>
         /// <param name="devices">Devices the selected platform declares.</param>
         /// <returns>The filtering backend handed to the core.</returns>
-        static PlayerPlatformInputBackend CreatePlatformInput(InputBackendWindows desktopInput, PlayerInputDevices devices) {
+        static PlayerPlatformInputBackend CreatePlatformInput(IInputBackend desktopInput, IInputForegroundState foreground, PlayerInputDevices devices) {
             XInputPlayerGamepadReader controller = new XInputPlayerGamepadReader();
             PlayerKeyboardGamepadMap keyboardGamepad = PlayerKeyboardGamepadMap.CreateDefault();
             Console.WriteLine("input devices: " + PlayerInputDevicesText.Format(devices));
@@ -148,7 +151,7 @@ namespace helengine.player {
                 }
             }
 
-            return new PlayerPlatformInputBackend(desktopInput, desktopInput, devices, controller, keyboardGamepad);
+            return new PlayerPlatformInputBackend(desktopInput, foreground, devices, controller, keyboardGamepad);
         }
 
         /// <summary>

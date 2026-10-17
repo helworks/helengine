@@ -51,6 +51,21 @@ namespace helengine.editor.windows.tests.rendering {
             Assert.Null(failure);
         }
 
+        [Theory]
+        [InlineData(30d, 1.5f, 0.75f)]
+        [InlineData(90d, 1f, 1f)]
+        [InlineData(-45d, -1.25f, 0.75f)]
+        public void ScalarRotationAndCenterPivot_PreserveParentAffineGeometry(double degrees, float scaleX, float scaleY) {
+            Exception failure = null;
+            Thread thread = new Thread(() => {
+                try { AssertRotatedSpriteCoverage(degrees, 32f, 32f, true, scaleX, scaleY); }
+                catch (Exception exception) { failure = exception; }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start(); thread.Join();
+            Assert.Null(failure);
+        }
+
         /// <summary>
         /// Draws a two-colour sprite (left half red, right half blue) under a rotated parent and checks every pixel
         /// of the target against the PS2 corner quad, so both the pivot and the rotation direction are verified.
@@ -58,7 +73,7 @@ namespace helengine.editor.windows.tests.rendering {
         /// <param name="degrees">Parent rotation around Z in degrees.</param>
         /// <param name="parentX">Parent X position in target pixels.</param>
         /// <param name="parentY">Parent Y position in target pixels.</param>
-        static void AssertRotatedSpriteCoverage(double degrees, float parentX, float parentY) {
+        static void AssertRotatedSpriteCoverage(double degrees, float parentX, float parentY, bool scalar = false, float scaleX = 1f, float scaleY = 1f) {
             using DirectX11Renderer3D renderer = new DirectX11Renderer3D();
             using Form window = new Form {
                 ClientSize = new Size(TargetSize, TargetSize), ShowInTaskbar = false,
@@ -86,23 +101,32 @@ namespace helengine.editor.windows.tests.rendering {
             pivot.LocalPosition = new float3(parentX, parentY, 0);
             float3 zAxis = new float3(0f, 0f, 1f);
             float4.CreateFromAxisAngle(ref zAxis, (float)(degrees * Math.PI / 180.0), out float4 orientation);
-            pivot.LocalOrientation = orientation;
+            pivot.LocalOrientation = scalar ? float4.Identity : orientation;
+            pivot.LocalScale = new float3(scaleX, scaleY, 1f);
             Entity spriteEntity = CreateEntity(core);
             pivot.AddChild(spriteEntity);
-            spriteEntity.LocalPosition = new float3(-SpriteWidth * 0.5f, -SpriteHeight * 0.5f, 0);
+            spriteEntity.LocalPosition = scalar ? float3.Zero : new float3(-SpriteWidth * 0.5f, -SpriteHeight * 0.5f, 0);
             spriteEntity.AddComponent(new SpriteComponent {
-                Texture = halves, Size = new int2(SpriteWidth, SpriteHeight)
+                Texture = halves, Size = new int2(SpriteWidth, SpriteHeight),
+                Pivot = scalar ? new float2(0.5f, 0.5f) : new float2(0f, 0f),
+                RotationRadians = scalar ? (float)(degrees * Math.PI / 180d) : 0f
             });
 
             renderer.Draw();
 
             float3 origin = spriteEntity.Position;
-            float3 rotatedRight = float4.RotateVector(float3.UnitX, spriteEntity.Orientation);
-            double rotation = Math.Atan2(rotatedRight.Y, rotatedRight.X);
-            double rightX = Math.Cos(rotation);
-            double rightY = Math.Sin(rotation);
-            double downX = -Math.Sin(rotation);
-            double downY = Math.Cos(rotation);
+            float4x4 world = spriteEntity.WorldTransformMatrix;
+            double angle = scalar ? degrees * Math.PI / 180d : 0d;
+            double cosine = Math.Cos(angle), sine = Math.Sin(angle);
+            double rightX = cosine * world.M11 + sine * world.M21;
+            double rightY = cosine * world.M12 + sine * world.M22;
+            double downX = -sine * world.M11 + cosine * world.M21;
+            double downY = -sine * world.M12 + cosine * world.M22;
+            if (scalar) {
+                origin.X -= (float)(rightX * SpriteWidth * 0.5 + downX * SpriteHeight * 0.5);
+                origin.Y -= (float)(rightY * SpriteWidth * 0.5 + downY * SpriteHeight * 0.5);
+            }
+            double determinant = rightX * downY - rightY * downX;
             byte4[,] pixels = ReadPixels(target, renderer.Device);
             byte4 red = new byte4(255, 0, 0, 255);
             byte4 blue = new byte4(0, 0, 255, 255);
@@ -114,8 +138,8 @@ namespace helengine.editor.windows.tests.rendering {
                 for (int x = 0; x < TargetSize; x++) {
                     double offsetX = x + 0.5 - origin.X;
                     double offsetY = y + 0.5 - origin.Y;
-                    double localX = offsetX * rightX + offsetY * rightY;
-                    double localY = offsetX * downX + offsetY * downY;
+                    double localX = (offsetX * downY - offsetY * downX) / determinant;
+                    double localY = (offsetY * rightX - offsetX * rightY) / determinant;
                     bool nearEdge = Math.Abs(localX) < EdgeTolerance || Math.Abs(localX - SpriteWidth) < EdgeTolerance
                         || Math.Abs(localY) < EdgeTolerance || Math.Abs(localY - SpriteHeight) < EdgeTolerance
                         || Math.Abs(localX - SpriteWidth * 0.5) < EdgeTolerance;

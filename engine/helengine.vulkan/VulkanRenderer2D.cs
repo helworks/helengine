@@ -384,16 +384,7 @@ namespace helengine.vulkan {
                 throw new InvalidOperationException("Sprite texture was not created by the Vulkan renderer.");
             }
 
-            int2 size = sprite.Size;
-            if (size.X <= 0 || size.Y <= 0) {
-                size = new int2(texture.Width, texture.Height);
-            }
-
-            float3 position = sprite.Parent.Position;
-            float3 scale = sprite.Parent.Scale;
-            float3 rotatedRight = float4.RotateVector(float3.UnitX, sprite.Parent.Orientation);
-            float rotation = (float)Math.Atan2(rotatedRight.Y, rotatedRight.X);
-            DrawQuad(texture, position.X, position.Y, size.X * scale.X, size.Y * scale.Y, sprite.SourceRect, sprite.Color, rotation);
+            DrawQuad(texture, Batch2DGeometry.ResolveSpriteQuad(sprite), sprite.SourceRect, sprite.Color);
         }
 
         /// <summary>
@@ -1552,31 +1543,29 @@ namespace helengine.vulkan {
         /// <param name="color">Vertex color modulation.</param>
         /// <param name="rotation">Rotation, in radians, applied around the quad's top-left origin.</param>
         unsafe void DrawQuad(VulkanTextureResource texture, double x, double y, double width, double height, float4 uvRect, byte4 color, float rotation) {
+            double rotationSin = Math.Sin(rotation);
+            double rotationCos = Math.Cos(rotation);
+            float2 origin = new float2((float)x, (float)y);
+            float2 right = new float2((float)(rotationCos * width), (float)(rotationSin * width));
+            float2 down = new float2((float)(-rotationSin * height), (float)(rotationCos * height));
+            DrawQuad(texture, new SpriteQuad2D {
+                TopLeft = origin, TopRight = origin + right,
+                BottomRight = origin + right + down, BottomLeft = origin + down
+            }, uvRect, color);
+        }
+
+        /// <summary>Uploads the shared resolved sprite corners without decomposing their affine geometry.</summary>
+        unsafe void DrawQuad(VulkanTextureResource texture, SpriteQuad2D quad, float4 uvRect, byte4 color) {
             if (CurrentViewportWidth <= 0.0 || CurrentViewportHeight <= 0.0) {
                 return;
             }
-
             if (RecordedQuadCount >= MaxQuadsPerFrame) {
                 throw new InvalidOperationException("Exceeded the Vulkan 2D per-frame quad capacity.");
             }
-
-            // The quad rotates around its transformed top-left origin, matching the PS2 corner geometry:
-            // right = (cos r, sin r) and down = (-sin r, cos r) in Y-down screen space.
-            double rotationSin = Math.Sin(rotation);
-            double rotationCos = Math.Cos(rotation);
-            double rightX = rotationCos * width;
-            double rightY = rotationSin * width;
-            double downX = -rotationSin * height;
-            double downY = rotationCos * height;
-
-            double topLeftX = x;
-            double topLeftY = y;
-            double topRightX = x + rightX;
-            double topRightY = y + rightY;
-            double bottomRightX = x + rightX + downX;
-            double bottomRightY = y + rightY + downY;
-            double bottomLeftX = x + downX;
-            double bottomLeftY = y + downY;
+            double topLeftX = quad.TopLeft.X, topLeftY = quad.TopLeft.Y;
+            double topRightX = quad.TopRight.X, topRightY = quad.TopRight.Y;
+            double bottomRightX = quad.BottomRight.X, bottomRightY = quad.BottomRight.Y;
+            double bottomLeftX = quad.BottomLeft.X, bottomLeftY = quad.BottomLeft.Y;
 
             float ndcTopLeftX = (float)ComputeNdcX(topLeftX);
             float ndcTopLeftY = (float)ComputeNdcY(topLeftY);

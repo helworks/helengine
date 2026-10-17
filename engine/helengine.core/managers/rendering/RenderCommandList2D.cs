@@ -24,7 +24,7 @@ namespace helengine {
         readonly List<RuntimeTexture> QuadTextures;
 
         /// <summary>
-        /// Destination bounds used by textured-quad commands.
+        /// Legacy destination bounds, or axis-aligned enclosures for resolved textured quads.
         /// </summary>
         readonly List<float4> QuadBounds;
 
@@ -39,9 +39,12 @@ namespace helengine {
         readonly List<byte4> QuadColors;
 
         /// <summary>
-        /// Clockwise rotation angles, in radians, used by textured-quad commands.
+        /// Legacy rotation metadata; zero for resolved geometry, whose corners are authoritative.
         /// </summary>
         readonly List<float> QuadRotations;
+
+        /// <summary>Resolved sprite corners consumed directly by every backend.</summary>
+        readonly List<SpriteQuad2D> QuadGeometry;
 
         /// <summary>
         /// Runtime textures used by glyph-quad commands.
@@ -129,6 +132,7 @@ namespace helengine {
             QuadSourceRects = new List<float4>(initialCapacity);
             QuadColors = new List<byte4>(initialCapacity);
             QuadRotations = new List<float>(initialCapacity);
+            QuadGeometry = new List<SpriteQuad2D>(initialCapacity);
             GlyphTextures = new List<RuntimeTexture>(initialCapacity);
             GlyphBounds = new List<float4>(initialCapacity);
             GlyphSourceRects = new List<float4>(initialCapacity);
@@ -173,6 +177,7 @@ namespace helengine {
             NativeOwnership.Delete(QuadSourceRects);
             NativeOwnership.Delete(QuadColors);
             NativeOwnership.Delete(QuadRotations);
+            NativeOwnership.Delete(QuadGeometry);
             NativeOwnership.Delete(GlyphTextures);
             NativeOwnership.Delete(GlyphBounds);
             NativeOwnership.Delete(GlyphSourceRects);
@@ -213,6 +218,7 @@ namespace helengine {
             QuadSourceRects.Clear();
             QuadColors.Clear();
             QuadRotations.Clear();
+            QuadGeometry.Clear();
             GlyphOverwriteIndex = -1;
             RoundedRectBounds.Clear();
             RoundedRectRadii.Clear();
@@ -250,18 +256,59 @@ namespace helengine {
         /// <param name="color">Resolved tint color.</param>
         /// <param name="rotationRadians">Clockwise rotation angle, in radians, around the quad center.</param>
         public void AddTexturedQuad(RuntimeTexture texture, float4 bounds, float4 sourceRect, byte4 color, float rotationRadians) {
+            Batch2DGeometry.CreateQuad(bounds.X, bounds.Y, bounds.Z, bounds.W, 0d, rotationRadians,
+                sourceRect, new float4(1f, 1f, 1f, 1f), out Batch2DVertex topLeft,
+                out Batch2DVertex topRight, out Batch2DVertex bottomRight, out Batch2DVertex bottomLeft);
+            SpriteQuad2D geometry = new SpriteQuad2D {
+                TopLeft = new float2(topLeft.Position.X, topLeft.Position.Y),
+                TopRight = new float2(topRight.Position.X, topRight.Position.Y),
+                BottomRight = new float2(bottomRight.Position.X, bottomRight.Position.Y),
+                BottomLeft = new float2(bottomLeft.Position.X, bottomLeft.Position.Y)
+            };
+            AddTexturedQuadPayload(texture, bounds, sourceRect, color, rotationRadians, geometry);
+        }
+
+        /// <summary>Adds an already resolved sprite quad, without reconstructing angles or recomputing its corners.</summary>
+        /// <param name="texture">Texture sampled by the quad.</param>
+        /// <param name="geometry">Resolved corners retaining the source UV associations.</param>
+        /// <param name="sourceRect">Normalized texture source rectangle.</param>
+        /// <param name="color">Straight-alpha byte tint.</param>
+        public void AddTexturedQuadGeometry(RuntimeTexture texture, SpriteQuad2D geometry, float4 sourceRect, byte4 color) {
+            float left = Math.Min(Math.Min(geometry.TopLeft.X, geometry.TopRight.X), Math.Min(geometry.BottomLeft.X, geometry.BottomRight.X));
+            float top = Math.Min(Math.Min(geometry.TopLeft.Y, geometry.TopRight.Y), Math.Min(geometry.BottomLeft.Y, geometry.BottomRight.Y));
+            float right = Math.Max(Math.Max(geometry.TopLeft.X, geometry.TopRight.X), Math.Max(geometry.BottomLeft.X, geometry.BottomRight.X));
+            float bottom = Math.Max(Math.Max(geometry.TopLeft.Y, geometry.TopRight.Y), Math.Max(geometry.BottomLeft.Y, geometry.BottomRight.Y));
+            AddTexturedQuadPayload(texture, new float4(left, top, right - left, bottom - top), sourceRect, color, 0f, geometry);
+        }
+
+        /// <summary>Stores the resolved geometry alongside legacy metadata and appends its command.</summary>
+        /// <param name="texture">Required texture sampled by the quad.</param>
+        /// <param name="bounds">Legacy destination bounds or resolved quad's axis-aligned enclosure.</param>
+        /// <param name="sourceRect">Texture source rectangle.</param>
+        /// <param name="color">Byte tint.</param>
+        /// <param name="rotationRadians">Legacy angle, or zero for an already resolved quad.</param>
+        /// <param name="geometry">Authoritative resolved corners.</param>
+        void AddTexturedQuadPayload(RuntimeTexture texture, float4 bounds, float4 sourceRect, byte4 color,
+            float rotationRadians, SpriteQuad2D geometry) {
             if (texture == null) {
                 throw new ArgumentNullException(nameof(texture));
             }
-
             int payloadIndex = QuadTextures.Count;
             QuadTextures.Add(texture);
             QuadBounds.Add(bounds);
             QuadSourceRects.Add(sourceRect);
             QuadColors.Add(color);
             QuadRotations.Add(rotationRadians);
+            QuadGeometry.Add(geometry);
             CommandTypes.Add(RenderCommand2DType.TexturedQuad);
             PayloadIndices.Add(payloadIndex);
+        }
+
+        /// <summary>Gets authoritative destination corners without any backend transform reconstruction.</summary>
+        /// <param name="payloadIndex">Textured-quad payload index.</param>
+        /// <returns>Resolved corners with stable texture-coordinate associations.</returns>
+        public SpriteQuad2D GetTexturedQuadGeometry(int payloadIndex) {
+            return QuadGeometry[payloadIndex];
         }
 
         /// <summary>

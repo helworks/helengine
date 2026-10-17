@@ -18,7 +18,7 @@ namespace helengine.editor.tests {
         /// Initializes a core instance that can evaluate component registration and updates.
         /// </summary>
         public EditorUpdateComponentExecutionPolicyTests() {
-            TempRootPath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "artifacts", "editor-execution-tests", Guid.NewGuid().ToString("N"));
+            TempRootPath = Path.Combine(Path.GetTempPath(), "editor-execution-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
 
             CoreValue = new Core(new CoreInitializationOptions {
@@ -303,6 +303,204 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures nested authoring scopes restore their predecessor's policy and eventually return the thread to runtime execution.
+        /// </summary>
+        [Fact]
+        public void NestedEditorScopes_RestorePreviousPolicyAndRuntimeMode() {
+            using Entity entity = new Entity(CoreValue);
+            entity.InitComponents();
+            EditorPlainLifecycleProbeComponent component = new EditorPlainLifecycleProbeComponent();
+            FixedComponentExecutionPolicy innerPolicy = new FixedComponentExecutionPolicy(true);
+            Assert.Equal(ComponentExecutionMode.Runtime, ComponentExecutionContext.CurrentMode);
+            Assert.Null(ComponentExecutionContext.CurrentPolicy);
+
+            ComponentExecutionContext.EnterEditor(EditorComponentExecutionPolicy.Instance);
+            try {
+                Assert.Same(EditorComponentExecutionPolicy.Instance, ComponentExecutionContext.CurrentPolicy);
+                Assert.False(ComponentExecutionPolicy.ShouldRunComponentLifecycle(component, entity));
+                ComponentExecutionContext.EnterEditor(innerPolicy);
+                try {
+                    Assert.Equal(ComponentExecutionMode.Editor, ComponentExecutionContext.CurrentMode);
+                    Assert.Same(innerPolicy, ComponentExecutionContext.CurrentPolicy);
+                    Assert.True(ComponentExecutionPolicy.ShouldRunComponentLifecycle(component, entity));
+                } finally {
+                    ComponentExecutionContext.ExitEditor();
+                }
+
+                Assert.Same(EditorComponentExecutionPolicy.Instance, ComponentExecutionContext.CurrentPolicy);
+                Assert.False(ComponentExecutionPolicy.ShouldRunComponentLifecycle(component, entity));
+            } finally {
+                ComponentExecutionContext.ExitEditor();
+            }
+
+            Assert.Equal(ComponentExecutionMode.Runtime, ComponentExecutionContext.CurrentMode);
+            Assert.Null(ComponentExecutionContext.CurrentPolicy);
+            Assert.True(ComponentExecutionPolicy.ShouldRunComponentLifecycle(component, entity));
+            Assert.Equal(1, innerPolicy.EvaluationCount);
+        }
+
+        /// <summary>
+        /// Ensures a scope without an explicit policy cannot silently enter editor mode or alter an enclosing scope.
+        /// </summary>
+        [Fact]
+        public void EnterEditor_WithNullPolicy_RejectsEntryAndPreservesEnclosingScope() {
+            ComponentExecutionContext.EnterEditor(EditorComponentExecutionPolicy.Instance);
+            try {
+                Assert.Throws<ArgumentNullException>(() => ComponentExecutionContext.EnterEditor(null));
+                Assert.Same(EditorComponentExecutionPolicy.Instance, ComponentExecutionContext.CurrentPolicy);
+                Assert.Equal(ComponentExecutionMode.Editor, ComponentExecutionContext.CurrentMode);
+            } finally {
+                ComponentExecutionContext.ExitEditor();
+            }
+
+            Assert.Null(ComponentExecutionContext.CurrentPolicy);
+            Assert.Equal(ComponentExecutionMode.Runtime, ComponentExecutionContext.CurrentMode);
+        }
+
+        /// <summary>
+        /// Ensures an unmatched scope exit fails without changing normal runtime state.
+        /// </summary>
+        [Fact]
+        public void ExitEditor_WithoutMatchingEntry_Throws() {
+            Assert.Throws<InvalidOperationException>(() => ComponentExecutionContext.ExitEditor());
+            Assert.Null(ComponentExecutionContext.CurrentPolicy);
+            Assert.Equal(ComponentExecutionMode.Runtime, ComponentExecutionContext.CurrentMode);
+        }
+
+        /// <summary>
+        /// Ensures a worker thread cannot inherit or replace an editor scope owned by the calling thread.
+        /// </summary>
+        [Fact]
+        public void EditorScope_DoesNotFlowToAnotherThread() {
+            ComponentExecutionMode workerMode = ComponentExecutionMode.Editor;
+            IComponentExecutionPolicy workerPolicy = EditorComponentExecutionPolicy.Instance;
+            FixedComponentExecutionPolicy threadPolicy = new FixedComponentExecutionPolicy(true);
+            IComponentExecutionPolicy workerActivePolicy = null;
+            IComponentExecutionPolicy workerFinalPolicy = EditorComponentExecutionPolicy.Instance;
+            ComponentExecutionContext.EnterEditor(EditorComponentExecutionPolicy.Instance);
+            try {
+                Thread worker = new Thread(() => {
+                    workerMode = ComponentExecutionContext.CurrentMode;
+                    workerPolicy = ComponentExecutionContext.CurrentPolicy;
+                    ComponentExecutionContext.EnterEditor(threadPolicy);
+                    try {
+                        workerActivePolicy = ComponentExecutionContext.CurrentPolicy;
+                    } finally {
+                        ComponentExecutionContext.ExitEditor();
+                    }
+                    workerFinalPolicy = ComponentExecutionContext.CurrentPolicy;
+                });
+                worker.Start();
+                worker.Join();
+
+                Assert.Equal(ComponentExecutionMode.Runtime, workerMode);
+                Assert.Null(workerPolicy);
+                Assert.Same(threadPolicy, workerActivePolicy);
+                Assert.Null(workerFinalPolicy);
+                Assert.Same(EditorComponentExecutionPolicy.Instance, ComponentExecutionContext.CurrentPolicy);
+            } finally {
+                ComponentExecutionContext.ExitEditor();
+            }
+        }
+
+        /// <summary>
+        /// Ensures a runtime host takes the direct lifecycle path even when its options contain an editor policy.
+        /// </summary>
+        [Fact]
+        public void RuntimeHost_DoesNotEvaluateConfiguredEditorPolicy() {
+            FixedComponentExecutionPolicy policy = new FixedComponentExecutionPolicy(false);
+            CoreValue.InitializationOptions.EditorComponentExecutionPolicy = policy;
+            using Entity entity = new Entity(CoreValue);
+            entity.InitComponents();
+
+            Assert.True(ComponentExecutionPolicy.ShouldRunComponentLifecycle(new EditorPlainLifecycleProbeComponent(), entity));
+            Assert.Equal(0, policy.EvaluationCount);
+        }
+
+        /// <summary>
+        /// Ensures the innermost explicit scope overrides the editor core's policy until the scope is exited.
+        /// </summary>
+        [Fact]
+        public void EditorScope_TakesPrecedenceOverOwningCorePolicy() {
+            using EditorCore editor = new EditorCore(null);
+            editor.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            FixedComponentExecutionPolicy ownerPolicy = new FixedComponentExecutionPolicy(false);
+            FixedComponentExecutionPolicy scopePolicy = new FixedComponentExecutionPolicy(true);
+            editor.InitializationOptions.EditorComponentExecutionPolicy = ownerPolicy;
+            using Entity entity = new Entity(editor);
+            entity.InitComponents();
+            EditorPlainLifecycleProbeComponent component = new EditorPlainLifecycleProbeComponent();
+            ComponentExecutionContext.EnterEditor(scopePolicy);
+            try {
+                Assert.True(ComponentExecutionPolicy.ShouldRunComponentLifecycle(component, entity));
+                Assert.Equal(0, ownerPolicy.EvaluationCount);
+            } finally {
+                ComponentExecutionContext.ExitEditor();
+            }
+
+            Assert.False(ComponentExecutionPolicy.ShouldRunComponentLifecycle(component, entity));
+            Assert.Equal(1, ownerPolicy.EvaluationCount);
+            Assert.Equal(1, scopePolicy.EvaluationCount);
+        }
+
+        /// <summary>
+        /// Ensures editor mode cannot silently suppress or permit lifecycle execution when neither the scope nor its owner supplies a policy.
+        /// </summary>
+        [Fact]
+        public void EditorHost_WithoutConfiguredPolicy_FailsExplicitly() {
+            using EditorCore editor = new EditorCore(null);
+            editor.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            using Entity entity = new Entity(editor);
+            entity.InitComponents();
+            editor.InitializationOptions.EditorComponentExecutionPolicy = null;
+            try {
+                Assert.Throws<InvalidOperationException>(() => ComponentExecutionPolicy.ShouldRunComponentLifecycle(new EditorPlainLifecycleProbeComponent(), entity));
+            } finally {
+                editor.InitializationOptions.EditorComponentExecutionPolicy = EditorComponentExecutionPolicy.Instance;
+            }
+        }
+
+        /// <summary>
+        /// Ensures editor defaults exist at construction and explicitly supplied host hooks survive initialization unchanged.
+        /// </summary>
+        [Fact]
+        public void EditorCore_ConfiguresDefaultsAndPreservesExplicitHostHooks() {
+            using EditorCore editor = new EditorCore(null);
+            Assert.Same(EditorComponentExecutionPolicy.Instance, editor.InitializationOptions.EditorComponentExecutionPolicy);
+            Assert.IsType<AutomaticRuntimeComponentDeserializerFactory>(editor.InitializationOptions.RuntimeComponentDeserializerFactory);
+            FixedComponentExecutionPolicy policy = new FixedComponentExecutionPolicy(false);
+            AutomaticRuntimeComponentDeserializerFactory factory = new AutomaticRuntimeComponentDeserializerFactory();
+            CoreInitializationOptions options = new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath),
+                EditorComponentExecutionPolicy = policy,
+                RuntimeComponentDeserializerFactory = factory
+            };
+
+            editor.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), options);
+
+            Assert.Same(options, editor.InitializationOptions);
+            Assert.Same(policy, editor.InitializationOptions.EditorComponentExecutionPolicy);
+            Assert.Same(factory, editor.InitializationOptions.RuntimeComponentDeserializerFactory);
+        }
+
+        /// <summary>
+        /// Ensures caller-owned initialization options receive the editor hooks when the caller leaves them unspecified.
+        /// </summary>
+        [Fact]
+        public void EditorCore_InitializeWithFreshOptions_ConfiguresAbsentHostHooks() {
+            using EditorCore editor = new EditorCore(null);
+            CoreInitializationOptions options = new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
+            };
+
+            editor.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), options);
+
+            Assert.Same(options, editor.InitializationOptions);
+            Assert.Same(EditorComponentExecutionPolicy.Instance, options.EditorComponentExecutionPolicy);
+            Assert.IsType<AutomaticRuntimeComponentDeserializerFactory>(options.RuntimeComponentDeserializerFactory);
+        }
+
+        /// <summary>
         /// Creates one editor scene entity whose update-driven behavior should stay inactive during authoring.
         /// </summary>
         /// <returns>Configured user scene entity.</returns>
@@ -323,7 +521,7 @@ namespace helengine.editor.tests {
                 throw new ArgumentNullException(nameof(action));
             }
 
-            ComponentExecutionContext.EnterEditor();
+            ComponentExecutionContext.EnterEditor(EditorComponentExecutionPolicy.Instance);
             try {
                 action();
             } finally {

@@ -2,9 +2,7 @@ namespace helengine {
     /// <summary>
     /// Renders text using a provided font asset via the 2D render manager.
     /// </summary>
-#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
     [RunInEditor]
-#endif
     public class TextComponent : Component, ITextDrawable2D, IAnchorSizeProvider {
         /// <summary>
         /// Stores the current text content so selection state can clamp itself when the text changes.

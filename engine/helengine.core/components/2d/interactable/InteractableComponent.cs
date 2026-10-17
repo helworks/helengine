@@ -2,9 +2,7 @@ namespace helengine {
     /// <summary>
     /// Provides a hit-testable region that raises pointer events.
     /// </summary>
-#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
     [RunInEditor]
-#endif
     public class InteractableComponent : Component, ITouchInteractable2D {
         /// <summary>Tracks whether one contact currently drives this control's legacy cursor callbacks.</summary>
         bool HasCursorTouch;

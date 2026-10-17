@@ -2,9 +2,7 @@ namespace helengine {
     /// <summary>
     /// Simple text box with placeholder, blinking cursor, and basic keyboard input handling.
     /// </summary>
-#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
     [RunInEditor]
-#endif
     public class TextBoxComponent : Component, IFocusTarget {
         /// <summary>
         /// Horizontal padding between the textbox border and its text content.
@@ -896,9 +894,7 @@ namespace helengine {
     /// <summary>
     /// Helper update component that forwards updates to its owning text box.
     /// </summary>
-#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
     [RunInEditor]
-#endif
     class TextBoxUpdateComponent : UpdateComponent {
         TextBoxComponent TextBox;
 

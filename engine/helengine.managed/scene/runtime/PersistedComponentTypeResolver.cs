@@ -1,4 +1,3 @@
-#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
 using System.Reflection;
 
 namespace helengine {
@@ -196,20 +195,3 @@ namespace helengine {
         }
     }
 }
-#else
-namespace helengine {
-    /// <summary>
-    /// Provides a native-safe persisted component type resolver stub for player builds where runtime reflection is disabled.
-    /// </summary>
-    public static class PersistedComponentTypeResolver {
-        /// <summary>
-        /// Returns null because player builds with runtime reflection disabled do not resolve component types dynamically.
-        /// </summary>
-        /// <param name="componentTypeId">Persisted component type identifier that would otherwise be resolved.</param>
-        /// <returns>Always null in native player builds.</returns>
-        public static Type TryResolve(string componentTypeId) {
-            return null;
-        }
-    }
-}
-#endif

@@ -16,7 +16,9 @@ namespace helengine {
         /// <param name="project">The project to open in the editor.</param>
         public EditorCore(Project project)
             : base(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
+                EditorComponentExecutionPolicy = global::helengine.editor.EditorComponentExecutionPolicy.Instance,
+                RuntimeComponentDeserializerFactory = new AutomaticRuntimeComponentDeserializerFactory()
             }) {
             Project = project;
             PhysicsSimulationIsPaused = true;
@@ -71,6 +73,16 @@ namespace helengine {
             IInputBackend input,
             PlatformInfo platformInfo,
             CoreInitializationOptions options) {
+            if (options == null) {
+                throw new ArgumentNullException(nameof(options));
+            }
+            if (options.EditorComponentExecutionPolicy == null) {
+                options.EditorComponentExecutionPolicy = global::helengine.editor.EditorComponentExecutionPolicy.Instance;
+            }
+            if (options.RuntimeComponentDeserializerFactory == null) {
+                options.RuntimeComponentDeserializerFactory = new AutomaticRuntimeComponentDeserializerFactory();
+            }
+
             SceneEntityIdAllocator = new global::helengine.editor.EditorSceneEntityIdAllocator();
             base.Initialize(render3D, render2D, input, platformInfo, options);
 
@@ -93,7 +105,7 @@ namespace helengine {
 
         /// <inheritdoc />
         public override void Update() {
-            ComponentExecutionContext.EnterEditor();
+            ComponentExecutionContext.EnterEditor(InitializationOptions.EditorComponentExecutionPolicy);
             try {
                 base.Update();
                 EditorObjectManager.Update();
@@ -104,7 +116,7 @@ namespace helengine {
 
         /// <inheritdoc />
         public override void Update(double elapsedSeconds) {
-            ComponentExecutionContext.EnterEditor();
+            ComponentExecutionContext.EnterEditor(InitializationOptions.EditorComponentExecutionPolicy);
             try {
                 base.Update(elapsedSeconds);
                 EditorObjectManager.Update();

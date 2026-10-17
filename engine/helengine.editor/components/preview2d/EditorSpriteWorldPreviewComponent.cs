@@ -24,6 +24,87 @@ namespace helengine {
         /// </summary>
         public SpriteComponent SourceComponent => SourceComponentValue;
 
+        RuntimeModel OwnedPreviewModel;
+        float3[] LastPreviewPositions;
+        float4 LastSourceRect;
+
+        /// <summary>Releases the sprite-specific affine mesh when its proxy leaves the scene.</summary>
+        public override void ComponentRemoved(Entity entity) {
+            base.ComponentRemoved(entity);
+            if (OwnedPreviewModel != null) {
+                RendererResources.RenderManager3D.ReleaseModel(OwnedPreviewModel);
+                OwnedPreviewModel = null;
+            }
+            LastPreviewPositions = null;
+        }
+
+        /// <summary>Uses shared local sprite corners and the complete entity matrix, preserving tilted planes and shear.</summary>
+        protected override void SynchronizePreviewGeometry() {
+            if (SourceComponentValue.Pivot.Equals(new float2(0f, 0f)) && SourceComponentValue.RotationRadians == 0f
+                && HasUnitEntityBasis() && SourceComponentValue.SourceRect.Equals(new float4(0f, 0f, 1f, 1f))) {
+                if (OwnedPreviewModel != null) {
+                    Model = ResolvePreviewModel();
+                    RendererResources.RenderManager3D.ReleaseModel(OwnedPreviewModel);
+                    OwnedPreviewModel = null;
+                    LastPreviewPositions = null;
+                }
+                return;
+            }
+            SpriteQuad2D quad = Batch2DGeometry.ResolveSpriteLocalQuad(SourceComponentValue);
+            float3 topLeft = ResolvePreviewVertex(quad.TopLeft);
+            float3 topRight = ResolvePreviewVertex(quad.TopRight);
+            float3 bottomRight = ResolvePreviewVertex(quad.BottomRight);
+            float3 bottomLeft = ResolvePreviewVertex(quad.BottomLeft);
+            float3[] positions = [topLeft, topRight, bottomRight, bottomLeft, topLeft, bottomLeft, bottomRight, topRight];
+            float4 sourceRect = SourceComponentValue.SourceRect;
+            if (LastPreviewPositions != null && LastSourceRect.Equals(sourceRect)
+                && positions.SequenceEqual(LastPreviewPositions)) {
+                return;
+            }
+            bool viewport = helengine.editor.EditorViewportDirect2DPresentationService.TryResolveViewportOwner(SourceEntity, out _, out _);
+            float topV = viewport ? sourceRect.Y : sourceRect.Y + sourceRect.W;
+            float bottomV = viewport ? sourceRect.Y + sourceRect.W : sourceRect.Y;
+            float leftU = sourceRect.X, rightU = sourceRect.X + sourceRect.Z;
+            float3 normal = float3.Cross(topRight - topLeft, bottomLeft - topLeft);
+            if (normal.LengthSquared() > 0f) { normal = float3.Normalize(normal); }
+            ModelAsset asset = new ModelAsset {
+                Id = "editor:world-space-sprite-preview-affine-quad",
+                Positions = positions,
+                Normals = [normal, normal, normal, normal, -normal, -normal, -normal, -normal],
+                TexCoords = [new float2(leftU, topV), new float2(rightU, topV), new float2(rightU, bottomV), new float2(leftU, bottomV),
+                    new float2(leftU, topV), new float2(leftU, bottomV), new float2(rightU, bottomV), new float2(rightU, topV)],
+                Indices16 = [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]
+            };
+            RuntimeModel next = RendererResources.RenderManager3D.BuildModelFromRaw(asset);
+            RuntimeModel previous = OwnedPreviewModel;
+            OwnedPreviewModel = next;
+            Model = next;
+            LastPreviewPositions = positions;
+            LastSourceRect = sourceRect;
+            if (previous != null) { RendererResources.RenderManager3D.ReleaseModel(previous); }
+        }
+
+        bool HasUnitEntityBasis() {
+            float4x4 matrix = SourceEntity.WorldTransformMatrix;
+            float3 expectedRight = float4.RotateVector(float3.UnitX, SourceEntity.Orientation);
+            float3 expectedDown = float4.RotateVector(float3.UnitY, SourceEntity.Orientation);
+            float3 right = new float3(matrix.M11, matrix.M12, matrix.M13);
+            float3 down = new float3(matrix.M21, matrix.M22, matrix.M23);
+            return (right - expectedRight).LengthSquared() < 0.0000000001f
+                && (down - expectedDown).LengthSquared() < 0.0000000001f;
+        }
+
+        float3 ResolvePreviewVertex(float2 local) {
+            float4x4 matrix = SourceEntity.WorldTransformMatrix;
+            float3 world = new float3(local.X * matrix.M11 + local.Y * matrix.M21 + matrix.M41,
+                local.X * matrix.M12 + local.Y * matrix.M22 + matrix.M42,
+                local.X * matrix.M13 + local.Y * matrix.M23 + matrix.M43);
+            float3 presented = helengine.editor.EditorViewportDirect2DPresentationService.TransformPresentedWorldPoint(SourceEntity, world);
+            float3 previewLocal = float4.RotateVector(presented - Parent.Position, float4.Inverse(Parent.Orientation));
+            float3 scale = Parent.Scale;
+            return new float3(previewLocal.X / scale.X, previewLocal.Y / scale.Y, previewLocal.Z / scale.Z);
+        }
+
         /// <summary>
         /// Resolves the authored preview size from the sprite component.
         /// </summary>

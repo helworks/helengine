@@ -77,6 +77,7 @@ namespace helengine {
             previewEntity.LocalPosition = helengine.editor.EditorViewportDirect2DPresentationService.TransformPresentedEntityLocalPoint(SourceEntity, ResolvePreviewLocalOffset());
             previewEntity.LocalOrientation = SourceEntity.Orientation;
             previewEntity.LocalScale = ResolvePreviewScale();
+            SynchronizePreviewGeometry();
             SynchronizePreviewMaterial();
         }
 
@@ -85,6 +86,9 @@ namespace helengine {
         /// </summary>
         /// <returns>World-space preview size for the shared unit quad.</returns>
         protected abstract int2 ResolvePreviewSize();
+
+        /// <summary>Updates component-specific geometry after the preview transform is synchronized.</summary>
+        protected virtual void SynchronizePreviewGeometry() { }
 
         /// <summary>Offsets the preview plane when captured content extends above or left of its authored origin.</summary>
         /// <returns>Local top-left capture origin, zero for previews contained in their layout rectangle.</returns>

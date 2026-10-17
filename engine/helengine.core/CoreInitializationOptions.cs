@@ -65,6 +65,18 @@ namespace helengine {
         /// </summary>
         public RuntimeSceneCatalog SceneCatalog { get; set; }
 
+        /// <summary>
+        /// Optional host factory for component readers not explicitly registered by the portable runtime.
+        /// Native hosts leave this unset and require generated or hand-registered readers.
+        /// </summary>
+        public IRuntimeComponentDeserializerFactory RuntimeComponentDeserializerFactory { get; set; }
+
+        /// <summary>
+        /// Optional host policy for component execution while authoring scenes in the editor.
+        /// Runtime gameplay executes directly without consulting this policy.
+        /// </summary>
+        public IComponentExecutionPolicy EditorComponentExecutionPolicy { get; set; }
+
         /// <summary>Optional user-authored per-platform settings catalog copied into the core-owned runtime settings service.</summary>
         public PlatformSettingsConfiguration PlatformSettingsConfiguration { get; set; }
 

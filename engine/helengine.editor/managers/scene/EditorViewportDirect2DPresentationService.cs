@@ -211,6 +211,17 @@ namespace helengine.editor {
             return presentedOrigin + float4.RotateVector(presentedLocalPoint, entity.Orientation);
         }
 
+        /// <summary>Maps an already transformed authored world point into viewport preview coordinates.</summary>
+        public static float3 TransformPresentedWorldPoint(Entity entity, float3 worldPoint) {
+            if (!TryResolveViewportOwner(entity, out Entity viewportOwner, out _)) {
+                return worldPoint;
+            }
+            float3 offset = float4.RotateVector(worldPoint - viewportOwner.Position, float4.Inverse(viewportOwner.Orientation));
+            offset = UnscaleViewportLocalOffsetIfNeeded(viewportOwner, offset);
+            offset.Y = -offset.Y;
+            return ResolvePresentedViewportOwnerPosition(viewportOwner) + float4.RotateVector(offset, viewportOwner.Orientation);
+        }
+
         /// <summary>
         /// Attempts to resolve the nearest ancestor viewport owner for one authored scene entity.
         /// </summary>

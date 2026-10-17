@@ -128,7 +128,6 @@ namespace helengine.editor {
             }
             AddUniqueSymbols(symbols, runtimeGenerationContract.PortableInputPreprocessorSymbols);
             symbols.Add("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION");
-            symbols.Add("HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION");
             return symbols;
         }
 

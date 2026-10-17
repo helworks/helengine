@@ -2,9 +2,7 @@ namespace helengine {
     /// <summary>
     /// Simple interactable button that renders rounded rect styling and invokes a click action.
     /// </summary>
-#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
     [RunInEditor]
-#endif
     public class ButtonComponent : Component, IFocusTarget, IAnchorSizeProvider {
         string Text;
         FontAsset FontValue;

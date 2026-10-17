@@ -268,16 +268,7 @@ namespace helengine.core.tests.managers.rendering {
         /// </summary>
         [Fact]
         public void UpdateTextureRegion_DoesNotUseUnsupportedCheckedArithmetic() {
-            string sourcePath = Path.GetFullPath(Path.Combine(
-                AppContext.BaseDirectory,
-                "..",
-                "..",
-                "..",
-                "..",
-                "helengine.core",
-                "managers",
-                "rendering",
-                "RenderManager2D.cs"));
+            string sourcePath = ResolveRenderManagerSourcePath();
             string source = File.ReadAllText(sourcePath);
             int methodStart = source.IndexOf("public void UpdateTextureRegion(", StringComparison.Ordinal);
             int methodEnd = source.IndexOf("protected abstract void UpdateTextureRegionCore(", methodStart, StringComparison.Ordinal);
@@ -287,30 +278,14 @@ namespace helengine.core.tests.managers.rendering {
             Assert.DoesNotContain("checked", source.Substring(methodStart, methodEnd - methodStart), StringComparison.Ordinal);
         }
 
-        /// <summary>
-        /// Ensures reflection-disabled native builds use the supported exception set while managed builds retain the disposed-object contract.
-        /// </summary>
-        [Fact]
-        public void UpdateTextureRegion_DisposedValidation_UsesSupportedCodegenExceptionPath() {
-            string sourcePath = Path.GetFullPath(Path.Combine(
-                AppContext.BaseDirectory,
-                "..",
-                "..",
-                "..",
-                "..",
-                "helengine.core",
-                "managers",
-                "rendering",
-                "RenderManager2D.cs"));
-            string source = File.ReadAllText(sourcePath);
-            int methodStart = source.IndexOf("public void UpdateTextureRegion(", StringComparison.Ordinal);
-            int methodEnd = source.IndexOf("protected abstract void UpdateTextureRegionCore(", methodStart, StringComparison.Ordinal);
-            string method = source.Substring(methodStart, methodEnd - methodStart);
 
-            Assert.Contains("#if HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", method, StringComparison.Ordinal);
-            Assert.Contains("throw new InvalidOperationException", method, StringComparison.Ordinal);
-            Assert.Contains("#else", method, StringComparison.Ordinal);
-            Assert.Contains("throw new ObjectDisposedException", method, StringComparison.Ordinal);
+        /// <summary>
+        /// Locates the source under audit from this test's source path, independent of compiled artifact placement.
+        /// </summary>
+        /// <param name="sourcePath">Compiler-supplied test source file path.</param>
+        /// <returns>The rendering manager source path in the real checkout.</returns>
+        static string ResolveRenderManagerSourcePath([System.Runtime.CompilerServices.CallerFilePath] string sourcePath = "") {
+            return Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath), "..", "..", "..", "helengine.core", "managers", "rendering", "RenderManager2D.cs"));
         }
 
         static void AssertNativeNoEscapeOnRgba8(MethodInfo method) {

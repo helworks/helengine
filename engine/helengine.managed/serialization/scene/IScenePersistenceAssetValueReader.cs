@@ -1,4 +1,3 @@
-#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
 namespace helengine {
     /// <summary>
     /// Decodes the asset-backed member types of one reflected scene-persistence payload on behalf of <see cref="ScenePersistenceValueWalker"/>.
@@ -18,4 +17,3 @@ namespace helengine {
         bool TryReadAssetValue(EngineBinaryReader reader, Type valueType, out object value);
     }
 }
-#endif

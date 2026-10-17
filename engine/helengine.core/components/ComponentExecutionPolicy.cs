@@ -16,15 +16,19 @@ namespace helengine {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
-            if (entity.OwnerCore.ExecutionMode != ComponentExecutionMode.Editor
-                && ComponentExecutionContext.CurrentMode != ComponentExecutionMode.Editor) {
+            IComponentExecutionPolicy policy = ComponentExecutionContext.CurrentPolicy;
+            if (entity.OwnerCore.ExecutionMode != ComponentExecutionMode.Editor && policy == null) {
                 return true;
             }
-#if HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
-            return false;
-#else
-            return Attribute.IsDefined(component.GetType(), typeof(RunInEditorAttribute), false);
-#endif
+
+            if (policy == null) {
+                policy = entity.OwnerCore.InitializationOptions.EditorComponentExecutionPolicy;
+            }
+            if (policy == null) {
+                throw new InvalidOperationException("Editor component execution requires an explicit execution policy.");
+            }
+
+            return policy.ShouldRunComponentLifecycle(component, entity);
         }
     }
 }

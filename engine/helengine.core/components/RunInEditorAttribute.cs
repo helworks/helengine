@@ -1,4 +1,3 @@
-#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
 namespace helengine {
     /// <summary>
     /// Explicitly permits a concrete component to run its lifecycle and updates in the editor.
@@ -8,4 +7,3 @@ namespace helengine {
     public sealed class RunInEditorAttribute : Attribute {
     }
 }
-#endif

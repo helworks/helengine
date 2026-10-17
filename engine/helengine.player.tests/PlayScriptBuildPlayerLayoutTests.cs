@@ -232,22 +232,12 @@ namespace helengine.player.tests {
         }
 
         /// <summary>
-        /// Resolves the workspace-owned scratch root <c>&lt;checkout parent&gt;/builds/helengine/play-tests</c> by walking up
-        /// from the test binaries to the helengine checkout, identified by its <c>dotnetw.cmd</c> wrapper. Build outputs
-        /// never go to the system temp folder.
+        /// Resolves the user-designated temporary root for Play build fixtures independently of where the test
+        /// binaries were built, so directing managed artifacts outside the checkout does not break these tests.
         /// </summary>
         /// <returns>Absolute scratch root for Play build fixtures.</returns>
-        /// <exception cref="DirectoryNotFoundException">Thrown when the test binaries are not inside a helengine checkout.</exception>
         static string ResolvePlayTestsRootPath() {
-            DirectoryInfo directory = new DirectoryInfo(AppContext.BaseDirectory);
-            while (directory != null && !File.Exists(Path.Combine(directory.FullName, "dotnetw.cmd"))) {
-                directory = directory.Parent;
-            }
-            if (directory == null || directory.Parent == null) {
-                throw new DirectoryNotFoundException($"No helengine checkout with a parent folder contains '{AppContext.BaseDirectory}'.");
-            }
-
-            return Path.Combine(directory.Parent.FullName, "builds", "helengine", "play-tests");
+            return @"C:\temp\helengine-windows\play-script-tests";
         }
 
         /// <summary>

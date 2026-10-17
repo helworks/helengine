@@ -14,9 +14,16 @@ namespace helengine {
         Dictionary<string, string> ModuleOwnersByTypeId;
 
         /// <summary>
+        /// Borrowed host factory used only when an explicit runtime reader is unavailable.
+        /// </summary>
+        readonly IRuntimeComponentDeserializerFactory AutomaticDeserializerFactory;
+
+        /// <summary>
         /// Initializes an empty runtime component registry.
         /// </summary>
-        public RuntimeComponentRegistry() {
+        /// <param name="automaticDeserializerFactory">Optional host-owned fallback factory, which must outlive the registry.</param>
+        public RuntimeComponentRegistry(IRuntimeComponentDeserializerFactory automaticDeserializerFactory = null) {
+            AutomaticDeserializerFactory = automaticDeserializerFactory;
             DeserializersByTypeId = new Dictionary<string, IRuntimeComponentDeserializer>(StringComparer.Ordinal);
             ModuleOwnersByTypeId = new Dictionary<string, string>(StringComparer.Ordinal);
         }
@@ -24,9 +31,10 @@ namespace helengine {
         /// <summary>
         /// Builds the default registry used by player builds.
         /// </summary>
+        /// <param name="automaticDeserializerFactory">Optional host factory for readers missing from explicit generated registrations.</param>
         /// <returns>Registry populated with the built-in runtime component deserializers.</returns>
-        public static RuntimeComponentRegistry CreateDefault() {
-            RuntimeComponentRegistry registry = new RuntimeComponentRegistry();
+        public static RuntimeComponentRegistry CreateDefault(IRuntimeComponentDeserializerFactory automaticDeserializerFactory = null) {
+            RuntimeComponentRegistry registry = new RuntimeComponentRegistry(automaticDeserializerFactory);
             RegisterBuiltInComponentDeserializers(registry);
             RegisterGeneratedRuntimeComponentDeserializers(registry);
             return registry;
@@ -153,42 +161,19 @@ namespace helengine {
             }
 
             if (!DeserializersByTypeId.TryGetValue(componentTypeId, out IRuntimeComponentDeserializer deserializer)) {
-#if HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
-                throw new InvalidOperationException($"Player builds do not support serialized component type '{componentTypeId}' yet.");
-#else
-                deserializer = TryCreateAutomaticComponentDeserializer(componentTypeId);
+                if (AutomaticDeserializerFactory != null) {
+                    deserializer = AutomaticDeserializerFactory.Create(componentTypeId);
+                }
                 if (deserializer == null) {
                     throw new InvalidOperationException($"Player builds do not support serialized component type '{componentTypeId}' yet.");
                 }
 
                 DeserializersByTypeId.Add(componentTypeId, deserializer);
-#endif
             }
 
             return deserializer;
         }
 
-#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
-        /// <summary>
-        /// Creates one automatic reflected runtime deserializer when the serialized type id resolves to an eligible component type.
-        /// </summary>
-        /// <param name="componentTypeId">Serialized component type id to inspect.</param>
-        /// <returns>Automatic reflected runtime deserializer when the type id is eligible; otherwise null.</returns>
-        IRuntimeComponentDeserializer TryCreateAutomaticComponentDeserializer(string componentTypeId) {
-            if (string.IsNullOrWhiteSpace(componentTypeId)) {
-                return null;
-            }
 
-            Type componentType = PersistedComponentTypeResolver.TryResolve(componentTypeId);
-            if (componentType == null) {
-                return null;
-            }
-            if (!typeof(Component).IsAssignableFrom(componentType)) {
-                return null;
-            }
-
-            return new AutomaticScriptComponentRuntimeDeserializer(componentTypeId, componentType);
-        }
-#endif
     }
 }

@@ -64,6 +64,8 @@ namespace helengine.editor.tests {
             Assert.Contains("<BaseIntermediateOutputPath>" + EscapeXml(Path.Combine(ExpectedGeneratedOutputRootPath, "generated_code", "obj", "gameplay") + Path.DirectorySeparatorChar) + "</BaseIntermediateOutputPath>", projectFileContents);
             Assert.Contains("<BaseOutputPath>" + EscapeXml(Path.Combine(ExpectedGeneratedOutputRootPath, "generated_code", "bin", "gameplay") + Path.DirectorySeparatorChar) + "</BaseOutputPath>", projectFileContents);
             Assert.Contains("helengine.core", projectFileContents, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("<Reference Include=\"helengine.managed\">", projectFileContents, StringComparison.Ordinal);
+            Assert.Contains("<HintPath>" + EscapeXml(typeof(IScriptTypeResolver).Assembly.Location) + "</HintPath>", projectFileContents, StringComparison.Ordinal);
             Assert.Contains("<Compile Include=\"" + EscapeXml(Path.Combine(TempProjectRootPath, "assets", "**", "*.cs")) + "\" />", projectFileContents);
             Assert.Contains("<Compile Include=\"" + EscapeXml(Path.Combine(TempProjectRootPath, "cache", "generated_code", "projects", "gameplay", "GlobalUsings.g.cs")) + "\" />", projectFileContents);
             Assert.Contains("gameplay", solutionFileContents);

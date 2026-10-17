@@ -3,6 +3,92 @@ namespace helengine {
     /// Builds the four value vertices used by textured drawable and rounded-shape batch quads.
     /// </summary>
     public static class Batch2DGeometry {
+        /// <summary>Resolves pivot and scalar rotation in local pixels before applying any entity transform.</summary>
+        /// <param name="sprite">Sprite supplying size, optional texture-size fallback, pivot, and rotation.</param>
+        /// <returns>Local corners retaining their source UV association.</returns>
+        public static SpriteQuad2D ResolveSpriteLocalQuad(ISpriteDrawable2D sprite) {
+            if (sprite == null) {
+                throw new ArgumentNullException(nameof(sprite));
+            }
+            int2 size = sprite.Size;
+            if (size.X <= 0 || size.Y <= 0) {
+                RuntimeTexture texture = sprite.Texture;
+                if (texture == null) {
+                    throw new InvalidOperationException("A sprite without an authored size requires a texture.");
+                }
+                size = new int2(texture.Width, texture.Height);
+            }
+            float2 pivot = sprite.Pivot;
+            double left = -(double)pivot.X * size.X;
+            double top = -(double)pivot.Y * size.Y;
+            double angle = sprite.RotationRadians;
+            double cosine = angle == 0d ? 1d : Math.Cos(angle);
+            double sine = angle == 0d ? 0d : Math.Sin(angle);
+            return new SpriteQuad2D {
+                TopLeft = RotateSpritePoint(left, top, cosine, sine),
+                TopRight = RotateSpritePoint(left + size.X, top, cosine, sine),
+                BottomRight = RotateSpritePoint(left + size.X, top + size.Y, cosine, sine),
+                BottomLeft = RotateSpritePoint(left, top + size.Y, cosine, sine)
+            };
+        }
+
+        /// <summary>Composes sprite-local geometry with the exact entity hierarchy once, without angle decomposition.</summary>
+        /// <param name="sprite">Attached sprite whose destination geometry is captured synchronously.</param>
+        /// <returns>Pixel corners preserving rotations, mirrored scales, and affine shear.</returns>
+        public static SpriteQuad2D ResolveSpriteQuad(ISpriteDrawable2D sprite) {
+            SpriteQuad2D local = ResolveSpriteLocalQuad(sprite);
+            if (sprite.Parent == null) {
+                throw new InvalidOperationException("Sprite geometry requires an owning entity.");
+            }
+            float4x4 world = sprite.Parent.WorldTransformMatrix;
+            return new SpriteQuad2D {
+                TopLeft = TransformSpritePoint(local.TopLeft, world),
+                TopRight = TransformSpritePoint(local.TopRight, world),
+                BottomRight = TransformSpritePoint(local.BottomRight, world),
+                BottomLeft = TransformSpritePoint(local.BottomLeft, world)
+            };
+        }
+
+        /// <summary>Copies resolved sprite corners into batch vertices without repeating trigonometry or transforms.</summary>
+        /// <param name="quad">Resolved destination corners.</param>
+        /// <param name="sourceRect">Normalized source U, V, width, and height.</param>
+        /// <param name="color">Straight-alpha normalized tint.</param>
+        /// <param name="topLeft">Receives the upper-left UV vertex.</param>
+        /// <param name="topRight">Receives the upper-right UV vertex.</param>
+        /// <param name="bottomRight">Receives the lower-right UV vertex.</param>
+        /// <param name="bottomLeft">Receives the lower-left UV vertex.</param>
+        public static void CreateSpriteQuad(SpriteQuad2D quad, float4 sourceRect, float4 color,
+            out Batch2DVertex topLeft, out Batch2DVertex topRight,
+            out Batch2DVertex bottomRight, out Batch2DVertex bottomLeft) {
+            topLeft = CreateTexturedVertex(quad.TopLeft.X, quad.TopLeft.Y, 0d, 0d, 0d, 1d, 0d,
+                sourceRect.X, sourceRect.Y, color);
+            topRight = CreateTexturedVertex(quad.TopRight.X, quad.TopRight.Y, 0d, 0d, 0d, 1d, 0d,
+                sourceRect.X + sourceRect.Z, sourceRect.Y, color);
+            bottomRight = CreateTexturedVertex(quad.BottomRight.X, quad.BottomRight.Y, 0d, 0d, 0d, 1d, 0d,
+                sourceRect.X + sourceRect.Z, sourceRect.Y + sourceRect.W, color);
+            bottomLeft = CreateTexturedVertex(quad.BottomLeft.X, quad.BottomLeft.Y, 0d, 0d, 0d, 1d, 0d,
+                sourceRect.X, sourceRect.Y + sourceRect.W, color);
+        }
+
+        /// <summary>Rotates one local point with the same positive-Z sign as entity quaternions.</summary>
+        /// <param name="x">Horizontal local pixel offset.</param>
+        /// <param name="y">Vertical local pixel offset.</param>
+        /// <param name="cosine">Shared cosine for this sprite.</param>
+        /// <param name="sine">Shared sine for this sprite.</param>
+        /// <returns>Rotated local point.</returns>
+        static float2 RotateSpritePoint(double x, double y, double cosine, double sine) {
+            return new float2((float)(x * cosine - y * sine), (float)(x * sine + y * cosine));
+        }
+
+        /// <summary>Applies an affine row-vector entity matrix to a sprite-local point in its Z-zero plane.</summary>
+        /// <param name="point">Sprite-local point.</param>
+        /// <param name="world">Composed entity-to-world matrix.</param>
+        /// <returns>World pixel position projected to the 2D plane.</returns>
+        static float2 TransformSpritePoint(float2 point, float4x4 world) {
+            return new float2(point.X * world.M11 + point.Y * world.M21 + world.M41,
+                point.X * world.M12 + point.Y * world.M22 + world.M42);
+        }
+
         /// <summary>Creates a sprite quad from its transformed local origin and world-space horizontal and vertical axes.</summary>
         /// <param name="origin">World position of the sprite's local top-left corner.</param>
         /// <param name="right">World direction of the sprite's local positive X axis.</param>

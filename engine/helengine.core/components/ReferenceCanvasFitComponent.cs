@@ -2,9 +2,7 @@ namespace helengine {
     /// <summary>
     /// Scales one authored 2D subtree from a reference canvas into the camera's layout surface size while preserving the original layout as the source of truth.
     /// </summary>
-#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
     [RunInEditor]
-#endif
     public class ReferenceCanvasFitComponent : UpdateComponent, IAnchorBoundsProvider, IAuthoredLayoutOwner {
         /// <summary>
         /// Backing field for the authored reference canvas width.

@@ -335,6 +335,7 @@ namespace helengine.editor {
             projectBuilder.AppendLine("  </PropertyGroup>");
             projectBuilder.AppendLine("  <ItemGroup>");
             projectBuilder.AppendLine($"    <Reference Include=\"helengine.core\" HintPath=\"{EscapeXml(typeof(Core).Assembly.Location)}\" />");
+            projectBuilder.AppendLine($"    <Reference Include=\"helengine.managed\" HintPath=\"{EscapeXml(typeof(IScriptTypeResolver).Assembly.Location)}\" />");
             projectBuilder.AppendLine($"    <Reference Include=\"helengine.shader\" HintPath=\"{EscapeXml(typeof(ShaderRuntimeMaterial).Assembly.Location)}\" />");
             projectBuilder.AppendLine($"    <Reference Include=\"helengine.input\" HintPath=\"{EscapeXml(typeof(InputSystem).Assembly.Location)}\" />");
             projectBuilder.AppendLine($"    <Reference Include=\"helengine.nativeownership\" HintPath=\"{EscapeXml(typeof(NativeBorrowedReturnAttribute).Assembly.Location)}\" />");
