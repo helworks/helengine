@@ -43,6 +43,9 @@ namespace helengine {
                 textureBindings.ToArray(),
                 constantBufferBindings.ToArray(),
                 samplerBindings.ToArray());
+            NativeOwnership.DetachOwned(textureBindings);
+            NativeOwnership.DetachOwned(constantBufferBindings);
+            NativeOwnership.DetachOwned(samplerBindings);
             return layout;
         }
 
