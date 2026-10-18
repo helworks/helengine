@@ -9,6 +9,19 @@ namespace helengine.editor.tests.managers.play;
 /// graphics options and shadow policy.
 /// </summary>
 public sealed class EditorPlayLaunchSettingsResolverTests {
+    /// <summary>Cook and launch resolve the exact same selected mode before cooked paths exist.</summary>
+    [Theory]
+    [InlineData("project", "pal-640x512i")]
+    [InlineData("ntsc-256x224p", "pal-640x512i")]
+    public void PlayAndCook_UseSameVideoSelection(string playMode, string projectMode) {
+        EditorPlaySettingsSnapshot snapshot = CreateVideoModeSnapshot(playMode);
+        Dictionary<string, string> graphics = new Dictionary<string, string> { ["video-mode"] = projectMode };
+        PlatformVideoMode beforeCook = EditorPlayLaunchSettingsResolver.ResolveVideoMode(snapshot, graphics);
+        PlayerPlaySettings launched = EditorPlayLaunchSettingsResolver.Resolve(snapshot, CreateCookResult(true, graphics));
+        Assert.Same(beforeCook, launched.VideoMode);
+        Assert.Equal(playMode == "project" ? projectMode : playMode, beforeCook.Id);
+    }
+
     /// <summary>
     /// Common settings map onto the typed player settings, with the capability's frame rate for <c>platform</c>; a concrete
     /// platform value passes through unchanged. Tests that do not exercise <c>project</c> pin <c>video-mode</c> to

@@ -44,7 +44,7 @@ public sealed class BlockingPlayCookRunner : IEditorPlayCookRunner, IDisposable 
     /// </summary>
     /// <param name="platformId">Platform the session service asked to cook.</param>
     /// <returns>The scripted cook outcome.</returns>
-    public EditorPlayCookResult Cook(string platformId) {
+    public EditorPlayCookResult Cook(string platformId, EditorPlaySettingsSnapshot playSettings = null) {
         Volatile.Write(ref CookThreadIdValue, Environment.CurrentManagedThreadId);
         StartedSignal.Set();
         ReleaseSignal.Wait();

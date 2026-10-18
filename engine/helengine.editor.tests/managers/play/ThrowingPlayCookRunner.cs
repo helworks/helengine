@@ -23,7 +23,7 @@ public sealed class ThrowingPlayCookRunner : IEditorPlayCookRunner {
     /// </summary>
     /// <param name="platformId">Platform the session service asked to cook.</param>
     /// <returns>Never returns.</returns>
-    public EditorPlayCookResult Cook(string platformId) {
+    public EditorPlayCookResult Cook(string platformId, EditorPlaySettingsSnapshot playSettings = null) {
         throw Failure;
     }
 }

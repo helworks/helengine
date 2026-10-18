@@ -27,7 +27,7 @@ public sealed class EditorPlayCookRunnerTests : IDisposable {
     /// Creates a scratch project with two authored scenes.
     /// </summary>
     public EditorPlayCookRunnerTests() {
-        ProjectRootPath = Path.Combine(@"C:\dev\helworks\builds\helengine\play-tests", Guid.NewGuid().ToString("N"));
+        ProjectRootPath = Path.Combine(@"C:\temp\viewport-layout\play-tests", Guid.NewGuid().ToString("N"));
         WriteScene("Scenes/A.helen");
         CurrentScenePath = WriteScene("Scenes/B.helen");
     }
@@ -55,6 +55,31 @@ public sealed class EditorPlayCookRunnerTests : IDisposable {
         Assert.Equal(PlatformId, queueItem.PlatformId);
         Assert.Equal("debug", queueItem.SelectedBuildProfileId);
         Assert.Equal(Path.Combine(ProjectRootPath, "cache", "play", PlatformId, "output"), queueItem.OutputDirectoryPath);
+    }
+
+    /// <summary>The explicit Play mode reaches cooking without rewriting the project's graphics selection.</summary>
+    [Fact]
+    public void Cook_CapturesPlayVideoModeBeforeExecutorRuns() {
+        PlatformVideoMode small = new PlatformVideoMode("small", 320, 240, true, 60, 60, 4, 3);
+        PlatformVideoMode large = new PlatformVideoMode("large", 640, 480, true, 60, 60, 4, 3);
+        PlatformVideoModeCapability modes = new PlatformVideoModeCapability("video-mode", [small, large]);
+        PlatformPlayerCapability capability = new PlatformPlayerCapability(true, "a.B", "staging", 60,
+            PlayerInputDevices.Gamepad, PlatformId, "1.0.0",
+            [new PlatformSettingDefinition("video-mode", "Video Mode", PlatformSettingKind.Choice, "project", true, ["project", "small", "large"])]);
+        EditorPlaySettingsDocument settings = new EditorPlaySettingsDocument();
+        settings.PlatformValues[PlatformId] = new Dictionary<string, string> { ["video-mode"] = "large" };
+        EditorPlaySettingsSnapshot snapshot = new EditorPlaySettingsSnapshot(
+            EditorPlaySettingsEvaluator.Evaluate(settings, Path.Combine(ProjectRootPath, "play.json"), PlatformId, capability),
+            false, capability, modes, 55);
+        RecordingPlayAssetCookExecutor executor = new RecordingPlayAssetCookExecutor();
+        EditorBuildPlatformConfigDocument projectSettings = new EditorBuildPlatformConfigDocument {
+            PlatformId = PlatformId, SelectedSceneIds = ["A", "B"],
+            SelectedGraphicsOptionValues = new Dictionary<string, string> { ["video-mode"] = "small" }
+        };
+        EditorPlayCookRunner runner = CreateRunner(platform => projectSettings, () => CurrentScenePath, platform => executor);
+        Assert.True(runner.Cook(PlatformId, snapshot).Succeeded);
+        Assert.Same(large, Assert.Single(executor.QueueItems).PlayVideoMode);
+        Assert.Equal("small", projectSettings.SelectedGraphicsOptionValues["video-mode"]);
     }
 
     /// <summary>

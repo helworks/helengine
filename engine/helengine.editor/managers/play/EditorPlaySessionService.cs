@@ -420,7 +420,7 @@ namespace helengine.editor {
                     return;
                 }
 
-                EditorPlayCookResult cookResult = CookRunner.Cook(preparation.PlatformId);
+                EditorPlayCookResult cookResult = CookRunner.Cook(preparation.PlatformId, preparation.PlaySettings);
                 preparation.CookedAt = Clock.Now;
                 preparation.CookResult = cookResult;
                 if (cookResult == null || !cookResult.Succeeded || preparation.IsCancellationRequested) {

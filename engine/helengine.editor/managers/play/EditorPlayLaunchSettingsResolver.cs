@@ -26,24 +26,8 @@ namespace helengine.editor {
                 throw new ArgumentException($"Play settings resolve only against a successful cook, but the cook failed: {cookResult.Message}", nameof(cookResult));
             }
 
-            Dictionary<string, string> platformValues = new Dictionary<string, string>(StringComparer.Ordinal);
-            PlatformSettingDefinition[] declarations = snapshot.Capability.PlaySettings;
-            for (int index = 0; index < declarations.Length; index++) {
-                PlatformSettingDefinition declaration = declarations[index];
-                string value = snapshot.PlatformValues[declaration.SettingId];
-                if (string.Equals(value, PlayerCommonPlaySettings.ProjectValue, StringComparison.Ordinal)) {
-                    value = ResolveProjectValue(snapshot.PlatformId, declaration, cookResult.GraphicsOptionValues);
-                }
-                platformValues.Add(declaration.SettingId, value);
-            }
-
-            PlatformVideoMode videoMode = null;
-            if (snapshot.HasVideoModes) {
-                if (!platformValues.TryGetValue(snapshot.VideoModeCapability.SettingId, out string videoModeId)) {
-                    throw new InvalidOperationException($"Platform '{snapshot.PlatformId}' declares video modes through setting '{snapshot.VideoModeCapability.SettingId}', but its Play capability declares no such Play setting.");
-                }
-                videoMode = snapshot.VideoModeCapability.Resolve(videoModeId, snapshot.PlatformId);
-            }
+            Dictionary<string, string> platformValues = ResolvePlatformValues(snapshot, cookResult.GraphicsOptionValues);
+            PlatformVideoMode videoMode = ResolveSelectedVideoMode(snapshot, platformValues);
 
             bool unlimited = string.Equals(snapshot.CommonValues[PlayerCommonPlaySettings.FrameRateId], "unlimited", StringComparison.Ordinal);
             double targetFrameRate = unlimited ? 0d : (videoMode != null ? videoMode.PlayerFrameRate : snapshot.Capability.TargetFrameRate);
@@ -58,6 +42,45 @@ namespace helengine.editor {
                 targetFrameRate,
                 platformValues,
                 videoMode);
+        }
+
+        /// <summary>Resolves the selected video mode before cooking, without requiring cooked content paths.</summary>
+        /// <param name="snapshot">Play settings captured at press time.</param>
+        /// <param name="graphicsOptionValues">The same captured effective graphics options that cooking consumes.</param>
+        /// <returns>The catalog-owned selected mode, or null when the backend declares no modes.</returns>
+        public static PlatformVideoMode ResolveVideoMode(EditorPlaySettingsSnapshot snapshot, IReadOnlyDictionary<string, string> graphicsOptionValues) {
+            if (snapshot == null) { throw new ArgumentNullException(nameof(snapshot)); }
+            if (graphicsOptionValues == null) { throw new ArgumentNullException(nameof(graphicsOptionValues)); }
+            return ResolveSelectedVideoMode(snapshot, ResolvePlatformValues(snapshot, graphicsOptionValues));
+        }
+
+        /// <summary>Resolves project-following values once using captured graphics options.</summary>
+        static Dictionary<string, string> ResolvePlatformValues(EditorPlaySettingsSnapshot snapshot, IReadOnlyDictionary<string, string> graphicsOptionValues) {
+            Dictionary<string, string> platformValues = new Dictionary<string, string>(StringComparer.Ordinal);
+            PlatformSettingDefinition[] declarations = snapshot.Capability.PlaySettings;
+            for (int index = 0; index < declarations.Length; index++) {
+                PlatformSettingDefinition declaration = declarations[index];
+                string value = snapshot.PlatformValues[declaration.SettingId];
+                if (string.Equals(value, PlayerCommonPlaySettings.ProjectValue, StringComparison.Ordinal)) {
+                    value = ResolveProjectValue(snapshot.PlatformId, declaration, graphicsOptionValues);
+                }
+                platformValues.Add(declaration.SettingId, value);
+            }
+
+            return platformValues;
+        }
+
+        /// <summary>Uses the existing video-mode catalog for both pre-cook selection and final launch settings.</summary>
+        static PlatformVideoMode ResolveSelectedVideoMode(EditorPlaySettingsSnapshot snapshot, IReadOnlyDictionary<string, string> platformValues) {
+            PlatformVideoMode videoMode = null;
+            if (snapshot.HasVideoModes) {
+                if (!platformValues.TryGetValue(snapshot.VideoModeCapability.SettingId, out string videoModeId)) {
+                    throw new InvalidOperationException($"Platform '{snapshot.PlatformId}' declares video modes through setting '{snapshot.VideoModeCapability.SettingId}', but its Play capability declares no such Play setting.");
+                }
+                videoMode = snapshot.VideoModeCapability.Resolve(videoModeId, snapshot.PlatformId);
+            }
+
+            return videoMode;
         }
 
         /// <summary>

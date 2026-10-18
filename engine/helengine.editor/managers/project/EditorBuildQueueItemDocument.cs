@@ -8,6 +8,10 @@ namespace helengine.editor {
         /// <summary>Captures the runtime catalog fingerprint used to distinguish native binaries with different authored presets.</summary>
         [System.Text.Json.Serialization.JsonIgnore]
         public string RuntimeSettingsFingerprint { get; set; } = string.Empty;
+
+        /// <summary>Captures an explicit Play presentation target before cook without persisting it as project configuration.</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public PlatformVideoMode PlayVideoMode { get; set; }
         /// <summary>
         /// Gets or sets the stable queue item identifier used to track this entry across reloads.
         /// </summary>

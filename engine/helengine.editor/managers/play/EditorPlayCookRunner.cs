@@ -99,11 +99,18 @@ namespace helengine.editor {
         /// nothing.
         /// </summary>
         /// <param name="platformId">Identifier of the platform whose content processors drive the cook.</param>
+        /// <param name="playSettings">Press-time Play selection, or null for a project-only cook.</param>
         /// <returns>Cook outcome with the staged content root and startup scene on success.</returns>
-        public EditorPlayCookResult Cook(string platformId) {
+        public EditorPlayCookResult Cook(string platformId, EditorPlaySettingsSnapshot playSettings = null) {
             CookedPlatformId = null;
             CookedEnvironmentId = null;
             EditorBuildQueueItemDocument queueItem = CreateQueueItem(platformId);
+            if (playSettings != null) {
+                if (!string.Equals(playSettings.PlatformId, platformId, StringComparison.Ordinal)) {
+                    throw new InvalidOperationException("Play settings and cook platform must match.");
+                }
+                queueItem.PlayVideoMode = EditorPlayLaunchSettingsResolver.ResolveVideoMode(playSettings, queueItem.SelectedGraphicsOptionValues);
+            }
             IEditorPlayAssetCookExecutor executor = ExecutorFactory(platformId);
             if (executor == null) {
                 throw new InvalidOperationException($"No platform build executor could be created for '{platformId}'.");

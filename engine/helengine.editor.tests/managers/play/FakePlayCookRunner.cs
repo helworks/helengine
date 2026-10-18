@@ -27,7 +27,7 @@ public sealed class FakePlayCookRunner : IEditorPlayCookRunner {
     /// </summary>
     /// <param name="platformId">Platform the session service asked to cook.</param>
     /// <returns>The scripted cook outcome.</returns>
-    public EditorPlayCookResult Cook(string platformId) {
+    public EditorPlayCookResult Cook(string platformId, EditorPlaySettingsSnapshot playSettings = null) {
         CookedPlatformIds.Add(platformId);
         return Result;
     }
