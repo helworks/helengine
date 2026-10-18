@@ -48,6 +48,9 @@ namespace helengine {
         /// <summary>User-selected size multiplier applied after physical density conversion.</summary>
         float UiScaleValue = 1f;
 
+        /// <summary>Stores the selected preparation policy; old scene payloads retain Dynamic.</summary>
+        ViewportLayoutProcessingMode LayoutProcessingModeValue;
+
         /// <summary>
         /// Stores the selected viewport binding mode.
         /// </summary>
@@ -196,6 +199,23 @@ namespace helengine {
                 }
             }
         }
+
+        /// <summary>Chooses cook, single-load or dynamic processing before scene preparation.</summary>
+        [ScenePersistenceAppend(0)]
+        public ViewportLayoutProcessingMode LayoutProcessingMode {
+            get { return LayoutProcessingModeValue; }
+            set {
+                if (HasAppliedScaleValue && LayoutProcessingModeValue != value && !IsEditorAuthoring()) {
+                    throw new InvalidOperationException("Changing viewport layout processing requires reloading the scene.");
+                }
+                LayoutProcessingModeValue = value;
+            }
+        }
+
+        /// <summary>Stores shared preparation metadata only in packaged cooked scenes.</summary>
+        [ScenePersistenceAppend(1)]
+        [EditorPropertyHidden]
+        public ViewportCookedLayout CookedLayout { get; set; }
 
         /// <summary>
         /// Gets or sets the fixed viewport size used by fixed bindings and fallbacks.

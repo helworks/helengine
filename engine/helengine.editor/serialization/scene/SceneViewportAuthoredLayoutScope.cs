@@ -12,6 +12,9 @@ namespace helengine.editor {
         /// </summary>
         readonly List<IAuthoredLayoutOwner> Owners;
 
+        /// <summary>Preserves derived cook metadata while authoring serialization excludes it.</summary>
+        readonly List<ViewportCookedLayout> CookedLayouts;
+
         /// <summary>
         /// Number of leading owners whose authored layout may currently be restored and must be reapplied.
         /// </summary>
@@ -22,6 +25,7 @@ namespace helengine.editor {
         /// </summary>
         SceneViewportAuthoredLayoutScope() {
             Owners = new List<IAuthoredLayoutOwner>();
+            CookedLayouts = new List<ViewportCookedLayout>();
         }
 
         /// <summary>
@@ -102,6 +106,12 @@ namespace helengine.editor {
         void Restore() {
             for (int index = RestoredCount; index < Owners.Count; index++) {
                 RestoredCount = index + 1;
+                if (Owners[index] is ViewportComponent viewport) {
+                    CookedLayouts.Add(viewport.CookedLayout);
+                    viewport.CookedLayout = null;
+                } else {
+                    CookedLayouts.Add(null);
+                }
                 Owners[index].RestoreAuthoredLayout();
             }
         }
@@ -114,8 +124,12 @@ namespace helengine.editor {
             int restoredCount = RestoredCount;
             RestoredCount = 0;
             for (int index = restoredCount - 1; index >= 0; index--) {
+                if (Owners[index] is ViewportComponent viewport) {
+                    viewport.CookedLayout = CookedLayouts[index];
+                }
                 Owners[index].ReapplyLayout();
             }
+            CookedLayouts.Clear();
         }
 
         /// <summary>
