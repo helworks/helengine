@@ -360,7 +360,7 @@ namespace helengine {
 
         /// <summary>Unsubscribes matching provider and fallback-camera references before native destruction.</summary>
         internal void LayoutProviderRemoved(Component provider) {
-            if (ReferenceEquals(AnchorBoundsProvider, provider)) { DetachFromBoundsProvider(); }
+            if (AnchorBoundsProvider is Component boundsComponent && ReferenceEquals(boundsComponent, provider)) { DetachFromBoundsProvider(); }
             if (ReferenceEquals(FallbackCamera, provider)) { DetachFromWindowResize(); }
         }
 
