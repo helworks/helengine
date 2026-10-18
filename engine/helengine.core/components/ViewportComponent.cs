@@ -48,6 +48,17 @@ namespace helengine {
         /// <summary>User-selected size multiplier applied after physical density conversion.</summary>
         float UiScaleValue = 1f;
 
+        /// <summary>Originals exist only for Dynamic players and editor authoring previews.</summary>
+        ViewportLayoutCache LayoutCache;
+        /// <summary>Last applied values exist only in the editor to distinguish preview edits.</summary>
+        ViewportLayoutCache AppliedLayoutCache;
+        /// <summary>Factors shared by presentation consumers after preparation.</summary>
+        ViewportLayoutMetrics CurrentMetrics;
+        /// <summary>Freezes the single-pass presentation rectangle without retaining participant originals.</summary>
+        float4 PreparedViewportBounds;
+        /// <summary>Cold hierarchy mutation requires participant discovery on the next active pass.</summary>
+        bool LayoutStructureDirty = true;
+
         /// <summary>Stores the selected preparation policy; old scene payloads retain Dynamic.</summary>
         ViewportLayoutProcessingMode LayoutProcessingModeValue;
 
@@ -90,37 +101,6 @@ namespace helengine {
         int ReferenceHeightValue;
 
         /// <summary>
-        /// Stores the authored layout snapshots captured for the current subtree.
-        /// </summary>
-        readonly List<ViewportLayoutSnapshot> LayoutSnapshotsValue;
-
-        /// <summary>
-        /// Stores, in editor authoring only, the live layout values written by the last scale pass so edits made in the scaled
-        /// preview can be told apart from viewport output and mapped back into authored space.
-        /// </summary>
-        readonly List<ViewportLayoutSnapshot> AppliedLayoutSnapshotsValue;
-
-        /// <summary>
-        /// Stores the root displacement used by the last recorded editor scale pass.
-        /// </summary>
-        float2 AppliedCanvasOriginValue;
-
-        /// <summary>
-        /// Stores the horizontal scale used by the last recorded editor scale pass.
-        /// </summary>
-        double AppliedWidthScaleValue;
-
-        /// <summary>
-        /// Stores the vertical scale used by the last recorded editor scale pass.
-        /// </summary>
-        double AppliedHeightScaleValue;
-
-        /// <summary>
-        /// Stores the uniform glyph and decoration scale used by the last recorded editor scale pass.
-        /// </summary>
-        double AppliedScalarScaleValue;
-
-        /// <summary>
         /// Stores the display pixel aspect the last scale pass used, so the recorded glyph scale matches the one the snapshots applied.
         /// </summary>
         double CurrentPixelAspectValue;
@@ -143,11 +123,6 @@ namespace helengine {
 
         /// <summary>Tracks whether snapshots already contain the authored values used by a completed scale pass since attachment.</summary>
         bool HasAppliedScaleValue;
-
-        /// <summary>
-        /// Tracks the number of entities captured in the current viewport scaling snapshot set.
-        /// </summary>
-        int SnapshotEntityCountValue;
 
         /// <summary>
         /// Tracks the current anchor space exposed to descendants when viewport scaling is active.
@@ -177,8 +152,6 @@ namespace helengine {
             FixedSizeValue = new int2(SceneCanvasProfile.DefaultWidth, SceneCanvasProfile.DefaultHeight);
             ReferenceWidthValue = SceneCanvasProfile.DefaultWidth;
             ReferenceHeightValue = SceneCanvasProfile.DefaultHeight;
-            LayoutSnapshotsValue = new List<ViewportLayoutSnapshot>();
-            AppliedLayoutSnapshotsValue = new List<ViewportLayoutSnapshot>();
             CurrentAnchorSpaceValue = new AnchorSpace(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
             CurrentViewportAnchorSpaceValue = new AnchorSpace(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
             CurrentCanvasOriginValue = new float2(0f, 0f);
@@ -216,6 +189,9 @@ namespace helengine {
         [ScenePersistenceAppend(1)]
         [EditorPropertyHidden]
         public ViewportCookedLayout CookedLayout { get; set; }
+
+        /// <summary>Gets the number of retained original UI transform records for memory diagnostics.</summary>
+        public int RetainedLayoutPositionCount => LayoutCache == null ? 0 : LayoutCache.PositionCount;
 
         /// <summary>
         /// Gets or sets the fixed viewport size used by fixed bindings and fallbacks.
@@ -279,7 +255,7 @@ namespace helengine {
         [ScenePersistenceIgnore]
         public float DensityScale {
             get {
-                RefreshSubscriptions();
+                if (UsesPreparedSinglePassBounds()) { return (float)CurrentMetrics.ScaleX; }
                 string tag = ActiveCameraComponentValue == null || ActiveCameraComponentValue.OutputWindowTag.Length == 0
                     ? "main" : ActiveCameraComponentValue.OutputWindowTag;
                 return (float)(OwnerCore.RenderManager3D.GetWindowDensityDpi(tag) / (PixelsPerCentimeterValue * 2.54d) * UiScaleValue);
@@ -342,7 +318,6 @@ namespace helengine {
         /// </summary>
         public AnchorSpace AnchorSpace {
             get {
-                RefreshSubscriptions();
                 if (IsReferenceCanvasScalingActive()) {
                     return CurrentAnchorSpaceValue;
                 }
@@ -357,7 +332,6 @@ namespace helengine {
         /// </summary>
         public AnchorSpace ViewportAnchorSpace {
             get {
-                RefreshSubscriptions();
                 CurrentViewportAnchorSpaceValue.Update(ResolveAnchorBounds(), ResolveViewportAnchorOrigin());
                 return CurrentViewportAnchorSpaceValue;
             }
@@ -368,7 +342,6 @@ namespace helengine {
         /// </summary>
         public float4 ResolvedViewportBounds {
             get {
-                RefreshSubscriptions();
                 return ResolveViewportBounds();
             }
         }
@@ -392,7 +365,6 @@ namespace helengine {
         /// </summary>
         public double ResolvedPixelAspect {
             get {
-                RefreshSubscriptions();
                 return ResolvePixelAspect();
             }
         }
@@ -404,8 +376,8 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
             HasAppliedScaleValue = false;
+            LayoutStructureDirty = true;
             RefreshSubscriptions();
-            RebuildSnapshots();
             PendingScaleApplyValue = true;
         }
 
@@ -414,23 +386,24 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Entity losing the component.</param>
         public override void ComponentRemoved(Entity entity) {
+            RestoreAuthoredLayout();
+            if (LayoutCache != null) { LayoutCache.RestoreAuthoredLayout(); }
             base.ComponentRemoved(entity);
             DetachFromCamera();
             DetachFromWindowResize();
             DetachFromWindowLayout();
-            ReleaseLayoutSnapshotItems();
-            SnapshotEntityCountValue = 0;
+            ReleaseLayoutCacheItems();
             PendingScaleApplyValue = false;
         }
 
         /// <summary>
-        /// Releases viewport-owned snapshot records and subscriptions before the native backend deletes this component.
+        /// Releases viewport-owned typed records and subscriptions before the native backend deletes this component.
         /// </summary>
         public override void Dispose() {
             DetachFromCamera();
             DetachFromWindowResize();
             DetachFromWindowLayout();
-            ReleaseLayoutSnapshots();
+            ReleaseLayoutCache();
             NativeOwnership.Delete(CurrentAnchorSpaceValue);
             NativeOwnership.Delete(CurrentViewportAnchorSpaceValue);
             ActiveCameraComponentValue = null;
@@ -448,7 +421,6 @@ namespace helengine {
             base.ParentEnabledChange(newEnabled);
 
             if (newEnabled) {
-                RefreshSubscriptions();
                 PendingScaleApplyValue = true;
                 RaiseAnchorBoundsChanged();
             } else {
@@ -460,15 +432,10 @@ namespace helengine {
 
         /// <summary>Captures the fully initialized scene subtree before its first published frame, including components added after this viewport attached.</summary>
         internal void PrepareSceneLayout() {
-            if (!HasAppliedScaleValue) {
-                ReleaseLayoutSnapshotItems();
-            }
-            RebuildSnapshots();
-            PendingScaleApplyValue = true;
             ApplyPendingSceneLayout();
         }
 
-        /// <summary>Rebuilds viewport scaling snapshots after subtree changes and reapplies pending layout changes.</summary>
+        /// <summary>Rebuilds viewport optional layout buffers after subtree changes and reapplies pending layout changes.</summary>
         public override void Update() {
             base.Update();
             ApplyPendingSceneLayout();
@@ -476,36 +443,43 @@ namespace helengine {
 
         /// <summary>Runs builtin viewport layout without dispatching a derived gameplay Update during scene preparation.</summary>
         void ApplyPendingSceneLayout() {
-            RefreshSubscriptions();
-
-            if (Parent == null || !IsReferenceCanvasScalingActive()) {
-                return;
+            if (Parent == null || (HasAppliedScaleValue && !PendingScaleApplyValue && !LayoutStructureDirty)) { return; }
+            if ((byte)LayoutProcessingModeValue > (byte)ViewportLayoutProcessingMode.Cook) {
+                throw new InvalidOperationException("Unknown viewport layout processing policy.");
             }
-
-            bool tracksAuthoredEdits = IsEditorAuthoring();
-            bool subtreeChanged = tracksAuthoredEdits
-                ? MatchSnapshotsRecursive(Parent, 0) != LayoutSnapshotsValue.Count
-                : CountEntitiesRecursive(Parent) != SnapshotEntityCountValue;
-            if (!subtreeChanged && !PendingScaleApplyValue) {
-                return;
-            }
-
-            if (tracksAuthoredEdits) {
-                RestoreAuthoredLayout();
-            }
-
-            if (subtreeChanged) {
-                RebuildSnapshots();
-                PendingScaleApplyValue = true;
-            }
-
-            if (PendingScaleApplyValue) {
-                ApplyCurrentScale();
+            bool editor = IsEditorAuthoring();
+            if (HasAppliedScaleValue && !editor && LayoutProcessingModeValue != ViewportLayoutProcessingMode.Dynamic) {
                 PendingScaleApplyValue = false;
-                if (tracksAuthoredEdits) {
-                    RecordAppliedLayout();
-                }
+                LayoutStructureDirty = false;
+                return;
             }
+            RefreshSubscriptions();
+            if (editor) { RestoreAuthoredLayout(); }
+            if (!editor && LayoutProcessingModeValue == ViewportLayoutProcessingMode.Cook) {
+                if (CookedLayout == null || CookedLayout.AlgorithmVersion != 1) {
+                    throw new InvalidOperationException("Cook viewport requires compatible prepared layout metadata.");
+                }
+                int2 target = ResolveAnchorBounds();
+                if (target.X != CookedLayout.TargetWidth || target.Y != CookedLayout.TargetHeight || Math.Abs(ResolvePixelAspect() - CookedLayout.PixelAspect) > 0.000001d) {
+                    throw new InvalidOperationException("Cooked viewport presentation target changed; load a scene cooked for this target.");
+                }
+                CurrentMetrics = new ViewportLayoutMetrics {
+                    ScaleX = CookedLayout.ScaleX, ScaleY = CookedLayout.ScaleY, GlyphScale = CookedLayout.GlyphScale,
+                    AnchorSize = CookedLayout.AnchorSize, Origin = CookedLayout.Origin, PixelAspect = CookedLayout.PixelAspect
+                };
+                PublishMetrics();
+            } else {
+                if (IsReferenceCanvasScalingActive() && (editor || LayoutProcessingModeValue == ViewportLayoutProcessingMode.Dynamic)) {
+                    if (LayoutCache == null) { LayoutCache = ViewportLayoutCache.Capture(Parent); }
+                    else if (LayoutStructureDirty) { LayoutCache.Reconcile(Parent); }
+                }
+                ApplyCurrentScale();
+                if (editor && LayoutCache != null) { RecordAppliedLayout(); }
+            }
+            PreparedViewportBounds = ResolveViewportBounds();
+            HasAppliedScaleValue = true;
+            PendingScaleApplyValue = false;
+            LayoutStructureDirty = false;
         }
 
         /// <summary>
@@ -518,62 +492,18 @@ namespace helengine {
         /// Call <see cref="ReapplyLayout"/> afterwards to restore the scaled preview.
         /// </summary>
         public void RestoreAuthoredLayout() {
-            if (!IsEditorAuthoring() || Parent == null || !IsReferenceCanvasScalingActive() || LayoutSnapshotsValue.Count == 0) {
-                return;
-            }
-
-            for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
-                ViewportLayoutSnapshot snapshot = LayoutSnapshotsValue[snapshotIndex];
-                ViewportLayoutSnapshot applied = FindAppliedSnapshot(snapshot.Entity);
-                if (applied != null && IsInScaledSubtree(snapshot.Entity)) {
-                    snapshot.RestoreAuthoredComponents(
-                        applied,
-                        AppliedWidthScaleValue,
-                        AppliedHeightScaleValue,
-                        AppliedScalarScaleValue);
-                }
-            }
-
-            for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
-                ViewportLayoutSnapshot snapshot = LayoutSnapshotsValue[snapshotIndex];
-                ViewportLayoutSnapshot applied = FindAppliedSnapshot(snapshot.Entity);
-                if (applied != null && IsInScaledSubtree(snapshot.Entity)) {
-                    snapshot.RestoreAuthoredPosition(
-                        applied,
-                        AppliedCanvasOriginValue,
-                        AppliedWidthScaleValue,
-                        AppliedHeightScaleValue);
-                }
-            }
-
+            if (!IsEditorAuthoring() || Parent == null || LayoutCache == null || AppliedLayoutCache == null) { return; }
+            LayoutCache.RestoreEdited(AppliedLayoutCache, CurrentMetrics);
             if (ScalingModeValue != DensityScalingMode) {
-                // Anchored axes are derived from the anchor space, and whatever the editor window or a load-time fallback
-                // provider produced must not be persisted: re-anchor against the authored reference canvas so the saved
-                // positions and stretched sizes are identical for every editor window size.
-                // Anchors answering to the full viewport rect resolve through ViewportAnchorSpace, which follows the same
-                // reference canvas while the authored viewport rect is active.
                 CurrentAnchorSpaceValue.Update(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
                 BeginAuthoredViewportRect(new int2(ReferenceWidthValue, ReferenceHeightValue));
-                try {
-                    for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
-                        ViewportLayoutSnapshot snapshot = LayoutSnapshotsValue[snapshotIndex];
-                        if (!snapshot.IsRootEntity && IsInScaledSubtree(snapshot.Entity)) {
-                            snapshot.RefreshAnchoring();
-                        }
-                    }
-                } finally {
-                    EndAuthoredViewportRect();
-                }
+                try { ViewportLayoutTraversal.RefreshAnchoring(Parent, false); }
+                finally { EndAuthoredViewportRect(); }
             }
-
-            for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
-                ViewportLayoutSnapshot snapshot = LayoutSnapshotsValue[snapshotIndex];
-                if (IsInScaledSubtree(snapshot.Entity)) {
-                    LayoutSnapshotsValue[snapshotIndex] = new ViewportLayoutSnapshot(snapshot.Entity, snapshot.IsRootEntity);
-                }
-            }
-
-            AppliedLayoutSnapshotsValue.Clear();
+            LayoutCache.RecaptureValues();
+            AppliedLayoutCache.Release();
+            NativeOwnership.Delete(AppliedLayoutCache);
+            AppliedLayoutCache = null;
             PendingScaleApplyValue = true;
         }
 
@@ -619,99 +549,18 @@ namespace helengine {
 
         /// <summary>
         /// Records the live values and scales written by the scale pass that just ran, so later preview edits can be detected and unscaled.
-        /// The scales mirror the ones <see cref="ViewportLayoutSnapshot"/> derives from the same anchor space and reference canvas.
+        /// The scales mirror the ones the shared layout applier derives from the same anchor space and reference canvas.
         /// </summary>
         void RecordAppliedLayout() {
-            AppliedLayoutSnapshotsValue.Clear();
-            for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
-                ViewportLayoutSnapshot snapshot = LayoutSnapshotsValue[snapshotIndex];
-                AppliedLayoutSnapshotsValue.Add(new ViewportLayoutSnapshot(snapshot.Entity, snapshot.IsRootEntity));
-            }
-
-            if (ScalingModeValue == DensityScalingMode) {
-                double densityScale = DensityScale;
-                AppliedCanvasOriginValue = new float2(0f, 0f);
-                AppliedWidthScaleValue = densityScale;
-                AppliedHeightScaleValue = densityScale;
-                AppliedScalarScaleValue = densityScale;
-                return;
-            }
-
-            AppliedCanvasOriginValue = CurrentCanvasOriginValue;
-            AppliedWidthScaleValue = (double)CurrentAnchorSpaceValue.Size.X / ReferenceWidthValue;
-            AppliedHeightScaleValue = (double)CurrentAnchorSpaceValue.Size.Y / ReferenceHeightValue;
-            AppliedScalarScaleValue = ScalingModeValue == ReferenceCanvasStretchScalingMode
-                ? AppliedHeightScaleValue
-                : DisplayAspectFitUtils.ResolveGlyphScale(AppliedWidthScaleValue, AppliedHeightScaleValue, CurrentPixelAspectValue);
-        }
-
-        /// <summary>
-        /// Finds the live values recorded for one entity by the last editor scale pass.
-        /// </summary>
-        /// <param name="entity">Entity whose recorded values are requested.</param>
-        /// <returns>The recorded values owned by this viewport, or null when the entity was not part of the last recorded pass.</returns>
-        [NativeBorrowedReturn]
-        ViewportLayoutSnapshot FindAppliedSnapshot(Entity entity) {
-            for (int index = 0; index < AppliedLayoutSnapshotsValue.Count; index++) {
-                if (ReferenceEquals(AppliedLayoutSnapshotsValue[index].Entity, entity)) {
-                    return AppliedLayoutSnapshotsValue[index];
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Returns whether one snapshotted entity is still attached below this viewport's owner, so removed or replaced entities are never written.
-        /// </summary>
-        /// <param name="entity">Entity captured by a snapshot.</param>
-        /// <returns>True when the entity is the owner or one of its current descendants.</returns>
-        bool IsInScaledSubtree(Entity entity) {
-            Entity current = entity;
-            while (current != null) {
-                if (ReferenceEquals(current, Parent)) {
-                    return true;
-                }
-
-                current = current.Parent;
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Walks the captured subtree in snapshot order and checks that every entity still matches its snapshot, so the editor
-        /// notices replaced entities (for example after undo) even when the entity count did not change.
-        /// </summary>
-        /// <param name="entity">Current entity to match.</param>
-        /// <param name="snapshotIndex">Snapshot index expected for the entity.</param>
-        /// <returns>The next snapshot index after the matched subtree, or -1 when the subtree differs from the snapshots.</returns>
-        int MatchSnapshotsRecursive(Entity entity, int snapshotIndex) {
-            if (snapshotIndex >= LayoutSnapshotsValue.Count || !ReferenceEquals(LayoutSnapshotsValue[snapshotIndex].Entity, entity)) {
-                return -1;
-            }
-
-            int nextIndex = snapshotIndex + 1;
-            if (entity.Children == null) {
-                return nextIndex;
-            }
-
-            for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
-                if (ShouldCaptureChild(entity.Children[childIndex])) {
-                    nextIndex = MatchSnapshotsRecursive(entity.Children[childIndex], nextIndex);
-                    if (nextIndex < 0) {
-                        return -1;
-                    }
-                }
-            }
-
-            return nextIndex;
+            if (AppliedLayoutCache != null) { AppliedLayoutCache.Release(); NativeOwnership.Delete(AppliedLayoutCache); }
+            AppliedLayoutCache = ViewportLayoutCache.Capture(Parent);
         }
 
         /// <summary>
         /// Updates event subscriptions for the current binding mode.
         /// </summary>
         void RefreshSubscriptions() {
+            if (Parent == null || OwnerCore == null || OwnerCore.RenderManager3D == null) { return; }
             if (BindingModeValue == ScreenBindingMode) {
                 DetachFromCamera();
                 AttachToWindowResize();
@@ -860,6 +709,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Resolved viewport rectangle in pixel-space coordinates.</returns>
         float4 ResolveViewportBounds() {
+            if (UsesPreparedSinglePassBounds()) { return PreparedViewportBounds; }
             if (BindingModeValue == ScreenBindingMode) {
                 int2 screenSize = OwnerCore.RenderManager3D.MainWindowSize;
                 if (screenSize.X > 0 && screenSize.Y > 0) {
@@ -886,6 +736,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Displayed width of one surface pixel divided by its displayed height.</returns>
         double ResolvePixelAspect() {
+            if (UsesPreparedSinglePassBounds()) { return CurrentMetrics.PixelAspect; }
             if (AuthoredViewportRectSizeValue.X > 0 && AuthoredViewportRectSizeValue.Y > 0) {
                 return RenderManager3D.SquarePixelAspect;
             } else if (OwnerCore == null || OwnerCore.RenderManager3D == null) {
@@ -924,7 +775,6 @@ namespace helengine {
         /// <returns>A hierarchy-owned camera borrowed for rendering and layout decisions, or null when no camera is bound.</returns>
         [NativeBorrowedReturn]
         public CameraComponent GetBoundCameraComponent() {
-            RefreshSubscriptions();
             return ResolveBoundCameraComponent();
         }
 
@@ -965,140 +815,81 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Rebuilds the authored snapshots for the current entity subtree when viewport-owned scaling is active.
+        /// Deletes the current typed records while preserving the reusable typed cache.
         /// </summary>
-        void RebuildSnapshots() {
-            if (Parent == null) {
-                ReleaseLayoutSnapshotItems();
-                SnapshotEntityCountValue = 0;
-                return;
-            }
-
-            ViewportLayoutSnapshot[] previous = LayoutSnapshotsValue.ToArray();
-            LayoutSnapshotsValue.Clear();
-            CaptureSnapshotsRecursive(Parent, true, previous);
-            NativeOwnership.Delete(previous);
-            SnapshotEntityCountValue = LayoutSnapshotsValue.Count;
+        void ReleaseLayoutCacheItems() {
+            if (AppliedLayoutCache != null) { AppliedLayoutCache.Release(); NativeOwnership.Delete(AppliedLayoutCache); AppliedLayoutCache = null; }
+            if (LayoutCache != null) { LayoutCache.Release(); NativeOwnership.Delete(LayoutCache); LayoutCache = null; }
         }
 
         /// <summary>
-        /// Recursively captures one entity subtree into immutable authored snapshots.
+        /// Deletes all typed records and the native list wrappers owned by this viewport component.
         /// </summary>
-        /// <param name="entity">Current entity to capture.</param>
-        /// <param name="isRootEntity">True when the entity is the root of the scaled subtree.</param>
-        /// <param name="previous">Existing authored records retained across dynamic subtree changes.</param>
-        void CaptureSnapshotsRecursive(Entity entity, bool isRootEntity, [NativeNoEscape] ViewportLayoutSnapshot[] previous) {
-            ViewportLayoutSnapshot snapshot = null;
-            for (int index = 0; index < previous.Length; index++) {
-                if (ReferenceEquals(previous[index].Entity, entity)) {
-                    snapshot = previous[index];
-                    break;
-                }
-            }
-            LayoutSnapshotsValue.Add(snapshot ?? new ViewportLayoutSnapshot(entity, isRootEntity));
-            if (entity.Children == null) {
-                return;
-            }
-
-            for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
-                if (ShouldCaptureChild(entity.Children[childIndex])) {
-                    CaptureSnapshotsRecursive(entity.Children[childIndex], false, previous);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Leaves independently owned viewport and generated performance-overlay subtrees to their respective layout owners.
-        /// In the editor, a nested <see cref="ReferenceCanvasFitComponent"/> also owns its subtree exclusively, so this viewport
-        /// never writes values the fit would then mistake for preview edits, and each owner restores only what it wrote. The
-        /// fit writes every field it tracks after this viewport at runtime too, so the preview matches the player except for
-        /// performance-overlay (FPS) font scale and padding inside the fit, which only a viewport scales. Runtime hosts keep the
-        /// original shared behavior.
-        /// </summary>
-        /// <param name="child">Child whose layout ownership is inspected.</param>
-        /// <returns>Whether the current viewport should capture this child's layout.</returns>
-        bool ShouldCaptureChild(Entity child) {
-            if (child.Components != null) {
-                bool editorAuthoring = IsEditorAuthoring();
-                for (int index = 0; index < child.Components.Count; index++) {
-                    if (child.Components[index] is ViewportComponent) {
-                        return false;
-                    }
-                    if (editorAuthoring && child.Components[index] is ReferenceCanvasFitComponent) {
-                        return false;
-                    }
-                }
-            }
-            Entity parent = child.Parent;
-            if (parent != null && parent.Components != null) {
-                for (int index = 0; index < parent.Components.Count; index++) {
-                    if (parent.Components[index] is FPSComponent fps && ReferenceEquals(child, fps.OverlayLayoutRoot)) {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }
-
-        /// <summary>
-        /// Deletes the current snapshot records while preserving the reusable snapshot list.
-        /// </summary>
-        void ReleaseLayoutSnapshotItems() {
-            LayoutSnapshotsValue.Clear();
-            AppliedLayoutSnapshotsValue.Clear();
-        }
-
-        /// <summary>
-        /// Deletes all snapshot records and the native list wrappers owned by this viewport component.
-        /// </summary>
-        void ReleaseLayoutSnapshots() {
-            ReleaseLayoutSnapshotItems();
-            NativeOwnership.Delete(LayoutSnapshotsValue);
-            NativeOwnership.Delete(AppliedLayoutSnapshotsValue);
+        void ReleaseLayoutCache() {
+            ReleaseLayoutCacheItems();
         }
 
         /// <summary>
         /// Applies the current viewport-owned scale to the captured subtree.
         /// </summary>
+        /// <summary>Publishes shared bounds without touching any participant values.</summary>
+        void PublishMetrics() {
+            CurrentAnchorSpaceValue.Update(CurrentMetrics.AnchorSize, new float2(0f, 0f));
+            CurrentCanvasOriginValue = CurrentMetrics.Origin;
+            CurrentPixelAspectValue = CurrentMetrics.PixelAspect;
+        }
+
+        /// <summary>Invalidates borrowed participant references before detachment, without an idle scan.</summary>
+        internal void InvalidateLayout(Component component, Entity subtree) {
+            if (AppliedLayoutCache != null) {
+                if (component != null) { AppliedLayoutCache.Remove(component); }
+                if (subtree != null) { AppliedLayoutCache.Remove(subtree); }
+            }
+            if (LayoutCache != null) {
+                if (component != null) { LayoutCache.Remove(component); }
+                if (subtree != null) { LayoutCache.Remove(subtree); }
+            }
+            LayoutStructureDirty = true;
+            PendingScaleApplyValue = true;
+        }
+
+        /// <summary>Rebinds camera listeners once when the hierarchy changes rather than on every bounds read.</summary>
+        internal void HierarchyBindingChanged() {
+            RefreshSubscriptions();
+            LayoutStructureDirty = true;
+            PendingScaleApplyValue = true;
+            RaiseAnchorBoundsChanged();
+        }
+
+        /// <summary>Identifies prepared runtime owners whose layout target remains fixed until scene reload.</summary>
+        bool UsesPreparedSinglePassBounds() {
+            return HasAppliedScaleValue && !IsEditorAuthoring() && LayoutProcessingModeValue != ViewportLayoutProcessingMode.Dynamic;
+        }
+
+        /// <summary>Prepares only a newly initialized subtree under an already prepared single-pass owner.</summary>
+        internal void PrepareAttachedSubtree(Entity subtree) {
+            if (HasAppliedScaleValue && !IsEditorAuthoring() && LayoutProcessingModeValue != ViewportLayoutProcessingMode.Dynamic && IsReferenceCanvasScalingActive()) {
+                ViewportLayoutTraversal.ApplyOnce(subtree, Parent, CurrentMetrics);
+                ViewportLayoutTraversal.RefreshAnchoring(subtree, true);
+            }
+        }
+
+        /// <summary>Gets prepared factors for animation and other layout-space consumers.</summary>
+        public ViewportLayoutMetrics PreparedLayoutMetrics => CurrentMetrics;
+
         void ApplyCurrentScale() {
-            if (Parent == null || LayoutSnapshotsValue.Count == 0) {
-                return;
+            if (Parent == null) { return; }
+            double referenceDpi = PixelsPerCentimeterValue * 2.54d;
+            double dpi = ScalingModeValue == DensityScalingMode ? DensityScale / UiScaleValue * referenceDpi : 0d;
+            CurrentMetrics = ViewportLayoutMath.Resolve(ScalingModeValue, new int2(ReferenceWidthValue, ReferenceHeightValue),
+                ResolveAnchorBounds(), ResolvePixelAspect(), UiScaleValue, dpi, referenceDpi);
+            PublishMetrics();
+            if (IsReferenceCanvasScalingActive()) {
+                if (LayoutCache != null) { LayoutCache.Apply(CurrentMetrics); }
+                else { ViewportLayoutTraversal.ApplyOnce(Parent, Parent, CurrentMetrics); }
+                ViewportLayoutTraversal.RefreshAnchoring(Parent, false);
             }
-
-            int2 resolvedAnchorSpaceSize = ResolveCurrentAnchorSpaceSize();
-            float2 resolvedAnchorSpaceOrigin = new float2(0f, 0f);
-            float2 resolvedCanvasOrigin = ResolveCurrentCanvasOrigin(resolvedAnchorSpaceSize);
-            bool anchorSpaceChanged = DidAnchorSpaceChange(CurrentAnchorSpaceValue, resolvedAnchorSpaceSize, resolvedAnchorSpaceOrigin) ||
-                                      DidCanvasOriginChange(CurrentCanvasOriginValue, resolvedCanvasOrigin);
-
-            CurrentAnchorSpaceValue.Update(resolvedAnchorSpaceSize, resolvedAnchorSpaceOrigin);
-            CurrentCanvasOriginValue = resolvedCanvasOrigin;
-            double densityScale = ScalingModeValue == DensityScalingMode ? DensityScale : 1d;
-            double pixelAspect = ResolvePixelAspect();
-            CurrentPixelAspectValue = pixelAspect;
-            for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
-                if (ScalingModeValue == DensityScalingMode) {
-                    LayoutSnapshotsValue[snapshotIndex].ApplyDensityScale(densityScale);
-                    continue;
-                }
-                LayoutSnapshotsValue[snapshotIndex].Apply(
-                    CurrentAnchorSpaceValue,
-                    resolvedCanvasOrigin,
-                    ReferenceWidthValue,
-                    ReferenceHeightValue,
-                    ScalingModeValue == ReferenceCanvasStretchScalingMode,
-                    pixelAspect);
-            }
-
-            for (int snapshotIndex = 0; snapshotIndex < LayoutSnapshotsValue.Count; snapshotIndex++) {
-                LayoutSnapshotsValue[snapshotIndex].RefreshAnchoring();
-            }
-
-            HasAppliedScaleValue = true;
-
-            if (anchorSpaceChanged) {
-                RaiseAnchorBoundsChanged();
-            }
+            RaiseAnchorBoundsChanged();
         }
 
         /// <summary>
@@ -1191,30 +982,6 @@ namespace helengine {
             return ScalingModeValue == ReferenceCanvasScalingMode
                 || ScalingModeValue == ReferenceCanvasStretchScalingMode
                 || ScalingModeValue == DensityScalingMode;
-        }
-
-        /// <summary>
-        /// Counts one entity subtree recursively.
-        /// </summary>
-        /// <param name="entity">Root entity whose subtree should be counted.</param>
-        /// <returns>Total entity count including the supplied root.</returns>
-        int CountEntitiesRecursive(Entity entity) {
-            if (entity == null) {
-                return 0;
-            }
-
-            int count = 1;
-            if (entity.Children == null) {
-                return count;
-            }
-
-            for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
-                if (ShouldCaptureChild(entity.Children[childIndex])) {
-                    count += CountEntitiesRecursive(entity.Children[childIndex]);
-                }
-            }
-
-            return count;
         }
 
         /// <summary>

@@ -26,15 +26,7 @@ namespace helengine.core.tests.content {
         /// </summary>
         [Fact]
         public void ConfigureSharedAssetContentManager_UsesOwningFontProcessor() {
-            string sourcePath = Path.GetFullPath(Path.Combine(
-                AppContext.BaseDirectory,
-                "..",
-                "..",
-                "..",
-                "..",
-                "helengine.core",
-                "content",
-                "RuntimeContentManagerConfiguration.cs"));
+            string sourcePath = ResolveCoreContentSourcePath("RuntimeContentManagerConfiguration.cs");
             string source = File.ReadAllText(sourcePath);
 
             Assert.Contains("new FontAssetBinaryContentProcessor(renderManager2D)", source, StringComparison.Ordinal);
@@ -46,15 +38,7 @@ namespace helengine.core.tests.content {
         /// </summary>
         [Fact]
         public void FontAssetBinaryContentProcessor_StoresRendererForDeferredRead() {
-            string sourcePath = Path.GetFullPath(Path.Combine(
-                AppContext.BaseDirectory,
-                "..",
-                "..",
-                "..",
-                "..",
-                "helengine.core",
-                "content",
-                "FontAssetBinaryContentProcessor.cs"));
+            string sourcePath = ResolveCoreContentSourcePath("FontAssetBinaryContentProcessor.cs");
             string source = File.ReadAllText(sourcePath);
 
             Assert.Contains("readonly RenderManager2D RenderManager2DValue;", source, StringComparison.Ordinal);
@@ -62,6 +46,14 @@ namespace helengine.core.tests.content {
             Assert.Contains("FontAssetBinarySerializer.Deserialize(stream, RenderManager2DValue)", source, StringComparison.Ordinal);
             Assert.Contains("ResolveOutputType<FontAsset>()", source, StringComparison.Ordinal);
             Assert.Contains("static Type ResolveOutputType<T>()", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>Finds actual checkout sources independently of the test artifact output folder.</summary>
+        /// <param name="fileName">Core content source file.</param>
+        /// <param name="testFile">Compiler-supplied path to this test in the real checkout.</param>
+        /// <returns>Absolute source path without copying or exporting the checkout.</returns>
+        static string ResolveCoreContentSourcePath(string fileName, [System.Runtime.CompilerServices.CallerFilePath] string testFile = "") {
+            return Path.GetFullPath(Path.Combine(Path.GetDirectoryName(testFile), "..", "..", "helengine.core", "content", fileName));
         }
 
         /// <summary>

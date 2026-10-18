@@ -433,8 +433,11 @@ namespace helengine {
             entity.Parent = this;
             entity.InvalidateWorldTransformCache();
             RetainChildReference(entity);
+            ViewportLayoutInvalidation.AfterAttach(entity);
             if (IsInitializedValue) {
+                bool prepareLayout = !entity.IsInitialized;
                 entity.InitializeHierarchy();
+                if (prepareLayout) { ViewportLayoutInvalidation.PrepareIncomingSubtree(entity); }
             }
             if (wasHierarchyEnabled && entity.IsHierarchyEnabled) {
                 entity.RefreshRenderRegistrations();
@@ -487,11 +490,13 @@ namespace helengine {
             }
 
             bool wasHierarchyEnabled = entity.IsHierarchyEnabled;
+            ViewportLayoutInvalidation.BeforeDetach(entity);
             if (!ChildrenValue.Remove(entity)) {
                 throw new InvalidOperationException("Entity could not be removed from the child collection.");
             }
 
             entity.Parent = null;
+            ViewportLayoutInvalidation.RefreshBindings(entity);
             entity.InvalidateWorldTransformCache();
             if (!ShouldSuppressRegistrationRefreshForDetachment(entity) && wasHierarchyEnabled && entity.IsHierarchyEnabled) {
                 entity.RefreshRenderRegistrations();
@@ -545,6 +550,7 @@ namespace helengine {
                     comp.ComponentInitialized(this);
                 }
             }
+            ViewportLayoutInvalidation.AfterAttach(comp);
         }
 
         /// <summary>
@@ -613,6 +619,7 @@ namespace helengine {
                 throw new InvalidOperationException("Component is not attached to this entity.");
             }
 
+            ViewportLayoutInvalidation.BeforeDetach(comp);
             if (!ComponentsValue.Remove(comp)) {
                 throw new InvalidOperationException("Component could not be removed from the component collection.");
             }

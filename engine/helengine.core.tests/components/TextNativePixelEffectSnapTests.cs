@@ -63,9 +63,10 @@ namespace helengine.core.tests {
             using Batch2DTestRenderManager renderer = new Batch2DTestRenderManager();
             using Core core = CreateCore(renderer);
             TextComponent text = CreateMenuText(core, mode, out Entity entity);
-            ViewportLayoutSnapshot snapshot = new ViewportLayoutSnapshot(entity, true);
+            ViewportLayoutCache snapshot = ViewportLayoutCache.Capture(entity);
 
-            snapshot.Apply(new AnchorSpace(new int2(640, 448), new float2(0f, 0f)), new float2(0f, 0f), 1280, 720, true, RenderManager3D.SquarePixelAspect);
+            snapshot.Apply(ViewportLayoutMath.Resolve(2, new int2(1280, 720), new int2(640, 448), 1, 1, 0, 0));
+            snapshot.Release();
 
             Assert.Equal(expectedOutline, text.OutlineScale, 5);
         }
@@ -74,13 +75,14 @@ namespace helengine.core.tests {
         /// Ensures the reference-canvas fit path applies the same native-pixel snapping as the viewport path.
         /// </summary>
         [Fact]
-        public void ReferenceCanvasFitSnapshot_OnPs2Framebuffer_SnapsNativePixelText() {
+        public void SharedFitCache_OnPs2Framebuffer_SnapsNativePixelText() {
             using Batch2DTestRenderManager renderer = new Batch2DTestRenderManager();
             using Core core = CreateCore(renderer);
             TextComponent text = CreateMenuText(core, TextNativePixelMode.RoundNearest, out Entity entity);
-            ReferenceCanvasFitSnapshot snapshot = new ReferenceCanvasFitSnapshot(entity, true);
+            ViewportLayoutCache snapshot = ViewportLayoutCache.Capture(entity);
 
-            snapshot.Apply(new AnchorSpace(new int2(640, 448), new float2(0f, 0f)), new float2(0f, 0f), 1280, 720, RenderManager3D.SquarePixelAspect);
+            snapshot.Apply(ViewportLayoutMath.Resolve(1, new int2(1280, 720), new int2(640, 448), 1, 1, 0, 0));
+            snapshot.Release();
 
             Assert.Equal(1f, text.OutlineScale);
             Assert.Equal(-1f, text.ShadowOffset.X);

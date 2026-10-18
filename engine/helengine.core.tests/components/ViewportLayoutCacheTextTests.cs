@@ -5,7 +5,7 @@ namespace helengine.core.tests.components {
     /// <summary>
     /// Verifies viewport scaling keeps text effects proportional and restores authored values after resizing.
     /// </summary>
-    public sealed class ViewportLayoutSnapshotTests {
+    public sealed class ViewportLayoutCacheTextTests {
         /// <summary>
         /// Keeps glyphs and effects proportional to the canvas scalar across aspect changes, repeated resizing and restoration.
         /// </summary>
@@ -37,11 +37,11 @@ namespace helengine.core.tests.components {
                 ShadowOffset = new float2(-4f, 6f)
             };
             entity.AddComponent(text);
-            ViewportLayoutSnapshot snapshot = new ViewportLayoutSnapshot(entity, false);
-            AnchorSpace reduced = new AnchorSpace(new int2(viewportWidth, viewportHeight), new float2(0f, 0f));
+            ViewportLayoutCache cache = ViewportLayoutCache.Capture(entity);
+            ViewportLayoutMetrics reduced = new ViewportLayoutMetrics { ScaleX = (double)viewportWidth / 1280, ScaleY = (double)viewportHeight / 720, GlyphScale = stretchCanvas ? (double)viewportHeight / 720 : DisplayAspectFitUtils.ResolveGlyphScale((double)viewportWidth / 1280, (double)viewportHeight / 720, 1) };
 
-            snapshot.Apply(reduced, new float2(0f, 0f), 1280, 720, stretchCanvas, RenderManager3D.SquarePixelAspect);
-            snapshot.Apply(reduced, new float2(0f, 0f), 1280, 720, stretchCanvas, RenderManager3D.SquarePixelAspect);
+            cache.Apply(reduced);
+            cache.Apply(reduced);
 
             Assert.Equal(2f * expectedScale, text.FontScale);
             Assert.Equal(2f * expectedScale, text.OutlineScale);
@@ -50,8 +50,8 @@ namespace helengine.core.tests.components {
             Assert.Equal((int)Math.Round(400d * viewportWidth / 1280d), text.Size.X);
             Assert.Equal((int)Math.Round(100d * viewportHeight / 720d), text.Size.Y);
 
-            snapshot.Apply(new AnchorSpace(new int2(1280, 720), new float2(0f, 0f)),
-                new float2(0f, 0f), 1280, 720, stretchCanvas, RenderManager3D.SquarePixelAspect);
+            cache.Apply(new ViewportLayoutMetrics { ScaleX = 1, ScaleY = 1, GlyphScale = 1 });
+            cache.Release();
 
             Assert.Equal(2f, text.FontScale);
             Assert.Equal(2f, text.OutlineScale);

@@ -42,35 +42,23 @@ namespace helengine.core.tests.components {
         }
 
         /// <summary>Both canvas snapshots resize geometry while preserving native font pixels and restoring authored geometry on later applications.</summary>
-        /// <param name="referenceCanvas">Whether the legacy reference canvas rather than viewport snapshot is exercised.</param>
         /// <param name="nativePixels">Whether the text opts into native pixels or retains proportional scaling.</param>
         [Theory]
-        [InlineData(false, false)]
-        [InlineData(false, true)]
-        [InlineData(true, false)]
-        [InlineData(true, true)]
-        public void CanvasSnapshotsKeepNativeGlyphScale(bool referenceCanvas, bool nativePixels) {
+        [InlineData(false)]
+        [InlineData(true)]
+        public void TypedCacheKeepsNativeGlyphScale(bool nativePixels) {
             using Batch2DTestRenderManager renderer = new Batch2DTestRenderManager();
             using Core core = CreateCore(renderer);
             Entity entity = new Entity(core);
             entity.InitComponents();
             TextComponent text = new TextComponent { FontScale = 2f, Size = new int2(400, 100), NativeFontPixels = nativePixels ? TextNativePixelMode.RoundNearest : TextNativePixelMode.Disabled };
             entity.AddComponent(text);
-            AnchorSpace reduced = new AnchorSpace(new int2(320, 360), new float2());
-            ViewportLayoutSnapshot viewport = new ViewportLayoutSnapshot(entity, false);
-            ReferenceCanvasFitSnapshot canvas = new ReferenceCanvasFitSnapshot(entity, false);
-            if (referenceCanvas) {
-                canvas.Apply(reduced, new float2(), 1280, 720, RenderManager3D.SquarePixelAspect);
-            } else {
-                viewport.Apply(reduced, new float2(), 1280, 720, false, RenderManager3D.SquarePixelAspect);
-            }
+            ViewportLayoutCache cache = ViewportLayoutCache.Capture(entity);
+            cache.Apply(new ViewportLayoutMetrics { ScaleX = 0.25, ScaleY = 0.5, GlyphScale = 0.25 });
             Assert.Equal(nativePixels ? 1f : 0.5f, text.FontScale);
             Assert.Equal(new int2(100, 50), text.Size);
-            if (referenceCanvas) {
-                canvas.Apply(new AnchorSpace(new int2(1280, 720), new float2()), new float2(), 1280, 720, RenderManager3D.SquarePixelAspect);
-            } else {
-                viewport.Apply(new AnchorSpace(new int2(1280, 720), new float2()), new float2(), 1280, 720, false, RenderManager3D.SquarePixelAspect);
-            }
+            cache.Apply(new ViewportLayoutMetrics { ScaleX = 1, ScaleY = 1, GlyphScale = 1 });
+            cache.Release();
             Assert.Equal(nativePixels ? 1f : 2f, text.FontScale);
             Assert.Equal(new int2(400, 100), text.Size);
         }

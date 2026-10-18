@@ -109,6 +109,9 @@ namespace helengine.editor {
                 if (Owners[index] is ViewportComponent viewport) {
                     CookedLayouts.Add(viewport.CookedLayout);
                     viewport.CookedLayout = null;
+                } else if (Owners[index] is ReferenceCanvasFitComponent fit) {
+                    CookedLayouts.Add(fit.CookedLayout);
+                    fit.CookedLayout = null;
                 } else {
                     CookedLayouts.Add(null);
                 }
@@ -126,10 +129,14 @@ namespace helengine.editor {
             for (int index = restoredCount - 1; index >= 0; index--) {
                 if (Owners[index] is ViewportComponent viewport) {
                     viewport.CookedLayout = CookedLayouts[index];
+                } else if (Owners[index] is ReferenceCanvasFitComponent fit) {
+                    fit.CookedLayout = CookedLayouts[index];
                 }
-                Owners[index].ReapplyLayout();
             }
             CookedLayouts.Clear();
+            for (int index = restoredCount - 1; index >= 0; index--) {
+                Owners[index].ReapplyLayout();
+            }
         }
 
         /// <summary>
