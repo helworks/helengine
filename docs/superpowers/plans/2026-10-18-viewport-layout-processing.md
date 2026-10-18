@@ -284,3 +284,43 @@ Assert.Equal(new float3(96, 30, 0),
 - Cross-task types/signatures above are the contract. Any change that alters the approved ownership or mode behavior returns to Helena for architectural feedback.
 - Before editing another repository, recheck branch/status and preserve the explicitly known local work. Unexpected other-session edits in a touched path require stopping and asking.
 - Recommended execution: Native, because cook, runtime, persistence and consumers share tightly ordered interfaces. No implementation has started with this plan.
+
+## Evidência de execução — 2026-10-18
+
+Estado: tarefas 1–7 implementadas e revisadas; tarefa 8 ainda depende do resultado final da build PS1 e da validação em emulador. Não houve push.
+
+Revisões usadas: engine da122189, conversor 606d09e5 (master autorizada), Windows 5fb0feb, PS1 269713a e DemoDisc 80dfbdf. Os demais checkouts estão na main. As alterações pessoais não rastreadas foram preservadas.
+
+### Windows: build e execução confirmadas
+
+- Build oficial terminou com exit code 0; Profiler otimizado, TRACY_ENABLE, profiling das funções geradas e PDB. Saída fixa: C:\dev\helworks\builds\windows\package. Executável C:\dev\helworks\builds\windows\package\helengine_windows.exe: 6.515.200 bytes; PDB: 98.783.232 bytes; ambos gerados em 2026-10-18 22:17:17 UTC.
+- Seleção efetiva: menu primeiro e 14 cenas de rendering. Os 44 botões continuam presentes, inclusive os de cenas não empacotadas.
+- Helena confirmou menu com logo/textos corretos e, na build final, Cube Test aberto e rodando sem BaseColorBuffer. A causa era ownership: as listas locais de MaterialLayoutBuilder liberavam bindings ainda referenciados pelo MaterialLayout; três transferências DetachOwned corrigem a origem. Contratos de layout/ownership: 7/7.
+- Captura Tracy real de 30,57 s; descartados 2 s iniciais. 6.854 amostras de componentes/frame, 149 entidades registradas, uma câmera, cinco componentes com Update em quatro entidades. A build PS1 estava em segundo plano; não existe baseline comparável antes/depois.
+
+| Entidade / componente | Média por frame | P95 |
+| --- | ---: | ---: |
+| 14 DemoDiscOverlayImage / AnimationPlayerComponent | 3,184 µs | 5 µs |
+| 11 DemoDiscMenuRoot / MenuComponent | 1,977 µs | 3 µs |
+| 25 Panel-main-ItemsRoot / ScrollComponent | 1,952 µs | 3 µs |
+| 18 DemoDiscFooterIdentitySurface / FooterIdentityMarqueeComponent | 0,349 µs | 1 µs |
+| 11 DemoDiscMenuRoot / ViewportComponent | 0,165 µs | 1 µs |
+
+Update completo: média 0,030597 ms, P95 0,043222 ms. Draw: média 0,157468 ms, P95 0,224457 ms. Frame real: média 4,168086 ms, P95 4,304638 ms; aproximadamente 240 FPS. Present bloqueia cerca de 3,972 ms e está contido no pacing: não somar os dois. O relógio de componentes tem resolução de 1 µs; médias abaixo disso não são precisão individual submicrossegundo. A ausência de escopos frios na política coarse não prova ausência de travessia; essa propriedade é validada pelo código e pelos testes.
+
+### Memória: ABI real versus reconstrução
+
+- ABI Windows x64 dos registros, em bytes: posição24, anchor24, retângulo24, texto32, sprite16, clip16, interactable16, scroll24 e FPS24; cache88; metadata Cook96.
+- ABI MIPS do SDK PS1 compilada e inspecionada com nm: ponteiro4; posição16, anchor20, retângulo20, texto28, sprite12, clip12, interactable12, scroll16 e FPS16; cache44; metadata Cook88.
+- Cook/OnLoad não constroem cache de originais desde a preparação, validado pelos testes. Os 88 bytes medidos no PS1 são o objeto de metadata por viewport, não o custo total do componente/alocador. Não há medição de pico de heap nativo nesta evidência.
+- Reconstrução Dynamic Windows com structs e crescimento reais do vetor: 127 posições (cap141), 24 anchors (cap28), 54 retângulos (cap63), 47 textos (cap63), dois sprites (cap2), sete clips (cap9) e sete scrolls (cap9). Valores6736 + folga1240 + nove wrappers/cache448 = 8424 bytes pedidos. Exclui cabeçalhos do alocador e entidades geradas em runtime; não é uma medição do heap vivo. A estimativa inicial de 6–7 KiB não vale como medição x64.
+
+### Validações e limites
+
+- Core completo: 1290/1290; menu: 15/15; leitor estrito/gerador: 40/40; mutações de provider: 6/6; último recorte de editor autoral/perfis: 20/20. A validação expandida por blueprints das 15 cenas encontrou zero campos de layout ausentes. Cenas antigas continuam bloqueadas, sem fallback de schema.
+- Duas asserções de projeção com igualdade exata de float observaram 5,7735033 versus 5,773503; controllers byte-inalterados desde a base. Não foram mascaradas nem atribuídas definitivamente à base.
+- Formatter portátil: MSVC2026, GCC e EASTL com headers hospedados bloqueados passaram 24.576 comparações por configuração e contratos explícitos; compilação MIPS real passou. NaN de sinalização usa a política portátil nan/NAN, sem a decoração específica de UCRT. Não houve exclusão de casos finitos. A suite ampla do conversor tem bloqueios independentes de reverse_iterator e construção de std::logic_error, registrados sem alteração.
+- Runner PS1: testes C#7/7 e mounts Python4/4. Cache externo, outputs fixos e objetos candidatos temporários separados. Kernel nativo e 588 objetos candidatos já compilaram; linkedição, orçamento retail e pacote final ainda pendentes neste registro.
+- Revisão final independente cobriu implementação, ownership, caminhos e formatter. Cook rejeita explicitamente CheckBox/TextBox/ComboBox gerados em runtime; esses hosts continuam em Dynamic/OnLoad e não aparecem no menu.
+
+Pendências da tarefa 8: build PS1 final e seu orçamento, lançamento autorizado pelo MCP e QA; comparação limpa/incremental dos payloads no mesmo output; pico de alocação nativo não medido. O PS1 dispõe somente de Release nesta execução, sem profiler: não há números de tempo PS1. Limpar apenas temporários próprios ao encerrar, preservando o cache compartilhado e arquivos alheios.
