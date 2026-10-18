@@ -50,6 +50,14 @@ namespace helengine.editor {
         /// </summary>
         public int LastReusedInputCount { get; private set; }
 
+        /// <summary>Produces a stable versioned identity for the backend's effective layout metrics.</summary>
+        /// <param name="target">Resolved backend output, or null when unavailable.</param>
+        /// <param name="algorithmVersion">Version of the numerical layout and ownership contract.</param>
+        /// <returns>Invariant fingerprint input, independent of profile display names.</returns>
+        internal static string ComputeLayoutFingerprint(PlatformLayoutTarget target, int algorithmVersion) {
+            return algorithmVersion.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n" + JsonSerializer.Serialize(target);
+        }
+
         /// <summary>
         /// Hashes the authored project snapshot and every option that changes scene packaging.
         /// </summary>
@@ -76,7 +84,8 @@ namespace helengine.editor {
             IReadOnlyList<IAssetImporterRegistration> importers,
             FontAsset defaultFontAsset,
             IScriptTypeResolver scriptTypeResolver,
-            EditorBuiltInShaderAssetLibrary shaderLibrary) {
+            EditorBuiltInShaderAssetLibrary shaderLibrary,
+            PlatformLayoutTarget effectiveLayoutTarget = null) {
             if (platformDefinition == null) {
                 throw new ArgumentNullException(nameof(platformDefinition));
             } else if (sceneIds == null) {
@@ -90,7 +99,8 @@ namespace helengine.editor {
             }
 
             using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            AppendText(hash, "scene-package-v7-gpu-only-reduction-variants");
+            AppendText(hash, "scene-package-v8-viewport-layout");
+            AppendText(hash, ComputeLayoutFingerprint(effectiveLayoutTarget, ViewportLayoutCookProcessor.AlgorithmVersion));
             AppendText(hash, JsonSerializer.Serialize(platformDefinition));
             AppendText(hash, buildProfileId ?? string.Empty);
             AppendText(hash, graphicsProfileId ?? string.Empty);

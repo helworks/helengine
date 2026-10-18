@@ -538,6 +538,7 @@ namespace helengine {
                 throw new InvalidOperationException("Component is already attached to an entity.");
             }
 
+            ViewportLayoutInvalidation.BeforeAttach(this, comp);
             RetainComponentReference(comp);
             comp.AttachToEntity(this);
             if (comp is SceneEntityRuntimeIdComponent) {
@@ -638,6 +639,7 @@ namespace helengine {
             }
 
             comp.DetachFromEntity();
+            ViewportLayoutInvalidation.AfterDetach(this, comp);
         }
 
         /// <summary>

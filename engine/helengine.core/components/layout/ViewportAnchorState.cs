@@ -6,7 +6,7 @@ namespace helengine {
         /// <summary>Original AnchorDistances before owner layout processing.</summary>
         public float4 AnchorDistances;
         /// <summary>Captures this participant without allocating a record object.</summary>
-        public ViewportAnchorState(LayoutComponent component) {
+        public ViewportAnchorState([NativeRetainsBorrow] LayoutComponent component) {
             Component = component;
             AnchorDistances = component.AnchorDistances;
         }

@@ -726,7 +726,9 @@ namespace helengine.editor {
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
                 scenePathOverrides,
-                queueItem.SelectedEnvironmentId);
+                queueItem.SelectedEnvironmentId,
+                queueItem.SelectedGraphicsOptionValues,
+                queueItem.PlayVideoMode);
         }
 
         /// <summary>

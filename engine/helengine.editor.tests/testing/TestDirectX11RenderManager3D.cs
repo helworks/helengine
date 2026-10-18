@@ -24,6 +24,8 @@ namespace helengine.editor.tests.testing {
             typeof(TestDirectX11RenderManager3D)
                 .GetField(nameof(BuiltModelAssetsValue), System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
                 .SetValue(renderer, new List<ModelAsset>());
+            // GetUninitializedObject skips the valid square-pixel default supplied by the real base constructor.
+            typeof(RenderManager3D).GetProperty(nameof(MainWindowPixelAspect)).SetValue(renderer, SquarePixelAspect);
             return renderer;
         }
 

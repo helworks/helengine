@@ -33,6 +33,12 @@ namespace helengine {
         /// <summary>Gets the number of retained UI transform originals for memory diagnostics.</summary>
         public int RetainedLayoutPositionCount => LayoutCache == null ? 0 : LayoutCache.PositionCount;
 
+        /// <summary>Gets shared prepared factors for animation and other layout-space consumers.</summary>
+        public ViewportLayoutMetrics PreparedLayoutMetrics => CurrentMetrics;
+
+        /// <summary>Gets the enclosing viewport policy, preserving Dynamic for a standalone legacy fit.</summary>
+        public ViewportLayoutProcessingMode EffectiveLayoutProcessingMode => LayoutViewport == null ? ViewportLayoutProcessingMode.Dynamic : LayoutViewport.LayoutProcessingMode;
+
         /// <summary>
         /// Stores the display pixel aspect the last fit pass used, so the recorded glyph scale matches the one the snapshots applied.
         /// </summary>
@@ -192,6 +198,8 @@ namespace helengine {
         public override void Dispose() {
             DetachFromWindowLayoutChanges();
             ReleaseLayoutCache();
+            NativeOwnership.Delete(CookedLayout);
+            CookedLayout = null;
             NativeOwnership.Delete(CurrentAnchorSpaceValue);
             CurrentAnchorSpaceValue = null;
             base.Dispose();
@@ -225,6 +233,7 @@ namespace helengine {
                     Origin = CookedLayout.Origin, AnchorSize = CookedLayout.AnchorSize, PixelAspect = CookedLayout.PixelAspect
                 };
                 PublishMetrics();
+                ViewportLayoutTraversal.NotifyAnimations(Parent);
             } else {
                 if (editor || mode == ViewportLayoutProcessingMode.Dynamic) {
                     if (LayoutCache == null) { LayoutCache = ViewportLayoutCache.Capture(Parent); }
@@ -439,6 +448,7 @@ namespace helengine {
 
         /// <summary>Invalidates optional buffers before borrowed participants are detached.</summary>
         internal void InvalidateLayout(Component component, Entity subtree) {
+            if (component != null || subtree != null) { RestoreAuthoredLayout(); }
             if (AppliedLayoutCache != null) {
                 if (component != null) { AppliedLayoutCache.Remove(component); }
                 if (subtree != null) { AppliedLayoutCache.Remove(subtree); }
@@ -457,11 +467,20 @@ namespace helengine {
             PendingApplyValue = true;
         }
 
+        /// <summary>Disconnects borrowed layout providers before their native allocations can be destroyed.</summary>
+        internal void LayoutProviderRemoved(Component provider) {
+            if (ReferenceEquals(LayoutViewport, provider) || ReferenceEquals(LayoutCamera, provider)) {
+                DetachFromLayoutProviders();
+                PendingApplyValue = true;
+            }
+        }
+
         /// <summary>Applies only a new initialized subtree when this legacy owner uses a single-pass policy.</summary>
         internal void PrepareAttachedSubtree(Entity subtree) {
             if (HasAppliedLayout && !IsEditorAuthoring() && LayoutViewport != null && LayoutViewport.LayoutProcessingMode != ViewportLayoutProcessingMode.Dynamic) {
                 ViewportLayoutTraversal.ApplyOnce(subtree, Parent, CurrentMetrics);
                 ViewportLayoutTraversal.RefreshAnchoring(subtree, true);
+                ViewportLayoutTraversal.NotifyAnimations(subtree);
             }
         }
 
@@ -473,6 +492,7 @@ namespace helengine {
             if (LayoutCache != null) { LayoutCache.Apply(CurrentMetrics); }
             else { ViewportLayoutTraversal.ApplyOnce(Parent, Parent, CurrentMetrics); }
             ViewportLayoutTraversal.RefreshAnchoring(Parent, true);
+            ViewportLayoutTraversal.NotifyAnimations(Parent);
             RaiseAnchorBoundsChanged();
             if (IsEditorAuthoring() && LayoutCache != null) { RecordAppliedLayout(); }
         }

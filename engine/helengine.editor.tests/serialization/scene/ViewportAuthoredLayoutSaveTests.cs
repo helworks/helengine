@@ -63,6 +63,41 @@ namespace helengine.editor.tests.serialization.scene {
             }
         }
 
+        /// <summary>Ownership transfer reconciles an edited preview before giving authored values to a new nested owner.</summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void NewNestedOwner_PreservesEditedPreview(bool legacyOuter) {
+            ((TestRenderManager3D)CoreValue.RenderManager3D).OnWindowResize(IntPtr.Zero, 320, 240);
+            EditorEntity root = CreateEntity("Outer", float3.Zero);
+            ViewportComponent outer = new ViewportComponent {
+                ScalingMode = legacyOuter ? ViewportComponent.NoScalingMode : ViewportComponent.ReferenceCanvasStretchScalingMode,
+                ReferenceWidth = 640, ReferenceHeight = 480
+            };
+            root.AddComponent(outer);
+            ReferenceCanvasFitComponent fit = null;
+            if (legacyOuter) {
+                fit = new ReferenceCanvasFitComponent { ReferenceWidth = 640, ReferenceHeight = 480 };
+                root.AddComponent(fit);
+            }
+            EditorEntity nested = CreateEntity("Nested", float3.Zero);
+            RoundedRectComponent rectangle = new RoundedRectComponent { Size = new int2(100, 40) };
+            nested.AddComponent(rectangle);
+            root.AddChild(nested);
+            outer.Update();
+            if (fit != null) { fit.Update(); }
+            Assert.Equal(50, rectangle.Size.X);
+            rectangle.Size = new int2(60, 20);
+            ViewportComponent inner = new ViewportComponent {
+                ScalingMode = ViewportComponent.ReferenceCanvasStretchScalingMode, ReferenceWidth = 1280, ReferenceHeight = 960
+            };
+            nested.AddComponent(inner);
+            inner.Update();
+            Assert.Equal(30, rectangle.Size.X);
+            Assert.Equal(120, SceneViewportAuthoredLayoutScope.ForEntity(root).Serialize(() => rectangle.Size.X));
+            Assert.Equal(30, rectangle.Size.X);
+        }
+
         /// <summary>
         /// Save, reload, scale and save again repeatedly: the persisted layout stays at the authored 1280x720 values instead of
         /// compounding by 1904/1280 x 1041/720 per pass, while the live preview stays stretched to the editor window.

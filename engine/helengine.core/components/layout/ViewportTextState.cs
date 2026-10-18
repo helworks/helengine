@@ -12,7 +12,7 @@ namespace helengine {
         /// <summary>Original ShadowOffset before owner layout processing.</summary>
         public float2 ShadowOffset;
         /// <summary>Captures this participant without allocating a record object.</summary>
-        public ViewportTextState(TextComponent component) {
+        public ViewportTextState([NativeRetainsBorrow] TextComponent component) {
             Component = component;
             Size = component.Size;
             FontScale = component.FontScale;

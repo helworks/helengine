@@ -26,7 +26,7 @@ Adicionar a propriedade persistida **LayoutProcessingMode**, com enum de represe
 
 ScalingMode, binding, dimensões de referência, anchors, escala de UI e tratamento de fontes continuam definindo o resultado visual. A nova propriedade define quando executar esse trabalho.
 
-Cenas antigas e componentes sem a nova propriedade assumem Dynamic, preservando o comportamento durante a migração. Isso não significa escolher Dynamic para todos os destinos novos: o viewport pode ter Common e overrides diferentes.
+Cenas antigas sem os novos campos de layout são bloqueadas e precisam ser regravadas explicitamente no formato atual. Não há leitura tolerante nem atribuição implícita de Dynamic. Componentes novos começam em Dynamic; o viewport pode ter Common e overrides diferentes. Esta decisão substitui a compatibilidade inicialmente proposta, conforme orientação de Helena.
 
 A política é resolvida antes da preparação. Trocar de política depois de uma instância estar preparada exige recarregar a cena. Não há conversão implícita entre estados já processados.
 
@@ -94,6 +94,8 @@ Conjunto inicial equivalente ao comportamento atual:
 
 Nenhuma segunda cópia dessas propriedades é criada nos modos Cook e OnLoad. A ausência de cache nesses modos é uma condição do caminho de execução, não um cache criado e liberado logo depois.
 
+Cook bloqueia explicitamente CheckBoxComponent, TextBoxComponent e ComboBoxComponent enquanto esses hosts gerarem seus visuais apenas durante callbacks de runtime. Esses controles precisam de OnLoad ou Dynamic; o cook não executa callbacks nem grava geometria parcialmente preparada. Eles não fazem parte do conjunto inicial acima e não aparecem no menu do DemoDisc.
+
 ViewportLayoutSnapshot e o snapshot universal equivalente de ReferenceCanvasFitComponent deixam de ser o formato de retenção. O fit legado deve usar o mesmo mecanismo de participantes e respeitar a política do owner de viewport, evitando reintroduzir o custo em uma segunda implementação.
 
 O update dinâmico parado não conta entidades nem pesquisa tipos da hierarquia inteira. Adição, remoção, reparenting, mudança de owner/binding e alterações relevantes de propriedades invalidam os owners afetados. As buscas e a reconstrução ocorrem nessas mudanças; resize invalida a aplicação dos valores retidos.
@@ -110,7 +112,7 @@ O contrato atual de salvar/clonar a cena, incluindo edição na prévia escalada
 
 Usar o registro existente de persistência de componentes e os overrides de propriedade, sem adicionar um dicionário paralelo de plataformas dentro do viewport.
 
-Atualizar os serializers/deserializers oficiais e regenerar os consumidores nativos pelo pipeline normal. Não editar C++ gerado. Manter leitura compatível de componentes antigos pelo mecanismo de versão existente.
+Atualizar os serializers/deserializers oficiais e regenerar os consumidores nativos pelo pipeline normal. Não editar C++ gerado. Exigir a contagem ordinal exata e os novos campos de layout no payload autoral; cenas antigas devem falhar com orientação para regravar o asset no formato atual.
 
 Os cálculos de fit/stretch/density, pixel aspect, anchors e fontes em native pixels têm uma implementação compartilhada entre cook e runtime. A representação dos dados pode diferir; os resultados devem ser equivalentes para o mesmo alvo.
 
@@ -138,7 +140,7 @@ O snapshot universal atual mediu 208 bytes em Windows x64 e 160 bytes no modelo 
 
 ## Verificação necessária
 
-- Persistir/recarregar a nova propriedade e seus overrides por plataforma; validar default de cenas antigas.
+- Persistir/recarregar a nova propriedade e seus overrides por plataforma; rejeitar cenas antigas sem os campos novos.
 - Comparar Cook, OnLoad e Dynamic para o mesmo alvo em fit, stretch, density e pixel aspect não quadrado.
 - Confirmar ausência de drift e aplicação única após leituras de bounds e callbacks de preparação.
 - Confirmar zero alocações de cache de originais em Cook/OnLoad, inclusive durante a preparação.

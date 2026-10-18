@@ -5,21 +5,68 @@ using Xunit;
 namespace helengine.editor.tests.serialization.scene {
     /// <summary>Exercises persisted viewport policies through the actual component registry.</summary>
     public sealed class ViewportLayoutProcessingPersistenceTests {
-        /// <summary>Ensures missing policy data preserves legacy dynamic behavior.</summary>
-        [Fact]
-        public void OldPayload_DefaultsToDynamic() {
-            PropertyInfo mode = typeof(ViewportComponent).GetProperty("LayoutProcessingMode");
-            Assert.NotNull(mode);
-            Assert.Equal((byte)0, Convert.ToByte(mode.GetValue(new ViewportComponent())));
-            Assert.Equal(typeof(byte), Enum.GetUnderlyingType(mode.PropertyType));
-            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
-            writer.WriteField("ScalingMode", field => field.WriteByte(0));
+        /// <summary>Old ordinal assets lacking current layout members are rejected by both official readers.</summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void OldOrdinalPayload_IsRejected(bool managedRuntime) {
+            ViewportComponent source = new ViewportComponent { ScalingMode = 2, ReferenceWidth = 640, ReferenceHeight = 480 };
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            IComponentPersistenceDescriptor descriptor = registry.GetDescriptor(new ViewportComponent());
-            ViewportComponent old = Assert.IsType<ViewportComponent>(descriptor.DeserializeComponent(new SceneComponentAssetRecord {
-                ComponentTypeId = "helengine.ViewportComponent", Payload = writer.BuildPayload()
-            }, null, null));
-            Assert.Equal((byte)0, Convert.ToByte(mode.GetValue(old)));
+            IComponentPersistenceDescriptor descriptor = registry.GetDescriptor(source);
+            SceneComponentAssetRecord named = descriptor.SerializeComponent(source, 0, new EntityComponentSaveState());
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(ViewportComponent));
+            EditorTaggedSceneComponentFieldReader tagged = new EditorTaggedSceneComponentFieldReader(named.Payload);
+            using MemoryStream stream = new MemoryStream();
+            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian)) {
+                writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+                writer.WriteInt32(schema.Members.Count - 2);
+                for (int index = 0; index < schema.Members.Count - 2; index++) {
+                    Assert.True(tagged.TryGetFieldPayloadLength(schema.Members[index].Name, out int length));
+                    Assert.True(tagged.TryGetFieldReader(schema.Members[index].Name, out EngineBinaryReader reader));
+                    using (reader) {
+                        for (int offset = 0; offset < length; offset++) { writer.WriteByte(reader.ReadByte()); }
+                    }
+                }
+            }
+            named.Payload = stream.ToArray();
+            InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => {
+                if (managedRuntime) {
+                    new AutomaticScriptComponentRuntimeDeserializer(named.ComponentTypeId, typeof(ViewportComponent)).Deserialize(named, null);
+                } else {
+                    descriptor.DeserializeComponent(named, null, null);
+                }
+            });
+            Assert.Contains("member count", error.Message);
+            Assert.Contains("Regenerate", error.Message);
+        }
+        /// <summary>Named authoring payloads must explicitly carry the current layout fields, including nullable metadata.</summary>
+        [Theory]
+        [InlineData(false, "LayoutProcessingMode")]
+        [InlineData(false, "CookedLayout")]
+        [InlineData(true, "CookedLayout")]
+        public void NamedPayload_MissingLayoutField_IsRejected(bool legacyFit, string missingField) {
+            Component source = legacyFit ? new ReferenceCanvasFitComponent() : new ViewportComponent();
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            IComponentPersistenceDescriptor descriptor = registry.GetDescriptor(source);
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(source, 0, new EntityComponentSaveState());
+            EditorTaggedSceneComponentFieldReader tagged = new EditorTaggedSceneComponentFieldReader(record.Payload);
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            foreach (string field in tagged.FieldNames) {
+                if (field == missingField) { continue; }
+                Assert.True(tagged.TryGetFieldPayloadLength(field, out int length));
+                Assert.True(tagged.TryGetFieldReader(field, out EngineBinaryReader reader));
+                using (reader) {
+                    byte[] bytes = new byte[length];
+                    for (int index = 0; index < length; index++) { bytes[index] = reader.ReadByte(); }
+                    writer.WriteField(field, output => {
+                        for (int index = 0; index < bytes.Length; index++) { output.WriteByte(bytes[index]); }
+                    });
+                }
+            }
+            record.Payload = writer.BuildPayload();
+            InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => descriptor.DeserializeComponent(record, null, null));
+            Assert.Contains(missingField, error.Message);
+            Assert.Contains("Regenerate", error.Message);
         }
 
         /// <summary>Uses the existing property override mechanism without modifying Common.</summary>
@@ -78,7 +125,7 @@ namespace helengine.editor.tests.serialization.scene {
 
         /// <summary>Leaves old ordinal members in their established positions.</summary>
         [Fact]
-        public void PolicyAndCookMetadata_AreOptionalSuffix() {
+        public void PolicyAndCookMetadata_KeepAppendOrder() {
             ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(ViewportComponent));
             Assert.Equal("LayoutProcessingMode", schema.Members[schema.Members.Count - 2].Name);
             Assert.Equal("CookedLayout", schema.Members[schema.Members.Count - 1].Name);

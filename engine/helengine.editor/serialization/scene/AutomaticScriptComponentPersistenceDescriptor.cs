@@ -142,6 +142,7 @@ namespace helengine.editor {
 
             bool matchedTaggedField = false;
             string unsupportedFieldName = null;
+            string missingLayoutFieldName = null;
             try {
                 EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(payload);
                 HashSet<string> currentFieldNames = new HashSet<string>(
@@ -177,6 +178,8 @@ namespace helengine.editor {
                             }
                             RequireTaggedFieldPayloadEnd(fieldReader, fieldPayloadLength, member.Name);
                         }
+                    } else if (IsRequiredLayoutField(component, member.Name)) {
+                        missingLayoutFieldName ??= member.Name;
                     }
                 }
 
@@ -198,7 +201,23 @@ namespace helengine.editor {
                     "Automatic scripted component payload contains no current tagged field names.");
             }
 
+            if (missingLayoutFieldName != null) {
+                throw new InvalidOperationException(
+                    $"Viewport layout payload for '{schema.ComponentType.FullName}' is missing required field '{missingLayoutFieldName}'. Regenerate the scene in the current format.");
+            }
+
             return true;
+        }
+
+        /// <summary>Requires current layout fields even in named authoring payloads; old scenes have no implicit policy.</summary>
+        /// <param name="component">Detached layout owner being deserialized.</param>
+        /// <param name="memberName">Current reflected field name that was absent from the payload.</param>
+        /// <returns>True for the mandatory policy and shared cook-metadata slots.</returns>
+        static bool IsRequiredLayoutField(Component component, string memberName) {
+            if (component is ViewportComponent) {
+                return memberName == nameof(ViewportComponent.LayoutProcessingMode) || memberName == nameof(ViewportComponent.CookedLayout);
+            }
+            return component is ReferenceCanvasFitComponent && memberName == nameof(ReferenceCanvasFitComponent.CookedLayout);
         }
 
         /// <summary>

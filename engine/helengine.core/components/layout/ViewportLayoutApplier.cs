@@ -48,6 +48,31 @@ namespace helengine {
             }
         }
 
+        /// <summary>Writes anchor-resolved bounds to the same supported hosts as live LayoutComponent.</summary>
+        /// <param name="component">Detached or live sized participant.</param>
+        /// <param name="resolvedSize">Final anchor-resolved dimensions.</param>
+        public static void ApplyResolvedSize(Component component, int2 resolvedSize) {
+            if (component is RoundedRectComponent roundedRectComponent) {
+                roundedRectComponent.Size = resolvedSize;
+            } else if (component is SpriteComponent spriteComponent) {
+                spriteComponent.Size = resolvedSize;
+            } else if (component is TextComponent textComponent) {
+                textComponent.Size = resolvedSize;
+            } else if (component is ClipRectComponent clipRectComponent) {
+                clipRectComponent.Size = resolvedSize;
+            } else if (component is InteractableComponent interactableComponent) {
+                interactableComponent.Size = resolvedSize;
+            } else if (component is ScrollComponent scrollComponent) {
+                scrollComponent.Size = resolvedSize;
+            } else if (component is ComboBoxComponent comboBoxComponent) {
+                comboBoxComponent.Size = resolvedSize;
+            } else if (component is TextBoxComponent textBoxComponent) {
+                textBoxComponent.Size = resolvedSize;
+            } else if (component is CheckBoxComponent checkBoxComponent) {
+                checkBoxComponent.Size = resolvedSize;
+            }
+        }
+
         /// <summary>Preserves zero and the established minimum-one rule for nonzero authored dimensions.</summary>
         /// <param name="value">Authored dimension.</param>
         /// <param name="scale">Resolved multiplier.</param>

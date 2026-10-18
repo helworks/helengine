@@ -13,6 +13,14 @@ namespace helengine {
         bool ShouldLoopValue;
         float FrameDeltaTimeValue;
         float3 BaseLocalPosition;
+        /// <summary>Borrowed viewport resolved on attachment/preparation, never searched on animation frames.</summary>
+        ViewportComponent LayoutViewport;
+        /// <summary>Borrowed legacy fit when it is the nearest scaling owner.</summary>
+        ReferenceCanvasFitComponent LayoutFit;
+        /// <summary>Single-pass owners reuse the existing playback base in prepared coordinates.</summary>
+        bool BasePositionIsPrepared;
+        /// <summary>A newly attached authored instance must wait for its owner's one layout pass.</summary>
+        bool AwaitingLayoutPreparation;
         float3 BaseLocalScale;
         float4 BaseLocalOrientation;
 
@@ -89,6 +97,7 @@ namespace helengine {
         /// <param name="entity">Owning entity.</param>
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
+            RefreshLayoutOwner();
             TryPlayConfiguredClip();
         }
 
@@ -99,6 +108,21 @@ namespace helengine {
         public override void ComponentInitialized(Entity entity) {
             base.ComponentInitialized(entity);
             TryPlayConfiguredClip();
+        }
+
+        /// <summary>Releases borrowed layout aliases before this animator leaves its hierarchy.</summary>
+        public override void ComponentRemoved(Entity entity) {
+            LayoutViewport = null;
+            LayoutFit = null;
+            AwaitingLayoutPreparation = false;
+            base.ComponentRemoved(entity);
+        }
+
+        /// <summary>Clears cached layout aliases without taking ownership of the scene or shared clip.</summary>
+        public override void Dispose() {
+            LayoutViewport = null;
+            LayoutFit = null;
+            base.Dispose();
         }
 
         /// <summary>
@@ -120,7 +144,13 @@ namespace helengine {
             Loop = shouldLoop;
             IsPlayingValue = true;
             IsPausedValue = false;
+            RefreshLayoutOwner();
             BaseLocalPosition = Parent.LocalPosition;
+            BasePositionIsPrepared = HasLayoutOwner() && (GetLayoutMode() == ViewportLayoutProcessingMode.Cook
+                || (!AwaitingLayoutPreparation && HasLayoutFactors() && GetLayoutMode() == ViewportLayoutProcessingMode.OnLoad));
+            if (HasLayoutOwner() && HasLayoutFactors() && !AwaitingLayoutPreparation && GetLayoutMode() == ViewportLayoutProcessingMode.Dynamic) {
+                BaseLocalPosition = InverseLayoutPosition(BaseLocalPosition);
+            }
             BaseLocalScale = Parent.LocalScale;
             BaseLocalOrientation = Parent.LocalOrientation;
             ApplyCurrentPose();
@@ -134,7 +164,7 @@ namespace helengine {
         /// </summary>
         public void Stop() {
             if (Parent != null) {
-                Parent.LocalPosition = BaseLocalPosition;
+                Parent.LocalPosition = HasLayoutOwner() && HasLayoutFactors() && !BasePositionIsPrepared ? ResolveLayoutPosition(BaseLocalPosition, false) : BaseLocalPosition;
                 Parent.LocalScale = BaseLocalScale;
                 Parent.LocalOrientation = BaseLocalOrientation;
             }
@@ -191,13 +221,19 @@ namespace helengine {
                 return;
             }
 
+            RefreshLayoutOwner();
             if (CurrentClipValue.PositionTracks.Length == 0) {
-                float3 rebasedPosition = Parent.LocalPosition;
-                if (CurrentClipValue.PositionOffsetTracks.Length == 1) {
-                    rebasedPosition -= AnimationClipEvaluator.EvaluatePositionTrack(CurrentClipValue.PositionOffsetTracks[0], CurrentTimeValue);
+                float3 offset = CurrentClipValue.PositionOffsetTracks.Length == 1
+                    ? AnimationClipEvaluator.EvaluatePositionTrack(CurrentClipValue.PositionOffsetTracks[0], CurrentTimeValue) : float3.Zero;
+                if (HasLayoutOwner() && HasLayoutFactors()) {
+                    BasePositionIsPrepared = GetLayoutMode() != ViewportLayoutProcessingMode.Dynamic;
+                    BaseLocalPosition = BasePositionIsPrepared
+                        ? Parent.LocalPosition - ResolveLayoutPosition(offset, true)
+                        : InverseLayoutPosition(Parent.LocalPosition) - offset;
+                } else {
+                    BaseLocalPosition = Parent.LocalPosition - offset;
+                    BasePositionIsPrepared = false;
                 }
-
-                BaseLocalPosition = rebasedPosition;
             }
 
             if (CurrentClipValue.ScaleTracks.Length == 0) {
@@ -277,14 +313,8 @@ namespace helengine {
                 return;
             }
 
-            float3 resolvedPosition = BaseLocalPosition;
-            if (CurrentClipValue.PositionTracks.Length == 1) {
-                resolvedPosition = AnimationClipEvaluator.EvaluatePositionTrack(CurrentClipValue.PositionTracks[0], CurrentTimeValue);
-            }
-
-            if (CurrentClipValue.PositionOffsetTracks.Length == 1) {
-                resolvedPosition += AnimationClipEvaluator.EvaluatePositionTrack(CurrentClipValue.PositionOffsetTracks[0], CurrentTimeValue);
-            }
+            bool canWritePosition = !HasLayoutOwner() || (HasLayoutFactors() && !AwaitingLayoutPreparation);
+            float3 resolvedPosition = EvaluateCurrentPosition(canWritePosition && HasLayoutOwner());
 
             float3 resolvedScale = BaseLocalScale;
             if (CurrentClipValue.ScaleTracks.Length == 1) {
@@ -296,9 +326,102 @@ namespace helengine {
                 resolvedOrientation = AnimationClipEvaluator.EvaluateRotationTrack(CurrentClipValue.RotationTracks[0], CurrentTimeValue);
             }
 
-            Parent.LocalPosition = resolvedPosition;
+            if (canWritePosition) { Parent.LocalPosition = resolvedPosition; }
             Parent.LocalScale = resolvedScale;
             Parent.LocalOrientation = resolvedOrientation;
+        }
+
+        /// <summary>Resolves position channels in their declared space without modifying the shared clip.</summary>
+        float3 EvaluateCurrentPosition(bool useLayout) {
+            float3 position = BaseLocalPosition;
+            bool absolute = CurrentClipValue.PositionTracks.Length == 1;
+            if (absolute) { position = AnimationClipEvaluator.EvaluatePositionTrack(CurrentClipValue.PositionTracks[0], CurrentTimeValue); }
+            float3 offset = CurrentClipValue.PositionOffsetTracks.Length == 1
+                ? AnimationClipEvaluator.EvaluatePositionTrack(CurrentClipValue.PositionOffsetTracks[0], CurrentTimeValue) : float3.Zero;
+            if (useLayout) {
+                if (absolute || !BasePositionIsPrepared) { return ResolveLayoutPosition(position + offset, false); }
+                return position + ResolveLayoutPosition(offset, true);
+            }
+            return position + offset;
+        }
+
+        /// <summary>Refreshes borrowed owner aliases only at hierarchy and lifecycle boundaries.</summary>
+        internal void RefreshLayoutOwner() {
+            ViewportComponent previousViewport = LayoutViewport;
+            ReferenceCanvasFitComponent previousFit = LayoutFit;
+            LayoutViewport = null;
+            LayoutFit = null;
+            Entity current = Parent;
+            while (current != null) {
+                if (current.Components != null) {
+                    for (int index = 0; index < current.Components.Count; index++) {
+                        if (current.Components[index] is ReferenceCanvasFitComponent fit) { LayoutFit = fit; break; }
+                    }
+                    if (LayoutFit != null) { break; }
+                    for (int index = 0; index < current.Components.Count; index++) {
+                        if (current.Components[index] is ViewportComponent viewport && viewport.ScalingMode != ViewportComponent.NoScalingMode) { LayoutViewport = viewport; break; }
+                    }
+                    if (LayoutViewport != null) { break; }
+                }
+                current = current.Parent;
+            }
+            if ((!ReferenceEquals(previousViewport, LayoutViewport) || !ReferenceEquals(previousFit, LayoutFit))
+                && HasLayoutOwner() && Parent != null && !Parent.IsInitialized) { AwaitingLayoutPreparation = true; }
+        }
+
+        /// <summary>Converts the existing playback base once for single-pass UI, then applies the current pose.</summary>
+        internal void PrepareLayout() {
+            RefreshLayoutOwner();
+            AwaitingLayoutPreparation = false;
+            if (CurrentClipValue == null || !HasLayoutOwner() || !HasLayoutFactors()) { return; }
+            if (GetLayoutMode() != ViewportLayoutProcessingMode.Dynamic && !BasePositionIsPrepared) {
+                if (GetLayoutMode() != ViewportLayoutProcessingMode.Cook) { BaseLocalPosition = ResolveLayoutPosition(BaseLocalPosition, false); }
+                BasePositionIsPrepared = true;
+            }
+            ApplyCurrentPose();
+        }
+
+        /// <summary>Drops aliases before a hierarchy-owned layout component is destroyed.</summary>
+        internal void LayoutOwnerRemoved(Component owner) {
+            if (ReferenceEquals(LayoutViewport, owner)) { LayoutViewport = null; }
+            if (ReferenceEquals(LayoutFit, owner)) { LayoutFit = null; }
+            if (!HasLayoutOwner()) { AwaitingLayoutPreparation = false; }
+        }
+
+        /// <summary>Identifies an active UI scaling owner without performing a type search.</summary>
+        bool HasLayoutOwner() { return LayoutViewport != null || LayoutFit != null; }
+
+        /// <summary>Returns the single shared prepared factors from the cached owner.</summary>
+        ViewportLayoutMetrics GetLayoutMetrics() {
+            ViewportLayoutMetrics metrics = LayoutViewport != null ? LayoutViewport.PreparedLayoutMetrics : LayoutFit.PreparedLayoutMetrics;
+            Entity owner = LayoutViewport != null ? LayoutViewport.Parent : LayoutFit.Parent;
+            if (!ReferenceEquals(Parent, owner)) { metrics.Origin = new float2(0f, 0f); }
+            return metrics;
+        }
+
+        /// <summary>Distinguishes not-yet-prepared owners from a valid identity factor.</summary>
+        bool HasLayoutFactors() {
+            if (!HasLayoutOwner()) { return false; }
+            ViewportLayoutMetrics metrics = GetLayoutMetrics();
+            return metrics.ScaleX > 0d && metrics.ScaleY > 0d;
+        }
+
+        /// <summary>Uses the viewport policy inherited by the nearest legacy owner when necessary.</summary>
+        ViewportLayoutProcessingMode GetLayoutMode() {
+            return LayoutViewport != null ? LayoutViewport.LayoutProcessingMode : LayoutFit.EffectiveLayoutProcessingMode;
+        }
+
+        /// <summary>Composes an authored track position or offset with its prepared owner exactly once.</summary>
+        float3 ResolveLayoutPosition(float3 position, bool offset) {
+            ViewportLayoutMetrics metrics = GetLayoutMetrics();
+            if (offset) { metrics.Origin = new float2(0f, 0f); }
+            return ViewportLayoutApplier.ResolvePosition(position, metrics);
+        }
+
+        /// <summary>Recovers an authored playback base when a dynamic animation starts on an already laid-out entity.</summary>
+        float3 InverseLayoutPosition(float3 position) {
+            ViewportLayoutMetrics metrics = GetLayoutMetrics();
+            return new float3((float)((position.X - metrics.Origin.X) / metrics.ScaleX), (float)((position.Y - metrics.Origin.Y) / metrics.ScaleY), position.Z);
         }
 
         /// <summary>
@@ -311,6 +434,13 @@ namespace helengine {
                 throw new InvalidOperationException("AnimationPlayerComponent requires one authored Clip asset before automatic playback can begin.");
             }
 
+            if (ReferenceEquals(CurrentClipValue, ClipValue) && CurrentTimeValue == 0f && IsPlayingValue && !IsPausedValue
+                && Parent.LocalPosition == EvaluateCurrentPosition(HasLayoutOwner() && HasLayoutFactors() && !AwaitingLayoutPreparation)) {
+                BaseLocalScale = Parent.LocalScale;
+                BaseLocalOrientation = Parent.LocalOrientation;
+                Loop = ShouldLoopValue;
+                return;
+            }
             Play(ClipValue, ShouldLoopValue);
         }
 

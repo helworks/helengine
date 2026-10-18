@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+    <DefineConstants>$(DefineConstants);DESKTOP_PLATFORM</DefineConstants>
+    <DemoDiscSourceRoot>C:/dev/helprojs/demodisc/assets/codebase</DemoDiscSourceRoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="helengine" />
+    <Using Include="DemoDisc.menu" />
+    <Using Include="System.Reflection" />
+    <Using Include="Xunit" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <ProjectReference Include="../../../engine/helengine.core/helengine.core.csproj" />
+    <Compile Include="../availability/MenuContractFixture.cs;../availability/MenuContractTests.cs;../availability/TestAssembly.cs" />
+    <Compile Include="$(DemoDiscSourceRoot)/menu/MenuComponent.cs;$(DemoDiscSourceRoot)/menu/MenuPanelRuntime.cs;$(DemoDiscSourceRoot)/menu/MenuItemRuntime.cs;$(DemoDiscSourceRoot)/menu/MenuPanelComponent.cs;$(DemoDiscSourceRoot)/menu/MenuItemComponent.cs;$(DemoDiscSourceRoot)/menu/MenuActionKind.cs;$(DemoDiscSourceRoot)/menu/DemoMenuLayout.cs;$(DemoDiscSourceRoot)/menu/DemoDiscGamepadInput.cs;$(DemoDiscSourceRoot)/menu/StartupInputGate.cs;$(DemoDiscSourceRoot)/menu/FooterIdentityMarqueeComponent.cs" />
+    <Compile Include="$(DemoDiscSourceRoot)/menu.authoring/*.cs" Exclude="$(DemoDiscSourceRoot)/menu.authoring/MenuHostItemRuntime.cs;$(DemoDiscSourceRoot)/menu.authoring/MenuHostPanelRuntime.cs;$(DemoDiscSourceRoot)/menu.authoring/MenuDefinitionProviderResolver.cs" />
+  </ItemGroup>
+</Project>

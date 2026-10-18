@@ -6,7 +6,7 @@ namespace helengine {
         /// <summary>Original local position before the owner applied layout.</summary>
         public float3 LocalPosition;
         /// <summary>Captures the original UI transform.</summary>
-        public ViewportPositionState(Entity entity) {
+        public ViewportPositionState([NativeRetainsBorrow] Entity entity) {
             Entity = entity;
             LocalPosition = entity.LocalPosition;
         }

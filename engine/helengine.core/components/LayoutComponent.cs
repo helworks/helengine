@@ -256,34 +256,10 @@ namespace helengine {
 
             AnchorSpace anchorSpace = GetAnchorSpace();
             int2 currentSize = GetAnchorSize();
-            int targetWidth = currentSize.X;
-            int targetHeight = currentSize.Y;
             float3 localPosition = Parent.LocalPosition;
+            int2 resolvedSize = AnchorLayoutMath.Resolve(AnchorFlags, AnchorDistances, anchorSpace.Size, anchorSpace.Origin, currentSize, ref localPosition);
 
-            bool hasLeft = (AnchorFlags & LeftAnchorFlag) != 0;
-            bool hasRight = (AnchorFlags & RightAnchorFlag) != 0;
-            bool hasTop = (AnchorFlags & TopAnchorFlag) != 0;
-            bool hasBottom = (AnchorFlags & BottomAnchorFlag) != 0;
-
-            if (hasLeft && hasRight) {
-                targetWidth = Math.Max(0, (int)Math.Round(anchorSpace.Size.X - AnchorDistances.X - AnchorDistances.Y));
-                localPosition.X = anchorSpace.Origin.X + AnchorDistances.X;
-            } else if (hasLeft) {
-                localPosition.X = anchorSpace.Origin.X + AnchorDistances.X;
-            } else if (hasRight) {
-                localPosition.X = anchorSpace.Origin.X + anchorSpace.Size.X - AnchorDistances.Y - currentSize.X;
-            }
-
-            if (hasTop && hasBottom) {
-                targetHeight = Math.Max(0, (int)Math.Round(anchorSpace.Size.Y - AnchorDistances.Z - AnchorDistances.W));
-                localPosition.Y = anchorSpace.Origin.Y + AnchorDistances.Z;
-            } else if (hasTop) {
-                localPosition.Y = anchorSpace.Origin.Y + AnchorDistances.Z;
-            } else if (hasBottom) {
-                localPosition.Y = anchorSpace.Origin.Y + anchorSpace.Size.Y - AnchorDistances.W - currentSize.Y;
-            }
-
-            ApplyResolvedSize(new int2(targetWidth, targetHeight));
+            ApplyResolvedSize(resolvedSize);
             Parent.LocalPosition = localPosition;
             RebaseSiblingAnimationPlayers();
             PublishOwnAnchorBoundsIfNeeded();
@@ -375,6 +351,17 @@ namespace helengine {
                     animationPlayerComponent.RebaseCurrentPoseToLocalTransform();
                 }
             }
+        }
+
+        /// <summary>Refreshes provider aliases on a cold hierarchy mutation without retaining removed components.</summary>
+        internal void HierarchyBindingChanged() {
+            if (Parent != null) { RefreshSubscriptions(); }
+        }
+
+        /// <summary>Unsubscribes matching provider and fallback-camera references before native destruction.</summary>
+        internal void LayoutProviderRemoved(Component provider) {
+            if (ReferenceEquals(AnchorBoundsProvider, provider)) { DetachFromBoundsProvider(); }
+            if (ReferenceEquals(FallbackCamera, provider)) { DetachFromWindowResize(); }
         }
 
         /// <summary>
@@ -672,26 +659,7 @@ namespace helengine {
             }
 
             for (int componentIndex = 0; componentIndex < Parent.Components.Count; componentIndex++) {
-                Component component = Parent.Components[componentIndex];
-                if (component is RoundedRectComponent roundedRectComponent) {
-                    roundedRectComponent.Size = resolvedSize;
-                } else if (component is SpriteComponent spriteComponent) {
-                    spriteComponent.Size = resolvedSize;
-                } else if (component is TextComponent textComponent) {
-                    textComponent.Size = resolvedSize;
-                } else if (component is ClipRectComponent clipRectComponent) {
-                    clipRectComponent.Size = resolvedSize;
-                } else if (component is InteractableComponent interactableComponent) {
-                    interactableComponent.Size = resolvedSize;
-                } else if (component is ScrollComponent scrollComponent) {
-                    scrollComponent.Size = resolvedSize;
-                } else if (component is ComboBoxComponent comboBoxComponent) {
-                    comboBoxComponent.Size = resolvedSize;
-                } else if (component is TextBoxComponent textBoxComponent) {
-                    textBoxComponent.Size = resolvedSize;
-                } else if (component is CheckBoxComponent checkBoxComponent) {
-                    checkBoxComponent.Size = resolvedSize;
-                }
+                ViewportLayoutApplier.ApplyResolvedSize(Parent.Components[componentIndex], resolvedSize);
             }
         }
 

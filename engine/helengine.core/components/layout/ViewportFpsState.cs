@@ -8,7 +8,7 @@ namespace helengine {
         /// <summary>Original Padding before owner layout processing.</summary>
         public int2 Padding;
         /// <summary>Captures this participant without allocating a record object.</summary>
-        public ViewportFpsState(FPSComponent component) {
+        public ViewportFpsState([NativeRetainsBorrow] FPSComponent component) {
             Component = component;
             FontScale = component.FontScale;
             Padding = component.Padding;

@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Enum byte: Dynamic = 0, OnLoad = 1, Cook = 2. Componentes antigos assumem Dynamic.
+- Enum byte: Dynamic = 0, OnLoad = 1, Cook = 2. Componentes novos começam em Dynamic; cenas antigas sem os campos novos são bloqueadas, conforme decisão posterior de Helena.
 - A política é uma propriedade do viewport, selecionada pelo mecanismo existente de overrides de propriedade por plataforma.
 - Nenhuma segunda cópia dessas propriedades é criada nos modos Cook e OnLoad.
 - As propriedades atuais de tamanho, posição e estilo mantêm sua semântica de runtime nesta entrega.
@@ -73,7 +73,7 @@ Assert.Null(new ViewportComponent().CookedLayout);
 ~~~
 
 - [ ] Run: dotnet test C:\dev\helworks\helengine\engine\helengine.editor.tests\helengine.editor.tests.csproj --artifacts-path C:\temp\viewport-layout\windows --filter FullyQualifiedName~ViewportLayoutProcessingPersistenceTests. Expect failures for the missing public contract.
-- [ ] Implement the two types/properties through the existing persistence registry. Verify existing optional-suffix machinery before changing any serializer. Reject unknown enum values during preparation.
+- [ ] Implement the two types/properties through the existing persistence registry. Require the complete current payload; append ordering does not make members optional. Reject unknown enum values during preparation.
 - [ ] Repeat the test command and the ComponentPersistenceRegistryTests filter. Require all selected tests passing.
 - [ ] Commit only this task's named files: "feat: persist viewport layout processing policy".
 
@@ -206,7 +206,7 @@ Assert.Equal(new float3(96, 30, 0),
 - Modify: C:\dev\helworks\helengine\engine\helengine.editor\managers\project\SceneComponentPackagingTransformService.cs
 - Modify: C:\dev\helworks\helengine\engine\helengine.editor\managers\project\EditorPlatformAssetCookService.cs
 - Modify: C:\dev\helworks\helengine\engine\helengine.editor\managers\project\EditorScenePackageCache.cs
-- Validate/modify only if suffix compatibility tests require: C:\dev\helworks\helengine\engine\helengine.managed\scene\runtime\AutomaticScriptComponentRuntimeDeserializer.cs and C:\dev\helworks\helengine\engine\helengine.editor\managers\project\ScriptComponentPlayerDeserializerGenerator.cs
+- Preserve strict exact-count reads in C:\dev\helworks\helengine\engine\helengine.managed\scene\runtime\AutomaticScriptComponentRuntimeDeserializer.cs and C:\dev\helworks\helengine\engine\helengine.editor\managers\project\ScriptComponentPlayerDeserializerGenerator.cs; no optional suffix support.
 - Test: C:\dev\helworks\helengine\engine\helengine.editor.tests\managers\project\ViewportLayoutCookTests.cs
 - Test: C:\dev\helworks\helengine\engine\helengine.editor.tests\managers\project\EditorScenePackageCacheKeyTests.cs
 
@@ -222,7 +222,7 @@ Assert.Equal(new float3(96, 30, 0),
 - [ ] Add Cook_EqualsOnLoadAndDynamic for Stretch/Fit/Density/non-square pixels, OverridesAndBlueprints_AreResolvedFirst, NestedOwners_ProcessOnce and UnknownCameraOrDpi_IdentifiesViewport.
 - [ ] Add Cook_DoesNotInvokeGameplayOrChangeSource: byte-identical authoring asset after cook, callback counter0, no original-cache construction.
 - [ ] Add cache-key tests: same profile ID with changed target width, pixel aspect, DPI/UI scale, effective mode or algorithm version produces a different key. Clean and incremental packaged scene bytes agree.
-- [ ] Add managed/generated-native old/new payload tests: absent optional suffix defaults correctly, cooked metadata round-trips, truncated suffix errors remain explicit. Reject unsupported algorithm versions.
+- [ ] Add managed/generated-native old/new payload tests: old or incomplete payloads are rejected, cooked metadata round-trips, truncated suffix errors remain explicit. Named authoring payloads must contain the new layout fields. Reject unsupported algorithm versions.
 - [ ] Run editor filters FullyQualifiedName~ViewportLayoutCookTests and FullyQualifiedName~EditorScenePackageCacheKeyTests; expect missing processor/key behavior. Implement ordering and shared applier use.
 - [ ] Repeat tests and existing EditorWindowsBuildScenePackagerTests. Generate/compile native deserializers through the actual build pipeline; no hand-patched generated code. Require passing before advancing.
 - [ ] Commit named files: "feat: cook viewport layout with effective platform metrics".
@@ -269,8 +269,8 @@ Assert.Equal(new float3(96, 30, 0),
 - No screenshot or emulator launch without authorization required by PS1 AGENTS.md. Finish build and collect available static evidence before requesting launch permission.
 
 - [ ] Run the relevant core/editor/menu/backend test filters from earlier tasks; check each command exit code. Regenerate/recompile affected shared consumers through normal tooling. List actual successful targets and any blocked target explicitly.
-- [ ] Build Windows in the existing optimized Profiler profile with Tracy and PDB: powershell -File C:\dev\helworks\helengine\scripts\build-platform.ps1 -Project C:\dev\helprojs\demodisc -Platform windows -Output C:\dev\helworks\builds\windows\package -Configuration Release -BuildProfile profiler -CacheRoot C:\temp\helengine -WorkspaceRoot C:\dev\helworks. Inspect selected profile before running; profile IDs must match the project without silently selecting another profile.
-- [ ] Build PS1 from its actual checkout: powershell -File C:\dev\helworks\helengine\scripts\build-platform.ps1 -Project C:\dev\helprojs\demodisc -Platform ps1 -Output C:\dev\helworks\builds\ps1\package -Configuration Release -BuildProfile release -CacheRoot C:\temp\helengine -WorkspaceRoot C:\dev\helworks. The current backend declares only release; do not invent a profiler profile or label this a profiler build.
+- [ ] Build Windows in the existing optimized Profiler profile with Tracy and PDB: powershell -File C:\dev\helworks\helengine\scripts\build-platform.ps1 -Project C:\dev\helprojs\demodisc -Platform windows -Output C:\dev\helworks\builds\windows\package -Configuration Release -BuildProfile profiler -CacheRoot C:\temp\helengine. Inspect selected profile before running; profile IDs must match the project without silently selecting another profile.
+- [ ] Build PS1 from its actual checkout: powershell -File C:\dev\helworks\helengine\scripts\build-platform.ps1 -Project C:\dev\helprojs\demodisc -Platform ps1 -Output C:\dev\helworks\builds\ps1\package -Configuration Release -BuildProfile release -CacheRoot C:\temp\helengine. The current backend declares only release; do not invent a profiler profile or label this a profiler build.
 - [ ] Verify packaged menu +14 rendering scenes and complete menu entries. Compare clean/incremental scene payloads using the same output path, storing only temporary comparison hashes in C:\temp.
 - [ ] Measure on actual generated ABI: sizeof typed records, buffer capacity/count, retained original bytes, preparation peak and idle update/traversal cost. Cook/OnLoad assert original-cache allocation count0 from construction onward; do not infer that from a post-GC snapshot.
 - [ ] With launch authorization, run the fixed Windows/PS1 packages. Collect Windows Tracy component/entity costs, not only global FPS. Check whether PS1 exports usable timing/allocation counters; if absent, report PS1 measurement as blocked and obtain architectural feedback before adding profiling infrastructure. Verify scroll, footer, logo after multiple frames, input and resizing policy. Windows Dynamic must resize; PS1 Cook must show correct prepared bounds with zero original-value cache.

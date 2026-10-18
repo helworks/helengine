@@ -25,7 +25,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Determines whether one reflected member belongs to the optional append-only payload suffix.
+        /// Determines whether one reflected member belongs to the required append-only payload suffix.
         /// </summary>
         /// <param name="member">Reflected persisted member to inspect.</param>
         /// <returns>True when the member declares an append compatibility ordinal; otherwise false.</returns>

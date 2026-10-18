@@ -8,7 +8,7 @@ namespace helengine {
         /// <summary>Original ItemExtent before owner layout processing.</summary>
         public int ItemExtent;
         /// <summary>Captures this participant without allocating a record object.</summary>
-        public ViewportScrollState(ScrollComponent component) {
+        public ViewportScrollState([NativeRetainsBorrow] ScrollComponent component) {
             Component = component;
             Size = component.Size;
             ItemExtent = component.ItemExtent;

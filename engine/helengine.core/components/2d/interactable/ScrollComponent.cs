@@ -78,6 +78,12 @@ namespace helengine {
         /// </summary>
         Entity ClipOriginEntityValue;
 
+        /// <summary>Borrowed clip reference validated against its current component slot before every use.</summary>
+        ClipRectComponent CachedViewportClip;
+
+        /// <summary>Component slot used to validate the clip in constant time without dereferencing a removed native component.</summary>
+        int CachedViewportClipIndex = -1;
+
         /// <summary>
         /// Tracks whether browser-style autoscroll is active for this viewport.
         /// </summary>
@@ -321,6 +327,8 @@ namespace helengine {
         public override void ComponentRemoved(Entity entity) {
             StopAutoScroll();
             RemoveScrollBar();
+            CachedViewportClip = null;
+            CachedViewportClipIndex = -1;
             base.ComponentRemoved(entity);
         }
 
@@ -403,12 +411,12 @@ namespace helengine {
                 return false;
             }
 
-            if (RequiresPointerInsideValue && !ContainsScreenPoint(OwnerCore.Input.GetMouseX(), OwnerCore.Input.GetMouseY())) {
+            int wheelDelta = OwnerCore.Input.GetMouseScrollWheelDelta();
+            if (wheelDelta == 0) {
                 return false;
             }
 
-            int wheelDelta = OwnerCore.Input.GetMouseScrollWheelDelta();
-            if (wheelDelta == 0) {
+            if (RequiresPointerInsideValue && !ContainsScreenPoint(OwnerCore.Input.GetMouseX(), OwnerCore.Input.GetMouseY())) {
                 return false;
             }
 
@@ -700,36 +708,43 @@ namespace helengine {
         /// </summary>
         /// <returns>Viewport size used for clipping, hit testing, and automatic visible-count calculations.</returns>
         int2 ResolveViewportSize() {
-            Entity viewportEntity = FindAncestorViewportEntity();
-            if (viewportEntity != null) {
-                for (int componentIndex = 0; componentIndex < viewportEntity.Components.Count; componentIndex++) {
-                    if (viewportEntity.Components[componentIndex] is ClipRectComponent clipRectComponent) {
-                        return clipRectComponent.Size;
-                    }
-                }
-            }
-
-            return SizeValue;
+            ClipRectComponent clip = ResolveViewportClip();
+            return clip == null ? SizeValue : clip.Size;
         }
 
-        /// <summary>
-        /// Finds the parent entity that owns the clip rectangle used to size this scroll viewport.
-        /// </summary>
-        /// <returns>The clipped viewport entity when one exists.</returns>
+        /// <summary>Returns the immediate viewport owner using the same validated clip cache as viewport sizing.</summary>
+        /// <returns>The parent viewport entity, or null when the content has no clipping parent.</returns>
         Entity FindAncestorViewportEntity() {
+            return ResolveViewportClip() == null ? null : Parent.Parent;
+        }
+
+        /// <summary>Reuses the clip while its component slot remains valid; rescans after reparenting, removal or replacement.</summary>
+        /// <returns>The current parent clip, or null when this scroll component uses its own bounds.</returns>
+        [NativeBorrowedReturn]
+        ClipRectComponent ResolveViewportClip() {
             if (Parent == null || Parent.Parent == null || Parent.Parent.Components == null) {
+                CachedViewportClip = null;
+                CachedViewportClipIndex = -1;
                 return null;
             }
 
-            Entity viewportEntity = Parent.Parent;
-            for (int componentIndex = 0; componentIndex < viewportEntity.Components.Count; componentIndex++) {
-                if (viewportEntity.Components[componentIndex] is ClipRectComponent) {
-                    return viewportEntity;
-                }
+            List<Component> components = Parent.Parent.Components;
+            if (CachedViewportClip != null && CachedViewportClipIndex >= 0
+                && CachedViewportClipIndex < components.Count
+                && ReferenceEquals(components[CachedViewportClipIndex], CachedViewportClip)) {
+                return CachedViewportClip;
             }
 
+            CachedViewportClip = null;
+            CachedViewportClipIndex = -1;
+            for (int componentIndex = 0; componentIndex < components.Count; componentIndex++) {
+                if (components[componentIndex] is ClipRectComponent clip) {
+                    CachedViewportClip = clip;
+                    CachedViewportClipIndex = componentIndex;
+                    return clip;
+                }
+            }
             return null;
         }
     }
 }
-

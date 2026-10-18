@@ -29,18 +29,19 @@ namespace helengine {
         [NativeBorrowedReturn]
         internal Entity GetPositionEntity(int index) { return Positions[index].Entity; }
         /// <summary>Captures one owner boundary; never called by Cook or OnLoad players.</summary>
-        public static ViewportLayoutCache Capture(Entity owner) {
+        [NativeOwnedReturn]
+        public static ViewportLayoutCache Capture([NativeRetainsBorrow] Entity owner) {
             ViewportLayoutCache cache = new ViewportLayoutCache();
             cache.Reconcile(owner);
             return cache;
         }
         /// <summary>Discovers newly attached participants while preserving originals of unchanged identities.</summary>
-        public void Reconcile(Entity owner) {
+        public void Reconcile([NativeRetainsBorrow] Entity owner) {
             Root = owner;
             CaptureRecursive(owner);
         }
         /// <summary>Captures a subtree without crossing another layout owner boundary.</summary>
-        void CaptureRecursive(Entity entity) {
+        void CaptureRecursive([NativeRetainsBorrow] Entity entity) {
             bool hasPosition = false;
             for (int index = 0; index < Positions.Count; index++) {
                 if (ReferenceEquals(Positions[index].Entity, entity)) { hasPosition = true; break; }
@@ -82,56 +83,56 @@ namespace helengine {
             }
         }
         /// <summary>Captures a new LayoutComponent identity without replacing an existing authored baseline.</summary>
-        void CaptureAnchor(LayoutComponent component) {
+        void CaptureAnchor([NativeRetainsBorrow] LayoutComponent component) {
             for (int index = 0; index < AnchorStates.Count; index++) {
                 if (ReferenceEquals(AnchorStates[index].Component, component)) { return; }
             }
             AnchorStates.Add(new ViewportAnchorState(component));
         }
         /// <summary>Captures a new RoundedRectComponent identity without replacing an existing authored baseline.</summary>
-        void CaptureRectangle(RoundedRectComponent component) {
+        void CaptureRectangle([NativeRetainsBorrow] RoundedRectComponent component) {
             for (int index = 0; index < RectangleStates.Count; index++) {
                 if (ReferenceEquals(RectangleStates[index].Component, component)) { return; }
             }
             RectangleStates.Add(new ViewportRectangleState(component));
         }
         /// <summary>Captures a new TextComponent identity without replacing an existing authored baseline.</summary>
-        void CaptureText(TextComponent component) {
+        void CaptureText([NativeRetainsBorrow] TextComponent component) {
             for (int index = 0; index < TextStates.Count; index++) {
                 if (ReferenceEquals(TextStates[index].Component, component)) { return; }
             }
             TextStates.Add(new ViewportTextState(component));
         }
         /// <summary>Captures a new SpriteComponent identity without replacing an existing authored baseline.</summary>
-        void CaptureSprite(SpriteComponent component) {
+        void CaptureSprite([NativeRetainsBorrow] SpriteComponent component) {
             for (int index = 0; index < SpriteStates.Count; index++) {
                 if (ReferenceEquals(SpriteStates[index].Component, component)) { return; }
             }
             SpriteStates.Add(new ViewportSpriteState(component));
         }
         /// <summary>Captures a new ClipRectComponent identity without replacing an existing authored baseline.</summary>
-        void CaptureClip(ClipRectComponent component) {
+        void CaptureClip([NativeRetainsBorrow] ClipRectComponent component) {
             for (int index = 0; index < ClipStates.Count; index++) {
                 if (ReferenceEquals(ClipStates[index].Component, component)) { return; }
             }
             ClipStates.Add(new ViewportClipState(component));
         }
         /// <summary>Captures a new InteractableComponent identity without replacing an existing authored baseline.</summary>
-        void CaptureInteractable(InteractableComponent component) {
+        void CaptureInteractable([NativeRetainsBorrow] InteractableComponent component) {
             for (int index = 0; index < InteractableStates.Count; index++) {
                 if (ReferenceEquals(InteractableStates[index].Component, component)) { return; }
             }
             InteractableStates.Add(new ViewportInteractableState(component));
         }
         /// <summary>Captures a new ScrollComponent identity without replacing an existing authored baseline.</summary>
-        void CaptureScroll(ScrollComponent component) {
+        void CaptureScroll([NativeRetainsBorrow] ScrollComponent component) {
             for (int index = 0; index < ScrollStates.Count; index++) {
                 if (ReferenceEquals(ScrollStates[index].Component, component)) { return; }
             }
             ScrollStates.Add(new ViewportScrollState(component));
         }
         /// <summary>Captures a new FPSComponent identity without replacing an existing authored baseline.</summary>
-        void CaptureFps(FPSComponent component) {
+        void CaptureFps([NativeRetainsBorrow] FPSComponent component) {
             for (int index = 0; index < FpsStates.Count; index++) {
                 if (ReferenceEquals(FpsStates[index].Component, component)) { return; }
             }

@@ -77,7 +77,7 @@ namespace DemoDisc.MenuContractTests {
             viewport.AddComponent(new ClipRectComponent { Size = new int2(200, 120) });
             Entity items = CreateNode();
             viewport.AddChild(items);
-            items.AddComponent(new ScrollComponent { VisibleItemCount = definition.VisibleItemCount });
+            items.AddComponent(new ScrollComponent { ShowScrollBar = false, VisibleItemCount = definition.VisibleItemCount });
             for (int index = 0; index < definition.Items.Length; index++) {
                 MenuItemDefinition item = definition.Items[index];
                 Entity row = CreateNode();

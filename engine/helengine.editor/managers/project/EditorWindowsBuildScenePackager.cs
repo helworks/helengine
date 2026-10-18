@@ -10,6 +10,9 @@ namespace helengine.editor {
     /// Packages selected editor scenes and their required runtime assets into one Windows player content root.
     /// </summary>
     public sealed class EditorPlatformBuildScenePackager : IDisposable {
+        /// <summary>Effective backend output selected before cook; unresolved metrics remain null and Cook reports them.</summary>
+        public PlatformLayoutTarget LayoutTarget { get; set; }
+
         /// <summary>Accumulates the current scene's resolved outputs independently of global artifact deduplication.</summary>
         HashSet<string> CurrentSceneCookedPaths;
 
@@ -758,6 +761,7 @@ namespace helengine.editor {
                 string sceneId = sceneIds[index];
                 CurrentSceneCookedPaths = new HashSet<string>(StringComparer.Ordinal);
                 TransformService.ReferenceSelection.Clear();
+                TransformService.ClearPreparedLayoutComponents();
                 string sceneSourcePath = sceneSourcePaths[index];
                 SceneAsset packagedSceneAsset = LoadSceneAsset(sceneId, sceneSourcePath);
                 RememberAuthoredEntityReferenceCandidates(packagedSceneAsset.RootEntities);
@@ -766,7 +770,12 @@ namespace helengine.editor {
                 RememberAuthoredEntityReferenceCandidates(packagedSceneAsset.RootEntities);
                 PruneEntitySubtreesForTargetPlatform(packagedSceneAsset);
                 packagedSceneAsset.Id = sceneId;
+                foreach (SceneEntityAsset root in packagedSceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>()) {
+                    if (root != null) { PrepareEffectiveLayoutHierarchy(root); }
+                }
+                new ViewportLayoutCookProcessor(TransformService.PrepareLayoutComponent).Process(packagedSceneAsset, LayoutTarget);
                 RewriteSceneAsset(packagedSceneAsset, fullBuildRootPath);
+                TransformService.ClearPreparedLayoutComponents();
 
                 string packagedSceneRelativePath = BuildPackagedSceneRelativePath(sceneId, index);
                 WriteAsset(Path.Combine(fullBuildRootPath, packagedSceneRelativePath), packagedSceneAsset);
@@ -939,6 +948,15 @@ namespace helengine.editor {
             sceneAsset.Physics3DSceneFeatureFlags = (uint)PhysicsSceneFeatureAnalyzer3D.Analyze(sceneAsset);
         }
 
+        /// <summary>Resolves entity-level overrides after blueprint expansion and before detached layout processing.</summary>
+        void PrepareEffectiveLayoutHierarchy(SceneEntityAsset entityAsset) {
+            ApplyTargetPlatformTransformOverride(entityAsset);
+            ApplyTargetPlatformComponentOverrides(entityAsset);
+            foreach (SceneEntityAsset child in entityAsset.Children ?? Array.Empty<SceneEntityAsset>()) {
+                if (child != null) { PrepareEffectiveLayoutHierarchy(child); }
+            }
+        }
+
         /// <summary>
         /// Rewrites one serialized scene entity recursively.
         /// </summary>
@@ -959,8 +977,6 @@ namespace helengine.editor {
 
             entityAsset.LayerMask = NormalizePackagedEntityLayerMask(entityAsset.LayerMask);
             entityAsset.PlatformExistenceOverrides = Array.Empty<SceneEntityPlatformExistenceOverrideAsset>();
-            ApplyTargetPlatformTransformOverride(entityAsset);
-            ApplyTargetPlatformComponentOverrides(entityAsset);
             float3 worldScale = entityAsset.LocalScale * parentWorldScale;
             float3 scaledLocalPosition = entityAsset.LocalPosition * parentWorldScale;
             float3 worldPosition = parentWorldPosition + float4.RotateVector(scaledLocalPosition, parentWorldOrientation);

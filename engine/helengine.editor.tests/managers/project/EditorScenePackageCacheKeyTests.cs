@@ -1,4 +1,5 @@
 using helengine.editor.tests.testing;
+using helengine.baseplatform.Builders;
 using Xunit;
 
 namespace helengine.editor.tests.managers.project;
@@ -8,6 +9,30 @@ namespace helengine.editor.tests.managers.project;
 /// same inputs, except for the documented same-length, same-stamp edit the memo trusts by design.
 /// </summary>
 public sealed class EditorScenePackageCacheKeyTests : IDisposable {
+    /// <summary>Effective output changes invalidate the cook even when the selected profile IDs are unchanged.</summary>
+    [Fact]
+    public void SameProfileChangedLayoutTarget_InvalidatesCook() {
+        EditorScenePackageCache cache = new(ProjectRootPath);
+        PlatformLayoutTarget original = new PlatformLayoutTarget(320, 240, 1, true, 160, 1);
+        string baseline = ComputeKey(cache, original);
+        PlatformLayoutTarget[] variants = [
+            new PlatformLayoutTarget(640, 240, 1, true, 160, 1),
+            new PlatformLayoutTarget(320, 480, 1, true, 160, 1),
+            new PlatformLayoutTarget(320, 240, 1.25, true, 160, 1),
+            new PlatformLayoutTarget(320, 240, 1, true, 320, 1),
+            new PlatformLayoutTarget(320, 240, 1, false, 0, 1),
+            new PlatformLayoutTarget(320, 240, 1, true, 160, 1.5)
+        ];
+        foreach (PlatformLayoutTarget variant in variants) { Assert.NotEqual(baseline, ComputeKey(cache, variant)); }
+        Assert.Equal(baseline, ComputeKey(cache, original));
+    }
+
+    /// <summary>Changing the layout algorithm cannot reuse an artifact cooked by the previous algorithm.</summary>
+    [Fact]
+    public void LayoutAlgorithmVersion_ChangesFingerprint() {
+        PlatformLayoutTarget target = new PlatformLayoutTarget(320, 240, 1, false, 0, 1);
+        Assert.NotEqual(EditorScenePackageCache.ComputeLayoutFingerprint(target, 1), EditorScenePackageCache.ComputeLayoutFingerprint(target, 2));
+    }
     /// <summary>
     /// Temporary project root of the current test.
     /// </summary>
@@ -239,7 +264,7 @@ public sealed class EditorScenePackageCacheKeyTests : IDisposable {
     /// </summary>
     /// <param name="cache">Cache under test.</param>
     /// <returns>Scene-package key.</returns>
-    string ComputeKey(EditorScenePackageCache cache) {
+    string ComputeKey(EditorScenePackageCache cache, PlatformLayoutTarget target = null) {
         return cache.ComputeKey(
             Builder.Definition,
             Builder,
@@ -251,7 +276,7 @@ public sealed class EditorScenePackageCacheKeyTests : IDisposable {
             Array.Empty<IAssetImporterRegistration>(),
             null,
             null,
-            null).Key;
+            null, target).Key;
     }
 
     /// <summary>

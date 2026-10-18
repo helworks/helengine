@@ -214,8 +214,20 @@ namespace helengine {
             get { return ScalingModeValue; }
             set {
                 if (ScalingModeValue != value) {
+                    if (HasAppliedScaleValue && !IsEditorAuthoring() && LayoutProcessingModeValue != ViewportLayoutProcessingMode.Dynamic) {
+                        throw new InvalidOperationException("Changing a prepared single-pass viewport scaling mode requires reloading the scene.");
+                    }
+                    bool boundaryChanged = (ScalingModeValue == NoScalingMode) != (value == NoScalingMode);
+                    if (boundaryChanged && ParentUnsafe != null) {
+                        RestoreAuthoredLayout();
+                        if (LayoutCache != null) { LayoutCache.RestoreAuthoredLayout(); }
+                        ReleaseLayoutCache();
+                        HasAppliedScaleValue = false;
+                        ViewportLayoutInvalidation.BeforeScalingBoundaryChange(ParentUnsafe);
+                    }
                     ScalingModeValue = value;
                     PendingScaleApplyValue = true;
+                    if (boundaryChanged && ParentUnsafe != null) { ViewportLayoutInvalidation.RefreshBindings(ParentUnsafe); }
                     RaiseAnchorBoundsChanged();
                 }
             }
@@ -404,6 +416,8 @@ namespace helengine {
             DetachFromWindowResize();
             DetachFromWindowLayout();
             ReleaseLayoutCache();
+            NativeOwnership.Delete(CookedLayout);
+            CookedLayout = null;
             NativeOwnership.Delete(CurrentAnchorSpaceValue);
             NativeOwnership.Delete(CurrentViewportAnchorSpaceValue);
             ActiveCameraComponentValue = null;
@@ -468,6 +482,7 @@ namespace helengine {
                     AnchorSize = CookedLayout.AnchorSize, Origin = CookedLayout.Origin, PixelAspect = CookedLayout.PixelAspect
                 };
                 PublishMetrics();
+                ViewportLayoutTraversal.NotifyAnimations(Parent);
             } else {
                 if (IsReferenceCanvasScalingActive() && (editor || LayoutProcessingModeValue == ViewportLayoutProcessingMode.Dynamic)) {
                     if (LayoutCache == null) { LayoutCache = ViewportLayoutCache.Capture(Parent); }
@@ -841,6 +856,7 @@ namespace helengine {
 
         /// <summary>Invalidates borrowed participant references before detachment, without an idle scan.</summary>
         internal void InvalidateLayout(Component component, Entity subtree) {
+            if (component != null || subtree != null) { RestoreAuthoredLayout(); }
             if (AppliedLayoutCache != null) {
                 if (component != null) { AppliedLayoutCache.Remove(component); }
                 if (subtree != null) { AppliedLayoutCache.Remove(subtree); }
@@ -851,6 +867,16 @@ namespace helengine {
             }
             LayoutStructureDirty = true;
             PendingScaleApplyValue = true;
+        }
+
+        /// <summary>Clears camera aliases and subscriptions while a removed camera is still alive.</summary>
+        internal void LayoutProviderRemoved(Component provider) {
+            bool explicitRemoved = ReferenceEquals(ExplicitBoundCameraComponentValue, provider);
+            if (explicitRemoved) { ExplicitBoundCameraComponentValue = null; }
+            if (explicitRemoved || ReferenceEquals(ActiveCameraComponentValue, provider)) {
+                DetachFromCamera();
+                PendingScaleApplyValue = true;
+            }
         }
 
         /// <summary>Rebinds camera listeners once when the hierarchy changes rather than on every bounds read.</summary>
@@ -871,6 +897,7 @@ namespace helengine {
             if (HasAppliedScaleValue && !IsEditorAuthoring() && LayoutProcessingModeValue != ViewportLayoutProcessingMode.Dynamic && IsReferenceCanvasScalingActive()) {
                 ViewportLayoutTraversal.ApplyOnce(subtree, Parent, CurrentMetrics);
                 ViewportLayoutTraversal.RefreshAnchoring(subtree, true);
+                ViewportLayoutTraversal.NotifyAnimations(subtree);
             }
         }
 
@@ -888,6 +915,7 @@ namespace helengine {
                 if (LayoutCache != null) { LayoutCache.Apply(CurrentMetrics); }
                 else { ViewportLayoutTraversal.ApplyOnce(Parent, Parent, CurrentMetrics); }
                 ViewportLayoutTraversal.RefreshAnchoring(Parent, false);
+                ViewportLayoutTraversal.NotifyAnimations(Parent);
             }
             RaiseAnchorBoundsChanged();
         }

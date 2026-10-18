@@ -69,7 +69,9 @@ namespace helengine.editor {
             string selectedBuildProfileId = "",
             string selectedGraphicsProfileId = "",
             IReadOnlyDictionary<string, string> scenePathOverrides = null,
-            string selectedEnvironmentId = "") {
+            string selectedEnvironmentId = "",
+            IReadOnlyDictionary<string, string> selectedGraphicsOptionValues = null,
+            PlatformVideoMode playVideoMode = null) {
             if (platformDefinition == null) {
                 throw new ArgumentNullException(nameof(platformDefinition));
             }
@@ -96,6 +98,25 @@ namespace helengine.editor {
             string platformVersion = ResolvePlatformVersion(platformProfile);
             StandardPlatformInputConfiguration standardInputConfiguration = StandardPlatformInputConfigurationFactory.Create(platformProfile);
 
+            PlatformLayoutTarget layoutTarget = null;
+            if (materialBuilder is IPlatformLayoutTargetProvider layoutProvider) {
+                if (selectedGraphicsOptionValues == null) {
+                    throw new InvalidOperationException("Layout target resolution requires captured effective graphics option values.");
+                }
+                PlatformVideoMode selectedVideoMode = playVideoMode;
+                if (selectedVideoMode == null && platformDefinition.VideoModeCapability != null) {
+                    string settingId = platformDefinition.VideoModeCapability.SettingId;
+                    if (!selectedGraphicsOptionValues.TryGetValue(settingId, out string videoModeId)) {
+                        throw new InvalidOperationException($"Layout target resolution requires graphics option '{settingId}'.");
+                    }
+                    selectedVideoMode = platformDefinition.VideoModeCapability.Resolve(videoModeId, platformDefinition.PlatformId);
+                }
+                layoutTarget = layoutProvider.ResolveLayoutTarget(new PlatformLayoutTargetRequest(
+                    selectedBuildProfileId, selectedGraphicsProfileId, selectedGraphicsOptionValues, selectedVideoMode));
+                if (layoutTarget == null) { throw new InvalidOperationException("The platform layout provider returned no presentation target."); }
+            }
+
+
             List<string> orderedCanonicalScenePaths = ResolveOrderedCanonicalScenePaths(orderedSceneIds);
             List<string> orderedSceneIdentityPaths = ResolvePackagedSceneIdentityPaths(orderedSceneIds, orderedCanonicalScenePaths);
             List<string> orderedScenePaths = ResolveOrderedScenePaths(orderedSceneIds, scenePathOverrides);
@@ -112,7 +133,7 @@ namespace helengine.editor {
                 Importers,
                 DefaultFontAsset,
                 ScriptTypeResolver,
-                BuiltInShaderAssetLibrary);
+                BuiltInShaderAssetLibrary, layoutTarget);
             long fingerprintMilliseconds = scenePackageTimer.ElapsedMilliseconds;
             int hashedInputCount = scenePackageCache.LastHashedInputCount;
             int reusedInputCount = scenePackageCache.LastReusedInputCount;
@@ -132,6 +153,7 @@ namespace helengine.editor {
                     BuiltInShaderAssetLibrary,
                     ScriptTypeResolver,
                     selectedEnvironmentId);
+                packager.LayoutTarget = layoutTarget;
                 packagerResult = packager.PackagePreservingIdentityPaths(
                     orderedSceneIdentityPaths,
                     orderedScenePaths,
@@ -158,7 +180,7 @@ namespace helengine.editor {
                     Importers,
                     DefaultFontAsset,
                     ScriptTypeResolver,
-                    BuiltInShaderAssetLibrary);
+                    BuiltInShaderAssetLibrary, layoutTarget);
                 if (scenePackageKey.DiffersOnlyByCreatedIdentitySidecars(packagedKey)) {
                     scenePackageCache.Store(packagedKey.Key, effectiveExecutionRootPath, packagerResult);
                     Console.WriteLine("[cook] scene-package-cache stored-post-packaging-key (packaging created identity sidecars)");

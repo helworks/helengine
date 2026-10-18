@@ -14,7 +14,7 @@ namespace DemoDisc.MenuContractTests {
             Assert.Equal("main", fixture.Menu.ActivePanelId);
             Assert.Equal("main-scenes", fixture.Menu.SelectedItemId);
             Assert.Equal(7, fixture.Panels.Count);
-            Assert.Equal(34, fixture.Panels.Values.Sum(panel => panel.Items.Length));
+            Assert.Equal(44, fixture.Panels.Values.Sum(panel => panel.Items.Length));
             AssertBoundMetadata(fixture);
             foreach (MenuPanelDefinition definition in fixture.Definition.Panels) {
                 fixture.Invoke("ActivatePanel", definition.PanelId, false);

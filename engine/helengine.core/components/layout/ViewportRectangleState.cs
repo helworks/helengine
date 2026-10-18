@@ -10,7 +10,7 @@ namespace helengine {
         /// <summary>Original BorderThickness before owner layout processing.</summary>
         public float BorderThickness;
         /// <summary>Captures this participant without allocating a record object.</summary>
-        public ViewportRectangleState(RoundedRectComponent component) {
+        public ViewportRectangleState([NativeRetainsBorrow] RoundedRectComponent component) {
             Component = component;
             Size = component.Size;
             Radius = component.Radius;

@@ -5,7 +5,7 @@ namespace helengine {
     [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
     public sealed class ScenePersistenceAppendAttribute : Attribute {
         /// <summary>
-        /// Initializes an append-only marker with the immutable zero-based ordinal used within the component's optional suffix.
+        /// Initializes an append-only marker with the immutable zero-based ordinal used within the component's required suffix.
         /// </summary>
         /// <param name="order">Zero-based append ordinal. Existing ordinals must never be renumbered or reused.</param>
         public ScenePersistenceAppendAttribute(int order) {

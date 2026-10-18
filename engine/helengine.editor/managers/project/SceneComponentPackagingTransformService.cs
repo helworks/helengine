@@ -14,6 +14,9 @@ namespace helengine.editor {
     /// Rewrites shared scene component payloads into packaged runtime forms.
     /// </summary>
     public sealed class SceneComponentPackagingTransformService {
+        /// <summary>Prepared detached UI participants keyed by the unchanged source records that carry reference provenance.</summary>
+        readonly Dictionary<SceneComponentAssetRecord, ViewportPreparedCookComponent> PreparedLayoutComponents = new Dictionary<SceneComponentAssetRecord, ViewportPreparedCookComponent>();
+
         /// <summary>Records each resolved runtime reference before global asset deduplication for per-scene streaming closure.</summary>
         readonly Action<string> CookedPathSelectionSink;
         /// <summary>Uses the owning scene packager's authoritative default-font producer when a typed member selects the generated font.</summary>
@@ -408,6 +411,27 @@ namespace helengine.editor {
             PlatformOverridePayloadService = new ComponentPlatformOverridePayloadService();
         }
 
+        /// <summary>Discards per-scene detached participants after their official payloads have been emitted.</summary>
+        internal void ClearPreparedLayoutComponents() { PreparedLayoutComponents.Clear(); }
+
+        /// <summary>Resolves effective overrides and saved references once, without attaching a component to a live Entity.</summary>
+        /// <param name="record">Original record retained for dependency and reference-selection provenance.</param>
+        /// <param name="levelOrder">Override order authored by the entity.</param>
+        /// <returns>Detached built-in participant shared with final ordinal serialization.</returns>
+        internal Component PrepareLayoutComponent(SceneComponentAssetRecord record, IReadOnlyList<SceneOverrideScopeStepKind> levelOrder) {
+            if (PreparedLayoutComponents.TryGetValue(record, out ViewportPreparedCookComponent prepared)) { return prepared.Component; }
+            if (!TryResolvePersistenceDescriptor(record.ComponentTypeId, out IComponentPersistenceDescriptor descriptor)) {
+                throw new InvalidOperationException($"Cannot resolve layout component '{record.ComponentTypeId}'.");
+            }
+            SceneComponentPackagingTransformContext context = new SceneComponentPackagingTransformContext(float3.One, float3.Zero, float4.Identity, levelOrder);
+            SceneComponentAssetRecord effectiveRecord = ResolveTargetPlatformComponentRecord(record, BuildTargetPath(context), out EntityComponentPlatformOverrideState selectedOverride);
+            EntitySaveComponent save = new EntitySaveComponent();
+            Component component = descriptor.DeserializeComponent(effectiveRecord, save, null);
+            RestoreTargetPlatformAssetReferences(save, component, selectedOverride);
+            PreparedLayoutComponents.Add(record, new ViewportPreparedCookComponent(component, save));
+            return component;
+        }
+
         /// <summary>
         /// Returns whether the service can rewrite the supplied serialized component type id into packaged runtime form.
         /// </summary>
@@ -519,7 +543,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            EntitySaveComponent saveComponent = new EntitySaveComponent();
+            bool hasPreparedLayout = PreparedLayoutComponents.TryGetValue(record, out ViewportPreparedCookComponent preparedLayout);
+            EntitySaveComponent saveComponent = hasPreparedLayout ? preparedLayout.SaveComponent : new EntitySaveComponent();
             EditorOverrideScope targetPath = BuildTargetPath(context);
             SceneComponentAssetRecord baseRecord = ResolveTargetPlatformComponentRecord(record, targetPath, out EntityComponentPlatformOverrideState targetPlatformOverride);
             EntityComponentPlatformOverrideState commonScopeOverride = ResolveCommonScopeComponentOverride(record);
@@ -527,7 +552,7 @@ namespace helengine.editor {
                 targetPlatformOverride,
                 commonScopeOverride);
             List<MeshComponentModifier> meshUvwModifiers = ResolveMeshComponentCookUvwModifiers(targetPlatformOverride, commonScopeOverride);
-            Component component = DeserializeAutomaticComponentForPackaging(baseRecord, descriptor, saveComponent);
+            Component component = hasPreparedLayout ? preparedLayout.Component : DeserializeAutomaticComponentForPackaging(baseRecord, descriptor, saveComponent);
             RestoreTargetPlatformAssetReferences(saveComponent, component, targetPlatformOverride);
             NormalizeAutomaticComponentForRuntimePackaging(component);
             ApplyStaticMeshCookedRuntimeData(component);
@@ -953,6 +978,9 @@ namespace helengine.editor {
                 }
             }
             SceneComponentAssetRecord baseRecord = PlatformOverridePayloadService.UnwrapBaseRecord(record);
+            if (baseRecord.Payload == null || baseRecord.Payload.Length == 0) {
+                throw new InvalidOperationException("Automatic scripted component payload is empty; the current version/member-count payload is required. Regenerate the scene in the current format.");
+            }
             ScenePersistenceValueWalker walker = new(new SceneComponentReferenceCollectionReader(ReferenceSelection.RememberCandidate), "Scene component dependency selection");
             EditorTaggedSceneComponentFieldReader taggedReader;
             try {
@@ -983,10 +1011,15 @@ namespace helengine.editor {
         static void RememberOrdinalComponentReferenceCandidates(SceneComponentAssetRecord record, ScriptComponentReflectionSchema schema, ScenePersistenceValueWalker walker) {
             using MemoryStream stream = new(record.Payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            if (reader.ReadByte() != AutomaticScriptComponentRuntimeDeserializer.CurrentVersion || reader.ReadInt32() != schema.Members.Count) {
-                throw new InvalidOperationException("Component dependency selection requires the current authored component schema.");
+            byte version = reader.ReadByte();
+            if (version != AutomaticScriptComponentRuntimeDeserializer.CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported automatic scripted component payload received version '{version}'; current version '{AutomaticScriptComponentRuntimeDeserializer.CurrentVersion}' is required. Regenerate/rebuild the asset in the current format.");
             }
-            foreach (ScriptComponentReflectionMember member in schema.Members) walker.ReadValue(reader, member.ValueType);
+            int count = reader.ReadInt32();
+            if (count != schema.Members.Count) {
+                throw new InvalidOperationException("Component dependency selection requires the current authored component schema. Regenerate/rebuild the asset.");
+            }
+            for (int index = 0; index < count; index++) { walker.ReadValue(reader, schema.Members[index].ValueType); }
             if (stream.Position != stream.Length) throw new InvalidOperationException("Component dependency selection encountered trailing ordinal data.");
         }
 

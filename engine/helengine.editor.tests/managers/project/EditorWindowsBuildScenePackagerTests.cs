@@ -18,6 +18,48 @@ namespace helengine.editor.tests {
     /// Verifies Windows scene packaging collects referenced shader ids from packaged material assets.
     /// </summary>
     public class EditorPlatformBuildScenePackagerTests : IDisposable {
+        /// <summary>Effective platform policy is cooked before ordinal emission without rewriting the authored scene.</summary>
+        [Fact]
+        public void Package_ViewportCook_UsesOverrideAndPreservesAuthoring() {
+            const string sceneId = "Scenes/ViewportCook.helen";
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            ViewportComponent common = new ViewportComponent { ScalingMode = 2, ReferenceWidth = 640, ReferenceHeight = 480 };
+            EntitySaveComponent save = new EntitySaveComponent();
+            ComponentPlatformEditingService editing = new ComponentPlatformEditingService();
+            ViewportComponent selected = Assert.IsType<ViewportComponent>(editing.EnsurePlatformOverrideComponent(common, save, "windows"));
+            selected.LayoutProcessingMode = ViewportLayoutProcessingMode.Cook;
+            editing.MarkPropertyOverride(common, save, "windows", "LayoutProcessingMode");
+            editing.PersistPlatformOverride(common, selected, save, "windows");
+            EntityComponentSaveState state = save.GetOrCreateComponentState(common);
+            SceneComponentAssetRecord viewportRecord = new ComponentPlatformOverridePayloadService().Wrap(
+                registry.GetDescriptor(common).SerializeComponent(common, 0, state), state);
+            RoundedRectComponent rectangle = new RoundedRectComponent { Size = new int2(200, 80) };
+            SceneComponentAssetRecord rectangleRecord = registry.GetDescriptor(rectangle).SerializeComponent(rectangle, 0, new EntityComponentSaveState());
+            WriteSceneAsset(sceneId, new SceneAsset { Id = sceneId, RootEntities = [new SceneEntityAsset {
+                Id = 1, Name = "CookRoot", Components = [viewportRecord], LocalScale = float3.One, LocalOrientation = float4.Identity,
+                Children = [new SceneEntityAsset { Id = 2, Components = [rectangleRecord], LocalPosition = new float3(100, 40, 0), LocalScale = float3.One, LocalOrientation = float4.Identity }]
+            }] });
+            string sourcePath = Path.Combine(ProjectRootPath, "assets", sceneId);
+            byte[] authored = File.ReadAllBytes(sourcePath);
+            using EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath, BuiltInShaderAssetLibrary) {
+                LayoutTarget = new PlatformLayoutTarget(320, 240, 1, false, 0, 1)
+            };
+            packager.Package([sceneId], BuildRootPath);
+            using FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
+            SceneAsset packaged = DeserializePackagedScene(stream);
+            SceneEntityAsset root = Assert.Single(packaged.RootEntities);
+            ViewportComponent cooked = Assert.IsType<ViewportComponent>(new AutomaticScriptComponentRuntimeDeserializer(
+                "helengine.ViewportComponent", typeof(ViewportComponent)).Deserialize(Assert.Single(root.Components), null));
+            RoundedRectComponent baked = Assert.IsType<RoundedRectComponent>(new AutomaticScriptComponentRuntimeDeserializer(
+                "helengine.RoundedRectComponent", typeof(RoundedRectComponent)).Deserialize(Assert.Single(Assert.Single(root.Children).Components), null));
+            Assert.Equal(ViewportLayoutProcessingMode.Cook, cooked.LayoutProcessingMode);
+            Assert.Equal(0.5, cooked.CookedLayout.ScaleX);
+            Assert.Equal(new int2(100, 40), baked.Size);
+            Assert.Equal(new float3(50, 20, 0), Assert.Single(root.Children).LocalPosition);
+            Assert.Equal(authored, File.ReadAllBytes(sourcePath));
+            Assert.Equal(ViewportLayoutProcessingMode.Dynamic, common.LayoutProcessingMode);
+        }
+
         /// <summary>
         /// Exercises the complete material packaging boundary: shader payloads bypass
         /// normalization only for a raw-runtime mixed-format opt-in, while classic

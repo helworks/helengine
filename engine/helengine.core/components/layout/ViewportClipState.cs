@@ -6,7 +6,7 @@ namespace helengine {
         /// <summary>Original Size before owner layout processing.</summary>
         public int2 Size;
         /// <summary>Captures this participant without allocating a record object.</summary>
-        public ViewportClipState(ClipRectComponent component) {
+        public ViewportClipState([NativeRetainsBorrow] ClipRectComponent component) {
             Component = component;
             Size = component.Size;
         }

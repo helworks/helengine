@@ -1,6 +1,20 @@
 namespace helengine {
     /// <summary>Defines layout owner boundaries consistently for direct application and typed retention.</summary>
     internal static class ViewportLayoutTraversal {
+        /// <summary>Publishes a completed layout to animators once per layout pass, without per-frame ancestor searches.</summary>
+        public static void NotifyAnimations(Entity entity) {
+            if (entity.Components != null) {
+                for (int index = 0; index < entity.Components.Count; index++) {
+                    if (entity.Components[index] is AnimationPlayerComponent player) { player.PrepareLayout(); }
+                }
+            }
+            if (entity.Children != null) {
+                for (int index = 0; index < entity.Children.Count; index++) {
+                    if (ShouldVisit(entity.Children[index])) { NotifyAnimations(entity.Children[index]); }
+                }
+            }
+        }
+
         /// <summary>Applies loaded values directly; no original-value records are constructed.</summary>
         public static void ApplyOnce(Entity entity, Entity owner, ViewportLayoutMetrics metrics) {
             ViewportLayoutMetrics local = metrics;

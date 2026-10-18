@@ -1,6 +1,39 @@
 namespace helengine.core.tests.components {
     /// <summary>Exercises layout policy paths and cold hierarchy mutation against the real runtime.</summary>
     public sealed class ViewportLayoutProcessingTests {
+        /// <summary>Generated scrollbars use resolved scroll bounds and never add original-value records.</summary>
+        [Theory]
+        [InlineData(ViewportLayoutProcessingMode.Dynamic)]
+        [InlineData(ViewportLayoutProcessingMode.OnLoad)]
+        [InlineData(ViewportLayoutProcessingMode.Cook)]
+        public void GeneratedScrollbars_DoNotCaptureOriginals(ViewportLayoutProcessingMode mode) {
+            using ViewportLayoutTestScene scene = new ViewportLayoutTestScene();
+            Entity root = scene.CreateEntity();
+            ScrollComponent scroll = new ScrollComponent {
+                Size = mode == ViewportLayoutProcessingMode.Cook ? new int2(80, 50) : new int2(160, 100),
+                ItemCount = 24, ItemExtent = mode == ViewportLayoutProcessingMode.Cook ? 5 : 10
+            };
+            root.AddComponent(scroll);
+            ViewportComponent viewport = scene.AddViewport(root, mode);
+            if (mode == ViewportLayoutProcessingMode.Cook) {
+                viewport.CookedLayout = new ViewportCookedLayout {
+                    AlgorithmVersion = 1, TargetWidth = 320, TargetHeight = 240, PixelAspect = 1,
+                    ScaleX = 0.5, ScaleY = 0.5, GlyphScale = 0.5, AnchorSize = new int2(320, 240)
+                };
+            }
+            root.InitializeHierarchy();
+            viewport.Update();
+            Assert.Equal(new int2(80, 50), scroll.Size);
+            Assert.NotNull(scroll.ScrollBar);
+            Assert.Equal(new int2(8, 50), scroll.ScrollBar.Size);
+            Assert.Equal(mode == ViewportLayoutProcessingMode.Dynamic ? 1 : 0, viewport.RetainedLayoutPositionCount);
+            scroll.ShowScrollBar = false;
+            scroll.ShowScrollBar = true;
+            viewport.Update();
+            Assert.Equal(new int2(8, 50), scroll.ScrollBar.Size);
+            Assert.Equal(mode == ViewportLayoutProcessingMode.Dynamic ? 1 : 0, viewport.RetainedLayoutPositionCount);
+        }
+
         /// <summary>Single-pass preparation allocates no cache, including a temporary cache discarded before observation.</summary>
         [Theory]
         [InlineData(ViewportLayoutProcessingMode.OnLoad)]
