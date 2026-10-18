@@ -20,6 +20,10 @@ public class HelengineFeatureCatalogIntegrityTests {
         Assert.Contains("render2d", featureIds);
         Assert.Contains("managed_metadata_only", featureIds);
         Assert.Contains("host_file_system", featureIds);
+        Assert.Contains("runtime_profiler", featureIds);
+        System.Text.Json.JsonElement runtimeProfiler = document.RootElement.GetProperty("features").EnumerateArray()
+            .Single(feature => feature.GetProperty("id").GetString() == "runtime_profiler");
+        Assert.Equal("disabled", runtimeProfiler.GetProperty("defaultMode").GetString());
         Assert.DoesNotContain("runtime_json", featureIds);
     }
 

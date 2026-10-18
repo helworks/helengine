@@ -8,6 +8,7 @@
     { "id": "physics3d.diagnostics", "defaultMode": "auto", "conflictPolicy": "error" },
     { "id": "reflection_like_runtime", "defaultMode": "auto", "conflictPolicy": "error" },
     { "id": "managed_metadata_only", "defaultMode": "disabled", "conflictPolicy": "error" },
+    { "id": "runtime_profiler", "defaultMode": "disabled", "conflictPolicy": "error" },
     { "id": "host_file_system", "defaultMode": "auto", "conflictPolicy": "error" },
     { "id": "text_processing", "defaultMode": "auto", "conflictPolicy": "error" }
   ],
