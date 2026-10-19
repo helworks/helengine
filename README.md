@@ -2,6 +2,48 @@
 
 helengine is the shared engine and editor workspace used to build platform packages from project `.heproj` files.
 
+## Workspace setup
+
+Clone this main repository, then run the bootstrap from its checkout. It clones the
+selected repositories into sibling directories, using paths relative to the main
+checkout rather than a machine-specific workspace path. Git and access to the
+selected repositories are required.
+
+```powershell
+git clone https://github.com/helworks/helengine.git
+cd helengine
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/setup-workspace.ps1
+```
+
+With no selection argument, the script offers an interactive list. For automation:
+
+```powershell
+# Clone all platform repositories and the shared HelPhysics repository.
+./scripts/setup-workspace.ps1 -All
+
+# Clone only these platforms; comma-separated IDs also work with powershell -File.
+./scripts/setup-workspace.ps1 -Platforms ps1,n64,windows
+
+# List IDs or preview the selection without changing checkouts.
+./scripts/setup-workspace.ps1 -List
+./scripts/setup-workspace.ps1 -Platforms ps1,n64 -WhatIf
+```
+
+The catalog is `scripts/workspace-repositories.json`; `gamecube` selects
+`helengine-gc`, `dc` selects `helengine-dc`, and `physics` selects HelPhysics.
+`-Repositories` is an alias for `-Platforms`. SSH or HTTPS is inferred from the main
+repository's origin; `-Protocol Ssh` or `-Protocol Https` overrides that choice, including GitHub
+submodule URLs, through process-local Git configuration.
+
+Missing submodule checkouts are initialized at their recorded commits, recursively.
+`-SkipSubmodules` limits the operation to sibling repositories. Initialized
+submodules and existing checkouts keep their branch, revision and local edits.
+Every selected existing destination must be an independent Git checkout with the
+expected origin; a conflicting folder or failed Git operation stops the script
+with an error. Run the bootstrap again to initialize any still-missing submodules
+after an interrupted operation. This script prepares sources; building platforms
+continues through the build commands below.
+
 ## Editor CLI Platform Builds
 
 Use the shared PowerShell wrapper at [scripts/build-platform.ps1](scripts/build-platform.ps1) to restore and publish the editor CLI, then build the authored project directly.

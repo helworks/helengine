@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "repositories": [
+    {
+      "id": "windows",
+      "name": "Windows",
+      "directory": "helengine-windows",
+      "url": "git@github.com:helworks/helengine-windows.git"
+    },
+    {
+      "id": "webgpu",
+      "name": "WebGPU",
+      "directory": "helengine-webgpu",
+      "url": "git@github.com:helworks/helengine-webgpu.git"
+    },
+    {
+      "id": "android",
+      "name": "Android",
+      "directory": "helengine-android",
+      "url": "git@github.com:helworks/helengine-android.git"
+    },
+    {
+      "id": "ps1",
+      "name": "PlayStation 1",
+      "directory": "helengine-ps1",
+      "url": "git@github.com:helworks/helengine-ps1.git"
+    },
+    {
+      "id": "ps2",
+      "name": "PlayStation 2",
+      "directory": "helengine-ps2",
+      "url": "git@github.com:helworks/helengine-ps2.git"
+    },
+    {
+      "id": "ps3",
+      "name": "PlayStation 3",
+      "directory": "helengine-ps3",
+      "url": "git@github.com:helworks/helengine-ps3.git"
+    },
+    {
+      "id": "psp",
+      "name": "PlayStation Portable",
+      "directory": "helengine-psp",
+      "url": "git@github.com:helworks/helengine-psp.git"
+    },
+    {
+      "id": "psvita",
+      "name": "PlayStation Vita",
+      "directory": "helengine-psvita",
+      "url": "git@github.com:helworks/helengine-vita.git"
+    },
+    {
+      "id": "n64",
+      "name": "Nintendo 64",
+      "directory": "helengine-n64",
+      "url": "git@github.com:helworks/helengine-n64.git"
+    },
+    {
+      "id": "gamecube",
+      "name": "GameCube",
+      "directory": "helengine-gc",
+      "url": "git@github.com:helworks/helengine-gc.git"
+    },
+    {
+      "id": "wii",
+      "name": "Wii",
+      "directory": "helengine-wii",
+      "url": "git@github.com:helworks/helengine-wii.git"
+    },
+    {
+      "id": "wiiu",
+      "name": "Wii U",
+      "directory": "helengine-wiiu",
+      "url": "git@github.com:helworks/helengine-wiiu.git"
+    },
+    {
+      "id": "switch",
+      "name": "Nintendo Switch",
+      "directory": "helengine-switch",
+      "url": "git@github.com:helworks/helengine-switch.git"
+    },
+    {
+      "id": "ds",
+      "name": "Nintendo DS",
+      "directory": "helengine-ds",
+      "url": "git@github.com:helworks/helengine-ds.git"
+    },
+    {
+      "id": "3ds",
+      "name": "Nintendo 3DS",
+      "directory": "helengine-3ds",
+      "url": "git@github.com:helworks/helengine-3ds.git"
+    },
+    {
+      "id": "snes",
+      "name": "Super Nintendo",
+      "directory": "helengine-snes",
+      "url": "git@github.com:helworks/helengine-snes.git"
+    },
+    {
+      "id": "dc",
+      "name": "Dreamcast",
+      "directory": "helengine-dc",
+      "url": "git@github.com:helworks/helengine-dreamcast.git"
+    },
+    {
+      "id": "xbox",
+      "name": "Xbox",
+      "directory": "helengine-xbox",
+      "url": "git@github.com:helworks/helengine-xbox.git"
+    },
+    {
+      "id": "x360",
+      "name": "Xbox 360",
+      "directory": "helengine-x360",
+      "url": "git@github.com:helworks/helengine-xbox360.git"
+    },
+    {
+      "id": "physics",
+      "name": "HelPhysics (shared library)",
+      "directory": "helengine-physics",
+      "url": "git@github.com:helworks/helengine-physics.git"
+    }
+  ]
+}
