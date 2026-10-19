@@ -137,6 +137,8 @@ namespace helengine.editor {
                 return TextureAssetAlphaPrecision.A4;
             } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A8) {
                 return TextureAssetAlphaPrecision.A8;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A3) {
+                return TextureAssetAlphaPrecision.A3;
             }
 
             throw new InvalidOperationException($"Unsupported texture alpha precision '{serializedValue}'.");

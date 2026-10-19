@@ -152,6 +152,8 @@ namespace helengine.editor {
                 return TextureAssetAlphaPrecision.A4;
             } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A8) {
                 return TextureAssetAlphaPrecision.A8;
+            } else if (serializedValue == (byte)TextureAssetAlphaPrecision.A3) {
+                return TextureAssetAlphaPrecision.A3;
             }
 
             throw new InvalidOperationException($"Unsupported texture alpha precision '{serializedValue}'.");
@@ -166,7 +168,8 @@ namespace helengine.editor {
             return alphaPrecision == TextureAssetAlphaPrecision.Opaque
                 || alphaPrecision == TextureAssetAlphaPrecision.Binary
                 || alphaPrecision == TextureAssetAlphaPrecision.A4
-                || alphaPrecision == TextureAssetAlphaPrecision.A8;
+                || alphaPrecision == TextureAssetAlphaPrecision.A8
+                || alphaPrecision == TextureAssetAlphaPrecision.A3;
         }
 
         static void WriteTextureSettings(EngineBinaryWriter writer, TextureAssetProcessorSettings settings, string ownerId) {

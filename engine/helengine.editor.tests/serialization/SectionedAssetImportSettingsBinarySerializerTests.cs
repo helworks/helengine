@@ -6,6 +6,59 @@ namespace helengine.editor.tests.serialization {
     /// </summary>
     public sealed class SectionedAssetImportSettingsBinarySerializerTests {
         /// <summary>
+        /// Verifies registered texture sections retain native GameCube three-bit alpha in platform and environment settings.
+        /// </summary>
+        /// <param name="useEnvironment">Whether to store the texture section in an environment override.</param>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void SerializeDeserialize_WhenGameCubeTextureUsesA3_RoundTripsAlphaPrecision(bool useEnvironment) {
+            AssetImportSettings settings = new AssetImportSettings();
+            AssetPlatformProcessorSettings platformSettings = new AssetPlatformProcessorSettings();
+            settings.Processor.Platforms["gamecube"] = platformSettings;
+            AssetPlatformProcessorSettings textureOwner = platformSettings;
+            if (useEnvironment) {
+                textureOwner = new AssetPlatformProcessorSettings();
+                platformSettings.Environments["preview"] = textureOwner;
+            }
+            textureOwner.Texture = new TextureAssetProcessorSettings {
+                MaxResolution = 256,
+                ColorFormatId = "Gx.CI4.TLUT.RGB5A3",
+                AlphaPrecision = TextureAssetAlphaPrecision.A3
+            };
+
+            using MemoryStream stream = new MemoryStream();
+            SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            stream.Position = 0;
+            AssetImportSettings restored = SectionedAssetImportSettingsBinarySerializer.Deserialize(stream);
+
+            AssetPlatformProcessorSettings restoredOwner = useEnvironment
+                ? restored.Processor.Platforms["gamecube"].Environments["preview"]
+                : restored.Processor.Platforms["gamecube"];
+            Assert.Equal("Gx.CI4.TLUT.RGB5A3", restoredOwner.Texture.ColorFormatId);
+            Assert.Equal(TextureAssetAlphaPrecision.A3, restoredOwner.Texture.AlphaPrecision);
+            Assert.Equal(stream.Length, stream.Position);
+        }
+
+        /// <summary>
+        /// Verifies the registered texture section rejects undefined alpha bytes during deserialization.
+        /// </summary>
+        [Fact]
+        public void DeserializeTextureSection_WhenAlphaPrecisionIsUndefined_Throws() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteInt32(256);
+            writer.WriteString("Gx.CI4.TLUT.RGB5A3");
+            writer.WriteByte(255);
+            writer.WriteString(string.Empty);
+            stream.Position = 0;
+            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => new TextureAssetPlatformSettingsSectionDefinition().Deserialize(reader));
+            Assert.Contains("Unsupported texture alpha precision '255'", exception.Message);
+        }
+
+        /// <summary>
         /// Ensures all built-in platform sections survive one binary roundtrip.
         /// </summary>
         [Fact]
