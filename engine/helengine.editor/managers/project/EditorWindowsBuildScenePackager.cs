@@ -13,6 +13,13 @@ namespace helengine.editor {
         /// <summary>Effective backend output selected before cook; unresolved metrics remain null and Cook reports them.</summary>
         public PlatformLayoutTarget LayoutTarget { get; set; }
 
+        /// <summary>Gets or sets the build's captured numeric policy and forwards it to dependent component producers.</summary>
+        public NumericPrecisionPolicy NumericPolicy {
+            get { return TransformService.NumericPolicy; }
+            set { RealBinaryCodec.ValidatePolicy(value); TransformService.NumericPolicy = value; }
+        }
+
+
         /// <summary>Accumulates the current scene's resolved outputs independently of global artifact deduplication.</summary>
         HashSet<string> CurrentSceneCookedPaths;
 
@@ -773,7 +780,7 @@ namespace helengine.editor {
                 foreach (SceneEntityAsset root in packagedSceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>()) {
                     if (root != null) { PrepareEffectiveLayoutHierarchy(root); }
                 }
-                new ViewportLayoutCookProcessor(TransformService.PrepareLayoutComponent).Process(packagedSceneAsset, LayoutTarget);
+                new ViewportLayoutCookProcessor(TransformService.PrepareLayoutComponent, NumericPolicy).Process(packagedSceneAsset, LayoutTarget);
                 RewriteSceneAsset(packagedSceneAsset, fullBuildRootPath);
                 TransformService.ClearPreparedLayoutComponents();
 
@@ -977,13 +984,13 @@ namespace helengine.editor {
 
             entityAsset.LayerMask = NormalizePackagedEntityLayerMask(entityAsset.LayerMask);
             entityAsset.PlatformExistenceOverrides = Array.Empty<SceneEntityPlatformExistenceOverrideAsset>();
-            float3 worldScale = entityAsset.LocalScale * parentWorldScale;
-            float3 scaledLocalPosition = entityAsset.LocalPosition * parentWorldScale;
-            float3 worldPosition = parentWorldPosition + float4.RotateVector(scaledLocalPosition, parentWorldOrientation);
-            float4 localOrientation = entityAsset.LocalOrientation;
-            float4 accumulatedParentOrientation = parentWorldOrientation;
-            float4.Concatenate(ref localOrientation, ref accumulatedParentOrientation, out float4 worldOrientation);
-            worldOrientation.Normalize();
+            CookNumericOperations math = new CookNumericOperations(NumericPolicy);
+            float3 worldScale = TransformNumericKernel<double, CookNumericOperations>.Multiply(entityAsset.LocalScale, parentWorldScale, math);
+            float3 scaledLocalPosition = TransformNumericKernel<double, CookNumericOperations>.Multiply(entityAsset.LocalPosition, parentWorldScale, math);
+            float3 rotatedLocalPosition = TransformNumericKernel<double, CookNumericOperations>.Rotate(scaledLocalPosition, parentWorldOrientation, math);
+            float3 worldPosition = TransformNumericKernel<double, CookNumericOperations>.Add(parentWorldPosition, rotatedLocalPosition, math);
+            float4 worldOrientation = TransformNumericKernel<double, CookNumericOperations>.Concatenate(entityAsset.LocalOrientation, parentWorldOrientation, math);
+            worldOrientation = TransformNumericKernel<double, CookNumericOperations>.Normalize(worldOrientation, math);
             IReadOnlyList<SceneOverrideScopeStepKind> entityOverrideLevelOrder = entityAsset.HasOverrideLevelOrder ? entityAsset.OverrideLevelOrder : null;
             SceneComponentAssetRecord[] componentRecords = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
             for (int index = 0; index < componentRecords.Length; index++) {
@@ -3125,10 +3132,10 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(writer));
             }
 
-            writer.WriteSingle(value.X);
-            writer.WriteSingle(value.Y);
-            writer.WriteSingle(value.Z);
-            writer.WriteSingle(value.W);
+            writer.WriteSingle((float)(value.X));
+            writer.WriteSingle((float)(value.Y));
+            writer.WriteSingle((float)(value.Z));
+            writer.WriteSingle((float)(value.W));
         }
 
         /// <summary>
@@ -3245,7 +3252,7 @@ namespace helengine.editor {
 
             Directory.CreateDirectory(directoryPath);
             using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            AssetSerializer.Serialize(stream, asset);
+            AssetSerializer.Serialize(stream, asset, NumericPolicy);
         }
 
         /// <summary>

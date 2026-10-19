@@ -20,13 +20,13 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(second));
             }
 
-            float firstY = PrimitiveContactMath3D.Clamp(second.Position.Y, first.Position.Y - first.CapsuleSegmentHalfLength, first.Position.Y + first.CapsuleSegmentHalfLength);
-            float secondY = PrimitiveContactMath3D.Clamp(firstY, second.Position.Y - second.CapsuleSegmentHalfLength, second.Position.Y + second.CapsuleSegmentHalfLength);
-            firstY = PrimitiveContactMath3D.Clamp(secondY, first.Position.Y - first.CapsuleSegmentHalfLength, first.Position.Y + first.CapsuleSegmentHalfLength);
+            float firstY = PrimitiveContactMath3D.Clamp((float)(second.Position.Y), (float)(first.Position.Y - first.CapsuleSegmentHalfLength), (float)(first.Position.Y + first.CapsuleSegmentHalfLength));
+            float secondY = PrimitiveContactMath3D.Clamp(firstY, (float)(second.Position.Y - second.CapsuleSegmentHalfLength), (float)(second.Position.Y + second.CapsuleSegmentHalfLength));
+            firstY = PrimitiveContactMath3D.Clamp(secondY, (float)(first.Position.Y - first.CapsuleSegmentHalfLength), (float)(first.Position.Y + first.CapsuleSegmentHalfLength));
             float3 firstPoint = new float3(first.Position.X, firstY, first.Position.Z);
             float3 secondPoint = new float3(second.Position.X, secondY, second.Position.Z);
             float3 delta = firstPoint - secondPoint;
-            float distanceSquared = float3.Dot(delta, delta);
+            float distanceSquared = (float)(float3.Dot(delta, delta));
             float combinedRadius = first.SphereRadius + second.SphereRadius;
             float combinedRadiusSquared = combinedRadius * combinedRadius;
             if (distanceSquared > combinedRadiusSquared) {

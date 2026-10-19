@@ -35,12 +35,12 @@ namespace helengine {
         /// <param name="next">Next clip rectangle to apply.</param>
         /// <returns>Intersected clip rectangle.</returns>
         public float4 Intersect(float4 current, float4 next) {
-            float left = Math.Max(current.X, next.X);
-            float top = Math.Max(current.Y, next.Y);
-            float right = Math.Min(current.X + current.Z, next.X + next.Z);
-            float bottom = Math.Min(current.Y + current.W, next.Y + next.W);
-            float width = Math.Max(0f, right - left);
-            float height = Math.Max(0f, bottom - top);
+            RealEvaluation left = RealMath.Max(current.X, next.X);
+            RealEvaluation top = RealMath.Max(current.Y, next.Y);
+            RealEvaluation right = RealMath.Min(current.X + current.Z, next.X + next.Z);
+            RealEvaluation bottom = RealMath.Min(current.Y + current.W, next.Y + next.W);
+            RealEvaluation width = RealMath.Max(0f, right - left);
+            RealEvaluation height = RealMath.Max(0f, bottom - top);
             return new float4(left, top, width, height);
         }
     }

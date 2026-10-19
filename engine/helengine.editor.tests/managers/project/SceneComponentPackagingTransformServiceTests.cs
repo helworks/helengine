@@ -1074,6 +1074,7 @@ namespace helengine.editor.tests {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            reader.NumericPolicy = RealBinaryCodec.ReadAndValidatePolicy(reader, RealRepresentation.Policy);
             Assert.Equal(1, reader.ReadInt32());
             return Assert.IsType<SceneAssetReference>(global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader));
         }
@@ -1501,6 +1502,7 @@ namespace helengine.editor.tests {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            reader.NumericPolicy = RealBinaryCodec.ReadAndValidatePolicy(reader, RealRepresentation.Policy);
             Assert.Equal(schema.Members.Count, reader.ReadInt32());
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
@@ -1687,6 +1689,7 @@ namespace helengine.editor.tests {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            reader.NumericPolicy = RealBinaryCodec.ReadAndValidatePolicy(reader, RealRepresentation.Policy);
             Assert.Equal(schema.Members.Count, reader.ReadInt32());
             EntitySaveComponent saveComponent = new EntitySaveComponent();
             for (int index = 0; index < schema.Members.Count; index++) {

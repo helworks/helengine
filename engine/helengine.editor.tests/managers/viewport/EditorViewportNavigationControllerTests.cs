@@ -180,7 +180,7 @@ namespace helengine.editor.tests.managers.viewport {
             navigationController.Advance(EditorViewportNavigationController.TransitionDurationSeconds);
             float3 pivot = cameraController.GetOrbitTarget();
             float4 initialOrbitOrientation = cameraEntity.Orientation;
-            double perspectiveScale = CameraProjectionUtils.GetWorldUnitsPerPixel(camera, 8.0, camera.Viewport.W);
+            double perspectiveScale = (double)(CameraProjectionUtils.GetWorldUnitsPerPixel(camera, 8.0, camera.Viewport.W));
 
             navigationController.Orbit(new float2(0.1f, 0.05f));
 
@@ -188,7 +188,7 @@ namespace helengine.editor.tests.managers.viewport {
             Assert.Equal(pivot, cameraController.GetOrbitTarget());
             Assert.NotEqual(initialOrbitOrientation, cameraEntity.Orientation);
             navigationController.ToggleProjection();
-            double orthographicScale = CameraProjectionUtils.GetWorldUnitsPerPixel(camera, 8.0, camera.Viewport.W);
+            double orthographicScale = (double)(CameraProjectionUtils.GetWorldUnitsPerPixel(camera, 8.0, camera.Viewport.W));
 
             Assert.Equal(CameraProjectionMode.Orthographic, camera.ProjectionMode);
             Assert.Equal(perspectiveScale, orthographicScale, 5);
@@ -253,7 +253,7 @@ namespace helengine.editor.tests.managers.viewport {
         /// <param name="value">Vector to normalize.</param>
         /// <returns>Unit vector with the same direction.</returns>
         static float3 Normalize(float3 value) {
-            double length = Math.Sqrt((value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z));
+            double length = Math.Sqrt((double)((value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z)));
             return new float3((float)(value.X / length), (float)(value.Y / length), (float)(value.Z / length));
         }
 
@@ -264,9 +264,9 @@ namespace helengine.editor.tests.managers.viewport {
         /// <param name="actual">Actual vector.</param>
         /// <param name="tolerance">Maximum absolute difference per component.</param>
         static void AssertVectorApproximately(float3 expected, float3 actual, float tolerance) {
-            Assert.InRange(Math.Abs(expected.X - actual.X), 0.0, tolerance);
-            Assert.InRange(Math.Abs(expected.Y - actual.Y), 0.0, tolerance);
-            Assert.InRange(Math.Abs(expected.Z - actual.Z), 0.0, tolerance);
+            Assert.InRange(Math.Abs((double)(expected.X - actual.X)), 0.0, tolerance);
+            Assert.InRange(Math.Abs((double)(expected.Y - actual.Y)), 0.0, tolerance);
+            Assert.InRange(Math.Abs((double)(expected.Z - actual.Z)), 0.0, tolerance);
         }
 
         /// <summary>
@@ -290,8 +290,8 @@ namespace helengine.editor.tests.managers.viewport {
         /// <returns>Maximum absolute component difference.</returns>
         static double QuaternionComponentError(float4 left, float4 right) {
             return Math.Max(
-                Math.Max(Math.Abs(left.X - right.X), Math.Abs(left.Y - right.Y)),
-                Math.Max(Math.Abs(left.Z - right.Z), Math.Abs(left.W - right.W)));
+                Math.Max(Math.Abs((double)(left.X - right.X)), Math.Abs((double)(left.Y - right.Y))),
+                Math.Max(Math.Abs((double)(left.Z - right.Z)), Math.Abs((double)(left.W - right.W))));
         }
     }
 }

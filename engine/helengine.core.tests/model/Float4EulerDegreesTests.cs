@@ -137,10 +137,18 @@ namespace helengine.core.tests.model {
         /// <param name="yaw">Yaw angle in degrees.</param>
         /// <param name="roll">Roll angle in degrees.</param>
         static void ReferenceOrientationDegrees(float4 orientation, out double pitch, out double yaw, out double roll) {
-            double x = orientation.X;
-            double y = orientation.Y;
-            double z = orientation.Z;
-            double w = orientation.W;
+            if (RealRepresentation.ArithmeticBits == 32) {
+                ReferenceSingleOrientationDegrees(orientation, out float singlePitch, out float singleYaw, out float singleRoll);
+                pitch = singlePitch;
+                yaw = singleYaw;
+                roll = singleRoll;
+                return;
+            }
+
+            double x = (double)orientation.X;
+            double y = (double)orientation.Y;
+            double z = (double)orientation.Z;
+            double w = (double)orientation.W;
 
             double sinPitch = 2.0 * (w * x - y * z);
             if (Math.Abs(sinPitch) >= 1.0) {
@@ -160,6 +168,37 @@ namespace helengine.core.tests.model {
             pitch = pitch * (180.0 / Math.PI);
             yaw = yaw * (180.0 / Math.PI);
             roll = roll * (180.0 / Math.PI);
+        }
+
+        /// <summary>Independent primitive single-precision decomposition oracle.</summary>
+        /// <param name="orientation">Quaternion input.</param>
+        /// <param name="pitch">Selected-width pitch output.</param>
+        /// <param name="yaw">Selected-width yaw output.</param>
+        /// <param name="roll">Selected-width roll output.</param>
+        static void ReferenceSingleOrientationDegrees(float4 orientation, out float pitch, out float yaw, out float roll) {
+            float x = (float)orientation.X;
+            float y = (float)orientation.Y;
+            float z = (float)orientation.Z;
+            float w = (float)orientation.W;
+
+            float sinPitch = 2.0f * (w * x - y * z);
+            if (MathF.Abs(sinPitch) >= 1.0f) {
+                pitch = MathF.CopySign(MathF.PI / 2.0f, sinPitch);
+            } else {
+                pitch = MathF.Asin(sinPitch);
+            }
+
+            float sinYaw = 2.0f * (w * y + x * z);
+            float cosYaw = 1.0f - 2.0f * (x * x + y * y);
+            yaw = MathF.Atan2(sinYaw, cosYaw);
+
+            float sinRoll = 2.0f * (w * z + x * y);
+            float cosRoll = 1.0f - 2.0f * (y * y + z * z);
+            roll = MathF.Atan2(sinRoll, cosRoll);
+
+            pitch = pitch * (180.0f / MathF.PI);
+            yaw = yaw * (180.0f / MathF.PI);
+            roll = roll * (180.0f / MathF.PI);
         }
     }
 }

@@ -26,7 +26,7 @@ namespace helengine {
         /// <summary>
         /// Reusable horizontal text offsets for the lines currently being emitted.
         /// </summary>
-        readonly List<double> TextLineOffsets;
+        readonly List<RealEvaluation> TextLineOffsets;
 
         /// <summary>
         /// Queue that produced the currently reusable static-text command list.
@@ -82,7 +82,7 @@ namespace helengine {
             ClipRegionStackBuilder = new ClipRegionStackBuilder2D();
             ActiveClipChain = new List<IClipRegion2D>();
             NextClipChain = new List<IClipRegion2D>();
-            TextLineOffsets = new List<double>();
+            TextLineOffsets = new List<RealEvaluation>();
         }
 
         /// <summary>Enables coarse nonoverlapping build timing, or disables all clock reads when the optional borrowed sink is null.</summary>
@@ -177,7 +177,7 @@ namespace helengine {
                 }
             }
             if (CommandListValue == null) {
-                CommandListValue = new RenderCommandList2D(Math.Max(renderQueue.Count, 4));
+                CommandListValue = new RenderCommandList2D(RealMath.Max(renderQueue.Count, 4));
             } else if (preserveGlyphPayloads) {
                 CommandListValue.ResetPreservingGlyphPayloads();
             } else {
@@ -392,7 +392,7 @@ namespace helengine {
         /// <returns>Shared clip-chain prefix length.</returns>
         int GetSharedPrefixLength() {
             int sharedPrefixLength = 0;
-            int maxSharedLength = Math.Min(ActiveClipChain.Count, NextClipChain.Count);
+            int maxSharedLength = RealMath.Min(ActiveClipChain.Count, NextClipChain.Count);
             while (sharedPrefixLength < maxSharedLength &&
                    ReferenceEquals(ActiveClipChain[sharedPrefixLength], NextClipChain[sharedPrefixLength])) {
                 sharedPrefixLength++;
@@ -467,8 +467,8 @@ namespace helengine {
                 }
 
                 int2 size = sprite.Size;
-                float width = size.X > 0 ? size.X : sprite.Texture.Width;
-                float height = size.Y > 0 ? size.Y : sprite.Texture.Height;
+                RealEvaluation width = size.X > 0 ? size.X : sprite.Texture.Width;
+                RealEvaluation height = size.Y > 0 ? size.Y : sprite.Texture.Height;
                 float3 position = sprite.Parent.Position;
                 bounds = new float4(position.X, position.Y, width, height);
                 return true;
@@ -508,10 +508,10 @@ namespace helengine {
                 return false;
             }
 
-            float firstRight = first.X + first.Z;
-            float firstBottom = first.Y + first.W;
-            float secondRight = second.X + second.Z;
-            float secondBottom = second.Y + second.W;
+            RealEvaluation firstRight = first.X + first.Z;
+            RealEvaluation firstBottom = first.Y + first.W;
+            RealEvaluation secondRight = second.X + second.Z;
+            RealEvaluation secondBottom = second.Y + second.W;
             return first.X < secondRight &&
                    firstRight > second.X &&
                    first.Y < secondBottom &&
@@ -538,10 +538,10 @@ namespace helengine {
         void EmitText(ITextDrawable2D text) {
             ulong layoutStart = BeginCpuProfileStage();
             FontAsset font = text.Font;
-            double fontScale = Math.Max((double)text.FontScale, 0.0001d);
+            RealEvaluation fontScale = RealMath.Max((RealEvaluation)text.FontScale, 0.0001d);
             string content = text.Text ?? string.Empty;
             if (text.WrapText) {
-                content = TextLayoutUtils.WrapText(content, font, Math.Max(1, (int)Math.Round(text.Size.X / fontScale)));
+                content = TextLayoutUtils.WrapText(content, font, RealMath.Max(1, (int)RealMath.Round(text.Size.X / fontScale)));
             }
 
             if (string.IsNullOrEmpty(content)) {
@@ -549,13 +549,13 @@ namespace helengine {
                 return;
             }
 
-            double offsetX = 0d;
-            double offsetY = 0d;
-            double lineHeight = Math.Max((double)font.LineHeight * fontScale, 1d);
+            RealEvaluation offsetX = 0d;
+            RealEvaluation offsetY = 0d;
+            RealEvaluation lineHeight = RealMath.Max((RealEvaluation)font.LineHeight * fontScale, 1d);
             float3 ownerWorldPosition = text.Parent.Position;
-            double baseX = Math.Round(ownerWorldPosition.X);
-            double baseY = Math.Round(ownerWorldPosition.Y);
-            IReadOnlyList<double> lineOffsets = BuildTextLineOffsets(text, font, content, fontScale);
+            RealEvaluation baseX = RealMath.Round(ownerWorldPosition.X);
+            RealEvaluation baseY = RealMath.Round(ownerWorldPosition.Y);
+            IReadOnlyList<RealEvaluation> lineOffsets = BuildTextLineOffsets(text, font, content, fontScale);
             EndCpuProfileStage(RuntimeCpuProfileStage.CommandListTextLayout, layoutStart);
             ulong effectsStart = BeginCpuProfileStage();
             bool hasTextEffects = text.ShadowOffset.X != 0f
@@ -567,7 +567,7 @@ namespace helengine {
             EndCpuProfileStage(RuntimeCpuProfileStage.CommandListTextEffectsSetup, effectsStart);
             ulong glyphStart = BeginCpuProfileStage();
             int lineIndex = 0;
-            double lineOriginX = baseX + TextLineOffsets2D.Resolve(lineOffsets, lineIndex);
+            RealEvaluation lineOriginX = baseX + TextLineOffsets2D.Resolve(lineOffsets, lineIndex);
 
             for (int index = 0; index < content.Length; index++) {
                 char character = content[index];
@@ -588,19 +588,19 @@ namespace helengine {
                     continue;
                 }
 
-                double glyphWidth = glyph.SourceRect.Z * font.AtlasWidth * fontScale;
-                double glyphHeight = glyph.SourceRect.W * font.AtlasHeight * fontScale;
-                double snappedLineOffsetY = Math.Round(offsetY);
+                RealEvaluation glyphWidth = glyph.SourceRect.Z * font.AtlasWidth * fontScale;
+                RealEvaluation glyphHeight = glyph.SourceRect.W * font.AtlasHeight * fontScale;
+                RealEvaluation snappedLineOffsetY = RealMath.Round(offsetY);
                 if (hasTextEffects) {
                     for (int passIndex = 0; passIndex < effectPasses.Count; passIndex++) {
                         TextRenderEffectPass pass = effectPasses[passIndex];
                         CommandListValue.AddGlyphQuad(
                             font.Texture,
                             new float4(
-                                (float)(lineOriginX + offsetX + glyph.BearingX * fontScale + pass.Offset.X),
-                                (float)(baseY + snappedLineOffsetY + (glyph.OffsetY * fontScale) + pass.Offset.Y),
-                                (float)glyphWidth,
-                                (float)glyphHeight),
+                                (RealEvaluation)(lineOriginX + offsetX + glyph.BearingX * fontScale + pass.Offset.X),
+                                (RealEvaluation)(baseY + snappedLineOffsetY + (glyph.OffsetY * fontScale) + pass.Offset.Y),
+                                (RealEvaluation)glyphWidth,
+                                (RealEvaluation)glyphHeight),
                             glyph.SourceRect,
                             pass.Color);
                     }
@@ -608,15 +608,15 @@ namespace helengine {
                     CommandListValue.AddGlyphQuad(
                         font.Texture,
                         new float4(
-                            (float)(lineOriginX + offsetX + glyph.BearingX * fontScale),
-                            (float)(baseY + snappedLineOffsetY + (glyph.OffsetY * fontScale)),
-                            (float)glyphWidth,
-                            (float)glyphHeight),
+                            (RealEvaluation)(lineOriginX + offsetX + glyph.BearingX * fontScale),
+                            (RealEvaluation)(baseY + snappedLineOffsetY + (glyph.OffsetY * fontScale)),
+                            (RealEvaluation)glyphWidth,
+                            (RealEvaluation)glyphHeight),
                         glyph.SourceRect,
                         text.Color);
                 }
 
-                double advanceWidth = glyph.AdvanceWidth > 0f
+                RealEvaluation advanceWidth = glyph.AdvanceWidth > 0f
                     ? glyph.AdvanceWidth * fontScale
                     : glyphWidth;
                 offsetX += advanceWidth;
@@ -634,7 +634,7 @@ namespace helengine {
             int slot = TextReuseCache == null ? -1 : TextReuseCache.Find(text);
             if (ReusingTextPayloads && slot >= 0) {
                 TextCommandReuseEntry entry = TextReuseCache.Get(slot);
-                if (entry.OriginX == Math.Round(text.Parent.Position.X) && entry.OriginY == Math.Round(text.Parent.Position.Y)) {
+                if (entry.OriginX == RealMath.Round(text.Parent.Position.X) && entry.OriginY == RealMath.Round(text.Parent.Position.Y)) {
                     ulong glyphStart = BeginCpuProfileStage();
                     CommandListValue.AddRetainedGlyphRange(entry.Start, entry.Count);
                     EndCpuProfileStage(RuntimeCpuProfileStage.CommandListGlyphEmission, glyphStart);
@@ -661,7 +661,7 @@ namespace helengine {
         /// <param name="content">Final rendered text content after wrapping has been applied.</param>
         /// <param name="fontScale">Resolved glyph scale.</param>
         /// <returns>One horizontal offset per rendered line.</returns>
-        IReadOnlyList<double> BuildTextLineOffsets(ITextDrawable2D text, FontAsset font, string content, double fontScale) {
+        IReadOnlyList<RealEvaluation> BuildTextLineOffsets(ITextDrawable2D text, FontAsset font, string content, RealEvaluation fontScale) {
             if (text == null) {
                 throw new ArgumentNullException(nameof(text));
             } else if (font == null) {
@@ -684,11 +684,11 @@ namespace helengine {
                 TextLineOffsets.Add(0d);
             }
 
-            double visibleWidth = 0d;
-            double offsetX = 0d;
-            double spaceWidth = font.FontInfo != null
-                ? Math.Max(font.FontInfo.SpaceWidth * fontScale, 1d)
-                : Math.Max(font.LineHeight * fontScale * 0.25d, 1d);
+            RealEvaluation visibleWidth = 0d;
+            RealEvaluation offsetX = 0d;
+            RealEvaluation spaceWidth = font.FontInfo != null
+                ? RealMath.Max(font.FontInfo.SpaceWidth * fontScale, 1d)
+                : RealMath.Max(font.LineHeight * fontScale * 0.25d, 1d);
             int lineIndex = 0;
 
             for (int index = 0; index < content.Length; index++) {
@@ -703,7 +703,7 @@ namespace helengine {
 
                 if (character == ' ') {
                     offsetX += spaceWidth;
-                    visibleWidth = Math.Max(visibleWidth, offsetX);
+                    visibleWidth = RealMath.Max(visibleWidth, offsetX);
                     continue;
                 }
 
@@ -711,8 +711,8 @@ namespace helengine {
                     continue;
                 }
 
-                double glyphWidth = Math.Max(1d, glyph.SourceRect.Z * font.AtlasWidth * fontScale);
-                visibleWidth = Math.Max(visibleWidth, offsetX + glyph.BearingX * fontScale + glyphWidth);
+                RealEvaluation glyphWidth = RealMath.Max(1d, glyph.SourceRect.Z * font.AtlasWidth * fontScale);
+                visibleWidth = RealMath.Max(visibleWidth, offsetX + glyph.BearingX * fontScale + glyphWidth);
                 offsetX += glyph.AdvanceWidth > 0f
                     ? glyph.AdvanceWidth * fontScale
                     : glyphWidth;
@@ -734,8 +734,8 @@ namespace helengine {
             // never recover this factor afterward. Position is left unscaled because it already arrives in
             // resolved screen space (see EmitSprite).
             float3 scale = roundedRect.Parent.Scale;
-            float width = roundedRect.Size.X * scale.X;
-            float height = roundedRect.Size.Y * scale.Y;
+            RealEvaluation width = roundedRect.Size.X * scale.X;
+            RealEvaluation height = roundedRect.Size.Y * scale.Y;
             CommandListValue.AddRoundedRect(
                 new float4(position.X, position.Y, width, height),
                 roundedRect.Radius,

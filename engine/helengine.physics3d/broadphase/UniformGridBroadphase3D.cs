@@ -105,12 +105,12 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(bodyState));
             }
 
-            int minCellX = GetCellIndex(bodyState.Position.X - bodyState.AxisAlignedHalfExtents.X);
-            int maxCellX = GetCellIndex(bodyState.Position.X + bodyState.AxisAlignedHalfExtents.X);
-            int minCellY = GetCellIndex(bodyState.Position.Y - bodyState.AxisAlignedHalfExtents.Y);
-            int maxCellY = GetCellIndex(bodyState.Position.Y + bodyState.AxisAlignedHalfExtents.Y);
-            int minCellZ = GetCellIndex(bodyState.Position.Z - bodyState.AxisAlignedHalfExtents.Z);
-            int maxCellZ = GetCellIndex(bodyState.Position.Z + bodyState.AxisAlignedHalfExtents.Z);
+            int minCellX = GetCellIndex((float)(bodyState.Position.X - bodyState.AxisAlignedHalfExtents.X));
+            int maxCellX = GetCellIndex((float)(bodyState.Position.X + bodyState.AxisAlignedHalfExtents.X));
+            int minCellY = GetCellIndex((float)(bodyState.Position.Y - bodyState.AxisAlignedHalfExtents.Y));
+            int maxCellY = GetCellIndex((float)(bodyState.Position.Y + bodyState.AxisAlignedHalfExtents.Y));
+            int minCellZ = GetCellIndex((float)(bodyState.Position.Z - bodyState.AxisAlignedHalfExtents.Z));
+            int maxCellZ = GetCellIndex((float)(bodyState.Position.Z + bodyState.AxisAlignedHalfExtents.Z));
 
             for (int x = minCellX; x <= maxCellX; x++) {
                 for (int y = minCellY; y <= maxCellY; y++) {
@@ -145,12 +145,12 @@ namespace helengine {
         /// <param name="bodyIndex">Dynamic body index whose neighbors should be appended.</param>
         void AppendDynamicBodyPairs(IReadOnlyList<BodyState3D> bodyStates, int bodyIndex) {
             BodyState3D bodyState = bodyStates[bodyIndex];
-            int minCellX = GetCellIndex(bodyState.Position.X - bodyState.AxisAlignedHalfExtents.X);
-            int maxCellX = GetCellIndex(bodyState.Position.X + bodyState.AxisAlignedHalfExtents.X);
-            int minCellY = GetCellIndex(bodyState.Position.Y - bodyState.AxisAlignedHalfExtents.Y);
-            int maxCellY = GetCellIndex(bodyState.Position.Y + bodyState.AxisAlignedHalfExtents.Y);
-            int minCellZ = GetCellIndex(bodyState.Position.Z - bodyState.AxisAlignedHalfExtents.Z);
-            int maxCellZ = GetCellIndex(bodyState.Position.Z + bodyState.AxisAlignedHalfExtents.Z);
+            int minCellX = GetCellIndex((float)(bodyState.Position.X - bodyState.AxisAlignedHalfExtents.X));
+            int maxCellX = GetCellIndex((float)(bodyState.Position.X + bodyState.AxisAlignedHalfExtents.X));
+            int minCellY = GetCellIndex((float)(bodyState.Position.Y - bodyState.AxisAlignedHalfExtents.Y));
+            int maxCellY = GetCellIndex((float)(bodyState.Position.Y + bodyState.AxisAlignedHalfExtents.Y));
+            int minCellZ = GetCellIndex((float)(bodyState.Position.Z - bodyState.AxisAlignedHalfExtents.Z));
+            int maxCellZ = GetCellIndex((float)(bodyState.Position.Z + bodyState.AxisAlignedHalfExtents.Z));
 
             for (int x = minCellX; x <= maxCellX; x++) {
                 for (int y = minCellY; y <= maxCellY; y++) {

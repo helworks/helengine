@@ -18,11 +18,11 @@ public sealed class ShaderRuntimeOwnershipSourceTests {
     }
 
     /// <summary>
-    /// Resolves the helengine repository root from the current test assembly location.
+    /// Resolves the real source checkout independently of the redirected test artifact directory.
     /// </summary>
     /// <returns>Absolute repository root path.</returns>
-    static string ResolveRepositoryRootPath() {
-        string currentPath = AppContext.BaseDirectory;
+    static string ResolveRepositoryRootPath([System.Runtime.CompilerServices.CallerFilePath] string sourcePath = "") {
+        string currentPath = Path.GetDirectoryName(sourcePath);
         while (!string.IsNullOrWhiteSpace(currentPath)) {
             string rootMarkerPath = Path.Combine(currentPath, "engine", "helengine.editor", "helengine.editor.csproj");
             if (File.Exists(rootMarkerPath)) {

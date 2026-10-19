@@ -69,9 +69,9 @@ namespace helengine.editor {
         /// <returns>True when the vector magnitude is near zero.</returns>
         bool IsNearZero(float3 value) {
             double lengthSquared =
-                (value.X * value.X) +
+                (double)((value.X * value.X) +
                 (value.Y * value.Y) +
-                (value.Z * value.Z);
+                (value.Z * value.Z));
             return lengthSquared <= MinimumVectorLengthSquared;
         }
     }

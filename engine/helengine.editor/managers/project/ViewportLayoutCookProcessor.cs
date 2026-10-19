@@ -4,12 +4,19 @@ namespace helengine.editor {
     /// <summary>Resolves packaged UI with detached participants, sharing runtime math without running scene callbacks.</summary>
     internal sealed class ViewportLayoutCookProcessor {
         /// <summary>Version included in cook identity and checked by the player.</summary>
-        public const int AlgorithmVersion = 1;
+        public const int AlgorithmVersion = 2;
         /// <summary>Uses the existing packaging resolver for effective overrides and saved references.</summary>
         readonly Func<SceneComponentAssetRecord, IReadOnlyList<SceneOverrideScopeStepKind>, Component> ComponentResolver;
+        /// <summary>Captures the immutable target contract for all detached computations.</summary>
+        readonly NumericPrecisionPolicy NumericPolicy;
+        /// <summary>Arithmetic adapter reused across the complete cook pass.</summary>
+        readonly CookNumericOperations NumericMath;
+
 
         /// <summary>Connects detached layout processing to the official component persistence and override pipeline.</summary>
-        public ViewportLayoutCookProcessor(Func<SceneComponentAssetRecord, IReadOnlyList<SceneOverrideScopeStepKind>, Component> componentResolver) {
+        public ViewportLayoutCookProcessor(Func<SceneComponentAssetRecord, IReadOnlyList<SceneOverrideScopeStepKind>, Component> componentResolver, NumericPrecisionPolicy numericPolicy = null) {
+            NumericPolicy = numericPolicy ?? RealRepresentation.Policy;
+            NumericMath = new CookNumericOperations(NumericPolicy);
             ComponentResolver = componentResolver ?? throw new ArgumentNullException(nameof(componentResolver));
         }
 
@@ -68,7 +75,7 @@ namespace helengine.editor {
                 viewportOwner = node;
                 node.ViewportTarget = ResolveViewportTarget(node, target);
                 bool known = TryResolveMetrics(node, node.Viewport.ScalingMode, node.Viewport.ReferenceWidth, node.Viewport.ReferenceHeight,
-                    node.Viewport.UiScale, node.Viewport.PixelsPerCentimeter * 2.54d, node.ViewportTarget, out ViewportLayoutMetrics viewportMetrics);
+                    NumericMath.Read(node.Viewport.UiScale), NumericMath.Multiply(NumericMath.Read(node.Viewport.PixelsPerCentimeter), NumericMath.Number(2.54d)), node.ViewportTarget, out ViewportLayoutMetrics viewportMetrics);
                 node.ViewportMetrics = viewportMetrics;
                 if (node.Viewport.ScalingMode != ViewportComponent.NoScalingMode) {
                     geometryOwner = node;
@@ -77,7 +84,7 @@ namespace helengine.editor {
                 }
                 if (node.Viewport.LayoutProcessingMode == ViewportLayoutProcessingMode.Cook) {
                     RequireKnown(node, known, node.Viewport.ScalingMode == ViewportComponent.DensityScalingMode ? "DPI" : "target");
-                    node.Viewport.CookedLayout = CreateMetadata(node.ViewportTarget, viewportMetrics, node.Viewport.UiScale);
+                    node.Viewport.CookedLayout = CreateMetadata(node.ViewportTarget, viewportMetrics, (double)(node.Viewport.UiScale));
                 }
             }
             node.ViewportOwner = viewportOwner;
@@ -106,12 +113,12 @@ namespace helengine.editor {
                     throw new InvalidOperationException($"Viewport '{geometryOwner.Asset.Name}' cannot Cook runtime-generated UI component '{node.UnsupportedGeneratedControlTypeId}' on entity '{node.Asset.Name}'. Use OnLoad or Dynamic until a detached control cook adapter is available.");
                 }
                 RequireKnown(node, node.MetricsKnown, "layout factors");
-                foreach (Component component in node.Components) { ViewportLayoutApplier.ApplyComponent(component, node.Metrics); }
+                foreach (Component component in node.Components) { ViewportLayoutApplier.ApplyComponent(component, node.Metrics, NumericPolicy); }
             }
             node.ResolvedSize = ResolveOwnSize(node);
             ViewportLayoutMetrics local = node.Metrics;
             if (!ReferenceEquals(node, geometryOwner)) { local.Origin = new float2(0f, 0f); }
-            node.ResolvedPosition = node.MetricsKnown ? ViewportLayoutApplier.ResolvePosition(node.Asset.LocalPosition, local) : node.Asset.LocalPosition;
+            node.ResolvedPosition = node.MetricsKnown ? ViewportLayoutApplier.ResolvePosition(node.Asset.LocalPosition, local, NumericPolicy) : node.Asset.LocalPosition;
             foreach (Component component in node.Components) {
                 if (component is LayoutComponent layout && layout.AnchorFlags != 0
                     && !(ReferenceEquals(node, geometryOwner) && node.Viewport != null && node.Fit == null)) {
@@ -129,7 +136,7 @@ namespace helengine.editor {
         }
 
         /// <summary>Resolves viewport binding without falling back from unknown camera or output metrics.</summary>
-        static PlatformLayoutTarget ResolveViewportTarget(ViewportLayoutCookNode node, PlatformLayoutTarget target) {
+        PlatformLayoutTarget ResolveViewportTarget(ViewportLayoutCookNode node, PlatformLayoutTarget target) {
             ViewportComponent viewport = node.Viewport;
             if (viewport.BindingMode == ViewportComponent.FixedBindingMode) {
                 return new PlatformLayoutTarget(viewport.FixedSize.X, viewport.FixedSize.Y, 1d, target != null && target.HasDpi,
@@ -144,7 +151,7 @@ namespace helengine.editor {
         }
 
         /// <summary>Resolves the ancestor camera rectangle using the same normalized-viewport helper as the player.</summary>
-        static PlatformLayoutTarget ResolveCameraTarget(ViewportLayoutCookNode node, PlatformLayoutTarget target, bool required) {
+        PlatformLayoutTarget ResolveCameraTarget(ViewportLayoutCookNode node, PlatformLayoutTarget target, bool required) {
             ViewportLayoutCookNode current = node;
             while (current != null) {
                 foreach (Component component in current.Components) {
@@ -157,8 +164,8 @@ namespace helengine.editor {
                             return new PlatformLayoutTarget(camera.RenderTarget.Width, camera.RenderTarget.Height, 1d, false, 0d, 1d);
                         }
                         if (target == null) { return null; }
-                        float4 bounds = CameraViewportResolver.ResolveViewport(camera.Viewport, target.Width, target.Height);
-                        return new PlatformLayoutTarget(Math.Max(1, (int)Math.Round(bounds.Z)), Math.Max(1, (int)Math.Round(bounds.W)),
+                        float4 bounds = CameraViewportResolver.ResolveViewport(camera.Viewport, target.Width, target.Height, NumericPolicy);
+                        return new PlatformLayoutTarget(Math.Max(1, NumericMath.RoundToInt(NumericMath.Read(bounds.Z))), Math.Max(1, NumericMath.RoundToInt(NumericMath.Read(bounds.W))),
                             target.PixelAspect, target.HasDpi, target.Dpi, target.UiScale);
                     }
                 }
@@ -169,30 +176,30 @@ namespace helengine.editor {
         }
 
         /// <summary>Leaves unresolved Dynamic/OnLoad metrics unknown; Cook callers require them explicitly.</summary>
-        static bool TryResolveMetrics(ViewportLayoutCookNode node, int scalingMode, int width, int height, double uiScale, double referenceDpi,
+        bool TryResolveMetrics(ViewportLayoutCookNode node, int scalingMode, int width, int height, double uiScale, double referenceDpi,
             PlatformLayoutTarget target, out ViewportLayoutMetrics metrics) {
             metrics = new ViewportLayoutMetrics();
             if (target == null || (scalingMode == ViewportComponent.DensityScalingMode && !target.HasDpi)) { return false; }
             metrics = ViewportLayoutMath.Resolve(scalingMode, new int2(width, height), new int2(target.Width, target.Height),
-                target.PixelAspect, uiScale * target.UiScale, target.Dpi, referenceDpi);
+                target.PixelAspect, NumericMath.Multiply(NumericMath.Number(uiScale), NumericMath.Number(target.UiScale)), target.Dpi, referenceDpi, NumericPolicy);
             return true;
         }
 
         /// <summary>Creates shared viewport metadata rather than per-entity original-value data.</summary>
-        static ViewportCookedLayout CreateMetadata(PlatformLayoutTarget target, ViewportLayoutMetrics metrics, double uiScale) {
+        ViewportCookedLayout CreateMetadata(PlatformLayoutTarget target, ViewportLayoutMetrics metrics, double uiScale) {
             return new ViewportCookedLayout { AlgorithmVersion = AlgorithmVersion, TargetWidth = target.Width, TargetHeight = target.Height,
-                PixelAspect = target.PixelAspect, HasDpi = target.HasDpi, Dpi = target.Dpi, UiScale = uiScale * target.UiScale,
-                ScaleX = metrics.ScaleX, ScaleY = metrics.ScaleY, GlyphScale = metrics.GlyphScale, Origin = metrics.Origin, AnchorSize = metrics.AnchorSize };
+                PixelAspect = target.PixelAspect, HasDpi = target.HasDpi, Dpi = target.Dpi, UiScale = NumericMath.Multiply(NumericMath.Number(uiScale), NumericMath.Number(target.UiScale)),
+                ScaleX = (double)(metrics.ScaleX), ScaleY = (double)(metrics.ScaleY), GlyphScale = (double)(metrics.GlyphScale), Origin = metrics.Origin, AnchorSize = metrics.AnchorSize };
         }
 
         /// <summary>Computes actual or virtual post-scale dimensions using the runtime's largest-area size-provider rule.</summary>
-        static int2 ResolveOwnSize(ViewportLayoutCookNode node) {
+        int2 ResolveOwnSize(ViewportLayoutCookNode node) {
             int2 size = new int2(0, 0);
             int bestArea = -1;
             foreach (Component component in node.Components) {
                 if (component is IAnchorSizeProvider provider) {
                     int2 candidate = provider.AnchorSize;
-                    if (!node.BakeGeometry && node.MetricsKnown) { candidate = ViewportLayoutApplier.ScaleSize(candidate, node.Metrics.ScaleX, node.Metrics.ScaleY); }
+                    if (!node.BakeGeometry && node.MetricsKnown) { candidate = ViewportLayoutApplier.ScaleSize(candidate, node.Metrics.ScaleX, node.Metrics.ScaleY, NumericPolicy); }
                     int area = candidate.X < 0 || candidate.Y < 0 ? -1 : candidate.X * candidate.Y;
                     if (area > bestArea) { bestArea = area; size = candidate; }
                 }
@@ -201,7 +208,7 @@ namespace helengine.editor {
         }
 
         /// <summary>Resolves anchors against virtual prepared providers, writing only cooked participants.</summary>
-        static void ResolveAnchors(ViewportLayoutCookNode node, LayoutComponent layout, PlatformLayoutTarget target) {
+        void ResolveAnchors(ViewportLayoutCookNode node, LayoutComponent layout, PlatformLayoutTarget target) {
             if (!node.MetricsKnown) { return; }
             int2 spaceSize = target == null ? new int2(0, 0) : new int2(target.Width, target.Height);
             float2 origin = new float2(0f, 0f);
@@ -242,11 +249,11 @@ namespace helengine.editor {
             if (!found && target == null) { RequireKnown(node, !node.BakeGeometry, "anchor target"); return; }
             float4 distances = layout.AnchorDistances;
             if (!node.BakeGeometry) {
-                distances = new float4((float)(distances.X * node.Metrics.ScaleX), (float)(distances.Y * node.Metrics.ScaleX),
-                    (float)(distances.Z * node.Metrics.ScaleY), (float)(distances.W * node.Metrics.ScaleY));
+                distances = new float4(LayoutNumericKernel<double, CookNumericOperations>.Scale(distances.X, node.Metrics.ScaleX, NumericMath), LayoutNumericKernel<double, CookNumericOperations>.Scale(distances.Y, node.Metrics.ScaleX, NumericMath),
+                    LayoutNumericKernel<double, CookNumericOperations>.Scale(distances.Z, node.Metrics.ScaleY, NumericMath), LayoutNumericKernel<double, CookNumericOperations>.Scale(distances.W, node.Metrics.ScaleY, NumericMath));
             }
             float3 position = node.ResolvedPosition;
-            node.ResolvedSize = AnchorLayoutMath.Resolve(layout.AnchorFlags, distances, spaceSize, origin, node.ResolvedSize, ref position);
+            node.ResolvedSize = AnchorLayoutMath.Resolve(layout.AnchorFlags, distances, spaceSize, origin, node.ResolvedSize, ref position, NumericPolicy);
             node.ResolvedPosition = position;
             if (node.BakeGeometry) {
                 foreach (Component component in node.Components) { ViewportLayoutApplier.ApplyResolvedSize(component, node.ResolvedSize); }

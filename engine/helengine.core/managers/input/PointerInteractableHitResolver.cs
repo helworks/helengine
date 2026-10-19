@@ -126,8 +126,8 @@ namespace helengine {
 
             ResolvePointerInInteractableSpace(interactable, camera, pointerX, pointerY, out int localPointerX, out int localPointerY);
             float3 position = interactable.Parent.Position;
-            relativeX = (int)Math.Round(localPointerX - position.X);
-            relativeY = (int)Math.Round(localPointerY - position.Y);
+            relativeX = (int)RealMath.Round(localPointerX - position.X);
+            relativeY = (int)RealMath.Round(localPointerY - position.Y);
         }
 
         /// <summary>
@@ -163,8 +163,8 @@ namespace helengine {
             }
 
             float4 viewportBounds = viewportOwner.ResolvedViewportBounds;
-            resolvedPointerX -= (int)Math.Round(viewportBounds.X);
-            resolvedPointerY -= (int)Math.Round(viewportBounds.Y);
+            resolvedPointerX -= (int)RealMath.Round(viewportBounds.X);
+            resolvedPointerY -= (int)RealMath.Round(viewportBounds.Y);
         }
 
         /// <summary>

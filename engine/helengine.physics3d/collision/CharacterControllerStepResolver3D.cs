@@ -35,9 +35,9 @@ namespace helengine {
             TryResolveSupportHeight(
                 bodyStates,
                 staticMeshStates,
-                controllerState.Position.X,
-                controllerState.Position.Y,
-                controllerState.Position.Z,
+                (float)(controllerState.Position.X),
+                (float)(controllerState.Position.Y),
+                (float)(controllerState.Position.Z),
                 controllerState.HalfExtents,
                 controllerState.Controller.MaximumSlopeDegrees,
                 out float currentSupportHeight,
@@ -58,14 +58,14 @@ namespace helengine {
             if (TryResolveSupportHeight(
                 bodyStates,
                 staticMeshStates,
-                targetPosition.X,
-                targetPosition.Y,
-                targetPosition.Z,
+                (float)(targetPosition.X),
+                (float)(targetPosition.Y),
+                (float)(targetPosition.Z),
                 controllerState.HalfExtents,
                 controllerState.Controller.MaximumSlopeDegrees,
                 out float supportHeight,
                 out BodyState3D supportBodyState)) {
-                float controllerBottom = targetPosition.Y - controllerState.HalfExtents.Y;
+                float controllerBottom = (float)(targetPosition.Y - controllerState.HalfExtents.Y);
                 double supportDelta = supportHeight - controllerBottom;
                 if (supportDelta <= controllerState.Controller.StepHeight && supportDelta >= -controllerState.Controller.GroundSnapDistance) {
                     targetPosition = new float3(targetPosition.X, supportHeight + controllerState.HalfExtents.Y, targetPosition.Z);
@@ -91,7 +91,7 @@ namespace helengine {
         /// <param name="moveSpeed">Requested horizontal move speed.</param>
         /// <returns>Planar controller velocity in world units per second.</returns>
         static float3 CreatePlanarVelocity(float3 moveDirection, double moveSpeed) {
-            double moveLengthSquared = (moveDirection.X * moveDirection.X) + (moveDirection.Z * moveDirection.Z);
+            double moveLengthSquared = (double)((moveDirection.X * moveDirection.X) + (moveDirection.Z * moveDirection.Z));
             if (moveLengthSquared <= 0.0000001d || moveSpeed <= 0d) {
                 return float3.Zero;
             }

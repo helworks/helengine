@@ -234,6 +234,7 @@ namespace helengine.editor {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(schema.Members.Count);
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];

@@ -188,16 +188,16 @@ namespace helengine.editor.tests.managers.gizmo {
             input.EarlyUpdate();
 
             UpdateFollowComponent(gizmoRoot);
-            float initialScale = gizmoRoot.Scale.X;
+            double initialScale = (double)(gizmoRoot.Scale.X);
 
             sceneCamera.Parent.Position = new float3(0f, 2f, -20f);
             InteractionServices.GizmoDrag.BeginDrag(sceneCamera, selectedEntity);
             UpdateFollowComponent(gizmoRoot);
-            float dragScale = gizmoRoot.Scale.X;
+            double dragScale = (double)(gizmoRoot.Scale.X);
 
             InteractionServices.GizmoDrag.EndDrag(sceneCamera);
             UpdateFollowComponent(gizmoRoot);
-            float releasedScale = gizmoRoot.Scale.X;
+            double releasedScale = (double)(gizmoRoot.Scale.X);
 
             Assert.Equal(initialScale, dragScale);
             Assert.True(releasedScale > initialScale);
@@ -235,13 +235,13 @@ namespace helengine.editor.tests.managers.gizmo {
             ModelAsset previewModelAsset = render3D.BuiltModelAssets[0];
             double expectedSnapValue = InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1);
             for (int texCoordIndex = 0; texCoordIndex < previewModelAsset.TexCoords.Length; texCoordIndex++) {
-                Assert.InRange(Math.Abs(previewModelAsset.TexCoords[texCoordIndex].X - (float)expectedSnapValue), 0f, FloatTolerance);
+                Assert.InRange(Math.Abs((double)(previewModelAsset.TexCoords[texCoordIndex].X - (float)expectedSnapValue)), 0f, FloatTolerance);
             }
 
             float3 previewNormal = float4.RotateVector(new float3(0f, 0f, 1f), previewEntity.Orientation);
-            Assert.InRange(Math.Abs(previewNormal.X - 0f), 0f, FloatTolerance);
-            Assert.InRange(Math.Abs(previewNormal.Y - 1f), 0f, FloatTolerance);
-            Assert.InRange(Math.Abs(previewNormal.Z - 0f), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(previewNormal.X - 0f)), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(previewNormal.Y - 1f)), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(previewNormal.Z - 0f)), 0f, FloatTolerance);
         }
 
         /// <summary>

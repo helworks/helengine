@@ -70,9 +70,9 @@ namespace helengine.editor.tests.rendering {
             Assert.Equal(24, model.Positions.Length);
 
             for (int index = 0; index < model.Positions.Length; index++) {
-                Assert.InRange(model.Positions[index].X, -0.5f, 0.5f);
-                Assert.InRange(model.Positions[index].Y, -0.5f, 0.5f);
-                Assert.InRange(model.Positions[index].Z, -0.5f, 0.5f);
+                Assert.InRange((double)(model.Positions[index].X), (double)(-0.5f), (double)(0.5f));
+                Assert.InRange((double)(model.Positions[index].Y), (double)(-0.5f), (double)(0.5f));
+                Assert.InRange((double)(model.Positions[index].Z), (double)(-0.5f), (double)(0.5f));
             }
         }
 
@@ -115,7 +115,7 @@ namespace helengine.editor.tests.rendering {
                 float3 edge2 = position2 - position0;
                 float3 geometricNormal = float3.Normalize(float3.Cross(edge1, edge2));
                 float3 authoredNormal = float3.Normalize(model.Normals[index0]);
-                float alignment = float3.Dot(geometricNormal, authoredNormal);
+                double alignment = (double)(float3.Dot(geometricNormal, authoredNormal));
 
                 Assert.True(
                     alignment > 0.5f,
@@ -151,7 +151,7 @@ namespace helengine.editor.tests.rendering {
 
                 float3 geometricNormal = float3.Normalize(rawGeometricNormal);
                 float3 authoredNormal = float3.Normalize(model.Normals[index0]);
-                float alignment = float3.Dot(geometricNormal, authoredNormal);
+                double alignment = (double)(float3.Dot(geometricNormal, authoredNormal));
                 validatedTriangleCount++;
 
                 Assert.True(

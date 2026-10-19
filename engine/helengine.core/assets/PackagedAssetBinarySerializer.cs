@@ -16,7 +16,7 @@ namespace helengine {
         /// <summary>
         /// Serializer version for the current packaged runtime asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 25;
+        public const byte CurrentVersion = 26;
 
         /// <summary>
         /// Latest version marker written into scene entity payloads.
@@ -28,14 +28,18 @@ namespace helengine {
         /// </summary>
         /// <param name="stream">Source stream containing the asset payload.</param>
         /// <returns>Deserialized asset instance.</returns>
-        public static Asset Deserialize(Stream stream) {
+        public static Asset Deserialize(Stream stream) { return Deserialize(stream, RealRepresentation.Policy); }
+
+        /// <summary>Reads a package against an explicit consumer policy, including tooling validation outside that runtime.</summary>
+        public static Asset Deserialize(Stream stream, NumericPrecisionPolicy expectedPolicy) {
+            RealBinaryCodec.ValidatePolicy(expectedPolicy);
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             }
 
             EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
             try {
-                return Deserialize(stream, header);
+                return Deserialize(stream, header, expectedPolicy);
             } finally {
                 NativeOwnership.Delete(header);
             }
@@ -66,6 +70,11 @@ namespace helengine {
         /// <param name="header">Previously decoded HELE header.</param>
         /// <returns>Deserialized asset instance.</returns>
         public static Asset Deserialize([NativeNoEscape] Stream stream, [NativeNoEscape] EngineBinaryHeader header) {
+            return Deserialize(stream, header, RealRepresentation.Policy);
+        }
+
+        /// <summary>Validates a previously decoded header and its numeric policy before reading an asset body.</summary>
+        public static Asset Deserialize([NativeNoEscape] Stream stream, [NativeNoEscape] EngineBinaryHeader header, NumericPrecisionPolicy expectedPolicy) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             } else if (header == null) {
@@ -75,6 +84,7 @@ namespace helengine {
             EngineBinaryReadContext.CurrentReadStage = "PackagedAssetBinarySerializer:ValidateHeader";
             ValidateHeader(header);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
+            reader.NumericPolicy = RealBinaryCodec.ReadAndValidatePolicy(reader, expectedPolicy);
             EngineBinaryReadContext.CurrentReadStage = "PackagedAssetBinarySerializer:ReadAssetPayload";
             return ReadAssetPayload(reader, (EditorAssetBinaryValueKind)header.ValueKind);
         }
@@ -99,6 +109,7 @@ namespace helengine {
             }
 
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
+            reader.NumericPolicy = RealBinaryCodec.ReadAndValidatePolicy(reader, RealRepresentation.Policy);
             EngineBinaryReadContext.CurrentReadStage = "PackagedAssetBinarySerializer:ReadAssetPayload";
             return ReadSceneAsset(reader);
         }
@@ -273,9 +284,9 @@ namespace helengine {
 
             ModelAsset asset = new ModelAsset();
             ReadAssetIdentity(reader, asset);
-            float3[] positions = reader.ReadArray(ReadFloat3);
-            float3[] normals = reader.ReadArray(ReadFloat3);
-            float2[] texCoords = reader.ReadArray(ReadFloat2);
+            float3[] positions = reader.ReadArray(ReadReal3);
+            float3[] normals = reader.ReadArray(ReadReal3);
+            float2[] texCoords = reader.ReadArray(ReadReal2);
             ushort[] indices16 = reader.ReadArray(ReadUInt16Value);
             uint[] indices32 = reader.ReadArray(ReadUInt32Value);
             ModelSubmeshAsset[] submeshes = reader.ReadArray(ReadModelSubmeshAsset);
@@ -365,7 +376,7 @@ namespace helengine {
         static AnimationClipAsset ReadAnimationClipAsset(EngineBinaryReader reader) {
             AnimationClipAsset asset = new AnimationClipAsset();
             ReadAssetIdentity(reader, asset);
-            asset.Duration = reader.ReadSingle();
+            asset.Duration = reader.ReadReal();
             asset.PositionTracks = reader.ReadArray(ReadPositionKeyframeTrackAsset) ?? Array.Empty<PositionKeyframeTrackAsset>();
             asset.PositionOffsetTracks = reader.ReadArray(ReadPositionOffsetKeyframeTrackAsset) ?? Array.Empty<PositionOffsetKeyframeTrackAsset>();
             asset.ScaleTracks = reader.ReadArray(ReadScaleKeyframeTrackAsset) ?? Array.Empty<ScaleKeyframeTrackAsset>();
@@ -518,8 +529,8 @@ namespace helengine {
         static PositionKeyframeAsset ReadPositionKeyframeAsset(EngineBinaryReader reader) {
             PositionKeyframeAsset asset = new PositionKeyframeAsset();
             asset.FrameId = reader.ReadString();
-            asset.Time = reader.ReadSingle();
-            asset.Value = ReadFloat3(reader);
+            asset.Time = reader.ReadReal();
+            asset.Value = ReadReal3(reader);
             asset.InterpolationMode = ReadAnimationInterpolationMode(reader);
             return asset;
         }
@@ -532,8 +543,8 @@ namespace helengine {
         static RotationKeyframeAsset ReadRotationKeyframeAsset(EngineBinaryReader reader) {
             RotationKeyframeAsset asset = new RotationKeyframeAsset();
             asset.FrameId = reader.ReadString();
-            asset.Time = reader.ReadSingle();
-            asset.Value = ReadFloat4(reader);
+            asset.Time = reader.ReadReal();
+            asset.Value = ReadReal4(reader);
             asset.InterpolationMode = ReadAnimationInterpolationMode(reader);
             return asset;
         }
@@ -646,9 +657,9 @@ namespace helengine {
             bool enabled = reader.ReadByte() != 0;
             bool hiddenInEditor = payloadVersion >= 10 && reader.ReadByte() != 0;
             ushort layerMask = reader.ReadUInt16();
-            float3 localPosition = reader.ReadFloat3();
-            float3 localScale = reader.ReadFloat3();
-            float4 localOrientation = reader.ReadFloat4();
+            float3 localPosition = reader.ReadReal3();
+            float3 localScale = reader.ReadReal3();
+            float4 localOrientation = reader.ReadReal4();
             EngineBinaryReadContext.CurrentReadStage = "SceneEntity:OverrideLevelOrder";
             bool hasOverrideLevelOrder = reader.ReadByte() != 0;
             SceneOverrideScopeStepKind[] overrideLevelOrder = ReadSceneOverrideLevelOrder(reader, hasOverrideLevelOrder) ?? Array.Empty<SceneOverrideScopeStepKind>();
@@ -730,11 +741,11 @@ namespace helengine {
             return new SceneEntityPlatformTransformOverrideAsset {
                 Scope = ReadSceneOverrideScopeSteps(reader),
                 HasLocalPositionOverride = reader.ReadByte() != 0,
-                LocalPosition = reader.ReadFloat3(),
+                LocalPosition = reader.ReadReal3(),
                 HasLocalScaleOverride = reader.ReadByte() != 0,
-                LocalScale = reader.ReadFloat3(),
+                LocalScale = reader.ReadReal3(),
                 HasLocalOrientationOverride = reader.ReadByte() != 0,
-                LocalOrientation = reader.ReadFloat4()
+                LocalOrientation = reader.ReadReal4()
             };
         }
 
@@ -952,10 +963,10 @@ namespace helengine {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized vector value.</returns>
-        static float2 ReadFloat2(EngineBinaryReader reader) {
+        static float2 ReadReal2(EngineBinaryReader reader) {
             return new float2(
-                reader.ReadSingle(),
-                reader.ReadSingle());
+                reader.ReadReal(),
+                reader.ReadReal());
         }
 
         /// <summary>
@@ -963,11 +974,11 @@ namespace helengine {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized vector value.</returns>
-        static float3 ReadFloat3(EngineBinaryReader reader) {
+        static float3 ReadReal3(EngineBinaryReader reader) {
             return new float3(
-                reader.ReadSingle(),
-                reader.ReadSingle(),
-                reader.ReadSingle());
+                reader.ReadReal(),
+                reader.ReadReal(),
+                reader.ReadReal());
         }
 
         /// <summary>
@@ -975,12 +986,12 @@ namespace helengine {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized vector value.</returns>
-        static float4 ReadFloat4(EngineBinaryReader reader) {
+        static float4 ReadReal4(EngineBinaryReader reader) {
             return new float4(
-                reader.ReadSingle(),
-                reader.ReadSingle(),
-                reader.ReadSingle(),
-                reader.ReadSingle());
+                reader.ReadReal(),
+                reader.ReadReal(),
+                reader.ReadReal(),
+                reader.ReadReal());
         }
     }
 }

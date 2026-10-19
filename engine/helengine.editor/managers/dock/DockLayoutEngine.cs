@@ -157,16 +157,16 @@ namespace helengine.editor {
                 return;
             }
 
-            float left = origin.X + padding;
-            float top = origin.Y + padding;
-            float right = origin.X + hostSize.X - padding;
-            float bottom = origin.Y + hostSize.Y - padding;
+            float left = (float)(origin.X + padding);
+            float top = (float)(origin.Y + padding);
+            float right = (float)(origin.X + hostSize.X - padding);
+            float bottom = (float)(origin.Y + hostSize.Y - padding);
 
             if (right <= left || bottom <= top) {
                 return;
             }
 
-            root.Layout(left, top, right, bottom, origin.Z + EditorUiDepths.DockedPanel, gap);
+            root.Layout(left, top, right, bottom, (float)(origin.Z + EditorUiDepths.DockedPanel), gap);
         }
 
         /// <summary>
@@ -320,10 +320,10 @@ namespace helengine.editor {
         /// <param name="origin">Origin of the host area.</param>
         /// <returns>True when the pointer is inside the host bounds.</returns>
         bool IsPointerWithinHost(int2 pointer, int2 hostSize, float3 origin) {
-            float hostLeft = origin.X + padding;
-            float hostTop = origin.Y + padding;
-            float hostRight = origin.X + hostSize.X - padding;
-            float hostBottom = origin.Y + hostSize.Y - padding;
+            float hostLeft = (float)(origin.X + padding);
+            float hostTop = (float)(origin.Y + padding);
+            float hostRight = (float)(origin.X + hostSize.X - padding);
+            float hostBottom = (float)(origin.Y + hostSize.Y - padding);
 
             return pointer.X >= hostLeft &&
                    pointer.Y >= hostTop &&
@@ -625,10 +625,10 @@ namespace helengine.editor {
                 return false;
             }
 
-            float hostLeft = origin.X + padding;
-            float hostTop = origin.Y + padding;
-            float hostRight = origin.X + hostSize.X - padding;
-            float hostBottom = origin.Y + hostSize.Y - padding;
+            float hostLeft = (float)(origin.X + padding);
+            float hostTop = (float)(origin.Y + padding);
+            float hostRight = (float)(origin.X + hostSize.X - padding);
+            float hostBottom = (float)(origin.Y + hostSize.Y - padding);
 
             if (pointer.X < hostLeft || pointer.Y < hostTop || pointer.X > hostRight || pointer.Y > hostBottom) {
                 return false;
@@ -637,10 +637,10 @@ namespace helengine.editor {
             PanelNode? anchorNode = root?.Hit(pointer.X, pointer.Y);
             DockableEntity? anchorEntity = anchorNode?.Entity;
 
-            float targetLeft = anchorNode?.Bounds.X ?? hostLeft;
-            float targetTop = anchorNode?.Bounds.Y ?? hostTop;
-            float targetWidth = anchorNode?.Bounds.Z ?? (hostRight - hostLeft);
-            float targetHeight = anchorNode?.Bounds.W ?? (hostBottom - hostTop);
+            float targetLeft = (float)(anchorNode?.Bounds.X ?? hostLeft);
+            float targetTop = (float)(anchorNode?.Bounds.Y ?? hostTop);
+            float targetWidth = (float)(anchorNode?.Bounds.Z ?? (hostRight - hostLeft));
+            float targetHeight = (float)(anchorNode?.Bounds.W ?? (hostBottom - hostTop));
 
             float localX = pointer.X - targetLeft;
             float localY = pointer.Y - targetTop;

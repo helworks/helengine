@@ -39,7 +39,7 @@ namespace helengine.editor {
             }
 
             float3 normalizedAxis = NormalizeDirection(worldAxisDirection);
-            double startAxisComponent = float3.Dot(startPosition, normalizedAxis);
+            double startAxisComponent = (double)(float3.Dot(startPosition, normalizedAxis));
             double snappedAxisComponent = SnapScalar(startAxisComponent + axisDelta, snapValue);
             double snappedDelta = snappedAxisComponent - startAxisComponent;
             return normalizedAxis * (float)snappedDelta;
@@ -64,8 +64,8 @@ namespace helengine.editor {
 
             float3 normalizedPrimary = NormalizeDirection(worldPrimaryDirection);
             float3 normalizedSecondary = NormalizeDirection(worldSecondaryDirection);
-            double primaryDelta = float3.Dot(planeDelta, normalizedPrimary);
-            double secondaryDelta = float3.Dot(planeDelta, normalizedSecondary);
+            double primaryDelta = (double)(float3.Dot(planeDelta, normalizedPrimary));
+            double secondaryDelta = (double)(float3.Dot(planeDelta, normalizedSecondary));
             double snappedPrimary = SnapScalar(primaryDelta, snapValue);
             double snappedSecondary = SnapScalar(secondaryDelta, snapValue);
             return (normalizedPrimary * (float)snappedPrimary) + (normalizedSecondary * (float)snappedSecondary);
@@ -92,10 +92,10 @@ namespace helengine.editor {
 
             float3 normalizedPrimary = NormalizeDirection(worldPrimaryDirection);
             float3 normalizedSecondary = NormalizeDirection(worldSecondaryDirection);
-            double startPrimary = float3.Dot(startPosition, normalizedPrimary);
-            double startSecondary = float3.Dot(startPosition, normalizedSecondary);
-            double primaryDelta = float3.Dot(planeDelta, normalizedPrimary);
-            double secondaryDelta = float3.Dot(planeDelta, normalizedSecondary);
+            double startPrimary = (double)(float3.Dot(startPosition, normalizedPrimary));
+            double startSecondary = (double)(float3.Dot(startPosition, normalizedSecondary));
+            double primaryDelta = (double)(float3.Dot(planeDelta, normalizedPrimary));
+            double secondaryDelta = (double)(float3.Dot(planeDelta, normalizedSecondary));
             double snappedPrimary = SnapScalar(startPrimary + primaryDelta, snapValue) - startPrimary;
             double snappedSecondary = SnapScalar(startSecondary + secondaryDelta, snapValue) - startSecondary;
             return (normalizedPrimary * (float)snappedPrimary) + (normalizedSecondary * (float)snappedSecondary);
@@ -108,9 +108,9 @@ namespace helengine.editor {
         /// <returns>Normalized direction vector.</returns>
         static float3 NormalizeDirection(float3 direction) {
             double lengthSquared =
-                (direction.X * direction.X) +
+                (double)((direction.X * direction.X) +
                 (direction.Y * direction.Y) +
-                (direction.Z * direction.Z);
+                (direction.Z * direction.Z));
             if (lengthSquared <= MinimumDirectionLengthSquared) {
                 throw new InvalidOperationException("Snap direction vector must be non-zero.");
             }

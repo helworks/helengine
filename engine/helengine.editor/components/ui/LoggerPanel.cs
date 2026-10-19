@@ -376,7 +376,7 @@ namespace helengine.editor {
             UpdateContentRootPosition();
 
             int rowWidth = Math.Max(Size.X, MinSize.X);
-            float lineHeight = (float)Math.Max(font.LineHeight, 1.0);
+            float lineHeight = (float)RealMath.Max(font.LineHeight, 1.0);
             float verticalOffset = (float)Math.Round((GetRowHeightPixels() - lineHeight) * 0.5, MidpointRounding.AwayFromZero);
 
             for (int i = 0; i < rows.Count; i++) {
@@ -709,8 +709,8 @@ namespace helengine.editor {
             }
 
             int2 localPosition = new int2(
-                pointer.X - (int)Math.Round(Position.X),
-                pointer.Y - (int)Math.Round(Position.Y));
+                pointer.X - (int)RealMath.Round(Position.X),
+                pointer.Y - (int)RealMath.Round(Position.Y));
             HandleRowRightPressed(rowIndex, localPosition);
         }
 
@@ -820,8 +820,8 @@ namespace helengine.editor {
         /// <param name="point">Screen point to evaluate.</param>
         /// <returns>True when the point lies inside the logger content area.</returns>
         bool ContainsContentPoint(int2 point) {
-            int panelX = (int)Math.Round(Position.X);
-            int panelY = (int)Math.Round(Position.Y);
+            int panelX = (int)RealMath.Round(Position.X);
+            int panelY = (int)RealMath.Round(Position.Y);
             int panelWidth = Math.Max(Size.X, MinSize.X);
             int panelHeight = Math.Max(Size.Y, MinSize.Y);
             return point.X >= panelX &&
@@ -842,7 +842,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            int localY = pointer.Y - (int)Math.Round(Position.Y) - TitleBarHeightPixels;
+            int localY = pointer.Y - (int)RealMath.Round(Position.Y) - TitleBarHeightPixels;
             int rowIndexCandidate = FirstVisibleRowIndex + (localY / Math.Max(1, GetRowHeightPixels()));
             if (rowIndexCandidate < 0 || rowIndexCandidate >= entries.Count) {
                 rowIndex = -1;

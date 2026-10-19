@@ -98,9 +98,9 @@ namespace helengine.editor {
         /// <param name="halfExtents">Half-size of the box on each axis.</param>
         /// <returns>Raw line-list model asset.</returns>
         static ModelAsset CreateBoxModelAsset(float3 halfExtents) {
-            float x = halfExtents.X;
-            float y = halfExtents.Y;
-            float z = halfExtents.Z;
+            float x = (float)(halfExtents.X);
+            float y = (float)(halfExtents.Y);
+            float z = (float)(halfExtents.Z);
             float3[] positions = new[] {
                 new float3(-x, -y, -z), new float3(x, -y, -z), new float3(x, y, -z), new float3(-x, y, -z),
                 new float3(-x, -y, z), new float3(x, -y, z), new float3(x, y, z), new float3(-x, y, z)

@@ -7,7 +7,7 @@ namespace helengine.editor.tests.serialization.scene {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new(new ScriptComponentReflectionSchemaBuilder());
             EditorTaggedSceneComponentFieldWriter oldWriter = new();
             oldWriter.WriteField(nameof(SpriteComponent.Size), writer => writer.WriteInt2(new int2(37, 19)));
-            oldWriter.WriteField(nameof(SpriteComponent.SourceRect), writer => writer.WriteFloat4(new float4(0.1f, 0.2f, 0.3f, 0.4f)));
+            oldWriter.WriteField(nameof(SpriteComponent.SourceRect), writer => writer.WriteReal4(new float4(0.1f, 0.2f, 0.3f, 0.4f)));
             SceneComponentAssetRecord record = new() {
                 ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(SpriteComponent)),
                 Payload = oldWriter.BuildPayload()

@@ -4,7 +4,7 @@ namespace helengine {
         /// <summary>Borrowed participant whose lifetime is controlled by its entity.</summary>
         public FPSComponent Component;
         /// <summary>Original FontScale before owner layout processing.</summary>
-        public float FontScale;
+        public Real FontScale;
         /// <summary>Original Padding before owner layout processing.</summary>
         public int2 Padding;
         /// <summary>Captures this participant without allocating a record object.</summary>
@@ -19,7 +19,7 @@ namespace helengine {
             Component.Padding = Padding;
         }
         /// <summary>Maps only deliberate preview edits back into authored space.</summary>
-        public void RestoreEdited(ViewportFpsState applied, ViewportLayoutMetrics metrics) {
+        public void RestoreEdited(ViewportFpsState applied, in ViewportLayoutMetrics metrics) {
             Component.FontScale = AuthoredLayoutScaleUtils.UnscaleFloat(Component.FontScale, applied.FontScale, FontScale, Component.NativeFontPixels == TextNativePixelMode.Disabled ? metrics.GlyphScale : 1d);
             Component.Padding = AuthoredLayoutScaleUtils.UnscaleInt2(Component.Padding, applied.Padding, Padding, metrics.ScaleX, metrics.ScaleY);
         }

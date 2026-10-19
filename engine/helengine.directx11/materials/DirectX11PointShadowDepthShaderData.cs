@@ -9,16 +9,16 @@ namespace helengine.directx11 {
         /// <summary>
         /// Transposed world matrix for the current shadow-caster draw.
         /// </summary>
-        public float4x4 World;
+        public GpuFloat4x4 World;
 
         /// <summary>
         /// Transposed world-view-projection matrix for the current shadow-caster draw.
         /// </summary>
-        public float4x4 WorldViewProj;
+        public GpuFloat4x4 WorldViewProj;
 
         /// <summary>
         /// Point-light position in XYZ and its effective shadow range in W.
         /// </summary>
-        public float4 LightPositionAndRange;
+        public GpuFloat4 LightPositionAndRange;
     }
 }

@@ -9,66 +9,66 @@ namespace helengine.directx11 {
         /// <summary>
         /// Packed shadow metadata where X stores whether an atlas is available and W stores the shadowed slot count.
         /// </summary>
-        public float4 ShadowMetadata;
+        public GpuFloat4 ShadowMetadata;
 
         /// <summary>
         /// First packed shadow slot atlas rectangle.
         /// </summary>
-        public float4 Light0AtlasRect;
+        public GpuFloat4 Light0AtlasRect;
 
         /// <summary>
         /// First packed shadow slot metadata.
         /// </summary>
-        public float4 Light0Metadata;
+        public GpuFloat4 Light0Metadata;
 
         /// <summary>
         /// First packed shadow slot transform.
         /// </summary>
-        public float4x4 Light0WorldToShadowClip;
+        public GpuFloat4x4 Light0WorldToShadowClip;
 
         /// <summary>
         /// Second packed shadow slot atlas rectangle.
         /// </summary>
-        public float4 Light1AtlasRect;
+        public GpuFloat4 Light1AtlasRect;
 
         /// <summary>
         /// Second packed shadow slot metadata.
         /// </summary>
-        public float4 Light1Metadata;
+        public GpuFloat4 Light1Metadata;
 
         /// <summary>
         /// Second packed shadow slot transform.
         /// </summary>
-        public float4x4 Light1WorldToShadowClip;
+        public GpuFloat4x4 Light1WorldToShadowClip;
 
         /// <summary>
         /// Third packed shadow slot atlas rectangle.
         /// </summary>
-        public float4 Light2AtlasRect;
+        public GpuFloat4 Light2AtlasRect;
 
         /// <summary>
         /// Third packed shadow slot metadata.
         /// </summary>
-        public float4 Light2Metadata;
+        public GpuFloat4 Light2Metadata;
 
         /// <summary>
         /// Third packed shadow slot transform.
         /// </summary>
-        public float4x4 Light2WorldToShadowClip;
+        public GpuFloat4x4 Light2WorldToShadowClip;
 
         /// <summary>
         /// Fourth packed shadow slot atlas rectangle.
         /// </summary>
-        public float4 Light3AtlasRect;
+        public GpuFloat4 Light3AtlasRect;
 
         /// <summary>
         /// Fourth packed shadow slot metadata.
         /// </summary>
-        public float4 Light3Metadata;
+        public GpuFloat4 Light3Metadata;
 
         /// <summary>
         /// Fourth packed shadow slot transform.
         /// </summary>
-        public float4x4 Light3WorldToShadowClip;
+        public GpuFloat4x4 Light3WorldToShadowClip;
     }
 }

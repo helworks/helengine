@@ -208,7 +208,7 @@ namespace helengine.editor {
             FontTightMetrics messageMetrics = DialogFont.MeasureTight(MessageText.Text);
             int messageTop = PanelPadding + HeaderHeight + SectionSpacing;
             MessageHost.Position = new float3(PanelPadding, messageTop, 0.2f);
-            MessageText.Size = new int2(contentWidth, Math.Max(1, (int)Math.Ceiling(Math.Max(messageMetrics.Height, DialogFont.LineHeight))));
+            MessageText.Size = new int2(contentWidth, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(messageMetrics.Height, DialogFont.LineHeight))));
         }
 
         /// <summary>

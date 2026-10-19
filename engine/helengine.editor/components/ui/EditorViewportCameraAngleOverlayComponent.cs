@@ -269,7 +269,7 @@ namespace helengine.editor {
             }
 
             float3 forward = float4.RotateVector(ForwardAxis, cameraEntity.Orientation);
-            double cameraYawRadians = NormalizeAngleRadians(Math.Atan2(forward.X, -forward.Z));
+            double cameraYawRadians = NormalizeAngleRadians(Math.Atan2((double)(forward.X), (double)(-forward.Z)));
             double clampedForwardY = Math.Clamp((double)forward.Y, -1.0, 1.0);
             double cameraPitchRadians = Math.Asin(clampedForwardY);
             double cameraYawDegrees = cameraYawRadians * RadiansToDegrees;
@@ -318,7 +318,7 @@ namespace helengine.editor {
         /// <returns>Horizontal yaw in radians when available; otherwise zero.</returns>
         double ComputeCameraToPivotYawRadians(float3 cameraPosition, float3 selectionPosition, out bool hasAngle) {
             float3 toPivot = selectionPosition - cameraPosition;
-            double horizontalLengthSquared = (toPivot.X * toPivot.X) + (toPivot.Z * toPivot.Z);
+            double horizontalLengthSquared = (double)((toPivot.X * toPivot.X) + (toPivot.Z * toPivot.Z));
             if (horizontalLengthSquared <= MinimumHorizontalLengthSquared) {
                 hasAngle = false;
                 return 0.0;
@@ -326,8 +326,8 @@ namespace helengine.editor {
 
             hasAngle = true;
             double inverseLength = 1.0 / Math.Sqrt(horizontalLengthSquared);
-            double directionX = toPivot.X * inverseLength;
-            double directionZ = toPivot.Z * inverseLength;
+            double directionX = (double)(toPivot.X * inverseLength);
+            double directionZ = (double)(toPivot.Z * inverseLength);
             return NormalizeAngleRadians(Math.Atan2(directionX, -directionZ));
         }
 
@@ -340,7 +340,7 @@ namespace helengine.editor {
         /// <returns>Horizontal yaw in radians when available; otherwise zero.</returns>
         double ComputePivotToCameraYawRadians(float3 selectionPosition, float3 cameraPosition, out bool hasAngle) {
             float3 toCamera = cameraPosition - selectionPosition;
-            double horizontalLengthSquared = (toCamera.X * toCamera.X) + (toCamera.Z * toCamera.Z);
+            double horizontalLengthSquared = (double)((toCamera.X * toCamera.X) + (toCamera.Z * toCamera.Z));
             if (horizontalLengthSquared <= MinimumHorizontalLengthSquared) {
                 hasAngle = false;
                 return 0.0;
@@ -348,8 +348,8 @@ namespace helengine.editor {
 
             hasAngle = true;
             double inverseLength = 1.0 / Math.Sqrt(horizontalLengthSquared);
-            double directionX = toCamera.X * inverseLength;
-            double directionZ = toCamera.Z * inverseLength;
+            double directionX = (double)(toCamera.X * inverseLength);
+            double directionZ = (double)(toCamera.Z * inverseLength);
             return NormalizeAngleRadians(Math.Atan2(directionX, directionZ));
         }
 
@@ -376,7 +376,7 @@ namespace helengine.editor {
             }
 
             int width = (int)Math.Ceiling(maxWidth) + OverlayPaddingX * 2;
-            int height = (int)Math.Ceiling(lines.Length * Font.LineHeight) + OverlayPaddingY * 2;
+            int height = (int)RealMath.Ceiling(lines.Length * Font.LineHeight) + OverlayPaddingY * 2;
             OverlayBackground.Size = new int2(width, height);
             OverlayText.Size = new int2(Math.Max(1, width - (OverlayPaddingX * 2)), Math.Max(1, height - (OverlayPaddingY * 2)));
             TextHost.Position = new float3(OverlayPaddingX, OverlayPaddingY, 0.1f);
@@ -601,17 +601,17 @@ namespace helengine.editor {
         /// <returns>World units represented by one screen pixel at the supplied depth.</returns>
         double ComputeWorldUnitsPerPixel(float3 origin, float3 cameraPosition) {
             float4 viewport = SceneCamera.Viewport;
-            double viewportHeight = viewport.W;
+            double viewportHeight = (double)(viewport.W);
             if (viewportHeight <= 0.0) {
                 throw new InvalidOperationException("Scene camera viewport height must be greater than zero.");
             }
 
-            double distance = float3.Distance(origin, cameraPosition);
+            double distance = (double)(float3.Distance(origin, cameraPosition));
             if (distance < MinimumCameraDistance) {
                 distance = MinimumCameraDistance;
             }
 
-            return CameraProjectionUtils.GetWorldUnitsPerPixel(SceneCamera, distance, viewportHeight);
+            return (double)(CameraProjectionUtils.GetWorldUnitsPerPixel(SceneCamera, distance, viewportHeight));
         }
 
         /// <summary>
@@ -655,9 +655,9 @@ namespace helengine.editor {
         /// <param name="axisDirection">World-space axis direction.</param>
         /// <returns>Signed axis label such as x+, y-, or z+.</returns>
         string BuildAxisLabel(float3 axisDirection) {
-            double absX = Math.Abs(axisDirection.X);
-            double absY = Math.Abs(axisDirection.Y);
-            double absZ = Math.Abs(axisDirection.Z);
+            double absX = RealMath.Abs(axisDirection.X).ToDouble();
+            double absY = RealMath.Abs(axisDirection.Y).ToDouble();
+            double absZ = RealMath.Abs(axisDirection.Z).ToDouble();
             if (absX >= absY && absX >= absZ) {
                 return axisDirection.X >= 0f ? "x+" : "x-";
             }
@@ -697,7 +697,7 @@ namespace helengine.editor {
         /// <returns>World scale applied by the translation gizmo.</returns>
         double ComputeGizmoScale(float3 origin, float3 cameraPosition) {
             float4 viewport = SceneCamera.Viewport;
-            double viewportHeight = viewport.W;
+            double viewportHeight = (double)(viewport.W);
             if (viewportHeight <= 0.0) {
                 throw new InvalidOperationException("Scene camera viewport height must be greater than zero.");
             }
@@ -707,12 +707,12 @@ namespace helengine.editor {
             }
 
             double targetAxisPixels = viewportHeight * GizmoTargetViewportHeightFraction;
-            double distance = float3.Distance(origin, cameraPosition);
+            double distance = (double)(float3.Distance(origin, cameraPosition));
             if (distance < MinimumCameraDistance) {
                 distance = MinimumCameraDistance;
             }
 
-            double worldUnitsPerPixel = CameraProjectionUtils.GetWorldUnitsPerPixel(SceneCamera, distance, viewportHeight);
+            double worldUnitsPerPixel = (double)(CameraProjectionUtils.GetWorldUnitsPerPixel(SceneCamera, distance, viewportHeight));
             double targetWorldAxisLength = targetAxisPixels * worldUnitsPerPixel;
             return targetWorldAxisLength / TransformTranslationGizmoFactory.AxisLength;
         }
@@ -765,9 +765,9 @@ namespace helengine.editor {
         /// <returns>Normalized direction or zero when input magnitude is near zero.</returns>
         float3 NormalizeDirection(float3 value) {
             double lengthSquared =
-                (value.X * value.X) +
+                (double)((value.X * value.X) +
                 (value.Y * value.Y) +
-                (value.Z * value.Z);
+                (value.Z * value.Z));
             if (lengthSquared <= MinimumDirectionLengthSquared) {
                 return float3.Zero;
             }

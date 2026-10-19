@@ -891,10 +891,10 @@ namespace helengine.editor {
             }
 
             float3 contentOrigin = contentRoot.Position;
-            float pointerLocalX = pointer.X - contentOrigin.X;
-            float pointerLocalY = pointer.Y - contentOrigin.Y;
-            float currentLeft = textureHost.LocalPosition.X;
-            float currentTop = textureHost.LocalPosition.Y;
+            float pointerLocalX = (float)(pointer.X - contentOrigin.X);
+            float pointerLocalY = (float)(pointer.Y - contentOrigin.Y);
+            float currentLeft = (float)(textureHost.LocalPosition.X);
+            float currentTop = (float)(textureHost.LocalPosition.Y);
             double anchorX = (pointerLocalX - currentLeft) / (double)currentSize.X;
             double anchorY = (pointerLocalY - currentTop) / (double)currentSize.Y;
 
@@ -1099,8 +1099,8 @@ namespace helengine.editor {
             boundsButtonBackground.Size = new int2(ModelToolbarButtonWidth, ModelToolbarButtonHeight);
             boundsButtonInteractable.Size = new int2(ModelToolbarButtonWidth, ModelToolbarButtonHeight);
             float2 boundsGlyphSize = TitleFont.MeasureString(boundsButtonText.Text);
-            int boundsGlyphWidth = Math.Max(1, (int)Math.Ceiling(boundsGlyphSize.X));
-            int boundsGlyphHeight = Math.Max(1, (int)Math.Ceiling(TitleFont.LineHeight));
+            int boundsGlyphWidth = Math.Max(1, (int)RealMath.Ceiling(boundsGlyphSize.X));
+            int boundsGlyphHeight = Math.Max(1, (int)RealMath.Ceiling(TitleFont.LineHeight));
             float glyphX = (float)Math.Round((ModelToolbarButtonWidth - boundsGlyphWidth) * 0.5d);
             float glyphY = (float)Math.Round((ModelToolbarButtonHeight - boundsGlyphHeight) * 0.5d);
             boundsButtonLabelHost.Position = new float3(glyphX, glyphY, 0.1f);
@@ -1241,8 +1241,8 @@ namespace helengine.editor {
             }
 
             float2 measured = TitleFont.MeasureString(labelText);
-            int width = Math.Max(1, (int)Math.Ceiling(measured.X));
-            int height = Math.Max(1, (int)Math.Ceiling(TitleFont.LineHeight));
+            int width = Math.Max(1, (int)RealMath.Ceiling(measured.X));
+            int height = Math.Max(1, (int)RealMath.Ceiling(TitleFont.LineHeight));
             return new int2(width, height);
         }
 
@@ -1337,8 +1337,8 @@ namespace helengine.editor {
         /// <param name="pointer">Pointer position in screen coordinates.</param>
         /// <returns>True when the pointer is inside the preview body.</returns>
         bool IsPointerInsideContent(int2 pointer) {
-            int panelLeft = (int)Math.Round(Position.X);
-            int panelTop = (int)Math.Round(Position.Y) + TitleBarHeightPixels;
+            int panelLeft = (int)RealMath.Round(Position.X);
+            int panelTop = (int)RealMath.Round(Position.Y) + TitleBarHeightPixels;
             int panelWidth = Size.X;
             int panelHeight = Size.Y;
 
@@ -1358,8 +1358,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            int toolbarLeft = (int)Math.Round(modelToolbarRoot.Position.X);
-            int toolbarTop = (int)Math.Round(modelToolbarRoot.Position.Y);
+            int toolbarLeft = (int)RealMath.Round(modelToolbarRoot.Position.X);
+            int toolbarTop = (int)RealMath.Round(modelToolbarRoot.Position.Y);
             return pointer.X >= toolbarLeft &&
                    pointer.X < toolbarLeft + modelToolbarBackground.Size.X &&
                    pointer.Y >= toolbarTop &&
@@ -1376,8 +1376,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            int buttonLeft = (int)Math.Round(gridButtonRoot.Position.X);
-            int buttonTop = (int)Math.Round(gridButtonRoot.Position.Y);
+            int buttonLeft = (int)RealMath.Round(gridButtonRoot.Position.X);
+            int buttonTop = (int)RealMath.Round(gridButtonRoot.Position.Y);
             return pointer.X >= buttonLeft &&
                    pointer.X < buttonLeft + gridButtonInteractable.Size.X &&
                    pointer.Y >= buttonTop &&
@@ -1394,8 +1394,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            int buttonLeft = (int)Math.Round(boundsButtonRoot.Position.X);
-            int buttonTop = (int)Math.Round(boundsButtonRoot.Position.Y);
+            int buttonLeft = (int)RealMath.Round(boundsButtonRoot.Position.X);
+            int buttonTop = (int)RealMath.Round(boundsButtonRoot.Position.Y);
             return pointer.X >= buttonLeft &&
                    pointer.X < buttonLeft + boundsButtonInteractable.Size.X &&
                    pointer.Y >= buttonTop &&

@@ -256,7 +256,7 @@ namespace helengine.editor {
         /// <returns>Scale factor applied to gizmo meshes.</returns>
         double ComputeScaleForTargetPixels(float3 origin, float3 cameraPosition) {
             float4 viewport = SceneCamera.Viewport;
-            double viewportHeight = viewport.W;
+            double viewportHeight = (double)(viewport.W);
             if (viewportHeight <= 0.0) {
                 throw new InvalidOperationException("Scene camera viewport height must be greater than zero.");
             }
@@ -268,14 +268,14 @@ namespace helengine.editor {
             double targetDiameterPixels = viewportHeight * TargetViewportHeightFraction;
             float3 offset = origin - cameraPosition;
             double distance = Math.Sqrt(
-                offset.X * offset.X +
+                (double)(offset.X * offset.X +
                 offset.Y * offset.Y +
-                offset.Z * offset.Z);
+                offset.Z * offset.Z));
             if (distance < MinimumDistance) {
                 distance = MinimumDistance;
             }
 
-            double worldUnitsPerPixel = CameraProjectionUtils.GetWorldUnitsPerPixel(SceneCamera, distance, viewportHeight);
+            double worldUnitsPerPixel = (double)(CameraProjectionUtils.GetWorldUnitsPerPixel(SceneCamera, distance, viewportHeight));
             double targetWorldDiameter = targetDiameterPixels * worldUnitsPerPixel;
             return targetWorldDiameter / TransformRotationGizmoFactory.OuterDiameter;
         }

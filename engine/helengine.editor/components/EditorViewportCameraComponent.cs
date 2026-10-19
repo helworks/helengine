@@ -12,7 +12,7 @@ namespace helengine.editor {
         /// <summary>
         /// Full vertical world-space extent used by orthographic projection.
         /// </summary>
-        float OrthographicVerticalSpanValue;
+        Real OrthographicVerticalSpanValue;
 
         /// <summary>
         /// Creates an editor viewport camera with a valid default orthographic span and perspective mode.
@@ -43,10 +43,10 @@ namespace helengine.editor {
         /// </summary>
         [EditorPropertyHidden]
         [ScenePersistenceIgnore]
-        public float OrthographicVerticalSpan {
+        public Real OrthographicVerticalSpan {
             get { return OrthographicVerticalSpanValue; }
             set {
-                if (!float.IsFinite(value) || value < CameraProjectionUtils.MinimumOrthographicVerticalSpan) {
+                if (!float.IsFinite((float)(value)) || value < CameraProjectionUtils.MinimumOrthographicVerticalSpan) {
                     throw new ArgumentOutOfRangeException(nameof(value), value, "Orthographic vertical span must be finite and at least the configured minimum.");
                 }
                 OrthographicVerticalSpanValue = value;

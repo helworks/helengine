@@ -120,14 +120,14 @@ namespace helengine.editor.assimp {
                 Assimp.Mesh mesh = new Assimp.Mesh($"{nodeName}.{submesh.MaterialSlotName ?? "Submesh"}", Assimp.PrimitiveType.Triangle);
                 for (int vertexIndex = 0; vertexIndex < modelAsset.Positions.Length; vertexIndex++) {
                     float3 position = modelAsset.Positions[vertexIndex];
-                    mesh.Vertices.Add(new System.Numerics.Vector3(position.X, position.Y, position.Z));
+                    mesh.Vertices.Add(new System.Numerics.Vector3(position.X.ToSingle(), position.Y.ToSingle(), position.Z.ToSingle()));
                     if (modelAsset.Normals != null && vertexIndex < modelAsset.Normals.Length) {
                         float3 normal = modelAsset.Normals[vertexIndex];
-                        mesh.Normals.Add(new System.Numerics.Vector3(normal.X, normal.Y, normal.Z));
+                        mesh.Normals.Add(new System.Numerics.Vector3(normal.X.ToSingle(), normal.Y.ToSingle(), normal.Z.ToSingle()));
                     }
                     if (modelAsset.TexCoords != null && vertexIndex < modelAsset.TexCoords.Length) {
                         float2 texCoord = modelAsset.TexCoords[vertexIndex];
-                        mesh.TextureCoordinateChannels[0].Add(new System.Numerics.Vector3(texCoord.X, texCoord.Y, 0f));
+                        mesh.TextureCoordinateChannels[0].Add(new System.Numerics.Vector3(texCoord.X.ToSingle(), texCoord.Y.ToSingle(), 0f));
                     }
                 }
 
@@ -213,10 +213,10 @@ namespace helengine.editor.assimp {
             float4x4.Multiply(ref scaleRotation, ref translationMatrix, out float4x4 local);
 
             return new System.Numerics.Matrix4x4(
-                local.M11, local.M21, local.M31, local.M41,
-                local.M12, local.M22, local.M32, local.M42,
-                local.M13, local.M23, local.M33, local.M43,
-                local.M14, local.M24, local.M34, local.M44);
+                local.M11.ToSingle(), local.M21.ToSingle(), local.M31.ToSingle(), local.M41.ToSingle(),
+                local.M12.ToSingle(), local.M22.ToSingle(), local.M32.ToSingle(), local.M42.ToSingle(),
+                local.M13.ToSingle(), local.M23.ToSingle(), local.M33.ToSingle(), local.M43.ToSingle(),
+                local.M14.ToSingle(), local.M24.ToSingle(), local.M34.ToSingle(), local.M44.ToSingle());
         }
 
         /// <summary>

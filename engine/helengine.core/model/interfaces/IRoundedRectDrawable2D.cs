@@ -26,12 +26,12 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the radius of the rounded corners.
         /// </summary>
-        float Radius { get; set; }
+        Real Radius { get; set; }
 
         /// <summary>
         /// Gets or sets the outline thickness.
         /// </summary>
-        float BorderThickness { get; set; }
+        Real BorderThickness { get; set; }
 
         /// <summary>
         /// Gets or sets the texture color modulation.
@@ -46,6 +46,6 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the rotation applied to the rectangle.
         /// </summary>
-        float Rotation { get; set; }
+        Real Rotation { get; set; }
     }
 }

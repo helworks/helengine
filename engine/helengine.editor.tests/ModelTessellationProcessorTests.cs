@@ -53,8 +53,8 @@ namespace helengine.editor.tests {
 
             Assert.Equal(3, unscaledAsset.Positions.Length);
             Assert.True(scaledAsset.Positions.Length > 3);
-            Assert.All(scaledAsset.Positions, position => Assert.InRange(position.X, 0f, 1f));
-            Assert.All(scaledAsset.Positions, position => Assert.InRange(position.Y, 0f, 1f));
+            Assert.All(scaledAsset.Positions, position => Assert.InRange((double)(position.X), (double)(0f), (double)(1f)));
+            Assert.All(scaledAsset.Positions, position => Assert.InRange((double)(position.Y), (double)(0f), (double)(1f)));
         }
 
         /// <summary>
@@ -69,8 +69,8 @@ namespace helengine.editor.tests {
             ModelTessellationProcessor.ApplyBakeScale(asset, new float3(2f, 4f, 1f));
 
             Assert.Equal(new float3(2f, 8f, 3f), asset.Positions[1]);
-            Assert.InRange(asset.Normals[1].X, 0.8944f, 0.8945f);
-            Assert.InRange(asset.Normals[1].Y, 0.4472f, 0.4473f);
+            Assert.InRange((double)(asset.Normals[1].X), (double)(0.8944f), (double)(0.8945f));
+            Assert.InRange((double)(asset.Normals[1].Y), (double)(0.4472f), (double)(0.4473f));
             Assert.Equal(0f, asset.Normals[1].Z);
         }
 
@@ -95,7 +95,7 @@ namespace helengine.editor.tests {
                 float3 third = asset.Positions[thirdIndex];
                 float3 edgeA = new float3(second.X - first.X, second.Y - first.Y, second.Z - first.Z);
                 float3 edgeB = new float3(third.X - first.X, third.Y - first.Y, third.Z - first.Z);
-                float crossZ = (edgeA.X * edgeB.Y) - (edgeA.Y * edgeB.X);
+                double crossZ = (double)((edgeA.X * edgeB.Y) - (edgeA.Y * edgeB.X));
                 Assert.True(crossZ > 0f, $"Triangle at index {index} has flipped winding (crossZ={crossZ}).");
             }
         }
@@ -121,7 +121,7 @@ namespace helengine.editor.tests {
                 float3 third = asset.Positions[thirdIndex];
                 float3 edgeA = new float3(second.X - first.X, second.Y - first.Y, second.Z - first.Z);
                 float3 edgeB = new float3(third.X - first.X, third.Y - first.Y, third.Z - first.Z);
-                float crossZ = (edgeA.X * edgeB.Y) - (edgeA.Y * edgeB.X);
+                double crossZ = (double)((edgeA.X * edgeB.Y) - (edgeA.Y * edgeB.X));
                 Assert.True(crossZ > 0f, $"Triangle at index {index} has flipped winding (crossZ={crossZ}).");
             }
         }
@@ -312,9 +312,9 @@ namespace helengine.editor.tests {
         /// <param name="second">Second endpoint.</param>
         /// <returns>Distance between the supplied points.</returns>
         static double GetEdgeLength(float3 first, float3 second) {
-            double deltaX = second.X - first.X;
-            double deltaY = second.Y - first.Y;
-            double deltaZ = second.Z - first.Z;
+            double deltaX = (double)(second.X - first.X);
+            double deltaY = (double)(second.Y - first.Y);
+            double deltaZ = (double)(second.Z - first.Z);
             return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
         }
     }

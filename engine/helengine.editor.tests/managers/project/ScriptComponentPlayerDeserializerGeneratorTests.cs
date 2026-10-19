@@ -379,7 +379,7 @@ namespace helengine.editor.tests.managers.project {
 
             Assert.Contains("SceneAssetReference", header, StringComparison.Ordinal);
             Assert.Contains("referenceResolver->ResolveFont(reference)", source, StringComparison.Ordinal);
-            Assert.Contains("component->set_FontScale(reader->ReadSingle());", source, StringComparison.Ordinal);
+            Assert.Contains("component->set_FontScale(reader->ReadReal());", source, StringComparison.Ordinal);
             Assert.Contains("component->set_Alignment(static_cast<::TextAlignment>(reader->ReadInt32()));", source, StringComparison.Ordinal);
             Assert.DoesNotContain("component->set_Texture(", source, StringComparison.Ordinal);
         }

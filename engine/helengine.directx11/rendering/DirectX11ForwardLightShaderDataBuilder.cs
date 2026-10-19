@@ -46,8 +46,8 @@ namespace helengine.directx11 {
                 activeLightCount++;
             }
 
-            data.AmbientLightColor = new float4(ambientRadiance.X, ambientRadiance.Y, ambientRadiance.Z, 0f);
-            data.LightMetadata = new float4(activeLightCount, 0f, 0f, 0f);
+            data.AmbientLightColor = GpuFloat4.FromEngine(new float4(ambientRadiance.X, ambientRadiance.Y, ambientRadiance.Z, 0f));
+            data.LightMetadata = GpuFloat4.FromEngine(new float4(activeLightCount, 0f, 0f, 0f));
             return data;
         }
 
@@ -68,10 +68,10 @@ namespace helengine.directx11 {
             }
 
             return new DirectX11ForwardLightSlotShaderData {
-                ColorAndType = BuildColorAndType(light),
-                DirectionAndShadow = BuildDirectionAndShadow(light, entity),
-                PositionAndRange = BuildPositionAndRange(light, entity),
-                SpotAngles = BuildSpotAngles(light)
+                ColorAndType = GpuFloat4.FromEngine(BuildColorAndType(light)),
+                DirectionAndShadow = GpuFloat4.FromEngine(BuildDirectionAndShadow(light, entity)),
+                PositionAndRange = GpuFloat4.FromEngine(BuildPositionAndRange(light, entity)),
+                SpotAngles = GpuFloat4.FromEngine(BuildSpotAngles(light))
             };
         }
 

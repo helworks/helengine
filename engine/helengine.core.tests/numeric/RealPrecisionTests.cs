@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 
 namespace helengine.core.tests.numeric {
     /// <summary>Verifies configured scalar storage layout and IEEE conversion boundaries.</summary>
@@ -9,6 +9,19 @@ namespace helengine.core.tests.numeric {
             Assert.Equal(RealRepresentation.StorageBits / 8, Marshal.SizeOf<Real>());
             Assert.Equal(RealRepresentation.ArithmeticBits / 8, Marshal.SizeOf<RealEvaluation>());
             Assert.Equal($"real-v1-s{RealRepresentation.StorageBits}-a{RealRepresentation.ArithmeticBits}", RealRepresentation.Policy.Identity);
+        }
+
+        /// <summary>Numeric wrappers retain the standard typed comparison contract needed by collections.</summary>
+        [Fact]
+        public void ConfigurableScalarsSupportDefaultComparers() {
+            Real[] stored = { 2d, -1d, 0d };
+            RealEvaluation[] evaluated = { 2d, -1d, 0d };
+            Array.Sort(stored);
+            Array.Sort(evaluated);
+            Assert.Equal(-1d, stored[0].ToDouble());
+            Assert.Equal(2d, stored[2].ToDouble());
+            Assert.Equal(-1d, evaluated[0].ToDouble());
+            Assert.Equal(2d, evaluated[2].ToDouble());
         }
 
         /// <summary>Precision beyond binary32 survives only when selected storage can represent it.</summary>

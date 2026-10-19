@@ -51,8 +51,8 @@ namespace helengine.files.tests.assets {
         static TextureAsset Source() { return new TextureAsset { Width = 4, Height = 1, ColorFormat = TextureAssetColorFormat.Rgba32, AlphaPrecision = TextureAssetAlphaPrecision.A8, Colors = new byte[] { 255, 255, 255, 0, 255, 255, 255, 85, 255, 255, 255, 170, 255, 255, 255, 255 } }; }
         /// <summary>Uses the actual texture writer under an explicit metadata byte-order header.</summary>
         static MemoryStream TextureRecord(TextureAsset asset, EngineBinaryEndianness endian) {
-            MemoryStream stream = new(); EngineBinaryHeaderSerializer.Write(stream, new EngineBinaryHeader(endian, 25, EditorAssetBinarySerializer.FormatId, (ushort)EditorAssetBinarySerializer.RecordKind, (ushort)EditorAssetBinaryValueKind.TextureAsset));
-            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, endian)) new TextureAssetPayloadSerializer().Write(writer, asset);
+            MemoryStream stream = new(); EngineBinaryHeaderSerializer.Write(stream, new EngineBinaryHeader(endian, EditorAssetBinarySerializer.CurrentVersion, EditorAssetBinarySerializer.FormatId, (ushort)EditorAssetBinarySerializer.RecordKind, (ushort)EditorAssetBinaryValueKind.TextureAsset));
+            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, endian)) { writer.WriteNumericPolicy(); new TextureAssetPayloadSerializer().Write(writer, asset); }
             stream.Position = 0; return stream;
         }
         /// <summary>Writes an independent minimal version-five native atlas record.</summary>

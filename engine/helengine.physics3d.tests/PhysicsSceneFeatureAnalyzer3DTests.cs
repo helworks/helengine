@@ -230,7 +230,7 @@ namespace helengine.physics3d.tests {
         /// Ensures the code-generation feature analyzer rejects the removed standalone rigid-body and box-collider payload formats.
         /// </summary>
         [Fact]
-        public void Analyze_WithSerializedStandalonePhysicsPayloads_ThrowsUnsupportedPayloadVersion() {
+        public void Analyze_WithSerializedStandalonePhysicsPayloads_RejectsNumericEnvelope() {
             SceneAsset sceneAsset = new SceneAsset {
                 Id = "Scenes/PhysicsSerializedVersion2.helen",
                 RootEntities = new[] {
@@ -264,14 +264,15 @@ namespace helengine.physics3d.tests {
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
                 () => PhysicsSceneFeatureAnalyzer3D.Analyze(sceneAsset));
 
-            Assert.Contains("Unsupported", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Numeric payload policy", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
         /// Ensures a legacy size-only box-collider payload is rejected instead of defaulting filtering and trigger state.
         /// </summary>
         [Fact]
-        public void Analyze_WithSerializedBoxColliderSizeOnlyPayload_ThrowsUnsupportedMemberCount() {
+        public void Analyze_WithSerializedBoxColliderSizeOnlyPayload_ThrowsUnsupportedVersion() {
             SceneAsset sceneAsset = new SceneAsset {
                 Id = "Scenes/PhysicsSerializedLegacyBoxCollider.helen",
                 RootEntities = new[] {
@@ -305,7 +306,7 @@ namespace helengine.physics3d.tests {
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
                 () => PhysicsSceneFeatureAnalyzer3D.Analyze(sceneAsset));
 
-            Assert.Contains("member", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("version", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -502,12 +503,13 @@ namespace helengine.physics3d.tests {
         static SceneComponentAssetRecord CreateCurrentRigidBodyRecord(BodyKind3D bodyKind, bool useGravity) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(8);
-            writer.WriteFloat3(float3.Zero);
+            writer.WriteReal3(float3.Zero);
             writer.WriteInt32((int)bodyKind);
             writer.WriteDouble(1d);
-            writer.WriteFloat3(float3.Zero);
+            writer.WriteReal3(float3.Zero);
             writer.WriteDouble(1d);
             writer.WriteByte(useGravity ? (byte)1 : (byte)0);
             writer.WriteDouble(0.5d);
@@ -527,12 +529,13 @@ namespace helengine.physics3d.tests {
         static SceneComponentAssetRecord CreateCurrentRigidBodyRecordWithoutSleepFields() {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(8);
-            writer.WriteFloat3(float3.Zero);
+            writer.WriteReal3(float3.Zero);
             writer.WriteInt32((int)BodyKind3D.Static);
             writer.WriteDouble(1d);
-            writer.WriteFloat3(float3.Zero);
+            writer.WriteReal3(float3.Zero);
             writer.WriteDouble(1d);
             writer.WriteByte(0);
 
@@ -552,14 +555,15 @@ namespace helengine.physics3d.tests {
         static SceneComponentAssetRecord CreateBoxColliderRecord(float3 size, bool isTrigger) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(7);
             writer.WriteUInt16(1);
             writer.WriteUInt16(ushort.MaxValue);
             writer.WriteDouble(0.4d);
             writer.WriteByte(isTrigger ? (byte)1 : (byte)0);
             writer.WriteDouble(0d);
-            writer.WriteFloat3(size);
+            writer.WriteReal3(size);
             writer.WriteDouble(0.6d);
 
             return new SceneComponentAssetRecord {
@@ -601,7 +605,8 @@ namespace helengine.physics3d.tests {
         static SceneComponentAssetRecord CreateCurrentBoxColliderRecordWithoutTrailingFields() {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(7);
             writer.WriteUInt16(1);
             writer.WriteUInt16(ushort.MaxValue);
@@ -623,14 +628,15 @@ namespace helengine.physics3d.tests {
         static SceneComponentAssetRecord CreateAutomaticBoxColliderRecordWithMemberCount(int memberCount) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(memberCount);
             writer.WriteUInt16(1);
             writer.WriteUInt16(ushort.MaxValue);
             writer.WriteDouble(0.4d);
             writer.WriteByte(0);
             writer.WriteDouble(0d);
-            writer.WriteFloat3(float3.One);
+            writer.WriteReal3(float3.One);
             writer.WriteDouble(0.6d);
 
             return new SceneComponentAssetRecord {
@@ -648,7 +654,8 @@ namespace helengine.physics3d.tests {
         static SceneComponentAssetRecord CreateSphereColliderRecord(float radius) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(7);
             writer.WriteUInt16(1);
             writer.WriteUInt16(ushort.MaxValue);
@@ -672,7 +679,8 @@ namespace helengine.physics3d.tests {
         static SceneComponentAssetRecord CreateCurrentSphereColliderRecordWithoutTrailingFields() {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(7);
             writer.WriteUInt16(1);
             writer.WriteUInt16(ushort.MaxValue);
@@ -695,7 +703,8 @@ namespace helengine.physics3d.tests {
         static SceneComponentAssetRecord CreateCapsuleColliderRecord(float radius, float height) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(8);
             writer.WriteUInt16(1);
             writer.WriteUInt16(ushort.MaxValue);
@@ -720,7 +729,8 @@ namespace helengine.physics3d.tests {
         static SceneComponentAssetRecord CreateCurrentCapsuleColliderRecordWithoutTrailingFields() {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(8);
             writer.WriteUInt16(1);
             writer.WriteUInt16(ushort.MaxValue);
@@ -742,7 +752,8 @@ namespace helengine.physics3d.tests {
         static SceneComponentAssetRecord CreateCurrentStaticMeshColliderRecordWithoutTrailingFields() {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(8);
             writer.WriteByte(0);
             writer.WriteUInt16(1);

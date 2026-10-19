@@ -23,14 +23,14 @@ namespace helengine.editor {
                 SourceRect = sourceComponent.SourceRect,
                 Size = sourceComponent.Size,
                 Color = sourceComponent.Color,
-                OutlineScale = sourceComponent.OutlineScale,
+                OutlineScale = (float)(sourceComponent.OutlineScale),
                 OutlineColor = sourceComponent.OutlineColor,
                 ShadowOffset = sourceComponent.ShadowOffset,
                 ShadowColor = sourceComponent.ShadowColor,
                 WrapText = sourceComponent.WrapText,
-                FontScale = sourceComponent.FontScale,
+                FontScale = (float)(sourceComponent.FontScale),
                 Alignment = sourceComponent.Alignment,
-                Rotation = sourceComponent.Rotation
+                Rotation = (float)(sourceComponent.Rotation)
             };
         }
 
@@ -51,9 +51,9 @@ namespace helengine.editor {
                 SourceRect = sourceComponent.SourceRect,
                 Size = sourceComponent.Size,
                 Color = sourceComponent.Color,
-                Rotation = sourceComponent.Rotation,
-                Radius = sourceComponent.Radius,
-                BorderThickness = sourceComponent.BorderThickness,
+                Rotation = (float)(sourceComponent.Rotation),
+                Radius = (float)(sourceComponent.Radius),
+                BorderThickness = (float)(sourceComponent.BorderThickness),
                 FillColor = sourceComponent.FillColor,
                 BorderColor = sourceComponent.BorderColor,
                 Corners = sourceComponent.Corners

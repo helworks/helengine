@@ -62,9 +62,9 @@ namespace helengine {
                 return;
             }
             bool viewport = helengine.editor.EditorViewportDirect2DPresentationService.TryResolveViewportOwner(SourceEntity, out _, out _);
-            float topV = viewport ? sourceRect.Y : sourceRect.Y + sourceRect.W;
-            float bottomV = viewport ? sourceRect.Y + sourceRect.W : sourceRect.Y;
-            float leftU = sourceRect.X, rightU = sourceRect.X + sourceRect.Z;
+            float topV = viewport ? (float)(sourceRect.Y) : (float)(sourceRect.Y + sourceRect.W);
+            float bottomV = viewport ? (float)(sourceRect.Y + sourceRect.W) : (float)(sourceRect.Y);
+            float leftU = (float)(sourceRect.X), rightU = (float)(sourceRect.X + sourceRect.Z);
             float3 normal = float3.Cross(topRight - topLeft, bottomLeft - topLeft);
             if (normal.LengthSquared() > 0f) { normal = float3.Normalize(normal); }
             ModelAsset asset = new ModelAsset {

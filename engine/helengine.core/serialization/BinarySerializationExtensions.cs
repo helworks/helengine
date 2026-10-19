@@ -73,8 +73,8 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(writer));
             }
 
-            writer.WriteSingle(value.X);
-            writer.WriteSingle(value.Y);
+            writer.WriteSingle((float)(value.X));
+            writer.WriteSingle((float)(value.Y));
         }
 
         /// <summary>
@@ -100,9 +100,9 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(writer));
             }
 
-            writer.WriteSingle(value.X);
-            writer.WriteSingle(value.Y);
-            writer.WriteSingle(value.Z);
+            writer.WriteSingle((float)(value.X));
+            writer.WriteSingle((float)(value.Y));
+            writer.WriteSingle((float)(value.Z));
         }
 
         /// <summary>
@@ -128,10 +128,10 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(writer));
             }
 
-            writer.WriteSingle(value.X);
-            writer.WriteSingle(value.Y);
-            writer.WriteSingle(value.Z);
-            writer.WriteSingle(value.W);
+            writer.WriteSingle((float)(value.X));
+            writer.WriteSingle((float)(value.Y));
+            writer.WriteSingle((float)(value.Z));
+            writer.WriteSingle((float)(value.W));
         }
 
         /// <summary>

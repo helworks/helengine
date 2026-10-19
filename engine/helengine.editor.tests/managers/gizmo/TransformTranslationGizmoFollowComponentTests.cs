@@ -70,9 +70,9 @@ namespace helengine.editor.tests.managers.gizmo {
 
             float expectedSnapScale = (float)InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1);
             Assert.True(previewEntity.Enabled);
-            Assert.InRange(Math.Abs(previewEntity.Scale.X - expectedSnapScale), 0f, FloatTolerance);
-            Assert.InRange(Math.Abs(previewEntity.Scale.Y - expectedSnapScale), 0f, FloatTolerance);
-            Assert.InRange(Math.Abs(previewEntity.Scale.Z - expectedSnapScale), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(previewEntity.Scale.X - expectedSnapScale)), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(previewEntity.Scale.Y - expectedSnapScale)), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(previewEntity.Scale.Z - expectedSnapScale)), 0f, FloatTolerance);
         }
 
         /// <summary>
@@ -316,7 +316,7 @@ namespace helengine.editor.tests.managers.gizmo {
             UpdateFollowComponent(gizmoRoot);
 
             EditorEntity planeHandle = (EditorEntity)gizmoRoot.Children[1];
-            float initialRootScale = gizmoRoot.Scale.X;
+            double initialRootScale = (double)(gizmoRoot.Scale.X);
             float3 initialPlaneLocalPosition = planeHandle.LocalPosition;
 
             sceneCamera.Parent.Position = new float3(0f, 2f, -20f);
@@ -344,11 +344,11 @@ namespace helengine.editor.tests.managers.gizmo {
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             UpdateFollowComponent(gizmoRoot);
-            float nearScale = gizmoRoot.Scale.X;
+            double nearScale = (double)(gizmoRoot.Scale.X);
             sceneCamera.Parent.Position = new float3(0f, 0f, 100f);
             UpdateFollowComponent(gizmoRoot);
 
-            Assert.InRange(Math.Abs(gizmoRoot.Scale.X - nearScale), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(gizmoRoot.Scale.X - nearScale)), 0f, FloatTolerance);
         }
 
         /// <summary>
@@ -373,7 +373,7 @@ namespace helengine.editor.tests.managers.gizmo {
 
             EditorEntity xHandle = (EditorEntity)gizmoRoot.Children[0];
             EditorEntity tipEntity = FindChildEntity((Entity)xHandle, "Transform Gizmo X Tip");
-            float scale = gizmoRoot.Scale.X;
+            double scale = (double)(gizmoRoot.Scale.X);
             float3 expectedTipOffset = float4.RotateVector(
                 new float3(0f, TransformTranslationGizmoFactory.ShaftLength * scale, 0f),
                 xHandle.Orientation);
@@ -670,9 +670,9 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="expected">Expected vector value.</param>
         /// <param name="actual">Actual vector value.</param>
         void AssertVectorEquals(float3 expected, float3 actual) {
-            Assert.InRange(Math.Abs(expected.X - actual.X), 0f, FloatTolerance);
-            Assert.InRange(Math.Abs(expected.Y - actual.Y), 0f, FloatTolerance);
-            Assert.InRange(Math.Abs(expected.Z - actual.Z), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(expected.X - actual.X)), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(expected.Y - actual.Y)), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(expected.Z - actual.Z)), 0f, FloatTolerance);
         }
 
         /// <summary>
@@ -681,10 +681,10 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="expected">Expected quaternion value.</param>
         /// <param name="actual">Actual quaternion value.</param>
         void AssertQuaternionEquals(float4 expected, float4 actual) {
-            Assert.InRange(Math.Abs(expected.X - actual.X), 0f, FloatTolerance);
-            Assert.InRange(Math.Abs(expected.Y - actual.Y), 0f, FloatTolerance);
-            Assert.InRange(Math.Abs(expected.Z - actual.Z), 0f, FloatTolerance);
-            Assert.InRange(Math.Abs(expected.W - actual.W), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(expected.X - actual.X)), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(expected.Y - actual.Y)), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(expected.Z - actual.Z)), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(expected.W - actual.W)), 0f, FloatTolerance);
         }
 
         /// <summary>
@@ -694,10 +694,10 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="right">Second quaternion.</param>
         /// <returns>True when all components are within tolerance; otherwise false.</returns>
         bool AreQuaternionsEqual(float4 left, float4 right) {
-            return Math.Abs(left.X - right.X) <= FloatTolerance &&
-                   Math.Abs(left.Y - right.Y) <= FloatTolerance &&
-                   Math.Abs(left.Z - right.Z) <= FloatTolerance &&
-                   Math.Abs(left.W - right.W) <= FloatTolerance;
+            return Math.Abs((double)(left.X - right.X)) <= FloatTolerance &&
+                   Math.Abs((double)(left.Y - right.Y)) <= FloatTolerance &&
+                   Math.Abs((double)(left.Z - right.Z)) <= FloatTolerance &&
+                   Math.Abs((double)(left.W - right.W)) <= FloatTolerance;
         }
 
         /// <summary>

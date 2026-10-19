@@ -115,8 +115,8 @@ namespace helengine.editor.tests {
                 new int2(320, 240));
 
             int2 rowPointer = new int2(
-                (int)Math.Round(host.Position.X) + 24 + 16,
-                (int)Math.Round(host.Position.Y) + 31 + ContextMenu.PaddingY + (ContextMenu.RowHeight / 2));
+                (int)Math.Round((double)(host.Position.X)) + 24 + 16,
+                (int)Math.Round((double)(host.Position.Y)) + 31 + ContextMenu.PaddingY + (ContextMenu.RowHeight / 2));
 
             AdvanceCoreInput(new MouseState(0, 0, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
             AdvanceCoreInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
@@ -176,7 +176,7 @@ namespace helengine.editor.tests {
             ContextMenuRow firstRow = rows[0];
             ContextMenuRow secondRow = rows[1];
 
-            Assert.Equal(firstRow.Entity.Position.Y + ContextMenu.RowHeight, secondRow.Entity.Position.Y);
+            Assert.EqualEvaluation(firstRow.Entity.Position.Y + ContextMenu.RowHeight, secondRow.Entity.Position.Y);
         }
 
         /// <summary>

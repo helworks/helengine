@@ -35,9 +35,9 @@ namespace helengine {
                         continue;
                     }
 
-                    float xPenetration = PrimitiveContactMath3D.CalculateAxisPenetration(position.X, controllerHalfExtents.X, bodyState.Position.X, bodyState.HalfExtents.X);
-                    float yPenetration = PrimitiveContactMath3D.CalculateAxisPenetration(position.Y, controllerHalfExtents.Y, bodyState.Position.Y, bodyState.HalfExtents.Y);
-                    float zPenetration = PrimitiveContactMath3D.CalculateAxisPenetration(position.Z, controllerHalfExtents.Z, bodyState.Position.Z, bodyState.HalfExtents.Z);
+                    float xPenetration = PrimitiveContactMath3D.CalculateAxisPenetration((float)(position.X), (float)(controllerHalfExtents.X), (float)(bodyState.Position.X), (float)(bodyState.HalfExtents.X));
+                    float yPenetration = PrimitiveContactMath3D.CalculateAxisPenetration((float)(position.Y), (float)(controllerHalfExtents.Y), (float)(bodyState.Position.Y), (float)(bodyState.HalfExtents.Y));
+                    float zPenetration = PrimitiveContactMath3D.CalculateAxisPenetration((float)(position.Z), (float)(controllerHalfExtents.Z), (float)(bodyState.Position.Z), (float)(bodyState.HalfExtents.Z));
                     if (xPenetration <= 0.0001f || yPenetration <= 0.0001f || zPenetration <= 0.0001f) {
                         continue;
                     }

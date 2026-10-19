@@ -85,9 +85,9 @@ namespace helengine.editor.tests.rendering {
             float3 expectedDirection = float4.RotateVector(LightDirectionUtility.AuthoredForwardAxis, lightOrientation);
             float3 actualDirection = LightDirectionUtility.GetLightDirection(lightComponent);
 
-            Assert.True(Math.Abs(expectedDirection.X - actualDirection.X) < 0.0001f, $"Expected X {expectedDirection.X} but found {actualDirection.X}.");
-            Assert.True(Math.Abs(expectedDirection.Y - actualDirection.Y) < 0.0001f, $"Expected Y {expectedDirection.Y} but found {actualDirection.Y}.");
-            Assert.True(Math.Abs(expectedDirection.Z - actualDirection.Z) < 0.0001f, $"Expected Z {expectedDirection.Z} but found {actualDirection.Z}.");
+            Assert.True(Math.Abs((double)(expectedDirection.X - actualDirection.X)) < 0.0001f, $"Expected X {expectedDirection.X} but found {actualDirection.X}.");
+            Assert.True(Math.Abs((double)(expectedDirection.Y - actualDirection.Y)) < 0.0001f, $"Expected Y {expectedDirection.Y} but found {actualDirection.Y}.");
+            Assert.True(Math.Abs((double)(expectedDirection.Z - actualDirection.Z)) < 0.0001f, $"Expected Z {expectedDirection.Z} but found {actualDirection.Z}.");
         }
 
         /// <summary>

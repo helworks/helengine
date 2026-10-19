@@ -31,14 +31,14 @@ namespace helengine.core.tests {
             }
             float4x4 after = child.WorldTransformMatrix;
             if (setter < 2) {
-                Assert.Equal(13f, after.M41, 4);
-                Assert.Equal(24f, after.M42, 4);
+                Assert.Equal((double)(13f),(double)(after.M41), 4);
+                Assert.Equal((double)(24f),(double)(after.M42), 4);
             } else if (setter < 4) {
-                Assert.Equal(6f, after.M41, 4);
-                Assert.Equal(12f, after.M42, 4);
+                Assert.Equal((double)(6f),(double)(after.M41), 4);
+                Assert.Equal((double)(12f),(double)(after.M42), 4);
             } else {
-                Assert.Equal(-4f, after.M41, 4);
-                Assert.Equal(3f, after.M42, 4);
+                Assert.Equal((double)(-4f),(double)(after.M41), 4);
+                Assert.Equal((double)(3f),(double)(after.M42), 4);
             }
             Assert.NotEqual(before.M41, after.M41);
         }

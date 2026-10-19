@@ -238,7 +238,7 @@ namespace helengine.editor {
                 Font = DialogFont,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.StateWarning,
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
+                Size = new int2(1, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(DialogFont.LineHeight, 1f)))),
             };
             StatusHost.AddComponent(StatusText);
 

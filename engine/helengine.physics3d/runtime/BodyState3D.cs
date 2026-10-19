@@ -275,9 +275,9 @@ namespace helengine {
             }
 
             return Position + new float3(
-                ResolveSignedExtent(direction.X, HalfExtents.X),
-                ResolveSignedExtent(direction.Y, HalfExtents.Y),
-                ResolveSignedExtent(direction.Z, HalfExtents.Z));
+                ResolveSignedExtent((float)(direction.X), (float)(HalfExtents.X)),
+                ResolveSignedExtent((float)(direction.Y), (float)(HalfExtents.Y)),
+                ResolveSignedExtent((float)(direction.Z), (float)(HalfExtents.Z)));
         }
 
         /// <summary>
@@ -316,9 +316,9 @@ namespace helengine {
         /// <returns>Axis-aligned half extents used by the solver.</returns>
         static float3 CreateBoxHalfExtents(float3 size, float3 scale) {
             return new float3(
-                Math.Abs(size.X * scale.X) * 0.5f,
-                Math.Abs(size.Y * scale.Y) * 0.5f,
-                Math.Abs(size.Z * scale.Z) * 0.5f);
+                RealMath.Abs(size.X * scale.X) * 0.5f,
+                RealMath.Abs(size.Y * scale.Y) * 0.5f,
+                RealMath.Abs(size.Z * scale.Z) * 0.5f);
         }
 
         /// <summary>
@@ -332,9 +332,9 @@ namespace helengine {
             float3 axisY = float4.RotateVector(new float3(0f, 1f, 0f), orientation);
             float3 axisZ = float4.RotateVector(new float3(0f, 0f, 1f), orientation);
             return new float3(
-                (Math.Abs(axisX.X) * halfExtents.X) + (Math.Abs(axisY.X) * halfExtents.Y) + (Math.Abs(axisZ.X) * halfExtents.Z),
-                (Math.Abs(axisX.Y) * halfExtents.X) + (Math.Abs(axisY.Y) * halfExtents.Y) + (Math.Abs(axisZ.Y) * halfExtents.Z),
-                (Math.Abs(axisX.Z) * halfExtents.X) + (Math.Abs(axisY.Z) * halfExtents.Y) + (Math.Abs(axisZ.Z) * halfExtents.Z));
+                (RealMath.Abs(axisX.X) * halfExtents.X) + (RealMath.Abs(axisY.X) * halfExtents.Y) + (RealMath.Abs(axisZ.X) * halfExtents.Z),
+                (RealMath.Abs(axisX.Y) * halfExtents.X) + (RealMath.Abs(axisY.Y) * halfExtents.Y) + (RealMath.Abs(axisZ.Y) * halfExtents.Z),
+                (RealMath.Abs(axisX.Z) * halfExtents.X) + (RealMath.Abs(axisY.Z) * halfExtents.Y) + (RealMath.Abs(axisZ.Z) * halfExtents.Z));
         }
 
         /// <summary>
@@ -347,9 +347,9 @@ namespace helengine {
             float3 axisY = float4.RotateVector(new float3(0f, 1f, 0f), Orientation);
             float3 axisZ = float4.RotateVector(new float3(0f, 0f, 1f), Orientation);
             return Position +
-                (axisX * ResolveSignedExtent(float3.Dot(axisX, direction), HalfExtents.X)) +
-                (axisY * ResolveSignedExtent(float3.Dot(axisY, direction), HalfExtents.Y)) +
-                (axisZ * ResolveSignedExtent(float3.Dot(axisZ, direction), HalfExtents.Z));
+                (axisX * ResolveSignedExtent((float)(float3.Dot(axisX, direction)), (float)(HalfExtents.X))) +
+                (axisY * ResolveSignedExtent((float)(float3.Dot(axisY, direction)), (float)(HalfExtents.Y))) +
+                (axisZ * ResolveSignedExtent((float)(float3.Dot(axisZ, direction)), (float)(HalfExtents.Z)));
         }
 
         /// <summary>
@@ -358,7 +358,7 @@ namespace helengine {
         /// <param name="direction">World-space direction used to choose the support point.</param>
         /// <returns>World-space support point on the sphere surface.</returns>
         float3 GetSphereSupportPoint(float3 direction) {
-            double lengthSquared = float3.Dot(direction, direction);
+            double lengthSquared = (double)(float3.Dot(direction, direction));
             if (lengthSquared <= 0.0000001d) {
                 return Position;
             }
@@ -396,9 +396,9 @@ namespace helengine {
                 return float3.Zero;
             }
 
-            double width = Math.Abs(halfExtents.X) * 2d;
-            double height = Math.Abs(halfExtents.Y) * 2d;
-            double depth = Math.Abs(halfExtents.Z) * 2d;
+            double width = (double)(RealMath.Abs(halfExtents.X) * 2d);
+            double height = (double)(RealMath.Abs(halfExtents.Y) * 2d);
+            double depth = (double)(RealMath.Abs(halfExtents.Z) * 2d);
             double inertiaX = mass * ((height * height) + (depth * depth)) / 12d;
             double inertiaY = mass * ((width * width) + (depth * depth)) / 12d;
             double inertiaZ = mass * ((width * width) + (height * height)) / 12d;
@@ -445,7 +445,7 @@ namespace helengine {
         /// <param name="scale">Current entity scale.</param>
         /// <returns>Scaled sphere radius used by the solver.</returns>
         static float CreateScaledSphereRadius(float radius, float3 scale) {
-            float maximumScale = Math.Max(Math.Abs(scale.X), Math.Max(Math.Abs(scale.Y), Math.Abs(scale.Z)));
+            float maximumScale = (float)RealMath.Max(RealMath.Abs(scale.X), RealMath.Max(RealMath.Abs(scale.Y), RealMath.Abs(scale.Z)));
             return radius * maximumScale;
         }
 
@@ -457,7 +457,7 @@ namespace helengine {
         /// <param name="scale">Current entity scale.</param>
         /// <returns>Scaled half segment length used by the solver.</returns>
         static float CreateCapsuleSegmentHalfLength(float height, float radius, float3 scale) {
-            float verticalScale = Math.Abs(scale.Y);
+            float verticalScale = (float)(RealMath.Abs(scale.Y));
             float scaledHeight = height * verticalScale;
             float scaledRadius = CreateScaledSphereRadius(radius, scale);
             float cylinderHeight = Math.Max(0f, scaledHeight - (scaledRadius * 2f));

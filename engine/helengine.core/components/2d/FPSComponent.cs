@@ -16,7 +16,7 @@ namespace helengine {
         /// <summary>
         /// Uniform font scale applied to both overlay lines.
         /// </summary>
-        float FontScaleValue = 1f;
+        Real FontScaleValue = 1f;
 
         /// <summary>
         /// Selects native-pixel glyph rendering for every overlay row; any mode other than disabled pins the effective scale to one.
@@ -131,7 +131,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the uniform font scale applied to both overlay lines.
         /// </summary>
-        public float FontScale {
+        public Real FontScale {
             get { return FontScaleValue; }
             set {
                 if (NativeFontPixelsValue != TextNativePixelMode.Disabled && value != 1f) {
@@ -228,7 +228,7 @@ namespace helengine {
         /// <summary>
         /// Physical depth used to keep the diagnostics overlay above ordinary screen-space content.
         /// </summary>
-        const float OverlayDepth = 250f;
+        static readonly Real OverlayDepth = 250f;
 
         /// <summary>
         /// Creates a new FPS overlay with no implicit font fallback.
@@ -631,7 +631,7 @@ namespace helengine {
 
             core.SetResolvedPerformanceOverlayPresentation(
                 Font,
-                ResolveEffectiveFontScale(),
+                ResolveEffectiveFontScale().ToSingle(),
                 Padding,
                 UpdateFpsText,
                 RenderFpsText,
@@ -798,7 +798,7 @@ namespace helengine {
         /// Native-pixel overlays always draw at one because their font is cooked at the displayed size.
         /// </summary>
         /// <returns>Effective scale used by the generated FPS text drawables.</returns>
-        float ResolveEffectiveFontScale() {
+        Real ResolveEffectiveFontScale() {
             if (NativeFontPixelsValue != TextNativePixelMode.Disabled) {
                 return 1f;
             }
@@ -816,7 +816,7 @@ namespace helengine {
                 return;
             }
 
-            float rowHeight = Font.LineHeight * ResolveEffectiveFontScale();
+            Real rowHeight = Font.LineHeight * ResolveEffectiveFontScale();
             if (RenderRowHost != null) {
                 RenderRowHost.LocalPosition = new float3(0f, rowHeight, 0.1f);
             }

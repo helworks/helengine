@@ -19,11 +19,11 @@ namespace helengine {
                 size = new int2(texture.Width, texture.Height);
             }
             float2 pivot = sprite.Pivot;
-            double left = -(double)pivot.X * size.X;
-            double top = -(double)pivot.Y * size.Y;
-            double angle = sprite.RotationRadians;
-            double cosine = angle == 0d ? 1d : Math.Cos(angle);
-            double sine = angle == 0d ? 0d : Math.Sin(angle);
+            RealEvaluation left = -(RealEvaluation)pivot.X * size.X;
+            RealEvaluation top = -(RealEvaluation)pivot.Y * size.Y;
+            RealEvaluation angle = sprite.RotationRadians;
+            RealEvaluation cosine = angle == 0d ? 1d : RealMath.Cos(angle);
+            RealEvaluation sine = angle == 0d ? 0d : RealMath.Sin(angle);
             return new SpriteQuad2D {
                 TopLeft = RotateSpritePoint(left, top, cosine, sine),
                 TopRight = RotateSpritePoint(left + size.X, top, cosine, sine),
@@ -76,8 +76,8 @@ namespace helengine {
         /// <param name="cosine">Shared cosine for this sprite.</param>
         /// <param name="sine">Shared sine for this sprite.</param>
         /// <returns>Rotated local point.</returns>
-        static float2 RotateSpritePoint(double x, double y, double cosine, double sine) {
-            return new float2((float)(x * cosine - y * sine), (float)(x * sine + y * cosine));
+        static float2 RotateSpritePoint(RealEvaluation x, RealEvaluation y, RealEvaluation cosine, RealEvaluation sine) {
+            return new float2((RealEvaluation)(x * cosine - y * sine), (RealEvaluation)(x * sine + y * cosine));
         }
 
         /// <summary>Applies an affine row-vector entity matrix to a sprite-local point in its Z-zero plane.</summary>
@@ -103,11 +103,11 @@ namespace helengine {
         /// <param name="bottomRight">Receives the transformed lower-right corner.</param>
         /// <param name="bottomLeft">Receives the transformed lower-left corner.</param>
         public static void CreateTransformedQuad(float3 origin, float3 right, float3 down,
-            double width, double height, double depth, float4 sourceRect, float4 color,
+            RealEvaluation width, RealEvaluation height, RealEvaluation depth, float4 sourceRect, float4 color,
             out Batch2DVertex topLeft, out Batch2DVertex topRight,
             out Batch2DVertex bottomRight, out Batch2DVertex bottomLeft) {
-            float rightU = sourceRect.X + sourceRect.Z;
-            float bottomV = sourceRect.Y + sourceRect.W;
+            RealEvaluation rightU = sourceRect.X + sourceRect.Z;
+            RealEvaluation bottomV = sourceRect.Y + sourceRect.W;
             topLeft = CreateTransformedTexturedVertex(origin, right, down, 0d, 0d, depth,
                 sourceRect.X, sourceRect.Y, color);
             topRight = CreateTransformedTexturedVertex(origin, right, down, width, 0d, depth,
@@ -133,17 +133,17 @@ namespace helengine {
         /// <param name="topRight">Receives the second quad vertex.</param>
         /// <param name="bottomRight">Receives the third quad vertex.</param>
         /// <param name="bottomLeft">Receives the fourth quad vertex.</param>
-        public static void CreateQuad(double x, double y, double width, double height, double depth, double rotation,
+        public static void CreateQuad(RealEvaluation x, RealEvaluation y, RealEvaluation width, RealEvaluation height, RealEvaluation depth, RealEvaluation rotation,
             float4 sourceRect, float4 color, out Batch2DVertex topLeft, out Batch2DVertex topRight,
             out Batch2DVertex bottomRight, out Batch2DVertex bottomLeft) {
-            double halfWidth = width * 0.5d;
-            double halfHeight = height * 0.5d;
-            double centerX = x + halfWidth;
-            double centerY = y + halfHeight;
-            double cosine = Math.Cos(rotation);
-            double sine = Math.Sin(rotation);
-            float rightU = sourceRect.X + sourceRect.Z;
-            float bottomV = sourceRect.Y + sourceRect.W;
+            RealEvaluation halfWidth = width * 0.5d;
+            RealEvaluation halfHeight = height * 0.5d;
+            RealEvaluation centerX = x + halfWidth;
+            RealEvaluation centerY = y + halfHeight;
+            RealEvaluation cosine = RealMath.Cos(rotation);
+            RealEvaluation sine = RealMath.Sin(rotation);
+            RealEvaluation rightU = sourceRect.X + sourceRect.Z;
+            RealEvaluation bottomV = sourceRect.Y + sourceRect.W;
 
             topLeft = CreateTexturedVertex(centerX, centerY, -halfWidth, -halfHeight, depth, cosine, sine,
                 sourceRect.X, sourceRect.Y, color);
@@ -173,8 +173,8 @@ namespace helengine {
         /// <param name="topRight">Receives the second quad vertex.</param>
         /// <param name="bottomRight">Receives the third quad vertex.</param>
         /// <param name="bottomLeft">Receives the fourth quad vertex.</param>
-        public static void CreateRoundedQuad(double x, double y, double width, double height, double depth,
-            double rotation, double radius, double borderWidth, float4 corners, float4 fillColor,
+        public static void CreateRoundedQuad(RealEvaluation x, RealEvaluation y, RealEvaluation width, RealEvaluation height, RealEvaluation depth,
+            RealEvaluation rotation, RealEvaluation radius, RealEvaluation borderWidth, float4 corners, float4 fillColor,
             float4 borderColor, out Batch2DVertex topLeft, out Batch2DVertex topRight,
             out Batch2DVertex bottomRight, out Batch2DVertex bottomLeft) {
             if (!IsFinite(radius)) {
@@ -184,15 +184,15 @@ namespace helengine {
                 throw new ArgumentException("Rounded-shape border width must be finite.", nameof(borderWidth));
             }
 
-            double halfWidth = width * 0.5d;
-            double halfHeight = height * 0.5d;
-            double centerX = x + halfWidth;
-            double centerY = y + halfHeight;
-            double cosine = Math.Cos(rotation);
-            double sine = Math.Sin(rotation);
-            float4 shape = new float4((float)halfWidth, (float)halfHeight,
-                (float)Math.Min(Math.Max(radius, 0d), Math.Min(halfWidth, halfHeight)),
-                (float)Math.Min(Math.Max(borderWidth, 0d), Math.Min(halfWidth, halfHeight)));
+            RealEvaluation halfWidth = width * 0.5d;
+            RealEvaluation halfHeight = height * 0.5d;
+            RealEvaluation centerX = x + halfWidth;
+            RealEvaluation centerY = y + halfHeight;
+            RealEvaluation cosine = RealMath.Cos(rotation);
+            RealEvaluation sine = RealMath.Sin(rotation);
+            float4 shape = new float4((RealEvaluation)halfWidth, (RealEvaluation)halfHeight,
+                (RealEvaluation)RealMath.Min(RealMath.Max(radius, 0d), RealMath.Min(halfWidth, halfHeight)),
+                (RealEvaluation)RealMath.Min(RealMath.Max(borderWidth, 0d), RealMath.Min(halfWidth, halfHeight)));
 
             topLeft = CreateShapeVertex(centerX, centerY, -halfWidth, -halfHeight, depth, cosine, sine,
                 shape, corners, fillColor, borderColor);
@@ -210,12 +210,12 @@ namespace helengine {
         /// <param name="color">Color to normalize.</param>
         /// <returns>Normalized red, green, blue, and alpha channels.</returns>
         public static float4 NormalizeColor(byte4 color) {
-            const double channelScale = 1d / 255d;
+            RealEvaluation channelScale = 1d / 255d;
             return new float4(
-                (float)(color.X * channelScale),
-                (float)(color.Y * channelScale),
-                (float)(color.Z * channelScale),
-                (float)(color.W * channelScale));
+                (RealEvaluation)(color.X * channelScale),
+                (RealEvaluation)(color.Y * channelScale),
+                (RealEvaluation)(color.Z * channelScale),
+                (RealEvaluation)(color.W * channelScale));
         }
 
         /// <summary>
@@ -223,8 +223,8 @@ namespace helengine {
         /// </summary>
         /// <param name="value">Radius or border width to validate before clamping.</param>
         /// <returns>True when the supplied parameter is finite.</returns>
-        static bool IsFinite(double value) {
-            return !double.IsNaN(value) && !double.IsInfinity(value);
+        static bool IsFinite(RealEvaluation value) {
+            return !RealEvaluation.IsNaN(value) && !RealEvaluation.IsInfinity(value);
         }
 
         /// <summary>
@@ -238,12 +238,12 @@ namespace helengine {
         /// <param name="cosine">Cosine of the rotation angle.</param>
         /// <param name="sine">Sine of the rotation angle.</param>
         /// <returns>Homogeneous screen-space position.</returns>
-        static float4 RotatePosition(double centerX, double centerY, double localX, double localYDown,
-            double depth, double cosine, double sine) {
+        static float4 RotatePosition(RealEvaluation centerX, RealEvaluation centerY, RealEvaluation localX, RealEvaluation localYDown,
+            RealEvaluation depth, RealEvaluation cosine, RealEvaluation sine) {
             return new float4(
-                (float)(centerX + localX * cosine + localYDown * sine),
-                (float)(centerY - localX * sine + localYDown * cosine),
-                (float)depth,
+                (RealEvaluation)(centerX + localX * cosine + localYDown * sine),
+                (RealEvaluation)(centerY - localX * sine + localYDown * cosine),
+                (RealEvaluation)depth,
                 1f);
         }
 
@@ -261,8 +261,8 @@ namespace helengine {
         /// <param name="v">Texture V coordinate.</param>
         /// <param name="color">Straight-alpha normalized tint.</param>
         /// <returns>Fully initialized textured vertex.</returns>
-        static Batch2DVertex CreateTexturedVertex(double centerX, double centerY, double localX,
-            double localYDown, double depth, double cosine, double sine, float u, float v, float4 color) {
+        static Batch2DVertex CreateTexturedVertex(RealEvaluation centerX, RealEvaluation centerY, RealEvaluation localX,
+            RealEvaluation localYDown, RealEvaluation depth, RealEvaluation cosine, RealEvaluation sine, RealEvaluation u, RealEvaluation v, float4 color) {
             return new Batch2DVertex {
                 Position = RotatePosition(centerX, centerY, localX, localYDown, depth, cosine, sine),
                 TexLocal = new float4(u, v, 0f, 0f),
@@ -285,9 +285,9 @@ namespace helengine {
         /// <param name="color">Straight-alpha normalized tint.</param>
         /// <returns>Fully initialized vertex at the transformed local corner.</returns>
         static Batch2DVertex CreateTransformedTexturedVertex(float3 origin, float3 right, float3 down,
-            double localX, double localY, double depth, float u, float v, float4 color) {
-            double x = origin.X + localX * right.X + localY * down.X;
-            double y = origin.Y + localX * right.Y + localY * down.Y;
+            RealEvaluation localX, RealEvaluation localY, RealEvaluation depth, RealEvaluation u, RealEvaluation v, float4 color) {
+            RealEvaluation x = origin.X + localX * right.X + localY * down.X;
+            RealEvaluation y = origin.Y + localX * right.Y + localY * down.Y;
             return CreateTexturedVertex(x, y, 0d, 0d, depth, 1d, 0d, u, v, color);
         }
 
@@ -306,12 +306,12 @@ namespace helengine {
         /// <param name="fillColor">Straight-alpha fill color.</param>
         /// <param name="borderColor">Straight-alpha border color.</param>
         /// <returns>Fully initialized rounded-shape vertex.</returns>
-        static Batch2DVertex CreateShapeVertex(double centerX, double centerY, double localX,
-            double localYDown, double depth, double cosine, double sine, float4 shape, float4 corners,
+        static Batch2DVertex CreateShapeVertex(RealEvaluation centerX, RealEvaluation centerY, RealEvaluation localX,
+            RealEvaluation localYDown, RealEvaluation depth, RealEvaluation cosine, RealEvaluation sine, float4 shape, float4 corners,
             float4 fillColor, float4 borderColor) {
             return new Batch2DVertex {
                 Position = RotatePosition(centerX, centerY, localX, localYDown, depth, cosine, sine),
-                TexLocal = new float4(0f, 0f, (float)localX, (float)localYDown),
+                TexLocal = new float4(0f, 0f, (RealEvaluation)localX, (RealEvaluation)localYDown),
                 Color = fillColor,
                 Shape = shape,
                 Corners = corners,

@@ -323,8 +323,8 @@ namespace helengine.editor {
             float2 leftVertex = CreateTriangleLeftVertex(size);
             float2 rightVertex = CreateTriangleRightVertex(size);
 
-            double x = (hueWeight * topVertex.X) + (whiteWeight * leftVertex.X) + (blackWeight * rightVertex.X);
-            double y = (hueWeight * topVertex.Y) + (whiteWeight * leftVertex.Y) + (blackWeight * rightVertex.Y);
+            double x = (double)((hueWeight * topVertex.X) + (whiteWeight * leftVertex.X) + (blackWeight * rightVertex.X));
+            double y = (double)((hueWeight * topVertex.Y) + (whiteWeight * leftVertex.Y) + (blackWeight * rightVertex.Y));
             return new int2((int)Math.Round(x, MidpointRounding.AwayFromZero), (int)Math.Round(y, MidpointRounding.AwayFromZero));
         }
 
@@ -531,7 +531,7 @@ namespace helengine.editor {
             out double topWeight,
             out double leftWeight,
             out double rightWeight) {
-            double denominator = ((leftVertex.Y - rightVertex.Y) * (topVertex.X - rightVertex.X)) + ((rightVertex.X - leftVertex.X) * (topVertex.Y - rightVertex.Y));
+            double denominator = (double)(((leftVertex.Y - rightVertex.Y) * (topVertex.X - rightVertex.X)) + ((rightVertex.X - leftVertex.X) * (topVertex.Y - rightVertex.Y)));
             if (Math.Abs(denominator) <= double.Epsilon) {
                 topWeight = 0.0;
                 leftWeight = 0.0;
@@ -539,8 +539,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            topWeight = (((leftVertex.Y - rightVertex.Y) * (point.X - rightVertex.X)) + ((rightVertex.X - leftVertex.X) * (point.Y - rightVertex.Y))) / denominator;
-            leftWeight = (((rightVertex.Y - topVertex.Y) * (point.X - rightVertex.X)) + ((topVertex.X - rightVertex.X) * (point.Y - rightVertex.Y))) / denominator;
+            topWeight = (double)((((leftVertex.Y - rightVertex.Y) * (point.X - rightVertex.X)) + ((rightVertex.X - leftVertex.X) * (point.Y - rightVertex.Y))) / denominator);
+            leftWeight = (double)((((rightVertex.Y - topVertex.Y) * (point.X - rightVertex.X)) + ((topVertex.X - rightVertex.X) * (point.Y - rightVertex.Y))) / denominator);
             rightWeight = 1.0 - topWeight - leftWeight;
 
             return topWeight >= 0.0 && leftWeight >= 0.0 && rightWeight >= 0.0;

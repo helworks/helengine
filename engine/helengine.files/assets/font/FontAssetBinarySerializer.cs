@@ -106,7 +106,7 @@ namespace helengine.files {
             writer.WriteString(asset.FontInfo.Name);
             writer.WriteInt32(asset.FontInfo.LineSpacing);
             writer.WriteSingle(asset.FontInfo.SpaceWidth);
-            writer.WriteSingle(asset.LineHeight);
+            writer.WriteSingle((float)(asset.LineHeight));
             writer.WriteInt32(asset.AtlasWidth);
             writer.WriteInt32(asset.AtlasHeight);
 

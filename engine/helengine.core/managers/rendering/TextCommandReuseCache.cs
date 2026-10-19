@@ -32,8 +32,8 @@ namespace helengine {
         /// <param name="budget">Maximum charged bytes including helper and array overhead.</param>
         public TextCommandReuseCache(int budget) {
             int available = budget - OverheadBytes;
-            int texts = Math.Min(MaximumTexts, available / (TextEntryBytes + MetricEntryBytes));
-            int metrics = Math.Min(MaximumMetrics, (available - texts * TextEntryBytes) / MetricEntryBytes);
+            int texts = RealMath.Min(MaximumTexts, available / (TextEntryBytes + MetricEntryBytes));
+            int metrics = RealMath.Min(MaximumMetrics, (available - texts * TextEntryBytes) / MetricEntryBytes);
             if (texts < 1 || metrics < 1) {
                 throw new ArgumentOutOfRangeException(nameof(budget));
             }
@@ -201,8 +201,8 @@ namespace helengine {
                     entry.TextureHeight = font.Texture.Height;
                     entry.LineHeight = font.LineHeight;
                     entry.SpaceWidth = font.FontInfo == null ? 0f : font.FontInfo.SpaceWidth;
-                    entry.OriginX = Math.Round(text.Parent.Position.X);
-                    entry.OriginY = Math.Round(text.Parent.Position.Y);
+                    entry.OriginX = RealMath.Round(text.Parent.Position.X);
+                    entry.OriginY = RealMath.Round(text.Parent.Position.Y);
                     Texts[TextCount++] = entry;
                     string content = text.Text ?? string.Empty;
                     for (int characterIndex = 0; characterIndex < content.Length; characterIndex++) {
@@ -269,8 +269,8 @@ namespace helengine {
             entry.Start = start;
             entry.Count = count;
             entry.Visible = true;
-            entry.OriginX = Math.Round(entry.Text.Parent.Position.X);
-            entry.OriginY = Math.Round(entry.Text.Parent.Position.Y);
+            entry.OriginX = RealMath.Round(entry.Text.Parent.Position.X);
+            entry.OriginY = RealMath.Round(entry.Text.Parent.Position.Y);
             Texts[index] = entry;
         }
 

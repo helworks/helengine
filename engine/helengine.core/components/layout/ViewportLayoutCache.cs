@@ -139,7 +139,7 @@ namespace helengine {
             FpsStates.Add(new ViewportFpsState(component));
         }
         /// <summary>Reapplies absolute scaling from retained originals without scene discovery.</summary>
-        public void Apply(ViewportLayoutMetrics metrics) {
+        public void Apply(in ViewportLayoutMetrics metrics) {
             for (int index = 0; index < AnchorStates.Count; index++) {
                 AnchorStates[index].Restore();
                 ViewportLayoutApplier.ApplyComponent(AnchorStates[index].Component, metrics);
@@ -192,7 +192,7 @@ namespace helengine {
             for (int index = 0; index < Positions.Count; index++) { Positions[index].Restore(); }
         }
         /// <summary>Restores editor originals while absorbing edits relative to the last applied typed values.</summary>
-        public void RestoreEdited(ViewportLayoutCache applied, ViewportLayoutMetrics metrics) {
+        public void RestoreEdited(ViewportLayoutCache applied, in ViewportLayoutMetrics metrics) {
             for (int index = 0; index < AnchorStates.Count; index++) {
                 ViewportAnchorState state = AnchorStates[index];
                 for (int other = 0; other < applied.AnchorStates.Count; other++) {

@@ -210,10 +210,10 @@ namespace helengine.vulkan {
             ClipScissorStack.Clear();
 
             float4 viewport = CameraViewportResolver.ResolveViewport(camera.Viewport, CurrentSurface.LogicalWidth, CurrentSurface.LogicalHeight);
-            double offsetX = viewport.X;
-            double offsetY = viewport.Y;
-            double width = viewport.Z;
-            double height = viewport.W;
+            double offsetX = (double)(viewport.X);
+            double offsetY = (double)(viewport.Y);
+            double width = (double)(viewport.Z);
+            double height = (double)(viewport.W);
             double logicalSurfaceWidth = CurrentSurface.LogicalWidth;
             double logicalSurfaceHeight = CurrentSurface.LogicalHeight;
 
@@ -413,14 +413,14 @@ namespace helengine.vulkan {
                 content = TextLayoutUtils.WrapText(content, font, Math.Max(1, (int)Math.Round(text.Size.X / fontScale)));
             }
 
-            double[] lineOffsets = TextLineOffsets2D.Build(text, font, content, fontScale, texture.Width);
+            RealEvaluation[] lineOffsets = TextLineOffsets2D.Build(text, font, content, fontScale, texture.Width);
             double offsetX = 0.0;
             double offsetY = 0.0;
-            double lineHeight = Math.Max(font.LineHeight * fontScale, 1.0f);
-            double baseX = Math.Round(position.X);
-            double baseY = Math.Round(position.Y);
+            double lineHeight = (double)(RealMath.Max(font.LineHeight * fontScale, 1.0f));
+            double baseX = (double)(RealMath.Round(position.X));
+            double baseY = (double)(RealMath.Round(position.Y));
             int lineIndex = 0;
-            double lineOriginX = baseX + TextLineOffsets2D.Resolve(lineOffsets, lineIndex);
+            double lineOriginX = (double)(baseX + TextLineOffsets2D.Resolve(lineOffsets, lineIndex));
 
             for (int i = 0; i < content.Length; i++) {
                 char c = content[i];
@@ -429,7 +429,7 @@ namespace helengine.vulkan {
                     offsetY += lineHeight;
                     offsetX = 0.0;
                     lineIndex++;
-                    lineOriginX = baseX + TextLineOffsets2D.Resolve(lineOffsets, lineIndex);
+                    lineOriginX = (double)(baseX + TextLineOffsets2D.Resolve(lineOffsets, lineIndex));
                     continue;
                 }
 
@@ -442,8 +442,8 @@ namespace helengine.vulkan {
                     continue;
                 }
 
-                double pixelW = info.SourceRect.Z * texture.Width * fontScale;
-                double pixelH = info.SourceRect.W * texture.Height * fontScale;
+                double pixelW = (double)(info.SourceRect.Z * texture.Width * fontScale);
+                double pixelH = (double)(info.SourceRect.W * texture.Height * fontScale);
                 double snappedLineOffsetY = Math.Round(offsetY);
 
                 double advance = info.AdvanceWidth > 0
@@ -456,8 +456,8 @@ namespace helengine.vulkan {
                     TextRenderEffectPass pass = effectPasses[passIndex];
                     DrawQuad(
                         texture,
-                        drawX + pass.Offset.X,
-                        drawY + pass.Offset.Y,
+                        (double)(drawX + pass.Offset.X),
+                        (double)(drawY + pass.Offset.Y),
                         pixelW,
                         pixelH,
                         info.SourceRect,
@@ -488,14 +488,14 @@ namespace helengine.vulkan {
             }
 
             float3 position = shape.Parent.Position;
-            double borderThickness = Math.Max(shape.BorderThickness, 0.0f);
+            double borderThickness = (double)(RealMath.Max(shape.BorderThickness, 0.0f));
 
             if (borderThickness > 0.0) {
-                DrawQuad(WhiteTexture, position.X, position.Y, size.X, size.Y, new float4(0, 0, 1, 1), shape.BorderColor, 0f);
+                DrawQuad(WhiteTexture, (double)(position.X), (double)(position.Y), size.X, size.Y, new float4(0, 0, 1, 1), shape.BorderColor, 0f);
             }
 
-            double innerX = position.X + borderThickness;
-            double innerY = position.Y + borderThickness;
+            double innerX = (double)(position.X + borderThickness);
+            double innerY = (double)(position.Y + borderThickness);
             double innerW = size.X - (borderThickness * 2.0);
             double innerH = size.Y - (borderThickness * 2.0);
 
@@ -1562,10 +1562,10 @@ namespace helengine.vulkan {
             if (RecordedQuadCount >= MaxQuadsPerFrame) {
                 throw new InvalidOperationException("Exceeded the Vulkan 2D per-frame quad capacity.");
             }
-            double topLeftX = quad.TopLeft.X, topLeftY = quad.TopLeft.Y;
-            double topRightX = quad.TopRight.X, topRightY = quad.TopRight.Y;
-            double bottomRightX = quad.BottomRight.X, bottomRightY = quad.BottomRight.Y;
-            double bottomLeftX = quad.BottomLeft.X, bottomLeftY = quad.BottomLeft.Y;
+            double topLeftX = (double)(quad.TopLeft.X), topLeftY = (double)(quad.TopLeft.Y);
+            double topRightX = (double)(quad.TopRight.X), topRightY = (double)(quad.TopRight.Y);
+            double bottomRightX = (double)(quad.BottomRight.X), bottomRightY = (double)(quad.BottomRight.Y);
+            double bottomLeftX = (double)(quad.BottomLeft.X), bottomLeftY = (double)(quad.BottomLeft.Y);
 
             float ndcTopLeftX = (float)ComputeNdcX(topLeftX);
             float ndcTopLeftY = (float)ComputeNdcY(topLeftY);
@@ -1576,10 +1576,10 @@ namespace helengine.vulkan {
             float ndcBottomLeftX = (float)ComputeNdcX(bottomLeftX);
             float ndcBottomLeftY = (float)ComputeNdcY(bottomLeftY);
 
-            float u0 = uvRect.X;
-            float v0 = uvRect.Y;
-            float u1 = uvRect.X + uvRect.Z;
-            float v1 = uvRect.Y + uvRect.W;
+            float u0 = (float)(uvRect.X);
+            float v0 = (float)(uvRect.Y);
+            float u1 = (float)(uvRect.X + uvRect.Z);
+            float v1 = (float)(uvRect.Y + uvRect.W);
 
             float4 colorVector = new float4(
                 (float)(color.X / 255.0),

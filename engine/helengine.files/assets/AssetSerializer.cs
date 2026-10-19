@@ -11,7 +11,11 @@ namespace helengine.files {
         /// <param name="stream">Destination stream for the encoded asset.</param>
         /// <param name="asset">Asset instance to serialize.</param>
         /// <exception cref="ArgumentNullException">Thrown when the stream or asset is null.</exception>
-        public static void Serialize(Stream stream, Asset asset) {
+        public static void Serialize(Stream stream, Asset asset) { Serialize(stream, asset, RealRepresentation.Policy); }
+
+        /// <summary>Serializes one asset using the build's explicit numeric policy for configurable fields.</summary>
+        public static void Serialize(Stream stream, Asset asset, NumericPrecisionPolicy numericPolicy) {
+            RealBinaryCodec.ValidatePolicy(numericPolicy);
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             } else if (asset == null) {
@@ -23,7 +27,7 @@ namespace helengine.files {
                 return;
             }
 
-            EditorAssetBinarySerializer.Serialize(stream, asset);
+            EditorAssetBinarySerializer.Serialize(stream, asset, numericPolicy);
         }
 
         /// <summary>

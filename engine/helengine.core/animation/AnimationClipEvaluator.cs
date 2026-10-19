@@ -9,7 +9,7 @@ namespace helengine {
         /// <param name="track">Track to evaluate.</param>
         /// <param name="time">Playback time in seconds.</param>
         /// <returns>Interpolated vector value for the requested time.</returns>
-        public static float3 EvaluatePositionTrack(PositionKeyframeTrackAsset track, float time) {
+        public static float3 EvaluatePositionTrack(PositionKeyframeTrackAsset track, RealEvaluation time) {
             if (track == null) {
                 throw new ArgumentNullException(nameof(track));
             } else if (track.Keyframes == null || track.Keyframes.Length == 0) {
@@ -43,7 +43,7 @@ namespace helengine {
         /// <param name="track">Track to evaluate.</param>
         /// <param name="time">Playback time in seconds.</param>
         /// <returns>Interpolated vector value for the requested time.</returns>
-        public static float3 EvaluatePositionTrack(PositionOffsetKeyframeTrackAsset track, float time) {
+        public static float3 EvaluatePositionTrack(PositionOffsetKeyframeTrackAsset track, RealEvaluation time) {
             if (track == null) {
                 throw new ArgumentNullException(nameof(track));
             }
@@ -57,7 +57,7 @@ namespace helengine {
         /// <param name="track">Track to evaluate.</param>
         /// <param name="time">Playback time in seconds.</param>
         /// <returns>Interpolated vector value for the requested time.</returns>
-        public static float3 EvaluatePositionTrack(ScaleKeyframeTrackAsset track, float time) {
+        public static float3 EvaluatePositionTrack(ScaleKeyframeTrackAsset track, RealEvaluation time) {
             if (track == null) {
                 throw new ArgumentNullException(nameof(track));
             }
@@ -71,7 +71,7 @@ namespace helengine {
         /// <param name="track">Track to evaluate.</param>
         /// <param name="time">Playback time in seconds.</param>
         /// <returns>Interpolated quaternion value for the requested time.</returns>
-        public static float4 EvaluateRotationTrack(RotationKeyframeTrackAsset track, float time) {
+        public static float4 EvaluateRotationTrack(RotationKeyframeTrackAsset track, RealEvaluation time) {
             if (track == null) {
                 throw new ArgumentNullException(nameof(track));
             } else if (track.Keyframes == null || track.Keyframes.Length == 0) {
@@ -106,7 +106,7 @@ namespace helengine {
         /// <param name="time">Playback time in seconds.</param>
         /// <param name="emptyTrackMessage">Message used when the collection is empty.</param>
         /// <returns>Interpolated vector value.</returns>
-        static float3 EvaluatePositionKeyframes(PositionKeyframeAsset[] keyframes, float time, string emptyTrackMessage) {
+        static float3 EvaluatePositionKeyframes(PositionKeyframeAsset[] keyframes, RealEvaluation time, string emptyTrackMessage) {
             if (keyframes == null || keyframes.Length == 0) {
                 throw new InvalidOperationException(emptyTrackMessage);
             }
@@ -139,14 +139,14 @@ namespace helengine {
         /// <param name="endKeyframe">Segment end keyframe.</param>
         /// <param name="time">Playback time in seconds.</param>
         /// <returns>Interpolated vector value.</returns>
-        static float3 InterpolatePositionKeyframes(PositionKeyframeAsset startKeyframe, PositionKeyframeAsset endKeyframe, float time) {
+        static float3 InterpolatePositionKeyframes(PositionKeyframeAsset startKeyframe, PositionKeyframeAsset endKeyframe, RealEvaluation time) {
             if (endKeyframe.Time <= startKeyframe.Time) {
                 return endKeyframe.Value;
             } else if (endKeyframe.InterpolationMode == AnimationInterpolationMode.Step) {
                 return startKeyframe.Value;
             }
 
-            float amount = (time - startKeyframe.Time) / (endKeyframe.Time - startKeyframe.Time);
+            RealEvaluation amount = (time - startKeyframe.Time) / (endKeyframe.Time - startKeyframe.Time);
             return float3.Lerp(startKeyframe.Value, endKeyframe.Value, amount);
         }
 
@@ -157,14 +157,14 @@ namespace helengine {
         /// <param name="endKeyframe">Segment end keyframe.</param>
         /// <param name="time">Playback time in seconds.</param>
         /// <returns>Interpolated quaternion value.</returns>
-        static float4 InterpolateRotationKeyframes(RotationKeyframeAsset startKeyframe, RotationKeyframeAsset endKeyframe, float time) {
+        static float4 InterpolateRotationKeyframes(RotationKeyframeAsset startKeyframe, RotationKeyframeAsset endKeyframe, RealEvaluation time) {
             if (endKeyframe.Time <= startKeyframe.Time) {
                 return endKeyframe.Value;
             } else if (endKeyframe.InterpolationMode == AnimationInterpolationMode.Step) {
                 return startKeyframe.Value;
             }
 
-            float amount = (time - startKeyframe.Time) / (endKeyframe.Time - startKeyframe.Time);
+            RealEvaluation amount = (time - startKeyframe.Time) / (endKeyframe.Time - startKeyframe.Time);
             return float4.Lerp(startKeyframe.Value, endKeyframe.Value, amount);
         }
     }

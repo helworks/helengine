@@ -257,10 +257,10 @@ namespace helengine.editor.tests {
 
             Assert.Empty(parentGuides);
             Assert.Single(childGuides);
-            Assert.Equal(new[] { 38f }, childGuides.Select(guide => guide.Host.Position.X));
-            Assert.Equal(new[] { 38f, 52f }, grandchildGuides.Select(guide => guide.Host.Position.X));
+            Assert.Equal(new Real[] { 38f }, childGuides.Select(guide => guide.Host.Position.X));
+            Assert.Equal(new Real[] { 38f, 52f }, grandchildGuides.Select(guide => guide.Host.Position.X));
             Assert.Single(siblingGuides);
-            Assert.Equal(new[] { 38f }, siblingGuides.Select(guide => guide.Host.Position.X));
+            Assert.Equal(new Real[] { 38f }, siblingGuides.Select(guide => guide.Host.Position.X));
             Assert.Empty(otherRootGuides);
             Assert.All(childGuides.Concat(grandchildGuides).Concat(siblingGuides), guide => {
                 Assert.Equal(1, guide.Sprite.Size.X);
@@ -347,8 +347,8 @@ namespace helengine.editor.tests {
             };
 
             int2 rowPointer = new int2(
-                (int)Math.Round(panel.Position.X) + 24,
-                (int)Math.Round(panel.Position.Y) + DockableEntity.TitleBarHeight + (SceneHierarchyPanel.RowHeight / 2));
+                (int)Math.Round((double)(panel.Position.X)) + 24,
+                (int)Math.Round((double)(panel.Position.Y)) + DockableEntity.TitleBarHeight + (SceneHierarchyPanel.RowHeight / 2));
             int2 menuPointer = new int2(
                 rowPointer.X + 16,
                 rowPointer.Y + ContextMenu.PaddingY + (ContextMenu.RowHeight / 2));

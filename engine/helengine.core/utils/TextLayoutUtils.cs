@@ -24,8 +24,8 @@ namespace helengine {
             StringBuilder wrappedText = new StringBuilder(text.Length + 16);
             int lineStartIndex = 0;
             int lastWrapIndex = -1;
-            double lineWidth = 0d;
-            double widthAtLastWrap = 0d;
+            RealEvaluation lineWidth = 0d;
+            RealEvaluation widthAtLastWrap = 0d;
             int wrappedLength = 0;
 
             for (int index = 0; index < text.Length; index++) {
@@ -45,7 +45,7 @@ namespace helengine {
                     continue;
                 }
 
-                double characterWidth = GetCharacterAdvanceWidth(font, character);
+                RealEvaluation characterWidth = GetCharacterAdvanceWidth(font, character);
                 if (lineWidth > 0d && lineWidth + characterWidth > maxWidth) {
                     if (lastWrapIndex >= lineStartIndex) {
                         int suffixStartIndex = lastWrapIndex + 1;
@@ -94,7 +94,7 @@ namespace helengine {
         /// <param name="font">Font metrics used to resolve the character width.</param>
         /// <param name="character">Character to measure.</param>
         /// <returns>Advance width in pixels.</returns>
-        static double GetCharacterAdvanceWidth(FontAsset font, char character) {
+        static RealEvaluation GetCharacterAdvanceWidth(FontAsset font, char character) {
             if (character == ' ') {
                 return font.FontInfo.SpaceWidth;
             }
@@ -104,7 +104,7 @@ namespace helengine {
                 return 0d;
             }
 
-            double pixelWidth = glyph.SourceRect.Z * font.AtlasWidth;
+            RealEvaluation pixelWidth = glyph.SourceRect.Z * font.AtlasWidth;
             if (glyph.AdvanceWidth > 0f) {
                 return glyph.AdvanceWidth;
             }

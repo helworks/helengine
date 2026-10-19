@@ -230,7 +230,7 @@ namespace helengine.editor {
             double resolvedAngle = ResolveActiveRotationAngle(input);
             float3 rotationAxis = DragRotationAxis;
             float4 deltaRotation;
-            float4.CreateFromAxisAngle(ref rotationAxis, (float)resolvedAngle, out deltaRotation);
+            float4.CreateFromAxisAngle(ref rotationAxis, resolvedAngle, out deltaRotation);
             // float4's `*` operator is component-wise, not quaternion multiplication; the world-axis delta
             // must concatenate onto the drag-start orientation.
             float4 dragStartOrientation = DragStartEntityOrientation;
@@ -379,15 +379,15 @@ namespace helengine.editor {
                 return false;
             }
 
-            double denominator = float3.Dot(planeNormal, rayDirection);
+            double denominator = (double)(float3.Dot(planeNormal, rayDirection));
             if (Math.Abs(denominator) <= MinimumPlaneIntersectionDenominator) {
                 planePoint = float3.Zero;
                 return false;
             }
 
             float3 planeDelta = planeOrigin - rayOrigin;
-            double distanceAlongRay = float3.Dot(planeDelta, planeNormal) / denominator;
-            planePoint = rayOrigin + (rayDirection * (float)distanceAlongRay);
+            double distanceAlongRay = (double)(float3.Dot(planeDelta, planeNormal) / denominator);
+            planePoint = rayOrigin + (rayDirection * distanceAlongRay);
             return true;
         }
 
@@ -399,9 +399,9 @@ namespace helengine.editor {
         /// <param name="axis">Normalized rotation axis.</param>
         /// <returns>Signed angle in radians.</returns>
         double ComputeSignedAngle(float3 from, float3 to, float3 axis) {
-            double dot = Math.Clamp(float3.Dot(from, to), -1.0, 1.0);
+            double dot = RealMath.Clamp(float3.Dot(from, to), -1.0, 1.0).ToDouble();
             float3 cross = float3.Cross(from, to);
-            double signedMagnitude = float3.Dot(cross, axis);
+            double signedMagnitude = (double)(float3.Dot(cross, axis));
             return Math.Atan2(signedMagnitude, dot);
         }
 
@@ -439,8 +439,8 @@ namespace helengine.editor {
                 normalizedOrientation.X,
                 normalizedOrientation.Y,
                 normalizedOrientation.Z);
-            double axisProjection = float3.Dot(vectorPart, normalizedAxis);
-            return 2.0 * Math.Atan2(axisProjection, normalizedOrientation.W);
+            double axisProjection = (double)(float3.Dot(vectorPart, normalizedAxis));
+            return 2.0 * Math.Atan2(axisProjection, (double)(normalizedOrientation.W));
         }
 
         /// <summary>
@@ -451,18 +451,18 @@ namespace helengine.editor {
         /// <returns>Normalized vector when valid; otherwise the fallback value.</returns>
         float3 NormalizeSafe(float3 value, float3 fallback) {
             double lengthSquared =
-                (value.X * value.X) +
+                (double)((value.X * value.X) +
                 (value.Y * value.Y) +
-                (value.Z * value.Z);
+                (value.Z * value.Z));
             if (lengthSquared <= MinimumVectorLengthSquared) {
                 return fallback;
             }
 
             double inverseLength = 1.0 / Math.Sqrt(lengthSquared);
             return new float3(
-                (float)(value.X * inverseLength),
-                (float)(value.Y * inverseLength),
-                (float)(value.Z * inverseLength));
+                value.X * inverseLength,
+                value.Y * inverseLength,
+                value.Z * inverseLength);
         }
 
         /// <summary>

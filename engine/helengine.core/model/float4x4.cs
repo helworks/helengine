@@ -6,73 +6,73 @@
 
 namespace helengine {
     /// <summary>
-    /// Represents a 4x4 matrix with single-precision elements and related math helpers.
+    /// Represents a 4x4 matrix of build-configurable Real elements and related math helpers.
     /// </summary>
     public struct float4x4 {
         /// <summary>
         /// Matrix element at first row, first column.
         /// </summary>
-        public float M11;
+        public Real M11;
         /// <summary>
         /// Matrix element at first row, second column.
         /// </summary>
-        public float M12;
+        public Real M12;
         /// <summary>
         /// Matrix element at first row, third column.
         /// </summary>
-        public float M13;
+        public Real M13;
         /// <summary>
         /// Matrix element at first row, fourth column.
         /// </summary>
-        public float M14;
+        public Real M14;
         /// <summary>
         /// Matrix element at second row, first column.
         /// </summary>
-        public float M21;
+        public Real M21;
         /// <summary>
         /// Matrix element at second row, second column.
         /// </summary>
-        public float M22;
+        public Real M22;
         /// <summary>
         /// Matrix element at second row, third column.
         /// </summary>
-        public float M23;
+        public Real M23;
         /// <summary>
         /// Matrix element at second row, fourth column.
         /// </summary>
-        public float M24;
+        public Real M24;
         /// <summary>
         /// Matrix element at third row, first column.
         /// </summary>
-        public float M31;
+        public Real M31;
         /// <summary>
         /// Matrix element at third row, second column.
         /// </summary>
-        public float M32;
+        public Real M32;
         /// <summary>
         /// Matrix element at third row, third column.
         /// </summary>
-        public float M33;
+        public Real M33;
         /// <summary>
         /// Matrix element at third row, fourth column.
         /// </summary>
-        public float M34;
+        public Real M34;
         /// <summary>
         /// Matrix element at fourth row, first column.
         /// </summary>
-        public float M41;
+        public Real M41;
         /// <summary>
         /// Matrix element at fourth row, second column.
         /// </summary>
-        public float M42;
+        public Real M42;
         /// <summary>
         /// Matrix element at fourth row, third column.
         /// </summary>
-        public float M43;
+        public Real M43;
         /// <summary>
         /// Matrix element at fourth row, fourth column.
         /// </summary>
-        public float M44;
+        public Real M44;
 
         /// <summary>
         /// Backing field for the identity matrix value.
@@ -101,8 +101,8 @@ namespace helengine {
         /// <param name="m42">A fourth row and second column value.</param>
         /// <param name="m43">A fourth row and third column value.</param>
         /// <param name="m44">A fourth row and fourth column value.</param>
-        public float4x4(float m11, float m12, float m13, float m14, float m21, float m22, float m23, float m24, float m31,
-                      float m32, float m33, float m34, float m41, float m42, float m43, float m44) {
+        public float4x4(Real m11, Real m12, Real m13, Real m14, Real m21, Real m22, Real m23, Real m24, Real m31,
+                      Real m32, Real m33, Real m34, Real m41, Real m42, Real m43, Real m44) {
             this.M11 = m11;
             this.M12 = m12;
             this.M13 = m13;
@@ -167,22 +167,22 @@ namespace helengine {
         /// <param name="zNearPlane">Depth of the near plane.</param>
         /// <param name="zFarPlane">Depth of the far plane.</param>
         /// <param name="result">The new projection <see cref="Matrix"/> for customized orthographic view as an output parameter.</param>
-        public static void CreateOrthographicOffCenter(float left, float right, float bottom, float top, float zNearPlane, float zFarPlane, out float4x4 result) {
-            result.M11 = (float)(2.0 / ((double)right - (double)left));
+        public static void CreateOrthographicOffCenter(RealEvaluation left, RealEvaluation right, RealEvaluation bottom, RealEvaluation top, RealEvaluation zNearPlane, RealEvaluation zFarPlane, out float4x4 result) {
+            result.M11 = (2.0 / ((RealEvaluation)right - (RealEvaluation)left));
             result.M12 = 0.0f;
             result.M13 = 0.0f;
             result.M14 = 0.0f;
             result.M21 = 0.0f;
-            result.M22 = (float)(2.0 / ((double)top - (double)bottom));
+            result.M22 = (2.0 / ((RealEvaluation)top - (RealEvaluation)bottom));
             result.M23 = 0.0f;
             result.M24 = 0.0f;
             result.M31 = 0.0f;
             result.M32 = 0.0f;
-            result.M33 = (float)(1.0 / ((double)zNearPlane - (double)zFarPlane));
+            result.M33 = (1.0 / ((RealEvaluation)zNearPlane - (RealEvaluation)zFarPlane));
             result.M34 = 0.0f;
-            result.M41 = (float)(((double)left + (double)right) / ((double)left - (double)right));
-            result.M42 = (float)(((double)top + (double)bottom) / ((double)bottom - (double)top));
-            result.M43 = (float)((double)zNearPlane / ((double)zNearPlane - (double)zFarPlane));
+            result.M41 = (((RealEvaluation)left + (RealEvaluation)right) / ((RealEvaluation)left - (RealEvaluation)right));
+            result.M42 = (((RealEvaluation)top + (RealEvaluation)bottom) / ((RealEvaluation)bottom - (RealEvaluation)top));
+            result.M43 = ((RealEvaluation)zNearPlane / ((RealEvaluation)zNearPlane - (RealEvaluation)zFarPlane));
             result.M44 = 1.0f;
         }
 
@@ -192,9 +192,9 @@ namespace helengine {
         /// <param name="fieldOfView">Field of view in the y direction in radians.</param>
         /// <param name="aspectRatio">Width divided by height of the viewing volume.</param>
         /// <param name="nearPlaneDistance">Distance of the near plane.</param>
-        /// <param name="farPlaneDistance">Distance of the far plane, or <see cref="float.PositiveInfinity"/>.</param>
+        /// <param name="farPlaneDistance">Distance of the far plane, or <see cref="Real.PositiveInfinity"/>.</param>
         /// <param name="result">The new projection <see cref="Matrix"/> for perspective view with FOV as an output parameter.</param>
-        public static void CreatePerspectiveFieldOfView(float fieldOfView, float aspectRatio, float nearPlaneDistance, float farPlaneDistance, out float4x4 result) {
+        public static void CreatePerspectiveFieldOfView(RealEvaluation fieldOfView, RealEvaluation aspectRatio, RealEvaluation nearPlaneDistance, RealEvaluation farPlaneDistance, out float4x4 result) {
             if ((fieldOfView <= 0f) || (fieldOfView >= 3.141593f)) {
                 throw new ArgumentException("fieldOfView <= 0 or >= PI");
             }
@@ -208,9 +208,9 @@ namespace helengine {
                 throw new ArgumentException("nearPlaneDistance >= farPlaneDistance");
             }
 
-            var yScale = 1.0f / (float)Math.Tan((double)fieldOfView * 0.5f);
+            var yScale = 1.0f / RealMath.Tan((RealEvaluation)fieldOfView * 0.5f);
             var xScale = yScale / aspectRatio;
-            var negFarRange = float.IsPositiveInfinity(farPlaneDistance) ? -1.0f : farPlaneDistance / (nearPlaneDistance - farPlaneDistance);
+            var negFarRange = RealMath.IsPositiveInfinity(farPlaneDistance) ? -1.0f : farPlaneDistance / (nearPlaneDistance - farPlaneDistance);
 
             result.M11 = xScale;
             result.M12 = result.M13 = result.M14 = 0.0f;
@@ -228,7 +228,7 @@ namespace helengine {
         /// </summary>
         /// <param name="scale">Scale value for all three axises.</param>
         /// <param name="result">The scaling <see cref="Matrix"/> as an output parameter.</param>
-        public static void CreateScale(float scale, out float4x4 result) {
+        public static void CreateScale(RealEvaluation scale, out float4x4 result) {
             CreateScale(scale, scale, scale, out result);
         }
 
@@ -239,7 +239,7 @@ namespace helengine {
         /// <param name="yScale">Scale value for Y axis.</param>
         /// <param name="zScale">Scale value for Z axis.</param>
         /// <param name="result">The scaling <see cref="Matrix"/> as an output parameter.</param>
-        public static void CreateScale(float xScale, float yScale, float zScale, out float4x4 result) {
+        public static void CreateScale(RealEvaluation xScale, RealEvaluation yScale, RealEvaluation zScale, out float4x4 result) {
             result.M11 = xScale;
             result.M12 = 0;
             result.M13 = 0;
@@ -263,7 +263,7 @@ namespace helengine {
         /// </summary>
         /// <param name="position">X,Y and Z coordinates of translation.</param>
         /// <param name="result">The translation <see cref="Matrix"/> as an output parameter.</param>
-        public static void CreateTranslation(float x, float y, float z, out float4x4 result) {
+        public static void CreateTranslation(RealEvaluation x, RealEvaluation y, RealEvaluation z, out float4x4 result) {
             result.M11 = 1;
             result.M12 = 0;
             result.M13 = 0;
@@ -384,66 +384,66 @@ namespace helengine {
         /// <param name="result">Inverted matrix when the operation succeeds.</param>
         /// <returns>True when the matrix was invertible; otherwise false.</returns>
         static bool TryInvert(ref float4x4 matrix, out float4x4 result) {
-            double m0 = matrix.M11;
-            double m1 = matrix.M12;
-            double m2 = matrix.M13;
-            double m3 = matrix.M14;
-            double m4 = matrix.M21;
-            double m5 = matrix.M22;
-            double m6 = matrix.M23;
-            double m7 = matrix.M24;
-            double m8 = matrix.M31;
-            double m9 = matrix.M32;
-            double m10 = matrix.M33;
-            double m11 = matrix.M34;
-            double m12 = matrix.M41;
-            double m13 = matrix.M42;
-            double m14 = matrix.M43;
-            double m15 = matrix.M44;
+            RealEvaluation m0 = matrix.M11;
+            RealEvaluation m1 = matrix.M12;
+            RealEvaluation m2 = matrix.M13;
+            RealEvaluation m3 = matrix.M14;
+            RealEvaluation m4 = matrix.M21;
+            RealEvaluation m5 = matrix.M22;
+            RealEvaluation m6 = matrix.M23;
+            RealEvaluation m7 = matrix.M24;
+            RealEvaluation m8 = matrix.M31;
+            RealEvaluation m9 = matrix.M32;
+            RealEvaluation m10 = matrix.M33;
+            RealEvaluation m11 = matrix.M34;
+            RealEvaluation m12 = matrix.M41;
+            RealEvaluation m13 = matrix.M42;
+            RealEvaluation m14 = matrix.M43;
+            RealEvaluation m15 = matrix.M44;
 
-            double i0 = m5 * m10 * m15 - m5 * m11 * m14 - m9 * m6 * m15 + m9 * m7 * m14 + m13 * m6 * m11 - m13 * m7 * m10;
-            double i4 = -m4 * m10 * m15 + m4 * m11 * m14 + m8 * m6 * m15 - m8 * m7 * m14 - m12 * m6 * m11 + m12 * m7 * m10;
-            double i8 = m4 * m9 * m15 - m4 * m11 * m13 - m8 * m5 * m15 + m8 * m7 * m13 + m12 * m5 * m11 - m12 * m7 * m9;
-            double i12 = -m4 * m9 * m14 + m4 * m10 * m13 + m8 * m5 * m14 - m8 * m6 * m13 - m12 * m5 * m10 + m12 * m6 * m9;
-            double determinant = m0 * i0 + m1 * i4 + m2 * i8 + m3 * i12;
+            RealEvaluation i0 = m5 * m10 * m15 - m5 * m11 * m14 - m9 * m6 * m15 + m9 * m7 * m14 + m13 * m6 * m11 - m13 * m7 * m10;
+            RealEvaluation i4 = -m4 * m10 * m15 + m4 * m11 * m14 + m8 * m6 * m15 - m8 * m7 * m14 - m12 * m6 * m11 + m12 * m7 * m10;
+            RealEvaluation i8 = m4 * m9 * m15 - m4 * m11 * m13 - m8 * m5 * m15 + m8 * m7 * m13 + m12 * m5 * m11 - m12 * m7 * m9;
+            RealEvaluation i12 = -m4 * m9 * m14 + m4 * m10 * m13 + m8 * m5 * m14 - m8 * m6 * m13 - m12 * m5 * m10 + m12 * m6 * m9;
+            RealEvaluation determinant = m0 * i0 + m1 * i4 + m2 * i8 + m3 * i12;
 
-            if (Math.Abs(determinant) <= 0.0) {
+            if (RealMath.Abs(determinant) <= 0.0) {
                 result = new float4x4();
                 return false;
             }
 
-            double i1 = -m1 * m10 * m15 + m1 * m11 * m14 + m9 * m2 * m15 - m9 * m3 * m14 - m13 * m2 * m11 + m13 * m3 * m10;
-            double i5 = m0 * m10 * m15 - m0 * m11 * m14 - m8 * m2 * m15 + m8 * m3 * m14 + m12 * m2 * m11 - m12 * m3 * m10;
-            double i9 = -m0 * m9 * m15 + m0 * m11 * m13 + m8 * m1 * m15 - m8 * m3 * m13 - m12 * m1 * m11 + m12 * m3 * m9;
-            double i13 = m0 * m9 * m14 - m0 * m10 * m13 - m8 * m1 * m14 + m8 * m2 * m13 + m12 * m1 * m10 - m12 * m2 * m9;
+            RealEvaluation i1 = -m1 * m10 * m15 + m1 * m11 * m14 + m9 * m2 * m15 - m9 * m3 * m14 - m13 * m2 * m11 + m13 * m3 * m10;
+            RealEvaluation i5 = m0 * m10 * m15 - m0 * m11 * m14 - m8 * m2 * m15 + m8 * m3 * m14 + m12 * m2 * m11 - m12 * m3 * m10;
+            RealEvaluation i9 = -m0 * m9 * m15 + m0 * m11 * m13 + m8 * m1 * m15 - m8 * m3 * m13 - m12 * m1 * m11 + m12 * m3 * m9;
+            RealEvaluation i13 = m0 * m9 * m14 - m0 * m10 * m13 - m8 * m1 * m14 + m8 * m2 * m13 + m12 * m1 * m10 - m12 * m2 * m9;
 
-            double i2 = m1 * m6 * m15 - m1 * m7 * m14 - m5 * m2 * m15 + m5 * m3 * m14 + m13 * m2 * m7 - m13 * m3 * m6;
-            double i6 = -m0 * m6 * m15 + m0 * m7 * m14 + m4 * m2 * m15 - m4 * m3 * m14 - m12 * m2 * m7 + m12 * m3 * m6;
-            double i10 = m0 * m5 * m15 - m0 * m7 * m13 - m4 * m1 * m15 + m4 * m3 * m13 + m12 * m1 * m7 - m12 * m3 * m5;
-            double i14 = -m0 * m5 * m14 + m0 * m6 * m13 + m4 * m1 * m14 - m4 * m2 * m13 - m12 * m1 * m6 + m12 * m2 * m5;
+            RealEvaluation i2 = m1 * m6 * m15 - m1 * m7 * m14 - m5 * m2 * m15 + m5 * m3 * m14 + m13 * m2 * m7 - m13 * m3 * m6;
+            RealEvaluation i6 = -m0 * m6 * m15 + m0 * m7 * m14 + m4 * m2 * m15 - m4 * m3 * m14 - m12 * m2 * m7 + m12 * m3 * m6;
+            RealEvaluation i10 = m0 * m5 * m15 - m0 * m7 * m13 - m4 * m1 * m15 + m4 * m3 * m13 + m12 * m1 * m7 - m12 * m3 * m5;
+            RealEvaluation i14 = -m0 * m5 * m14 + m0 * m6 * m13 + m4 * m1 * m14 - m4 * m2 * m13 - m12 * m1 * m6 + m12 * m2 * m5;
 
-            double i3 = -m1 * m6 * m11 + m1 * m7 * m10 + m5 * m2 * m11 - m5 * m3 * m10 - m9 * m2 * m7 + m9 * m3 * m6;
-            double i7 = m0 * m6 * m11 - m0 * m7 * m10 - m4 * m2 * m11 + m4 * m3 * m10 + m8 * m2 * m7 - m8 * m3 * m6;
-            double i11 = -m0 * m5 * m11 + m0 * m7 * m9 + m4 * m1 * m11 - m4 * m3 * m9 - m8 * m1 * m7 + m8 * m3 * m5;
-            double i15 = m0 * m5 * m10 - m0 * m6 * m9 - m4 * m1 * m10 + m4 * m2 * m9 + m8 * m1 * m6 - m8 * m2 * m5;
-            double inverseDeterminant = 1.0 / determinant;
+            RealEvaluation i3 = -m1 * m6 * m11 + m1 * m7 * m10 + m5 * m2 * m11 - m5 * m3 * m10 - m9 * m2 * m7 + m9 * m3 * m6;
+            RealEvaluation i7 = m0 * m6 * m11 - m0 * m7 * m10 - m4 * m2 * m11 + m4 * m3 * m10 + m8 * m2 * m7 - m8 * m3 * m6;
+            RealEvaluation i11 = -m0 * m5 * m11 + m0 * m7 * m9 + m4 * m1 * m11 - m4 * m3 * m9 - m8 * m1 * m7 + m8 * m3 * m5;
+            RealEvaluation i15 = m0 * m5 * m10 - m0 * m6 * m9 - m4 * m1 * m10 + m4 * m2 * m9 + m8 * m1 * m6 - m8 * m2 * m5;
+            RealEvaluation inverseDeterminant = 1.0 / determinant;
 
-            result.M11 = (float)(i0 * inverseDeterminant);
-            result.M12 = (float)(i1 * inverseDeterminant);
-            result.M13 = (float)(i2 * inverseDeterminant);
-            result.M14 = (float)(i3 * inverseDeterminant);
-            result.M21 = (float)(i4 * inverseDeterminant);
-            result.M22 = (float)(i5 * inverseDeterminant);
-            result.M23 = (float)(i6 * inverseDeterminant);
-            result.M24 = (float)(i7 * inverseDeterminant);
-            result.M31 = (float)(i8 * inverseDeterminant);
-            result.M32 = (float)(i9 * inverseDeterminant);
-            result.M33 = (float)(i10 * inverseDeterminant);
-            result.M34 = (float)(i11 * inverseDeterminant);
-            result.M41 = (float)(i12 * inverseDeterminant);
-            result.M42 = (float)(i13 * inverseDeterminant);
-            result.M43 = (float)(i14 * inverseDeterminant);
-            result.M44 = (float)(i15 * inverseDeterminant);
+            result.M11 = (i0 * inverseDeterminant);
+            result.M12 = (i1 * inverseDeterminant);
+            result.M13 = (i2 * inverseDeterminant);
+            result.M14 = (i3 * inverseDeterminant);
+            result.M21 = (i4 * inverseDeterminant);
+            result.M22 = (i5 * inverseDeterminant);
+            result.M23 = (i6 * inverseDeterminant);
+            result.M24 = (i7 * inverseDeterminant);
+            result.M31 = (i8 * inverseDeterminant);
+            result.M32 = (i9 * inverseDeterminant);
+            result.M33 = (i10 * inverseDeterminant);
+            result.M34 = (i11 * inverseDeterminant);
+            result.M41 = (i12 * inverseDeterminant);
+            result.M42 = (i13 * inverseDeterminant);
+            result.M43 = (i14 * inverseDeterminant);
+            result.M44 = (i15 * inverseDeterminant);
             return true;
         }
 
@@ -485,7 +485,7 @@ namespace helengine {
         /// <param name="pitch">Pitch around the X axis in radians.</param>
         /// <param name="roll">Roll around the Z axis in radians.</param>
         /// <param name="result">Output rotation matrix.</param>
-        public static void CreateFromYawPitchRoll(float yaw, float pitch, float roll, out float4x4 result) {
+        public static void CreateFromYawPitchRoll(RealEvaluation yaw, RealEvaluation pitch, RealEvaluation roll, out float4x4 result) {
             float4 quaternion;
             float4.CreateFromYawPitchRoll(yaw, pitch, roll, out quaternion);
             CreateFromQuaternion(ref quaternion, out result);
@@ -497,15 +497,15 @@ namespace helengine {
         /// <param name="quaternion"><see cref="Quaternion"/> of rotation moment.</param>
         /// <param name="result">The rotation <see cref="Matrix"/> as an output parameter.</param>
         public static void CreateFromQuaternion(ref float4 quaternion, out float4x4 result) {
-            float num9 = quaternion.X * quaternion.X;
-            float num8 = quaternion.Y * quaternion.Y;
-            float num7 = quaternion.Z * quaternion.Z;
-            float num6 = quaternion.X * quaternion.Y;
-            float num5 = quaternion.Z * quaternion.W;
-            float num4 = quaternion.Z * quaternion.X;
-            float num3 = quaternion.Y * quaternion.W;
-            float num2 = quaternion.Y * quaternion.Z;
-            float num = quaternion.X * quaternion.W;
+            RealEvaluation num9 = quaternion.X * quaternion.X;
+            RealEvaluation num8 = quaternion.Y * quaternion.Y;
+            RealEvaluation num7 = quaternion.Z * quaternion.Z;
+            RealEvaluation num6 = quaternion.X * quaternion.Y;
+            RealEvaluation num5 = quaternion.Z * quaternion.W;
+            RealEvaluation num4 = quaternion.Z * quaternion.X;
+            RealEvaluation num3 = quaternion.Y * quaternion.W;
+            RealEvaluation num2 = quaternion.Y * quaternion.Z;
+            RealEvaluation num = quaternion.X * quaternion.W;
             result.M11 = 1f - (2f * (num8 + num7));
             result.M12 = 2f * (num6 + num5);
             result.M13 = 2f * (num4 - num3);

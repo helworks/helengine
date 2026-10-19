@@ -44,6 +44,21 @@ namespace helengine.editor.tests {
             }
         }
 
+        /// <summary>Configurable numeric properties stay editable and keep values beyond IEEE32 precision.</summary>
+        [Fact]
+        public void RealScalarInspectorPreservesAuthoringPrecision() {
+            CameraComponent camera = new CameraComponent();
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
+            entity.AddComponent(camera);
+            ComponentPropertiesView view = CreateView();
+            view.ShowComponents(entity);
+            ComponentPropertyRow row = Assert.Single(GetActiveRows(view).Where(item => item.Label.Text == "Far Plane Distance"));
+            row.ScalarField.Text = "16777217";
+            MethodInfo submit = typeof(ComponentPropertiesView).GetMethod("HandleScalarSubmitted", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            submit.Invoke(view, new object[] { row.ScalarField });
+            Assert.Equal(16777217d, camera.FarPlaneDistance.ToDouble());
+        }
+
         /// <summary>
         /// Ensures metadata hides unsupported Camera runtime properties from the default inspector.
         /// </summary>
@@ -91,7 +106,8 @@ namespace helengine.editor.tests {
                 row => Assert.Equal("Field Of View", row.Label.Text),
                 row => Assert.Equal("Near Plane Distance", row.Label.Text),
                 row => Assert.Equal("Far Plane Distance", row.Label.Text),
-                row => Assert.Equal("Clear Settings", row.Label.Text));
+                row => Assert.Equal("Clear Settings", row.Label.Text),
+                row => Assert.Equal("Output Window Tag", row.Label.Text));
         }
 
         /// <summary>

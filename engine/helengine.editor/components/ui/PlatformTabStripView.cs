@@ -882,14 +882,14 @@ namespace helengine.editor {
             float3 tabPosition = tabHost.Position;
             float4 clipRect = ViewportClipRect.GetClipRect();
 
-            float tabLeft = tabPosition.X;
-            float tabTop = tabPosition.Y;
+            float tabLeft = (float)(tabPosition.X);
+            float tabTop = (float)(tabPosition.Y);
             float tabRight = tabLeft + TabWidthValue;
             float tabBottom = tabTop + TabHeightValue;
-            float clipLeft = clipRect.X;
-            float clipTop = clipRect.Y;
-            float clipRight = clipLeft + clipRect.Z;
-            float clipBottom = clipTop + clipRect.W;
+            float clipLeft = (float)(clipRect.X);
+            float clipTop = (float)(clipRect.Y);
+            float clipRight = (float)(clipLeft + clipRect.Z);
+            float clipBottom = (float)(clipTop + clipRect.W);
 
             if (point.X < clipLeft || point.X >= clipRight || point.Y < clipTop || point.Y >= clipBottom) {
                 return false;

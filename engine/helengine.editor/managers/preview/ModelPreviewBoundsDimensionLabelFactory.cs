@@ -32,9 +32,9 @@ namespace helengine.editor {
             RuntimeMaterial labelMaterial = TransformGizmoAxisLabelMaterialFactory.Create(render3D, font, builtInShaderLibrary);
             float3 dimensions = halfExtents * 2f;
             return new[] {
-                CreateDimensionLabelEntity(render3D, font, labelMaterial, "X", dimensions.X, new float3(0f, halfExtents.Y, halfExtents.Z)),
-                CreateDimensionLabelEntity(render3D, font, labelMaterial, "Y", dimensions.Y, new float3(halfExtents.X, 0f, halfExtents.Z)),
-                CreateDimensionLabelEntity(render3D, font, labelMaterial, "Z", dimensions.Z, new float3(halfExtents.X, halfExtents.Y, 0f))
+                CreateDimensionLabelEntity(render3D, font, labelMaterial, "X", (float)(dimensions.X), new float3(0f, halfExtents.Y, halfExtents.Z)),
+                CreateDimensionLabelEntity(render3D, font, labelMaterial, "Y", (float)(dimensions.Y), new float3(halfExtents.X, 0f, halfExtents.Z)),
+                CreateDimensionLabelEntity(render3D, font, labelMaterial, "Z", (float)(dimensions.Z), new float3(halfExtents.X, halfExtents.Y, 0f))
             };
         }
 

@@ -49,7 +49,7 @@ namespace helengine.physics3d.tests {
 
             Assert.True(found);
             Assert.True(penetration > 0f);
-            Assert.InRange(float3.Dot(collisionNormal, collisionNormal), 0.99f, 1.01f);
+            Assert.InRange((double)(float3.Dot(collisionNormal, collisionNormal)), (double)(0.99f), (double)(1.01f));
         }
 
         /// <summary>
@@ -64,7 +64,7 @@ namespace helengine.physics3d.tests {
 
             Assert.True(found);
             Assert.True(penetration > 0f);
-            Assert.InRange(float3.Dot(collisionNormal, collisionNormal), 0.99f, 1.01f);
+            Assert.InRange((double)(float3.Dot(collisionNormal, collisionNormal)), (double)(0.99f), (double)(1.01f));
         }
 
         /// <summary>
@@ -79,7 +79,7 @@ namespace helengine.physics3d.tests {
 
             Assert.True(found);
             Assert.True(penetration > 0f);
-            Assert.InRange(float3.Dot(collisionNormal, collisionNormal), 0.99f, 1.01f);
+            Assert.InRange((double)(float3.Dot(collisionNormal, collisionNormal)), (double)(0.99f), (double)(1.01f));
         }
 
         /// <summary>
@@ -94,7 +94,7 @@ namespace helengine.physics3d.tests {
 
             Assert.True(found);
             Assert.True(penetration > 0f);
-            Assert.InRange(float3.Dot(collisionNormal, collisionNormal), 0.99f, 1.01f);
+            Assert.InRange((double)(float3.Dot(collisionNormal, collisionNormal)), (double)(0.99f), (double)(1.01f));
         }
 
         /// <summary>
@@ -109,7 +109,7 @@ namespace helengine.physics3d.tests {
 
             Assert.True(found);
             Assert.True(penetration > 0f);
-            Assert.InRange(float3.Dot(collisionNormal, collisionNormal), 0.99f, 1.01f);
+            Assert.InRange((double)(float3.Dot(collisionNormal, collisionNormal)), (double)(0.99f), (double)(1.01f));
         }
 
         /// <summary>

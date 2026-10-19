@@ -254,8 +254,8 @@ namespace helengine.editor {
             }
             if (EditorSceneCameraSuppressionService.GetSuppressionState(sourceCameraComponent) != null) {
                 return new int2(
-                    Math.Max(1, (int)Math.Round(sourceCameraComponent.Viewport.Z)),
-                    Math.Max(1, (int)Math.Round(sourceCameraComponent.Viewport.W)));
+                    Math.Max(1, (int)RealMath.Round(sourceCameraComponent.Viewport.Z)),
+                    Math.Max(1, (int)RealMath.Round(sourceCameraComponent.Viewport.W)));
             }
 
             return new int2(Math.Max(1, contentSize.X), Math.Max(1, contentSize.Y));

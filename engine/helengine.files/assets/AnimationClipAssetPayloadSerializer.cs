@@ -39,7 +39,7 @@ namespace helengine.files {
             AnimationClipAsset animationClipAsset = (AnimationClipAsset)asset;
             EditorAssetPayloadPrimitives.EnsureRuntimeAssetIdentity(animationClipAsset);
             EditorAssetPayloadPrimitives.WriteAssetIdentity(writer, animationClipAsset);
-            writer.WriteSingle(animationClipAsset.Duration);
+            writer.WriteReal(animationClipAsset.Duration);
             writer.WriteArray(animationClipAsset.PositionTracks, WritePositionKeyframeTrackAsset);
             writer.WriteArray(animationClipAsset.PositionOffsetTracks, WritePositionOffsetKeyframeTrackAsset);
             writer.WriteArray(animationClipAsset.ScaleTracks, WriteScaleKeyframeTrackAsset);
@@ -58,7 +58,7 @@ namespace helengine.files {
         public Asset Read(EngineBinaryReader reader) {
             AnimationClipAsset asset = new AnimationClipAsset();
             EditorAssetPayloadPrimitives.ReadAssetIdentity(reader, asset);
-            asset.Duration = reader.ReadSingle();
+            asset.Duration = reader.ReadReal();
             asset.PositionTracks = reader.ReadArray(ReadPositionKeyframeTrackAsset) ?? Array.Empty<PositionKeyframeTrackAsset>();
             asset.PositionOffsetTracks = reader.ReadArray(ReadPositionOffsetKeyframeTrackAsset) ?? Array.Empty<PositionOffsetKeyframeTrackAsset>();
             asset.ScaleTracks = reader.ReadArray(ReadScaleKeyframeTrackAsset) ?? Array.Empty<ScaleKeyframeTrackAsset>();
@@ -226,7 +226,7 @@ namespace helengine.files {
         /// <param name="asset">Keyframe asset to serialize.</param>
         static void WritePositionKeyframeAsset(EngineBinaryWriter writer, PositionKeyframeAsset asset) {
             writer.WriteString(asset.FrameId ?? string.Empty);
-            writer.WriteSingle(asset.Time);
+            writer.WriteReal(asset.Time);
             EditorAssetPayloadPrimitives.WriteFloat3Value(writer, asset.Value);
             WriteAnimationInterpolationMode(writer, asset.InterpolationMode);
         }
@@ -239,7 +239,7 @@ namespace helengine.files {
         static PositionKeyframeAsset ReadPositionKeyframeAsset(EngineBinaryReader reader) {
             PositionKeyframeAsset asset = new PositionKeyframeAsset {
                 FrameId = reader.ReadString(),
-                Time = reader.ReadSingle(),
+                Time = reader.ReadReal(),
             };
             asset.Value = EditorAssetPayloadPrimitives.ReadFloat3Value(reader);
             asset.InterpolationMode = ReadAnimationInterpolationMode(reader);
@@ -253,7 +253,7 @@ namespace helengine.files {
         /// <param name="asset">Keyframe asset to serialize.</param>
         static void WriteRotationKeyframeAsset(EngineBinaryWriter writer, RotationKeyframeAsset asset) {
             writer.WriteString(asset.FrameId ?? string.Empty);
-            writer.WriteSingle(asset.Time);
+            writer.WriteReal(asset.Time);
             EditorAssetPayloadPrimitives.WriteFloat4Value(writer, asset.Value);
             WriteAnimationInterpolationMode(writer, asset.InterpolationMode);
         }
@@ -266,7 +266,7 @@ namespace helengine.files {
         static RotationKeyframeAsset ReadRotationKeyframeAsset(EngineBinaryReader reader) {
             RotationKeyframeAsset asset = new RotationKeyframeAsset {
                 FrameId = reader.ReadString(),
-                Time = reader.ReadSingle(),
+                Time = reader.ReadReal(),
             };
             asset.Value = EditorAssetPayloadPrimitives.ReadFloat4Value(reader);
             asset.InterpolationMode = ReadAnimationInterpolationMode(reader);

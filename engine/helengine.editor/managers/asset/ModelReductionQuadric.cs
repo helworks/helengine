@@ -16,7 +16,7 @@ namespace helengine.editor {
         }
         /// <summary>Evaluates the squared distance error at an existing source vertex position.</summary>
         public double Evaluate(float3 position) {
-            double[] point = { position.X, position.Y, position.Z, 1d };
+            double[] point = { (double)(position.X), (double)(position.Y), (double)(position.Z), 1d };
             double error = 0d;
             for (int row = 0; row < 4; row++) {
                 for (int column = 0; column < 4; column++) error += point[row] * Values[row * 4 + column] * point[column];

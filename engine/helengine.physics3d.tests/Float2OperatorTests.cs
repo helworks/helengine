@@ -31,16 +31,16 @@ namespace helengine {
             float2 value = new float2(3.0f, 4.0f);
             float2 other = new float2(-2.0f, 5.0f);
 
-            float lengthSquared = value.LengthSquared();
-            float length = value.Length();
-            float dot = float2.Dot(value, other);
+            double lengthSquared = (double)(value.LengthSquared());
+            double length = (double)(value.Length());
+            double dot = (double)(float2.Dot(value, other));
             float2 normalized = float2.Normalize(value);
 
             Assert.Equal(25.0f, lengthSquared);
             Assert.Equal(5.0f, length);
             Assert.Equal(14.0f, dot);
-            Assert.Equal(0.6f, normalized.X, 5);
-            Assert.Equal(0.8f, normalized.Y, 5);
+            Assert.Equal(0.6f, normalized.X.ToDouble(), 5);
+            Assert.Equal(0.8f, normalized.Y.ToDouble(), 5);
         }
 
         /// <summary>

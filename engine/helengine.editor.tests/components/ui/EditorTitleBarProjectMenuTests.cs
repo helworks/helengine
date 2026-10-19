@@ -47,7 +47,7 @@ namespace helengine.editor.tests.components.ui {
             int uiButtonWidth = GetPrivateField<int>(titleBar, "UiMenuButtonWidth");
             EditorTitleBarProjectMenuState projectMenuState = Assert.Single(GetProjectMenuStates(titleBar));
 
-            Assert.Equal(uiButtonEntity.Position.X + uiButtonWidth, projectMenuState.ButtonEntity.Position.X);
+            Assert.EqualEvaluation(uiButtonEntity.Position.X + uiButtonWidth, projectMenuState.ButtonEntity.Position.X);
         }
 
         /// <summary>

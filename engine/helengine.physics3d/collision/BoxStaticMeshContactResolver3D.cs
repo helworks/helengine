@@ -41,21 +41,21 @@ namespace helengine {
             float bestSupportHeight = 0f;
             collisionNormal = float3.Zero;
             penetration = 0f;
-            float maximumSupportHeight = boxCenter.Y + boxHalfExtents.Y + 0.05f;
-            float sampleOffsetX = boxHalfExtents.X * 0.8f;
-            float sampleOffsetZ = boxHalfExtents.Z * 0.8f;
+            float maximumSupportHeight = (float)(boxCenter.Y + boxHalfExtents.Y + 0.05f);
+            float sampleOffsetX = (float)(boxHalfExtents.X * 0.8f);
+            float sampleOffsetZ = (float)(boxHalfExtents.Z * 0.8f);
 
-            AccumulateSupportHeight(boxCenter.X, boxCenter.Z, maximumSupportHeight, meshState, ref foundSupport, ref bestSupportHeight, ref collisionNormal);
-            AccumulateSupportHeight(boxCenter.X - sampleOffsetX, boxCenter.Z - sampleOffsetZ, maximumSupportHeight, meshState, ref foundSupport, ref bestSupportHeight, ref collisionNormal);
-            AccumulateSupportHeight(boxCenter.X - sampleOffsetX, boxCenter.Z + sampleOffsetZ, maximumSupportHeight, meshState, ref foundSupport, ref bestSupportHeight, ref collisionNormal);
-            AccumulateSupportHeight(boxCenter.X + sampleOffsetX, boxCenter.Z - sampleOffsetZ, maximumSupportHeight, meshState, ref foundSupport, ref bestSupportHeight, ref collisionNormal);
-            AccumulateSupportHeight(boxCenter.X + sampleOffsetX, boxCenter.Z + sampleOffsetZ, maximumSupportHeight, meshState, ref foundSupport, ref bestSupportHeight, ref collisionNormal);
+            AccumulateSupportHeight((float)(boxCenter.X), (float)(boxCenter.Z), maximumSupportHeight, meshState, ref foundSupport, ref bestSupportHeight, ref collisionNormal);
+            AccumulateSupportHeight((float)(boxCenter.X - sampleOffsetX), (float)(boxCenter.Z - sampleOffsetZ), maximumSupportHeight, meshState, ref foundSupport, ref bestSupportHeight, ref collisionNormal);
+            AccumulateSupportHeight((float)(boxCenter.X - sampleOffsetX), (float)(boxCenter.Z + sampleOffsetZ), maximumSupportHeight, meshState, ref foundSupport, ref bestSupportHeight, ref collisionNormal);
+            AccumulateSupportHeight((float)(boxCenter.X + sampleOffsetX), (float)(boxCenter.Z - sampleOffsetZ), maximumSupportHeight, meshState, ref foundSupport, ref bestSupportHeight, ref collisionNormal);
+            AccumulateSupportHeight((float)(boxCenter.X + sampleOffsetX), (float)(boxCenter.Z + sampleOffsetZ), maximumSupportHeight, meshState, ref foundSupport, ref bestSupportHeight, ref collisionNormal);
 
             if (!foundSupport) {
                 return false;
             }
 
-            float bottom = boxCenter.Y - boxHalfExtents.Y;
+            float bottom = (float)(boxCenter.Y - boxHalfExtents.Y);
             penetration = bestSupportHeight - bottom;
             if (penetration <= 0f) {
                 return false;
@@ -130,8 +130,8 @@ namespace helengine {
                 return false;
             }
 
-            float planeNumerator = (supportNormal.X * (sampleX - a.X)) + (supportNormal.Z * (sampleZ - a.Z));
-            supportHeight = a.Y - (planeNumerator / supportNormal.Y);
+            float planeNumerator = (float)((supportNormal.X * (sampleX - a.X)) + (supportNormal.Z * (sampleZ - a.Z)));
+            supportHeight = (float)(a.Y - (planeNumerator / supportNormal.Y));
             return true;
         }
     }

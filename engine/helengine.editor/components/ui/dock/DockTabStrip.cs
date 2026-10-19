@@ -361,7 +361,7 @@ namespace helengine.editor {
         /// <param name="containerHeight">Height of the container in pixels.</param>
         /// <returns>Top offset to position the label.</returns>
         float GetTextTopOffset(float containerHeight) {
-            float lineHeight = Math.Max(font.LineHeight, 1f);
+            float lineHeight = (float)RealMath.Max(font.LineHeight, 1f);
             return (float)Math.Round((containerHeight - lineHeight) * 0.5f);
         }
 

@@ -33,7 +33,7 @@ namespace helengine {
         /// <param name="atlasWidth">Atlas width in pixels.</param>
         /// <param name="atlasHeight">Atlas height in pixels.</param>
         public FontAsset([NativeTakesOwnership] FontInfo fontInfo, RuntimeTexture tex,
-            [NativeTakesOwnership] Dictionary<char, FontChar> chars, float lineHeight, int atlasWidth, int atlasHeight) {
+            [NativeTakesOwnership] Dictionary<char, FontChar> chars, RealEvaluation lineHeight, int atlasWidth, int atlasHeight) {
             LineHeight = lineHeight;
             FontInfo = fontInfo;
             Texture = tex;
@@ -85,7 +85,7 @@ namespace helengine {
         /// <summary>
         /// Gets the line height in pixels.
         /// </summary>
-        public float LineHeight { get; protected set; }
+        public Real LineHeight { get; protected set; }
 
         /// <summary>
         /// Gets the atlas width in pixels.
@@ -124,18 +124,18 @@ namespace helengine {
                 throw new InvalidOperationException("Processed font atlas textures must have positive dimensions.");
             }
 
-            int originalAtlasWidth = Math.Max(AtlasWidth, 1);
-            int originalAtlasHeight = Math.Max(AtlasHeight, 1);
-            double scaleX = (double)processedSourceTextureAsset.Width / originalAtlasWidth;
-            double scaleY = (double)processedSourceTextureAsset.Height / originalAtlasHeight;
+            int originalAtlasWidth = RealMath.Max(AtlasWidth, 1);
+            int originalAtlasHeight = RealMath.Max(AtlasHeight, 1);
+            RealEvaluation scaleX = (RealEvaluation)processedSourceTextureAsset.Width / originalAtlasWidth;
+            RealEvaluation scaleY = (RealEvaluation)processedSourceTextureAsset.Height / originalAtlasHeight;
             bool atlasWasResized = originalAtlasWidth != processedSourceTextureAsset.Width || originalAtlasHeight != processedSourceTextureAsset.Height;
 
             if (atlasWasResized) {
                 AtlasWidth = processedSourceTextureAsset.Width;
                 AtlasHeight = processedSourceTextureAsset.Height;
-                LineHeight = (float)(LineHeight * scaleY);
+                LineHeight = (RealEvaluation)(LineHeight * scaleY);
                 if (FontInfo != null) {
-                    FontInfo.LineSpacing = Math.Max(1, (int)Math.Round(FontInfo.LineSpacing * scaleY));
+                    FontInfo.LineSpacing = RealMath.Max(1, (int)RealMath.Round(FontInfo.LineSpacing * scaleY));
                     FontInfo.SpaceWidth = (float)(FontInfo.SpaceWidth * scaleX);
                 }
 
@@ -232,10 +232,10 @@ namespace helengine {
         /// <param name="text">Text to measure.</param>
         /// <returns>Size in pixels.</returns>
         public float2 MeasureString(string text) {
-            float x = 0f;
-            float y = 0f;
-            float maxX = 0f;
-            float line = Math.Max(LineHeight, 1f);
+            RealEvaluation x = 0f;
+            RealEvaluation y = 0f;
+            RealEvaluation maxX = 0f;
+            RealEvaluation line = RealMath.Max(LineHeight, 1f);
 
             for (int i = 0; i < text.Length; i++) {
                 char c = text[i];
@@ -253,7 +253,7 @@ namespace helengine {
                 }
 
                 if (Characters.TryGetValue(c, out var ch)) {
-                    float adv = ch.AdvanceWidth > 0 ? ch.AdvanceWidth : ch.SourceRect.Z;
+                    RealEvaluation adv = ch.AdvanceWidth > 0 ? ch.AdvanceWidth : ch.SourceRect.Z;
                     x += adv;
                 }
             }
@@ -268,9 +268,9 @@ namespace helengine {
         /// <param name="text">Text to measure.</param>
         /// <returns>Metrics containing width and vertical extents.</returns>
         public FontTightMetrics MeasureTight(string text) {
-            float width = 0f;
-            float minTop = float.MaxValue;
-            float maxBottom = float.MinValue;
+            RealEvaluation width = 0f;
+            RealEvaluation minTop = RealEvaluation.MaxValue;
+            RealEvaluation maxBottom = RealEvaluation.MinValue;
 
             for (int i = 0; i < text.Length; i++) {
                 char c = text[i];
@@ -280,21 +280,21 @@ namespace helengine {
                 }
                 if (!Characters.TryGetValue(c, out var ch)) continue;
 
-                float advance = ch.AdvanceWidth > 0 ? ch.AdvanceWidth : (ch.SourceRect.Z * AtlasWidth);
+                RealEvaluation advance = ch.AdvanceWidth > 0 ? ch.AdvanceWidth : (ch.SourceRect.Z * AtlasWidth);
                 width += advance;
 
-                float glyphTop = ch.OffsetY;
-                float glyphBottom = ch.OffsetY + (ch.SourceRect.W * AtlasHeight);
+                RealEvaluation glyphTop = ch.OffsetY;
+                RealEvaluation glyphBottom = ch.OffsetY + (ch.SourceRect.W * AtlasHeight);
                 if (glyphTop < minTop) minTop = glyphTop;
                 if (glyphBottom > maxBottom) maxBottom = glyphBottom;
             }
 
-            if (minTop == float.MaxValue) {
+            if (minTop == RealEvaluation.MaxValue) {
                 minTop = 0f;
                 maxBottom = LineHeight > 0 ? LineHeight : 1f;
             }
 
-            return new FontTightMetrics(width, minTop, maxBottom);
+            return new FontTightMetrics((float)width, (float)minTop, (float)maxBottom);
         }
     }
 }

@@ -65,6 +65,7 @@ namespace helengine.editor {
             builder.AppendLine("        if (version != AutomaticScriptComponentRuntimeDeserializer.CurrentVersion) {");
             builder.AppendLine("            throw new InvalidOperationException($\"Unsupported automatic scripted component payload received version '{version}'; current version '{AutomaticScriptComponentRuntimeDeserializer.CurrentVersion}' is required. Regenerate/rebuild the asset in the current format.\");");
             builder.AppendLine("        }");
+            builder.AppendLine("        reader.NumericPolicy = RealBinaryCodec.ReadAndValidatePolicy(reader, RealRepresentation.Policy);");
             builder.AppendLine("        int memberCount = reader.ReadInt32();");
             builder.AppendLine("        receivedMemberCount = memberCount;");
             builder.AppendLine($"        if (memberCount != {schema.Members.Count}) {{");
@@ -216,6 +217,8 @@ namespace helengine.editor {
             builder.AppendLine("#include \"runtime/native_dictionary.hpp\"");
             builder.AppendLine("#include \"system/io/memory-stream.hpp\"");
             builder.AppendLine("#include \"EngineBinaryReader.hpp\"");
+            builder.AppendLine("#include \"RealBinaryCodec.hpp\"");
+            builder.AppendLine("#include \"RealRepresentation.hpp\"");
             builder.AppendLine("#include \"EngineBinaryEndianness.hpp\"");
             builder.AppendLine("#include \"SceneAssetReferenceFactory.hpp\"");
             builder.AppendLine("#include \"runtime/array.hpp\"");
@@ -280,6 +283,7 @@ namespace helengine.editor {
                 ? "he_cpp_raise(InvalidOperationException());"
                 : "he_cpp_raise(InvalidOperationException(HeCppString(\"Unsupported automatic scripted component payload received version '\") + String::ToJoinString(version) + HeCppString(\"'; current version '\") + String::ToJoinString(CurrentVersion) + HeCppString(\"' is required. Regenerate/rebuild the asset in the current format.\")));");
             builder.AppendLine("    }");
+            builder.AppendLine("reader->set_NumericPolicy(::RealBinaryCodec::ReadAndValidatePolicy(reader, ::RealRepresentation::get_Policy()));");
             builder.AppendLine("const int32_t memberCount = reader->ReadInt32();");
             builder.AppendLine("receivedMemberCount = memberCount;");
             builder.AppendLine("hasReceivedMemberCount = true;");
@@ -383,6 +387,9 @@ namespace helengine.editor {
             if (valueType == typeof(double)) {
                 return readerVariableName + ".ReadDouble()";
             }
+            if (valueType == typeof(Real)) {
+                return readerVariableName + ".ReadReal()";
+            }
             if (valueType == typeof(int2)) {
                 return readerVariableName + ".ReadInt2()";
             }
@@ -390,13 +397,13 @@ namespace helengine.editor {
                 return readerVariableName + ".ReadInt4()";
             }
             if (valueType == typeof(float2)) {
-                return readerVariableName + ".ReadFloat2()";
+                return readerVariableName + ".ReadReal2()";
             }
             if (valueType == typeof(float3)) {
-                return readerVariableName + ".ReadFloat3()";
+                return readerVariableName + ".ReadReal3()";
             }
             if (valueType == typeof(float4)) {
-                return readerVariableName + ".ReadFloat4()";
+                return readerVariableName + ".ReadReal4()";
             }
             if (valueType == typeof(byte4)) {
                 return $"new byte4({readerVariableName}.ReadByte(), {readerVariableName}.ReadByte(), {readerVariableName}.ReadByte(), {readerVariableName}.ReadByte())";
@@ -494,6 +501,10 @@ namespace helengine.editor {
                 expression = readerVariableName + "->ReadDouble()";
                 return true;
             }
+            if (valueType == typeof(Real)) {
+                expression = readerVariableName + "->ReadReal()";
+                return true;
+            }
             if (valueType == typeof(int2)) {
                 expression = readerVariableName + "->ReadInt2()";
                 return true;
@@ -503,15 +514,15 @@ namespace helengine.editor {
                 return true;
             }
             if (valueType == typeof(float2)) {
-                expression = readerVariableName + "->ReadFloat2()";
+                expression = readerVariableName + "->ReadReal2()";
                 return true;
             }
             if (valueType == typeof(float3)) {
-                expression = readerVariableName + "->ReadFloat3()";
+                expression = readerVariableName + "->ReadReal3()";
                 return true;
             }
             if (valueType == typeof(float4)) {
-                expression = readerVariableName + "->ReadFloat4()";
+                expression = readerVariableName + "->ReadReal4()";
                 return true;
             }
             if (valueType == typeof(byte4)) {
@@ -1005,6 +1016,9 @@ namespace helengine.editor {
             if (valueType == typeof(double)) {
                 return "double";
             }
+            if (valueType == typeof(Real)) {
+                return "::Real";
+            }
             if (valueType == typeof(int2)) {
                 return "::int2";
             }
@@ -1159,7 +1173,8 @@ namespace helengine.editor {
                 || valueType == typeof(uint)
                 || valueType == typeof(long)
                 || valueType == typeof(float)
-                || valueType == typeof(double);
+                || valueType == typeof(double)
+                || valueType == typeof(Real);
         }
 
         /// <summary>

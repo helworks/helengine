@@ -13,9 +13,9 @@ namespace helengine.core.tests.model {
         public void RotateVector_identity_preserves_authored_negative_z_forward() {
             float3 forward = float4.RotateVector(new float3(0f, 0f, -1f), float4.Identity);
 
-            Assert.Equal(0f, forward.X, 5);
-            Assert.Equal(0f, forward.Y, 5);
-            Assert.Equal(-1f, forward.Z, 5);
+            Assert.Equal((double)(0f),(double)(forward.X), 5);
+            Assert.Equal((double)(0f),(double)(forward.Y), 5);
+            Assert.Equal((double)(-1f),(double)(forward.Z), 5);
         }
 
         /// <summary>
@@ -26,9 +26,9 @@ namespace helengine.core.tests.model {
             float4.CreateFromYawPitchRoll(MathF.PI * 0.5f, 0f, 0f, out float4 orientation);
             float3 forward = float4.RotateVector(new float3(0f, 0f, -1f), orientation);
 
-            Assert.Equal(-1f, forward.X, 5);
-            Assert.Equal(0f, forward.Y, 5);
-            Assert.Equal(0f, forward.Z, 5);
+            Assert.Equal((double)(-1f),(double)(forward.X), 5);
+            Assert.Equal((double)(0f),(double)(forward.Y), 5);
+            Assert.Equal((double)(0f),(double)(forward.Z), 5);
         }
     }
 }

@@ -289,12 +289,12 @@ namespace helengine.editor.tests.managers.gizmo {
             float3 forward = NormalizeHorizontal(new float3(-cameraPosition.X, 0f, -cameraPosition.Z));
             float3 right = NormalizeHorizontal(float3.Cross(forward, WorldUpAxis));
             float3 toPoint = worldPoint - cameraPosition;
-            double depth = float3.Dot(toPoint, forward);
+            double depth = (double)(float3.Dot(toPoint, forward));
             if (depth <= 0.0) {
                 throw new InvalidOperationException("Projected gizmo arrow tip must remain in front of the validation camera.");
             }
 
-            return float3.Dot(toPoint, right) / depth;
+            return (double)(float3.Dot(toPoint, right) / depth);
         }
 
         /// <summary>
@@ -317,8 +317,8 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <returns>Normalized horizontal vector.</returns>
         static float3 NormalizeHorizontal(float3 value) {
             double lengthSquared =
-                (value.X * value.X) +
-                (value.Z * value.Z);
+                (double)((value.X * value.X) +
+                (value.Z * value.Z));
             if (lengthSquared <= 0.0) {
                 throw new InvalidOperationException("Horizontal vector must be non-zero.");
             }

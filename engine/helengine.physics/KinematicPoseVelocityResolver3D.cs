@@ -43,16 +43,16 @@ namespace helengine {
             }
 
             double vectorLengthSquared =
-                (relativeRotation.X * relativeRotation.X) +
+                (double)((relativeRotation.X * relativeRotation.X) +
                 (relativeRotation.Y * relativeRotation.Y) +
-                (relativeRotation.Z * relativeRotation.Z);
+                (relativeRotation.Z * relativeRotation.Z));
             if (vectorLengthSquared <= RotationEpsilonSquared) {
                 angularVelocity = float3.Zero;
                 return;
             }
 
             double vectorLength = Math.Sqrt(vectorLengthSquared);
-            double angleRadians = 2d * Math.Atan2(vectorLength, relativeRotation.W);
+            double angleRadians = 2d * Math.Atan2(vectorLength, (double)(relativeRotation.W));
             float inverseVectorLength = (float)(1d / vectorLength);
             float3 axis = new float3(
                 relativeRotation.X * inverseVectorLength,

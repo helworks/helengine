@@ -265,7 +265,7 @@ namespace helengine.editor {
         void LayoutRows() {
             EnsureRowCount(nodes.Count);
 
-            float lineHeight = MathF.Max(font.LineHeight, 1f);
+            float lineHeight = MathF.Max((float)(font.LineHeight), 1f);
             for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++) {
                 SceneHierarchyRow row = rows[rowIndex];
                 if (rowIndex >= nodes.Count) {

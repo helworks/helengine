@@ -43,7 +43,7 @@ namespace helengine {
         /// <summary>
         /// Uniform glyph scale applied during text layout, hit testing, and rendering.
         /// </summary>
-        float FontScaleValue;
+        Real FontScaleValue;
         /// <summary>
         /// Selects native-pixel glyph rendering and the whole-pixel snapping applied to scaled outline and shadow offsets.
         /// </summary>
@@ -51,7 +51,7 @@ namespace helengine {
         /// <summary>
         /// Stores the rotation applied during rendering.
         /// </summary>
-        float RotationValue;
+        Real RotationValue;
         /// <summary>
         /// Stores the source rectangle within the font atlas or pre-rendered text texture.
         /// </summary>
@@ -67,7 +67,7 @@ namespace helengine {
         /// <summary>
         /// Stores the cardinal outline width applied around each rendered glyph.
         /// </summary>
-        float OutlineScaleValue;
+        Real OutlineScaleValue;
         /// <summary>
         /// Stores the color used for the crisp cardinal outline glyph copies.
         /// </summary>
@@ -105,7 +105,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the rotation applied during rendering.
         /// </summary>
-        public float Rotation {
+        public Real Rotation {
             get { return RotationValue; }
             set {
                 if (RotationValue == value) {
@@ -176,7 +176,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the non-negative pixel-space width of the four crisp cardinal outline copies.
         /// </summary>
-        public float OutlineScale {
+        public Real OutlineScale {
             get { return OutlineScaleValue; }
             set {
                 if (value < 0f) {
@@ -295,7 +295,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the uniform glyph scale applied during rendering and interaction.
         /// </summary>
-        public float FontScale {
+        public Real FontScale {
             get { return FontScaleValue; }
             set {
                 if (NativeFontPixelsValue != TextNativePixelMode.Disabled && value != 1f) {
@@ -404,14 +404,14 @@ namespace helengine {
         /// Gets the first character index included in the active selection.
         /// </summary>
         public int SelectionStart {
-            get { return Math.Min(SelectionAnchorPositionValue, CursorPositionValue); }
+            get { return RealMath.Min(SelectionAnchorPositionValue, CursorPositionValue); }
         }
 
         /// <summary>
         /// Gets the character index immediately after the active selection.
         /// </summary>
         public int SelectionEnd {
-            get { return Math.Max(SelectionAnchorPositionValue, CursorPositionValue); }
+            get { return RealMath.Max(SelectionAnchorPositionValue, CursorPositionValue); }
         }
 
         /// <summary>
@@ -613,20 +613,20 @@ namespace helengine {
 
             int selectionLineIndex = ResolveLineIndexFromTextIndex(SelectionStart);
             int selectionLineEndIndex = ResolveLineEndIndex(selectionLineIndex);
-            double selectionStartX = ResolveTextWidthInLine(selectionLineIndex, ResolveLineStartIndex(selectionLineIndex), SelectionStart);
-            double selectionWidth = ResolveTextWidthInLine(
+            RealEvaluation selectionStartX = ResolveTextWidthInLine(selectionLineIndex, ResolveLineStartIndex(selectionLineIndex), SelectionStart);
+            RealEvaluation selectionWidth = ResolveTextWidthInLine(
                 selectionLineIndex,
                 SelectionStart,
-                Math.Min(SelectionEnd, selectionLineEndIndex));
-            double lineHeight = Math.Max((double)Font.LineHeight * GetResolvedFontScale(), 1.0);
+                RealMath.Min(SelectionEnd, selectionLineEndIndex));
+            RealEvaluation lineHeight = RealMath.Max((RealEvaluation)Font.LineHeight * GetResolvedFontScale(), 1.0);
 
             SelectionEntityValue.LocalPosition = new float3(
-                (float)selectionStartX,
-                (float)(selectionLineIndex * lineHeight),
+                (RealEvaluation)selectionStartX,
+                (RealEvaluation)(selectionLineIndex * lineHeight),
                 -0.01f);
             SelectionSpriteValue.Size = new int2(
-                (int)Math.Ceiling(selectionWidth),
-                (int)Math.Ceiling(lineHeight));
+                (int)RealMath.Ceiling(selectionWidth),
+                (int)RealMath.Ceiling(lineHeight));
             SelectionSpriteValue.FillColor = new byte4(
                 ThemeManager.Colors.AccentPrimary.X,
                 ThemeManager.Colors.AccentPrimary.Y,
@@ -641,14 +641,14 @@ namespace helengine {
         /// <param name="startIndex">First character index to include.</param>
         /// <param name="endIndex">Character index immediately after the last character to include.</param>
         /// <returns>Substring width in pixels.</returns>
-        double ResolveTextWidth(int startIndex, int endIndex) {
+        RealEvaluation ResolveTextWidth(int startIndex, int endIndex) {
             if (Font == null) {
                 return 0.0;
             }
 
-            int clampedStart = Math.Max(0, Math.Min(startIndex, TextValue.Length));
-            int clampedEnd = Math.Max(0, Math.Min(endIndex, TextValue.Length));
-            double width = 0.0;
+            int clampedStart = RealMath.Max(0, RealMath.Min(startIndex, TextValue.Length));
+            int clampedEnd = RealMath.Max(0, RealMath.Min(endIndex, TextValue.Length));
+            RealEvaluation width = 0.0;
             for (int index = clampedStart; index < clampedEnd; index++) {
                 width += ResolveCharacterAdvance(TextValue[index]);
             }
@@ -663,11 +663,11 @@ namespace helengine {
         /// <param name="startIndex">First character index to include.</param>
         /// <param name="endIndex">Character index immediately after the last character to include.</param>
         /// <returns>Measured width in pixels for the requested range on the supplied line.</returns>
-        double ResolveTextWidthInLine(int lineIndex, int startIndex, int endIndex) {
+        RealEvaluation ResolveTextWidthInLine(int lineIndex, int startIndex, int endIndex) {
             int lineStartIndex = ResolveLineStartIndex(lineIndex);
             int lineEndIndex = ResolveLineEndIndex(lineIndex);
-            int clampedStartIndex = Math.Max(lineStartIndex, Math.Min(startIndex, lineEndIndex));
-            int clampedEndIndex = Math.Max(clampedStartIndex, Math.Min(endIndex, lineEndIndex));
+            int clampedStartIndex = RealMath.Max(lineStartIndex, RealMath.Min(startIndex, lineEndIndex));
+            int clampedEndIndex = RealMath.Max(clampedStartIndex, RealMath.Min(endIndex, lineEndIndex));
             return ResolveTextWidth(clampedStartIndex, clampedEndIndex);
         }
 
@@ -676,14 +676,14 @@ namespace helengine {
         /// </summary>
         /// <param name="character">Character to measure.</param>
         /// <returns>Advance width in pixels.</returns>
-        double ResolveCharacterAdvance(char character) {
-            double fontScale = GetResolvedFontScale();
+        RealEvaluation ResolveCharacterAdvance(char character) {
+            RealEvaluation fontScale = GetResolvedFontScale();
             if (character == '\r' || character == '\n') {
                 return 0.0;
             }
 
             if (character == ' ') {
-                return Math.Max((double)Font.FontInfo.SpaceWidth, 1.0) * fontScale;
+                return RealMath.Max((RealEvaluation)Font.FontInfo.SpaceWidth, 1.0) * fontScale;
             }
 
             FontChar glyph;
@@ -692,7 +692,7 @@ namespace helengine {
                     return glyph.AdvanceWidth * fontScale;
                 }
 
-                double sourceWidth = (double)glyph.SourceRect.Z;
+                RealEvaluation sourceWidth = (RealEvaluation)glyph.SourceRect.Z;
                 if (sourceWidth > 0.0) {
                     return sourceWidth * fontScale;
                 }
@@ -714,9 +714,9 @@ namespace helengine {
 
             float3 position = Parent.Position;
             float2 textSize = Font.MeasureString(TextValue);
-            double fontScale = GetResolvedFontScale();
-            double textWidth = textSize.X * fontScale;
-            double textHeight = textSize.Y * fontScale;
+            RealEvaluation fontScale = GetResolvedFontScale();
+            RealEvaluation textWidth = textSize.X * fontScale;
+            RealEvaluation textHeight = textSize.Y * fontScale;
 
             return x >= position.X &&
                    x < position.X + textWidth &&
@@ -827,12 +827,12 @@ namespace helengine {
                     SelectionAnchorPositionValue = CursorPositionValue;
                 }
 
-                CursorPositionValue = Math.Max(0, CursorPositionValue - 1);
+                CursorPositionValue = RealMath.Max(0, CursorPositionValue - 1);
             } else if (HasSelection) {
                 CursorPositionValue = SelectionStart;
                 SelectionAnchorPositionValue = CursorPositionValue;
             } else {
-                CursorPositionValue = Math.Max(0, CursorPositionValue - 1);
+                CursorPositionValue = RealMath.Max(0, CursorPositionValue - 1);
                 SelectionAnchorPositionValue = CursorPositionValue;
             }
 
@@ -849,12 +849,12 @@ namespace helengine {
                     SelectionAnchorPositionValue = CursorPositionValue;
                 }
 
-                CursorPositionValue = Math.Min(TextValue.Length, CursorPositionValue + 1);
+                CursorPositionValue = RealMath.Min(TextValue.Length, CursorPositionValue + 1);
             } else if (HasSelection) {
                 CursorPositionValue = SelectionEnd;
                 SelectionAnchorPositionValue = CursorPositionValue;
             } else {
-                CursorPositionValue = Math.Min(TextValue.Length, CursorPositionValue + 1);
+                CursorPositionValue = RealMath.Min(TextValue.Length, CursorPositionValue + 1);
                 SelectionAnchorPositionValue = CursorPositionValue;
             }
 
@@ -915,14 +915,14 @@ namespace helengine {
             }
 
             float3 textPosition = Parent.Position;
-            double textX = Math.Max(0.0, (double)pointerX - textPosition.X);
-            double textY = Math.Max(0.0, (double)pointerY - textPosition.Y);
+            RealEvaluation textX = RealMath.Max(0.0, (RealEvaluation)pointerX - textPosition.X);
+            RealEvaluation textY = RealMath.Max(0.0, (RealEvaluation)pointerY - textPosition.Y);
             int lineIndex = ResolveLineIndexFromLocalY(textY);
             int lineStartIndex = ResolveLineStartIndex(lineIndex);
             int lineEndIndex = ResolveLineEndIndex(lineIndex);
-            double cursorX = 0.0;
+            RealEvaluation cursorX = 0.0;
             for (int index = lineStartIndex; index < lineEndIndex; index++) {
-                double advance = ResolveCharacterAdvance(TextValue[index]);
+                RealEvaluation advance = ResolveCharacterAdvance(TextValue[index]);
                 if (textX < cursorX + (advance * 0.5)) {
                     return index;
                 }
@@ -938,19 +938,19 @@ namespace helengine {
         /// </summary>
         /// <param name="localY">Pointer Y position relative to the text origin.</param>
         /// <returns>Line index that contains the pointer.</returns>
-        int ResolveLineIndexFromLocalY(double localY) {
-            double lineHeight = Math.Max((double)Font.LineHeight * GetResolvedFontScale(), 1.0);
+        int ResolveLineIndexFromLocalY(RealEvaluation localY) {
+            RealEvaluation lineHeight = RealMath.Max((RealEvaluation)Font.LineHeight * GetResolvedFontScale(), 1.0);
             int lineIndex = (int)(localY / lineHeight);
-            int maxLineIndex = Math.Max(0, ResolveLineCount() - 1);
-            return Math.Max(0, Math.Min(lineIndex, maxLineIndex));
+            int maxLineIndex = RealMath.Max(0, ResolveLineCount() - 1);
+            return RealMath.Max(0, RealMath.Min(lineIndex, maxLineIndex));
         }
 
         /// <summary>
         /// Resolves the uniform glyph scale used by layout, hit testing, and rendering.
         /// </summary>
         /// <returns>Positive glyph scale.</returns>
-        double GetResolvedFontScale() {
-            return Math.Max((double)FontScaleValue, 0.0001d);
+        RealEvaluation GetResolvedFontScale() {
+            return RealMath.Max((RealEvaluation)FontScaleValue, 0.0001d);
         }
 
         /// <summary>
@@ -959,7 +959,7 @@ namespace helengine {
         /// <param name="textIndex">Text index to resolve.</param>
         /// <returns>Zero-based line index that contains the requested text position.</returns>
         int ResolveLineIndexFromTextIndex(int textIndex) {
-            int clampedIndex = Math.Max(0, Math.Min(textIndex, TextValue.Length));
+            int clampedIndex = RealMath.Max(0, RealMath.Min(textIndex, TextValue.Length));
             int lineIndex = 0;
             for (int index = 0; index < clampedIndex && index < TextValue.Length; index++) {
                 if (TextValue[index] == '\n') {

@@ -6,7 +6,7 @@
 
 namespace helengine {
     /// <summary>
-    /// Represents a four-component single-precision value used for quaternion storage and generated wide-math surfaces.
+    /// Represents a four-component build-configurable Real value used for quaternion storage.
     /// </summary>
     public struct float4 {
         /// <summary>
@@ -27,22 +27,22 @@ namespace helengine {
         /// <summary>
         /// X component of the quaternion.
         /// </summary>
-        public float X;
+        public Real X;
 
         /// <summary>
         /// Y component of the quaternion.
         /// </summary>
-        public float Y;
+        public Real Y;
 
         /// <summary>
         /// Z component of the quaternion.
         /// </summary>
-        public float Z;
+        public Real Z;
 
         /// <summary>
         /// W component representing the rotation scalar.
         /// </summary>
-        public float W;
+        public Real W;
 
         /// <summary>
         /// Constructs a quaternion with X, Y, Z, and W values.
@@ -51,7 +51,7 @@ namespace helengine {
         /// <param name="y">Y component.</param>
         /// <param name="z">Z component.</param>
         /// <param name="w">Rotation scalar.</param>
-        public float4(float x, float y, float z, float w) {
+        public float4(Real x, Real y, Real z, Real w) {
             X = x;
             Y = y;
             Z = z;
@@ -62,7 +62,7 @@ namespace helengine {
         /// Constructs a four-component value with all components set to the same scalar.
         /// </summary>
         /// <param name="value">Scalar applied to every component.</param>
-        public float4(float value) {
+        public float4(Real value) {
             X = value;
             Y = value;
             Z = value;
@@ -74,7 +74,7 @@ namespace helengine {
         /// </summary>
         /// <param name="xyz">Three-component source used for X, Y, and Z.</param>
         /// <param name="w">Scalar used for W.</param>
-        public float4(float3 xyz, float w) {
+        public float4(float3 xyz, Real w) {
             X = xyz.X;
             Y = xyz.Y;
             Z = xyz.Z;
@@ -109,17 +109,17 @@ namespace helengine {
         /// <returns>Value composed of the square roots of each component.</returns>
         public static float4 SquareRoot(float4 value) {
             return new float4(
-                (float)Math.Sqrt(value.X),
-                (float)Math.Sqrt(value.Y),
-                (float)Math.Sqrt(value.Z),
-                (float)Math.Sqrt(value.W));
+                RealMath.Sqrt(value.X),
+                RealMath.Sqrt(value.Y),
+                RealMath.Sqrt(value.Z),
+                RealMath.Sqrt(value.W));
         }
 
         /// <summary>
         /// Computes the squared Euclidean length of this quaternion value.
         /// </summary>
         /// <returns>Squared magnitude.</returns>
-        public float LengthSquared() {
+        public RealEvaluation LengthSquared() {
             return X * X + Y * Y + Z * Z + W * W;
         }
 
@@ -127,8 +127,8 @@ namespace helengine {
         /// Computes the Euclidean length of this quaternion value.
         /// </summary>
         /// <returns>Quaternion magnitude.</returns>
-        public float Length() {
-            return (float)Math.Sqrt(LengthSquared());
+        public RealEvaluation Length() {
+            return RealMath.Sqrt(LengthSquared());
         }
 
         /// <summary>
@@ -145,7 +145,7 @@ namespace helengine {
         /// <param name="x">X coordinate to test.</param>
         /// <param name="y">Y coordinate to test.</param>
         /// <returns>True if the point is inside the bounds; otherwise false.</returns>
-        public bool Contains(float x, float y) {
+        public bool Contains(RealEvaluation x, RealEvaluation y) {
             return ((((X <= x) && (x < (X + Z))) && (Y <= y)) && (y < (Y + W)));
         }
 
@@ -153,11 +153,8 @@ namespace helengine {
         /// Scales the quaternion magnitude to unit length.
         /// </summary>
         public void Normalize() {
-            float num = 1f / (float)Math.Sqrt((X * X) + (Y * Y) + (Z * Z) + (W * W));
-            X *= num;
-            Y *= num;
-            Z *= num;
-            W *= num;
+            float4 normalized = TransformNumericKernel<RealEvaluation, RuntimeNumericOperations>.Normalize(this, new RuntimeNumericOperations());
+            X = normalized.X; Y = normalized.Y; Z = normalized.Z; W = normalized.W;
         }
 
         /// <summary>
@@ -167,9 +164,9 @@ namespace helengine {
         /// <param name="end">End quaternion.</param>
         /// <param name="amount">Interpolation amount where 0 returns <paramref name="start"/> and 1 returns <paramref name="end"/>.</param>
         /// <returns>Normalized interpolated quaternion.</returns>
-        public static float4 Lerp(float4 start, float4 end, float amount) {
-            double normalizedAmount = amount;
-            double dot =
+        public static float4 Lerp(float4 start, float4 end, RealEvaluation amount) {
+            RealEvaluation normalizedAmount = amount;
+            RealEvaluation dot =
                 (start.X * end.X) +
                 (start.Y * end.Y) +
                 (start.Z * end.Z) +
@@ -181,10 +178,10 @@ namespace helengine {
             }
 
             float4 result = new float4(
-                (float)(start.X + ((adjustedEnd.X - start.X) * normalizedAmount)),
-                (float)(start.Y + ((adjustedEnd.Y - start.Y) * normalizedAmount)),
-                (float)(start.Z + ((adjustedEnd.Z - start.Z) * normalizedAmount)),
-                (float)(start.W + ((adjustedEnd.W - start.W) * normalizedAmount)));
+                (start.X + ((adjustedEnd.X - start.X) * normalizedAmount)),
+                (start.Y + ((adjustedEnd.Y - start.Y) * normalizedAmount)),
+                (start.Z + ((adjustedEnd.Z - start.Z) * normalizedAmount)),
+                (start.W + ((adjustedEnd.W - start.W) * normalizedAmount)));
             result.Normalize();
             return result;
         }
@@ -238,7 +235,7 @@ namespace helengine {
         /// <param name="left">First value.</param>
         /// <param name="right">Second value.</param>
         /// <returns>Sum of the component-wise products.</returns>
-        public static float Dot(float4 left, float4 right) {
+        public static RealEvaluation Dot(float4 left, float4 right) {
             return
                 (left.X * right.X) +
                 (left.Y * right.Y) +
@@ -253,28 +250,7 @@ namespace helengine {
         /// <param name="rotation">Quaternion rotation.</param>
         /// <returns>Rotated vector.</returns>
         public static float3 RotateVector(float3 value, float4 rotation) {
-            double qx = rotation.X;
-            double qy = rotation.Y;
-            double qz = rotation.Z;
-            double qw = rotation.W;
-
-            double vx = value.X;
-            double vy = value.Y;
-            double vz = value.Z;
-
-            double tx = 2.0 * (qy * vz - qz * vy);
-            double ty = 2.0 * (qz * vx - qx * vz);
-            double tz = 2.0 * (qx * vy - qy * vx);
-
-            double cx = (qy * tz) - (qz * ty);
-            double cy = (qz * tx) - (qx * tz);
-            double cz = (qx * ty) - (qy * tx);
-
-            double rx = vx + (tx * qw) + cx;
-            double ry = vy + (ty * qw) + cy;
-            double rz = vz + (tz * qw) + cz;
-
-            return new float3((float)rx, (float)ry, (float)rz);
+            return TransformNumericKernel<RealEvaluation, RuntimeNumericOperations>.Rotate(value, rotation, new RuntimeNumericOperations());
         }
 
         /// <summary>
@@ -283,17 +259,17 @@ namespace helengine {
         /// <param name="value">Quaternion to invert.</param>
         /// <returns>Inverse quaternion.</returns>
         public static float4 Inverse(float4 value) {
-            double lengthSquared = (value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z) + (value.W * value.W);
+            RealEvaluation lengthSquared = (value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z) + (value.W * value.W);
             if (lengthSquared <= 0.0) {
                 throw new InvalidOperationException("Cannot invert a zero-length quaternion.");
             }
 
-            double inverseLengthSquared = 1.0 / lengthSquared;
+            RealEvaluation inverseLengthSquared = 1.0 / lengthSquared;
             return new float4(
-                (float)(-value.X * inverseLengthSquared),
-                (float)(-value.Y * inverseLengthSquared),
-                (float)(-value.Z * inverseLengthSquared),
-                (float)(value.W * inverseLengthSquared));
+                (-value.X * inverseLengthSquared),
+                (-value.Y * inverseLengthSquared),
+                (-value.Z * inverseLengthSquared),
+                (value.W * inverseLengthSquared));
         }
 
         /// <summary>
@@ -303,17 +279,17 @@ namespace helengine {
         /// <param name="pitch">Pitch around the X axis in radians.</param>
         /// <param name="roll">Roll around the Z axis in radians.</param>
         /// <param name="result">Output quaternion.</param>
-        public static void CreateFromYawPitchRoll(float yaw, float pitch, float roll, out float4 result) {
-            float halfRoll = roll * 0.5f;
-            float halfPitch = pitch * 0.5f;
-            float halfYaw = yaw * 0.5f;
+        public static void CreateFromYawPitchRoll(RealEvaluation yaw, RealEvaluation pitch, RealEvaluation roll, out float4 result) {
+            RealEvaluation halfRoll = roll * 0.5f;
+            RealEvaluation halfPitch = pitch * 0.5f;
+            RealEvaluation halfYaw = yaw * 0.5f;
 
-            float sinRoll = (float)Math.Sin(halfRoll);
-            float cosRoll = (float)Math.Cos(halfRoll);
-            float sinPitch = (float)Math.Sin(halfPitch);
-            float cosPitch = (float)Math.Cos(halfPitch);
-            float sinYaw = (float)Math.Sin(halfYaw);
-            float cosYaw = (float)Math.Cos(halfYaw);
+            RealEvaluation sinRoll = RealMath.Sin(halfRoll);
+            RealEvaluation cosRoll = RealMath.Cos(halfRoll);
+            RealEvaluation sinPitch = RealMath.Sin(halfPitch);
+            RealEvaluation cosPitch = RealMath.Cos(halfPitch);
+            RealEvaluation sinYaw = RealMath.Sin(halfYaw);
+            RealEvaluation cosYaw = RealMath.Cos(halfYaw);
 
             result.X = (cosYaw * sinPitch * cosRoll) + (sinYaw * cosPitch * sinRoll);
             result.Y = (sinYaw * cosPitch * cosRoll) - (cosYaw * sinPitch * sinRoll);
@@ -323,41 +299,42 @@ namespace helengine {
 
         /// <summary>
         /// Decomposes this quaternion into pitch, yaw and roll angles expressed in degrees.
-        /// The decomposition is the inverse of <see cref="CreateFromYawPitchRoll(float, float, float, out float4)"/>:
+        /// The decomposition is the inverse of <see cref="CreateFromYawPitchRoll(Real, Real, Real, out float4)"/>:
         /// pitch rotates around X, yaw around Y and roll around Z. Near the poles the pitch term saturates, so the
         /// angle is clamped to the pole instead of feeding an out-of-range value to the arc sine.
-        /// All intermediate math runs in double precision so the angles stay stable for near-normalized inputs.
+        /// All intermediate math runs in RealEvaluation precision so the angles stay stable for near-normalized inputs.
         /// </summary>
         /// <param name="pitch">Pitch angle around the X axis in degrees.</param>
         /// <param name="yaw">Yaw angle around the Y axis in degrees.</param>
         /// <param name="roll">Roll angle around the Z axis in degrees.</param>
         public void ToEulerDegrees(out double pitch, out double yaw, out double roll) {
-            double x = X;
-            double y = Y;
-            double z = Z;
-            double w = W;
+            RealEvaluation pitchValue;
+            RealEvaluation x = X;
+            RealEvaluation y = Y;
+            RealEvaluation z = Z;
+            RealEvaluation w = W;
 
-            double sinPitch = 2.0 * (w * x - y * z);
+            RealEvaluation sinPitch = 2.0 * (w * x - y * z);
             if (sinPitch >= 1.0) {
-                pitch = Math.PI / 2.0;
+                pitchValue = RealMath.PI / 2.0;
             } else if (sinPitch <= -1.0) {
-                pitch = -(Math.PI / 2.0);
+                pitchValue = -(RealMath.PI / 2.0);
             } else {
-                pitch = Math.Asin(sinPitch);
+                pitchValue = RealMath.Asin(sinPitch);
             }
 
-            double sinYaw = 2.0 * (w * y + x * z);
-            double cosYaw = 1.0 - 2.0 * (x * x + y * y);
-            yaw = Math.Atan2(sinYaw, cosYaw);
+            RealEvaluation sinYaw = 2.0 * (w * y + x * z);
+            RealEvaluation cosYaw = 1.0 - 2.0 * (x * x + y * y);
+            RealEvaluation yawValue = RealMath.Atan2(sinYaw, cosYaw);
 
-            double sinRoll = 2.0 * (w * z + x * y);
-            double cosRoll = 1.0 - 2.0 * (y * y + z * z);
-            roll = Math.Atan2(sinRoll, cosRoll);
+            RealEvaluation sinRoll = 2.0 * (w * z + x * y);
+            RealEvaluation cosRoll = 1.0 - 2.0 * (y * y + z * z);
+            RealEvaluation rollValue = RealMath.Atan2(sinRoll, cosRoll);
 
-            double radiansToDegrees = 180.0 / Math.PI;
-            pitch = pitch * radiansToDegrees;
-            yaw = yaw * radiansToDegrees;
-            roll = roll * radiansToDegrees;
+            RealEvaluation radiansToDegrees = 180.0 / RealMath.PI;
+            pitch = (double)(pitchValue * radiansToDegrees);
+            yaw = (double)(yawValue * radiansToDegrees);
+            roll = (double)(rollValue * radiansToDegrees);
         }
 
         /// <summary>
@@ -367,20 +344,7 @@ namespace helengine {
         /// <param name="value2">Second quaternion.</param>
         /// <param name="result">Resulting concatenated quaternion.</param>
         public static void Concatenate(ref float4 value1, ref float4 value2, out float4 result) {
-            float x1 = value1.X;
-            float y1 = value1.Y;
-            float z1 = value1.Z;
-            float w1 = value1.W;
-
-            float x2 = value2.X;
-            float y2 = value2.Y;
-            float z2 = value2.Z;
-            float w2 = value2.W;
-
-            result.X = ((x2 * w1) + (x1 * w2)) + ((y2 * z1) - (z2 * y1));
-            result.Y = ((y2 * w1) + (y1 * w2)) + ((z2 * x1) - (x2 * z1));
-            result.Z = ((z2 * w1) + (z1 * w2)) + ((x2 * y1) - (y2 * x1));
-            result.W = (w2 * w1) - (((x2 * x1) + (y2 * y1)) + (z2 * z1));
+            result = TransformNumericKernel<RealEvaluation, RuntimeNumericOperations>.Concatenate(value1, value2, new RuntimeNumericOperations());
         }
 
         /// <summary>
@@ -389,7 +353,7 @@ namespace helengine {
         /// <param name="axis">Axis of rotation.</param>
         /// <param name="angle">Angle in radians.</param>
         /// <param name="result">Output quaternion.</param>
-        public static void CreateFromAxisAngle(float3 axis, float angle, out float4 result) {
+        public static void CreateFromAxisAngle(float3 axis, RealEvaluation angle, out float4 result) {
             CreateFromAxisAngle(ref axis, angle, out result);
         }
 
@@ -399,10 +363,10 @@ namespace helengine {
         /// <param name="axis">Axis of rotation.</param>
         /// <param name="angle">Angle in radians.</param>
         /// <param name="result">Output quaternion.</param>
-        public static void CreateFromAxisAngle(ref float3 axis, float angle, out float4 result) {
-            float half = angle * 0.5f;
-            float sin = (float)Math.Sin(half);
-            float cos = (float)Math.Cos(half);
+        public static void CreateFromAxisAngle(ref float3 axis, RealEvaluation angle, out float4 result) {
+            RealEvaluation half = angle * 0.5f;
+            RealEvaluation sin = RealMath.Sin(half);
+            RealEvaluation cos = RealMath.Cos(half);
             result.X = axis.X * sin;
             result.Y = axis.Y * sin;
             result.Z = axis.Z * sin;
@@ -454,7 +418,7 @@ namespace helengine {
         /// <param name="value">Value to scale.</param>
         /// <param name="scalar">Scalar multiplier.</param>
         /// <returns>Scaled value.</returns>
-        public static float4 operator *(float4 value, float scalar) {
+        public static float4 operator *(float4 value, RealEvaluation scalar) {
             return new float4(value.X * scalar, value.Y * scalar, value.Z * scalar, value.W * scalar);
         }
 
@@ -474,7 +438,7 @@ namespace helengine {
         /// <param name="value">Value to scale.</param>
         /// <param name="scalar">Scalar divisor.</param>
         /// <returns>Scaled value.</returns>
-        public static float4 operator /(float4 value, float scalar) {
+        public static float4 operator /(float4 value, RealEvaluation scalar) {
             return new float4(value.X / scalar, value.Y / scalar, value.Z / scalar, value.W / scalar);
         }
     }

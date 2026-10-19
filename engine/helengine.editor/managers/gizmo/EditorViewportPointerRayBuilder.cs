@@ -80,19 +80,19 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Scene camera must belong to an entity.");
             }
 
-            if (!float.IsFinite(viewport.X) || !float.IsFinite(viewport.Y) ||
-                !float.IsFinite(viewport.Z) || !float.IsFinite(viewport.W) ||
+            if (!float.IsFinite((float)(viewport.X)) || !float.IsFinite((float)(viewport.Y)) ||
+                !float.IsFinite((float)(viewport.Z)) || !float.IsFinite((float)(viewport.W)) ||
                 viewport.Z <= MinimumViewportDimension || viewport.W <= MinimumViewportDimension) {
                 rayOrigin = float3.Zero;
                 rayDirection = float3.Zero;
                 return false;
             }
 
-            double normalizedX = (pointer.X - viewport.X) / viewport.Z;
-            double normalizedY = (pointer.Y - viewport.Y) / viewport.W;
+            double normalizedX = (double)((pointer.X - viewport.X) / viewport.Z);
+            double normalizedY = (double)((pointer.Y - viewport.Y) / viewport.W);
             double ndcX = (normalizedX * 2.0) - 1.0;
             double ndcY = 1.0 - (normalizedY * 2.0);
-            double aspect = viewport.Z / viewport.W;
+            double aspect = (double)(viewport.Z / viewport.W);
             if (!double.IsFinite(aspect) || aspect <= 0.0) {
                 rayOrigin = float3.Zero;
                 rayDirection = float3.Zero;
@@ -103,7 +103,7 @@ namespace helengine.editor {
             float3 worldForward = NormalizeSafe(float4.RotateVector(CameraForwardAxis, cameraOrientation), CameraForwardAxis);
             ICameraProjectionSettings projectionSettings = useCameraProjection ? camera as ICameraProjectionSettings : null;
             if (projectionSettings != null && projectionSettings.ProjectionMode == CameraProjectionMode.Orthographic) {
-                double span = projectionSettings.OrthographicVerticalSpan;
+                double span = (double)(projectionSettings.OrthographicVerticalSpan);
                 if (!double.IsFinite(span) || span < CameraProjectionUtils.MinimumOrthographicVerticalSpan) {
                     rayOrigin = float3.Zero;
                     rayDirection = float3.Zero;
@@ -119,7 +119,7 @@ namespace helengine.editor {
                 return true;
             }
 
-            double fieldOfView = CameraProjectionUtils.ClampFieldOfView(camera.FieldOfView);
+            double fieldOfView = (double)(CameraProjectionUtils.ClampFieldOfView(camera.FieldOfView));
             double tanHalfFieldOfView = Math.Tan(fieldOfView * 0.5);
             float3 cameraSpaceDirection = new float3(
                 (float)(ndcX * aspect * tanHalfFieldOfView),
@@ -139,9 +139,9 @@ namespace helengine.editor {
         /// <returns>Normalized vector when valid; otherwise the fallback value.</returns>
         static float3 NormalizeSafe(float3 value, float3 fallback) {
             double lengthSquared =
-                (value.X * value.X) +
+                (double)((value.X * value.X) +
                 (value.Y * value.Y) +
-                (value.Z * value.Z);
+                (value.Z * value.Z));
             if (lengthSquared <= MinimumVectorLengthSquared) {
                 return fallback;
             }

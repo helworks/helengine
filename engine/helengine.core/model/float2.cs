@@ -6,25 +6,25 @@
 
 namespace helengine {
     /// <summary>
-    /// Represents a 2D vector of single-precision floating point components.
+    /// Represents a 2D vector of build-configurable Real components.
     /// </summary>
     public struct float2 {
         /// <summary>
         /// X component of the vector.
         /// </summary>
-        public float X;
+        public Real X;
 
         /// <summary>
         /// Y component of the vector.
         /// </summary>
-        public float Y;
+        public Real Y;
 
         /// <summary>
         /// Initializes a vector with the specified components.
         /// </summary>
         /// <param name="x">Value for the X component.</param>
         /// <param name="y">Value for the Y component.</param>
-        public float2(float x, float y) {
+        public float2(Real x, Real y) {
             X = x;
             Y = y;
         }
@@ -33,7 +33,7 @@ namespace helengine {
         /// Initializes a vector with both components set to the same value.
         /// </summary>
         /// <param name="value">Value to assign to both X and Y.</param>
-        public float2(float value) {
+        public float2(Real value) {
             X = value;
             Y = value;
         }
@@ -42,7 +42,7 @@ namespace helengine {
         /// Computes the squared Euclidean length of this vector.
         /// </summary>
         /// <returns>Squared magnitude.</returns>
-        public float LengthSquared() {
+        public RealEvaluation LengthSquared() {
             return X * X + Y * Y;
         }
 
@@ -50,8 +50,8 @@ namespace helengine {
         /// Computes the Euclidean length of this vector.
         /// </summary>
         /// <returns>Vector magnitude.</returns>
-        public float Length() {
-            return (float)Math.Sqrt(LengthSquared());
+        public RealEvaluation Length() {
+            return RealMath.Sqrt(LengthSquared());
         }
 
         /// <summary>
@@ -60,7 +60,7 @@ namespace helengine {
         /// <param name="value1">First vector.</param>
         /// <param name="value2">Second vector.</param>
         /// <returns>Dot product value.</returns>
-        public static float Dot(float2 value1, float2 value2) {
+        public static RealEvaluation Dot(float2 value1, float2 value2) {
             return value1.X * value2.X + value1.Y * value2.Y;
         }
 
@@ -70,7 +70,7 @@ namespace helengine {
         /// <param name="value">Vector to normalize.</param>
         /// <returns>Normalized vector.</returns>
         public static float2 Normalize(float2 value) {
-            float factor = (float)Math.Sqrt((value.X * value.X) + (value.Y * value.Y));
+            RealEvaluation factor = RealMath.Sqrt((value.X * value.X) + (value.Y * value.Y));
             factor = 1f / factor;
             return new float2(value.X * factor, value.Y * factor);
         }
@@ -167,7 +167,7 @@ namespace helengine {
         /// <param name="a">Vector to scale.</param>
         /// <param name="scalar">Scalar multiplier.</param>
         /// <returns>Scaled vector.</returns>
-        public static float2 operator *(float2 a, float scalar) {
+        public static float2 operator *(float2 a, RealEvaluation scalar) {
             return new float2(a.X * scalar, a.Y * scalar);
         }
 
@@ -187,7 +187,7 @@ namespace helengine {
         /// <param name="a">Vector to scale.</param>
         /// <param name="scalar">Scalar divisor.</param>
         /// <returns>Scaled vector.</returns>
-        public static float2 operator /(float2 a, float scalar) {
+        public static float2 operator /(float2 a, RealEvaluation scalar) {
             return new float2(a.X / scalar, a.Y / scalar);
         }
 

@@ -166,7 +166,7 @@ namespace helengine.directx11 {
                 int2 logicalSize = projectionSettings.LogicalViewportSize;
                 projectionViewport = new float4(0f, 0f, logicalSize.X, logicalSize.Y);
             }
-            Device.ImmediateContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
+            Device.ImmediateContext.Rasterizer.SetViewport((float)(viewport.X), (float)(viewport.Y), (float)(viewport.Z), (float)(viewport.W));
             ClipScissorStack.SetCameraViewport(viewport);
             ClipScissorStack.SetProjectionViewport(projectionViewport);
             ClipScissorStack.Clear();
@@ -265,11 +265,11 @@ namespace helengine.directx11 {
             context.PixelShader.SetConstantBuffer(0, SpriteConstantBuffer);
 
             var shaderData = new SpriteShaderData {
-                worldViewProj = transposedWorld,
-                sourceRect = drawable.SourceRect,
-                destRect = new float4(0f, 0f, 1f, 1f),
-                spriteTransform = new float4(0f, 0f, 0f, 0f),
-                color = new float4(color.X / 255.0f, color.Y / 255.0f, color.Z / 255.0f, color.W / 255.0f)
+                worldViewProj = GpuFloat4x4.FromEngine(transposedWorld),
+                sourceRect = GpuFloat4.FromEngine(drawable.SourceRect),
+                destRect = GpuFloat4.FromEngine(new float4(0f, 0f, 1f, 1f)),
+                spriteTransform = GpuFloat4.FromEngine(new float4(0f, 0f, 0f, 0f)),
+                color = GpuFloat4.FromEngine(new float4(color.X / 255.0f, color.Y / 255.0f, color.Z / 255.0f, color.W / 255.0f))
             };
             context.UpdateSubresource(ref shaderData, SpriteConstantBuffer);
 
@@ -311,7 +311,7 @@ namespace helengine.directx11 {
             context.PixelShader.SetConstantBuffer(0, SpriteConstantBuffer);
 
             var shaderData = new SpriteShaderData {
-                worldViewProj = transposedWorld
+                worldViewProj = GpuFloat4x4.FromEngine(transposedWorld)
             };
 
             string text = drawable.Text ?? string.Empty;
@@ -327,15 +327,15 @@ namespace helengine.directx11 {
                 text = TextLayoutUtils.WrapText(text, font, Math.Max(1, (int)Math.Round(drawable.Size.X / fontScale)));
             }
 
-            double[] lineOffsets = TextLineOffsets2D.Build(drawable, font, text, fontScale, data.Width);
+            RealEvaluation[] lineOffsets = TextLineOffsets2D.Build(drawable, font, text, fontScale, data.Width);
             double offsetX = 0d;
             double offsetY = 0d;
             double lineHeight = Math.Max((double)font.LineHeight * fontScale, 1d);
             // Snap the baseline to whole pixels to avoid clipped glyph edges at fractional offsets.
-            double baseX = Math.Round(pos.X);
-            double baseY = Math.Round(pos.Y);
+            double baseX = (double)(RealMath.Round(pos.X));
+            double baseY = (double)(RealMath.Round(pos.Y));
             int lineIndex = 0;
-            double lineOriginX = baseX + TextLineOffsets2D.Resolve(lineOffsets, lineIndex);
+            double lineOriginX = (double)(baseX + TextLineOffsets2D.Resolve(lineOffsets, lineIndex));
 
             for (int i = 0; i < text.Length; i++) {
                 char c = text[i];
@@ -344,7 +344,7 @@ namespace helengine.directx11 {
                     offsetY += lineHeight;
                     offsetX = 0d;
                     lineIndex++;
-                    lineOriginX = baseX + TextLineOffsets2D.Resolve(lineOffsets, lineIndex);
+                    lineOriginX = (double)(baseX + TextLineOffsets2D.Resolve(lineOffsets, lineIndex));
                     continue;
                 }
 
@@ -357,7 +357,7 @@ namespace helengine.directx11 {
                     continue;
                 }
 
-                shaderData.sourceRect = info.SourceRect;
+                shaderData.sourceRect = GpuFloat4.FromEngine(info.SourceRect);
                 double pixelW = shaderData.sourceRect.Z * data.Width * fontScale;
                 double pixelH = shaderData.sourceRect.W * data.Height * fontScale;
 
@@ -370,17 +370,17 @@ namespace helengine.directx11 {
                 for (int passIndex = 0; passIndex < effectPasses.Count; passIndex++) {
                     TextRenderEffectPass pass = effectPasses[passIndex];
                     byte4 passColor = pass.Color;
-                    shaderData.color = new float4(
+                    shaderData.color = GpuFloat4.FromEngine(new float4(
                         passColor.X / 255.0f,
                         passColor.Y / 255.0f,
                         passColor.Z / 255.0f,
-                        passColor.W / 255.0f);
-                    shaderData.destRect = new float4(
+                        passColor.W / 255.0f));
+                    shaderData.destRect = GpuFloat4.FromEngine(new float4(
                         (float)(lineOriginX + offsetX - advance + pass.Offset.X),
                         (float)(baseY + snappedLineOffsetY + (info.OffsetY * fontScale) + pass.Offset.Y),
                         (float)pixelW,
                         (float)pixelH
-                    );
+                    ));
                     if (useClearType) {
                         shaderData.destRect.X = (float)Math.Round(shaderData.destRect.X);
                         shaderData.destRect.Y = (float)Math.Round(shaderData.destRect.Y);
@@ -786,21 +786,21 @@ namespace helengine.directx11 {
             float4x4.Transpose(ref ProjectionMatrix2D, out transposedWorld);
 
             var shaderData = new UIShapeShaderData {
-                worldViewProj = transposedWorld,
-                destRect = new float4(pos.X, pos.Y, shape.Size.X, shape.Size.Y),
-                params1 = new float4(shape.Radius, shape.BorderThickness, 1.0f, (float)shape.Corners),
-                fillColor = new float4(
+                worldViewProj = GpuFloat4x4.FromEngine(transposedWorld),
+                destRect = GpuFloat4.FromEngine(new float4(pos.X, pos.Y, shape.Size.X, shape.Size.Y)),
+                params1 = GpuFloat4.FromEngine(new float4(shape.Radius, shape.BorderThickness, 1.0f, (float)shape.Corners)),
+                fillColor = GpuFloat4.FromEngine(new float4(
                     shape.FillColor.X / 255.0f,
                     shape.FillColor.Y / 255.0f,
                     shape.FillColor.Z / 255.0f,
                     shape.FillColor.W / 255.0f
-                ),
-                borderColor = new float4(
+                )),
+                borderColor = GpuFloat4.FromEngine(new float4(
                     shape.BorderColor.X / 255.0f,
                     shape.BorderColor.Y / 255.0f,
                     shape.BorderColor.Z / 255.0f,
                     shape.BorderColor.W / 255.0f
-                )
+                ))
             };
 
             context.VertexShader.SetConstantBuffer(0, UiShapeConstantBuffer);
@@ -817,8 +817,8 @@ namespace helengine.directx11 {
         /// <param name="shape">Rounded rectangle drawable.</param>
         /// <returns>Cached atlas entry.</returns>
         NineSliceCacheEntry GetNineSliceCacheEntry(IRoundedRectDrawable2D shape) {
-            int radius = (int)MathF.Round(shape.Radius);
-            int border = (int)MathF.Round(shape.BorderThickness);
+            int radius = (int)MathF.Round((float)(shape.Radius));
+            int border = (int)MathF.Round((float)(shape.BorderThickness));
             var key = (radius, border);
             if (!NineSliceCache.TryGetValue(key, out var atlas)) {
                 var coreAtlas = helengine.NineSliceAtlas.Generate(radius, border, aaPx: 1, padding: 2);
@@ -851,8 +851,8 @@ namespace helengine.directx11 {
             ConfigureSpritePipeline(SpriteInputLayout);
 
             float3 pos = shape.Parent.Position;
-            float x = pos.X;
-            float y = pos.Y;
+            float x = (float)(pos.X);
+            float y = (float)(pos.Y);
             float w = shape.Size.X;
             float h = shape.Size.Y;
             int s = atlas.CornerSize;
@@ -860,8 +860,8 @@ namespace helengine.directx11 {
             float4x4 transposedWorld;
             float4x4.Transpose(ref ProjectionMatrix2D, out transposedWorld);
             var shaderData = new SpriteShaderData {
-                worldViewProj = transposedWorld,
-                color = new float4(shape.FillColor.X / 255f, shape.FillColor.Y / 255f, shape.FillColor.Z / 255f, shape.FillColor.W / 255f)
+                worldViewProj = GpuFloat4x4.FromEngine(transposedWorld),
+                color = GpuFloat4.FromEngine(new float4(shape.FillColor.X / 255f, shape.FillColor.Y / 255f, shape.FillColor.Z / 255f, shape.FillColor.W / 255f))
             };
 
             context.VertexShader.SetConstantBuffer(0, SpriteConstantBuffer);
@@ -873,7 +873,7 @@ namespace helengine.directx11 {
             }
 
             if (shape.BorderThickness > 0) {
-                shaderData.color = new float4(shape.BorderColor.X / 255f, shape.BorderColor.Y / 255f, shape.BorderColor.Z / 255f, shape.BorderColor.W / 255f);
+                shaderData.color = GpuFloat4.FromEngine(new float4(shape.BorderColor.X / 255f, shape.BorderColor.Y / 255f, shape.BorderColor.Z / 255f, shape.BorderColor.W / 255f));
                 for (int tileIndex = 0; tileIndex < tileRects.Length; tileIndex++) {
                     DrawNineSliceTile(context, ref shaderData, atlas.BorderUv[tileIndex], tileRects[tileIndex]);
                 }
@@ -889,8 +889,8 @@ namespace helengine.directx11 {
         /// <param name="sourceUv">Source UV rectangle within the atlas texture.</param>
         /// <param name="destinationRect">Destination rectangle, in shape-local pixel space.</param>
         void DrawNineSliceTile(DeviceContext context, ref SpriteShaderData shaderData, float4 sourceUv, float4 destinationRect) {
-            shaderData.sourceRect = sourceUv;
-            shaderData.destRect = destinationRect;
+            shaderData.sourceRect = GpuFloat4.FromEngine(sourceUv);
+            shaderData.destRect = GpuFloat4.FromEngine(destinationRect);
             context.UpdateSubresource(ref shaderData, SpriteConstantBuffer);
             context.Draw(4, 0);
             ParentRenderer.IncrementDrawCalls(1);
@@ -943,17 +943,17 @@ namespace helengine.directx11 {
             float3 pos = shape.Parent.Position;
             float w = shape.Size.X;
             float h = shape.Size.Y;
-            float r = Math.Min(shape.Radius, Math.Min(w, h) * 0.5f);
-            float cx = pos.X + w * 0.5f;
-            float cy = pos.Y + h * 0.5f;
+            float r = (float)(RealMath.Min(shape.Radius, Math.Min(w, h) * 0.5f));
+            float cx = (float)(pos.X + w * 0.5f);
+            float cy = (float)(pos.Y + h * 0.5f);
 
             float2[] fillPoints = RoundedRectGeometryBuilder.BuildFillRingVertices(steps, w, h, r, cx, cy);
             WriteGeometryVertices(fillPoints, ref ptr);
 
             if (shape.BorderThickness > 0) {
-                float ir = Math.Max(0, r - shape.BorderThickness);
-                float iw = Math.Max(0, w - shape.BorderThickness * 2);
-                float ih = Math.Max(0, h - shape.BorderThickness * 2);
+                float ir = (float)(RealMath.Max(0, r - shape.BorderThickness));
+                float iw = (float)(RealMath.Max(0, w - shape.BorderThickness * 2));
+                float ih = (float)(RealMath.Max(0, h - shape.BorderThickness * 2));
                 float2[] borderPoints = RoundedRectGeometryBuilder.BuildBorderRingVertices(steps, w, h, r, iw, ih, ir, cx, cy);
                 WriteGeometryVertices(borderPoints, ref ptr);
             }
@@ -966,13 +966,13 @@ namespace helengine.directx11 {
             float4x4.Transpose(ref ProjectionMatrix2D, out transposedWorld);
 
             var colorData = new BasicColorShaderData {
-                worldViewProj = transposedWorld,
-                color = new float4(
+                worldViewProj = GpuFloat4x4.FromEngine(transposedWorld),
+                color = GpuFloat4.FromEngine(new float4(
                     shape.FillColor.X / 255.0f,
                     shape.FillColor.Y / 255.0f,
                     shape.FillColor.Z / 255.0f,
                     shape.FillColor.W / 255.0f
-                )
+                ))
             };
 
             context.VertexShader.SetConstantBuffer(0, BasicColorConstantBuffer);
@@ -983,12 +983,12 @@ namespace helengine.directx11 {
             ParentRenderer.IncrementDrawCalls(1);
 
             if (borderVerts > 0) {
-                colorData.color = new float4(
+                colorData.color = GpuFloat4.FromEngine(new float4(
                     shape.BorderColor.X / 255.0f,
                     shape.BorderColor.Y / 255.0f,
                     shape.BorderColor.Z / 255.0f,
                     shape.BorderColor.W / 255.0f
-                );
+                ));
                 context.UpdateSubresource(ref colorData, BasicColorConstantBuffer);
                 context.Draw(borderVerts, fillVerts);
                 ParentRenderer.IncrementDrawCalls(1);

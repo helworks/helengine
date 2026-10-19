@@ -274,16 +274,16 @@ namespace helengine.core.tests.managers.rendering {
                     int payload = commands.GetTexturedQuadPayloadIndex(index);
                     writer.Write(commands.GetTexturedQuadTexture(payload).GetHashCode());
                     WriteRect(writer, commands.GetTexturedQuadBounds(payload)); WriteRect(writer, commands.GetTexturedQuadSourceRect(payload));
-                    WriteColor(writer, commands.GetTexturedQuadColor(payload)); writer.Write(commands.GetTexturedQuadRotation(payload));
+                    WriteColor(writer, commands.GetTexturedQuadColor(payload)); writer.Write((double)(commands.GetTexturedQuadRotation(payload)));
                     SpriteQuad2D quad = commands.GetTexturedQuadGeometry(payload);
-                    writer.Write(quad.TopLeft.X); writer.Write(quad.TopLeft.Y);
-                    writer.Write(quad.TopRight.X); writer.Write(quad.TopRight.Y);
-                    writer.Write(quad.BottomRight.X); writer.Write(quad.BottomRight.Y);
-                    writer.Write(quad.BottomLeft.X); writer.Write(quad.BottomLeft.Y);
+                    writer.Write((double)(quad.TopLeft.X)); writer.Write((double)(quad.TopLeft.Y));
+                    writer.Write((double)(quad.TopRight.X)); writer.Write((double)(quad.TopRight.Y));
+                    writer.Write((double)(quad.BottomRight.X)); writer.Write((double)(quad.BottomRight.Y));
+                    writer.Write((double)(quad.BottomLeft.X)); writer.Write((double)(quad.BottomLeft.Y));
                 } else if (type == RenderCommand2DType.RoundedRect) {
                     int payload = commands.GetRoundedRectPayloadIndex(index);
-                    WriteRect(writer, commands.GetRoundedRectBounds(payload)); writer.Write(commands.GetRoundedRectRadius(payload));
-                    writer.Write(commands.GetRoundedRectBorderThickness(payload)); writer.Write((byte)commands.GetRoundedRectCorners(payload));
+                    WriteRect(writer, commands.GetRoundedRectBounds(payload)); writer.Write((double)(commands.GetRoundedRectRadius(payload)));
+                    writer.Write((double)(commands.GetRoundedRectBorderThickness(payload))); writer.Write((byte)commands.GetRoundedRectCorners(payload));
                     WriteColor(writer, commands.GetRoundedRectFillColor(payload)); WriteColor(writer, commands.GetRoundedRectBorderColor(payload));
                 }
             }
@@ -292,7 +292,7 @@ namespace helengine.core.tests.managers.rendering {
         /// <summary>Writes exact rectangle float values into the test comparison stream.</summary>
         /// <param name="writer">Comparison stream.</param>
         /// <param name="value">Actual rectangle.</param>
-        static void WriteRect(BinaryWriter writer, float4 value) { writer.Write(value.X); writer.Write(value.Y); writer.Write(value.Z); writer.Write(value.W); }
+        static void WriteRect(BinaryWriter writer, float4 value) { writer.Write((double)(value.X)); writer.Write((double)(value.Y)); writer.Write((double)(value.Z)); writer.Write((double)(value.W)); }
         /// <summary>Writes exact color bytes into the test comparison stream.</summary>
         /// <param name="writer">Comparison stream.</param>
         /// <param name="value">Actual color.</param>

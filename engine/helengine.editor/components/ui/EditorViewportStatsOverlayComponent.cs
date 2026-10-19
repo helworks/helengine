@@ -293,7 +293,7 @@ namespace helengine.editor {
             }
 
             int width = (int)Math.Ceiling(maxWidth) + OverlayPaddingX * 2;
-            int height = (int)Math.Ceiling(lines.Length * Font.LineHeight) + OverlayPaddingY * 2;
+            int height = (int)RealMath.Ceiling(lines.Length * Font.LineHeight) + OverlayPaddingY * 2;
             OverlayBackground.Size = new int2(width, height);
             OverlayText.Size = new int2(Math.Max(1, width - (OverlayPaddingX * 2)), Math.Max(1, height - (OverlayPaddingY * 2)));
             TextHost.Position = new float3(OverlayPaddingX, OverlayPaddingY, 0.1f);

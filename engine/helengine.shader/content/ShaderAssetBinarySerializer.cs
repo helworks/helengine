@@ -29,7 +29,8 @@ namespace helengine {
                         $"Shader asset binary version '{header.Version}' is unsupported; version '{PackagedAssetBinarySerializer.CurrentVersion}' is required. Regenerate the shader asset.");
                 }
 
-                using EngineBinaryReader reader = new BinaryReaderLE(stream, true);
+                using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
+                reader.NumericPolicy = RealBinaryCodec.ReadAndValidatePolicy(reader, RealRepresentation.Policy);
                 return ReadShaderAsset(reader);
             } finally {
                 NativeOwnership.Delete(header);

@@ -6,9 +6,9 @@ namespace helengine {
         /// <summary>Original Size before owner layout processing.</summary>
         public int2 Size;
         /// <summary>Original Radius before owner layout processing.</summary>
-        public float Radius;
+        public Real Radius;
         /// <summary>Original BorderThickness before owner layout processing.</summary>
-        public float BorderThickness;
+        public Real BorderThickness;
         /// <summary>Captures this participant without allocating a record object.</summary>
         public ViewportRectangleState([NativeRetainsBorrow] RoundedRectComponent component) {
             Component = component;
@@ -23,7 +23,7 @@ namespace helengine {
             Component.BorderThickness = BorderThickness;
         }
         /// <summary>Maps only deliberate preview edits back into authored space.</summary>
-        public void RestoreEdited(ViewportRectangleState applied, ViewportLayoutMetrics metrics) {
+        public void RestoreEdited(ViewportRectangleState applied, in ViewportLayoutMetrics metrics) {
             Component.Size = AuthoredLayoutScaleUtils.UnscaleInt2(Component.Size, applied.Size, Size, metrics.ScaleX, metrics.ScaleY);
             Component.Radius = AuthoredLayoutScaleUtils.UnscaleFloat(Component.Radius, applied.Radius, Radius, metrics.GlyphScale);
             Component.BorderThickness = AuthoredLayoutScaleUtils.UnscaleFloat(Component.BorderThickness, applied.BorderThickness, BorderThickness, metrics.GlyphScale);

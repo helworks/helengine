@@ -16,12 +16,12 @@ namespace helengine {
         /// <param name="scaledOutlineScale">Outline radius after viewport scaling; zero or less means the outline is disabled.</param>
         /// <param name="mode">Native-pixel mode whose rounding rule applies; must not be disabled.</param>
         /// <returns>The whole-pixel outline radius, or the original value when the outline is disabled.</returns>
-        public static float SnapOutlineScale(float scaledOutlineScale, TextNativePixelMode mode) {
+        public static RealEvaluation SnapOutlineScale(RealEvaluation scaledOutlineScale, TextNativePixelMode mode) {
             if (scaledOutlineScale <= 0f) {
                 return scaledOutlineScale;
             }
 
-            return (float)SnapMagnitude(scaledOutlineScale, mode);
+            return (RealEvaluation)SnapMagnitude(scaledOutlineScale, mode);
         }
 
         /// <summary>
@@ -40,12 +40,12 @@ namespace helengine {
         /// <param name="scaledAxis">One scaled shadow axis.</param>
         /// <param name="mode">Native-pixel mode whose rounding rule applies.</param>
         /// <returns>Zero for a zero axis, otherwise a signed whole-pixel distance of at least one.</returns>
-        static float SnapShadowAxis(float scaledAxis, TextNativePixelMode mode) {
+        static RealEvaluation SnapShadowAxis(RealEvaluation scaledAxis, TextNativePixelMode mode) {
             if (scaledAxis == 0f) {
                 return 0f;
             }
 
-            return (float)(Math.Sign(scaledAxis) * SnapMagnitude(Math.Abs((double)scaledAxis), mode));
+            return (RealEvaluation)(RealMath.Sign(scaledAxis) * SnapMagnitude(RealMath.Abs((RealEvaluation)scaledAxis), mode));
         }
 
         /// <summary>
@@ -54,19 +54,19 @@ namespace helengine {
         /// <param name="magnitude">Positive scaled distance in target pixels.</param>
         /// <param name="mode">Native-pixel mode whose rounding rule applies.</param>
         /// <returns>The whole-pixel distance, never below one.</returns>
-        static double SnapMagnitude(double magnitude, TextNativePixelMode mode) {
-            double snapped;
+        static RealEvaluation SnapMagnitude(RealEvaluation magnitude, TextNativePixelMode mode) {
+            RealEvaluation snapped;
             if (mode == TextNativePixelMode.RoundNearest) {
-                snapped = Math.Round(magnitude, MidpointRounding.AwayFromZero);
+                snapped = RealMath.Round(magnitude, MidpointRounding.AwayFromZero);
             } else if (mode == TextNativePixelMode.RoundDown) {
-                snapped = Math.Floor(magnitude);
+                snapped = RealMath.Floor(magnitude);
             } else if (mode == TextNativePixelMode.RoundUp) {
-                snapped = Math.Ceiling(magnitude);
+                snapped = RealMath.Ceiling(magnitude);
             } else {
                 throw new ArgumentOutOfRangeException(nameof(mode), "Effect snapping requires a native-pixel mode.");
             }
 
-            return Math.Max(1d, snapped);
+            return RealMath.Max(1d, snapped);
         }
     }
 }

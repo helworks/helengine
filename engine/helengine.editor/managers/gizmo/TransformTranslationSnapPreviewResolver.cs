@@ -150,9 +150,9 @@ namespace helengine.editor {
         /// <param name="primaryDirection">Active world-space translation axis direction.</param>
         /// <returns>Dominant signed world axis, or zero when the direction is invalid.</returns>
         static float3 ResolveDominantWorldAxis(float3 primaryDirection) {
-            double absX = Math.Abs(primaryDirection.X);
-            double absY = Math.Abs(primaryDirection.Y);
-            double absZ = Math.Abs(primaryDirection.Z);
+            double absX = RealMath.Abs(primaryDirection.X).ToDouble();
+            double absY = RealMath.Abs(primaryDirection.Y).ToDouble();
+            double absZ = RealMath.Abs(primaryDirection.Z).ToDouble();
             if (absX >= absY && absX >= absZ) {
                 return primaryDirection.X >= 0f ? WorldRight : (WorldRight * -1f);
             }
@@ -170,11 +170,11 @@ namespace helengine.editor {
         /// <param name="primaryDirection">Dominant signed world axis currently being dragged.</param>
         /// <returns>First candidate companion direction.</returns>
         static float3 ResolveFirstAxisPreviewCompanionDirection(float3 primaryDirection) {
-            if (Math.Abs(primaryDirection.X) >= ParallelDotThreshold) {
+            if (RealMath.Abs(primaryDirection.X) >= ParallelDotThreshold) {
                 return WorldUp;
             }
 
-            if (Math.Abs(primaryDirection.Y) >= ParallelDotThreshold) {
+            if (RealMath.Abs(primaryDirection.Y) >= ParallelDotThreshold) {
                 return WorldRight;
             }
 
@@ -187,11 +187,11 @@ namespace helengine.editor {
         /// <param name="primaryDirection">Dominant signed world axis currently being dragged.</param>
         /// <returns>Second candidate companion direction.</returns>
         static float3 ResolveSecondAxisPreviewCompanionDirection(float3 primaryDirection) {
-            if (Math.Abs(primaryDirection.X) >= ParallelDotThreshold) {
+            if (RealMath.Abs(primaryDirection.X) >= ParallelDotThreshold) {
                 return WorldForward;
             }
 
-            if (Math.Abs(primaryDirection.Y) >= ParallelDotThreshold) {
+            if (RealMath.Abs(primaryDirection.Y) >= ParallelDotThreshold) {
                 return WorldForward;
             }
 
@@ -228,7 +228,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            score = float3.Dot(planeNormal, cameraDirection);
+            score = (double)(float3.Dot(planeNormal, cameraDirection));
             if (score < 0.0) {
                 secondaryDirection *= -1f;
                 planeNormal *= -1f;
@@ -257,9 +257,9 @@ namespace helengine.editor {
             }
 
             var rotationMatrix = new System.Numerics.Matrix4x4(
-                primaryDirection.X, primaryDirection.Y, primaryDirection.Z, 0f,
-                secondaryDirection.X, secondaryDirection.Y, secondaryDirection.Z, 0f,
-                planeNormal.X, planeNormal.Y, planeNormal.Z, 0f,
+                (float)(primaryDirection.X), (float)(primaryDirection.Y), (float)(primaryDirection.Z), 0f,
+                (float)(secondaryDirection.X), (float)(secondaryDirection.Y), (float)(secondaryDirection.Z), 0f,
+                (float)(planeNormal.X), (float)(planeNormal.Y), (float)(planeNormal.Z), 0f,
                 0f, 0f, 0f, 1f);
             System.Numerics.Quaternion quaternion = System.Numerics.Quaternion.CreateFromRotationMatrix(rotationMatrix);
             previewOrientation = new float4(quaternion.X, quaternion.Y, quaternion.Z, quaternion.W);
@@ -301,9 +301,9 @@ namespace helengine.editor {
         /// <returns>Normalized direction, or zero when the input magnitude is near zero.</returns>
         static float3 NormalizeDirection(float3 value) {
             double lengthSquared =
-                (value.X * value.X) +
+                (double)((value.X * value.X) +
                 (value.Y * value.Y) +
-                (value.Z * value.Z);
+                (value.Z * value.Z));
             if (lengthSquared <= MinimumVectorLengthSquared) {
                 return float3.Zero;
             }

@@ -71,7 +71,10 @@ namespace helengine.editor {
             IReadOnlyDictionary<string, string> scenePathOverrides = null,
             string selectedEnvironmentId = "",
             IReadOnlyDictionary<string, string> selectedGraphicsOptionValues = null,
-            PlatformVideoMode playVideoMode = null) {
+            PlatformVideoMode playVideoMode = null,
+            NumericPrecisionPolicy numericPolicy = null) {
+            numericPolicy ??= NumericPrecisionPolicy.Default;
+            RealBinaryCodec.ValidatePolicy(numericPolicy);
             if (platformDefinition == null) {
                 throw new ArgumentNullException(nameof(platformDefinition));
             }
@@ -133,7 +136,7 @@ namespace helengine.editor {
                 Importers,
                 DefaultFontAsset,
                 ScriptTypeResolver,
-                BuiltInShaderAssetLibrary, layoutTarget);
+                BuiltInShaderAssetLibrary, layoutTarget, numericPolicy);
             long fingerprintMilliseconds = scenePackageTimer.ElapsedMilliseconds;
             int hashedInputCount = scenePackageCache.LastHashedInputCount;
             int reusedInputCount = scenePackageCache.LastReusedInputCount;
@@ -154,6 +157,7 @@ namespace helengine.editor {
                     ScriptTypeResolver,
                     selectedEnvironmentId);
                 packager.LayoutTarget = layoutTarget;
+                packager.NumericPolicy = numericPolicy;
                 packagerResult = packager.PackagePreservingIdentityPaths(
                     orderedSceneIdentityPaths,
                     orderedScenePaths,
@@ -180,7 +184,7 @@ namespace helengine.editor {
                     Importers,
                     DefaultFontAsset,
                     ScriptTypeResolver,
-                    BuiltInShaderAssetLibrary, layoutTarget);
+                    BuiltInShaderAssetLibrary, layoutTarget, numericPolicy);
                 if (scenePackageKey.DiffersOnlyByCreatedIdentitySidecars(packagedKey)) {
                     scenePackageCache.Store(packagedKey.Key, effectiveExecutionRootPath, packagerResult);
                     Console.WriteLine("[cook] scene-package-cache stored-post-packaging-key (packaging created identity sidecars)");
@@ -202,7 +206,7 @@ namespace helengine.editor {
 
             Console.WriteLine("[helengine-editor] build scene entries begin");
             cookStageTimer.Restart();
-            PlatformBuildScene[] scenes = BuildSceneEntries(orderedSceneIds, orderedSceneIdentityPaths, effectiveCookRootPath, packagerResult.SceneCookedDependencies);
+            PlatformBuildScene[] scenes = BuildSceneEntries(orderedSceneIds, orderedSceneIdentityPaths, effectiveCookRootPath, packagerResult.SceneCookedDependencies, numericPolicy);
             Console.WriteLine("[helengine-editor] build scene entries completed");
             Console.WriteLine($"[cook] scene-entries-ms={cookStageTimer.ElapsedMilliseconds}");
             Console.WriteLine("[helengine-editor] build cooked artifacts begin");
@@ -214,7 +218,7 @@ namespace helengine.editor {
                 cookedArtifactDeclarations,
                 effectiveExecutionRootPath,
                 platformDefinition.RuntimeGenerationContract.SupportsSceneCodeModules
-                    ? packagerResult.SceneCookedDependencies.Values.SelectMany(paths => paths).ToArray() : []);
+                    ? packagerResult.SceneCookedDependencies.Values.SelectMany(paths => paths).ToArray() : [], numericPolicy);
             Console.WriteLine("[helengine-editor] build cooked artifacts completed");
             Console.WriteLine($"[cook] artifact-manifest-ms={cookStageTimer.ElapsedMilliseconds}");
 
@@ -388,7 +392,7 @@ namespace helengine.editor {
                 : platform.Version.Trim();
         }
 
-        PlatformBuildScene[] BuildSceneEntries(IReadOnlyList<string> orderedSceneIds, IReadOnlyList<string> orderedSceneIdentityPaths, string cookRootPath, IReadOnlyDictionary<string, string[]> sceneCookedDependencies) {
+        PlatformBuildScene[] BuildSceneEntries(IReadOnlyList<string> orderedSceneIds, IReadOnlyList<string> orderedSceneIdentityPaths, string cookRootPath, IReadOnlyDictionary<string, string[]> sceneCookedDependencies, NumericPrecisionPolicy numericPolicy) {
             if (orderedSceneIds == null) {
                 throw new ArgumentNullException(nameof(orderedSceneIds));
             }
@@ -404,8 +408,8 @@ namespace helengine.editor {
                 string sceneId = orderedSceneIds[index];
                 string canonicalScenePath = orderedSceneIdentityPaths[index];
                 string cookedRelativePath = BuildCookedSceneRelativePath(canonicalScenePath, index);
-                uint physics3DSceneFeatureFlags = ReadCookedScenePhysics3DFeatureFlags(cookRootPath, cookedRelativePath);
-                string automaticRuntimeComponentTypeIds = ReadCookedSceneAutomaticRuntimeComponentTypeIds(cookRootPath, cookedRelativePath, ScriptTypeResolver);
+                uint physics3DSceneFeatureFlags = ReadCookedScenePhysics3DFeatureFlags(cookRootPath, cookedRelativePath, numericPolicy);
+                string automaticRuntimeComponentTypeIds = ReadCookedSceneAutomaticRuntimeComponentTypeIds(cookRootPath, cookedRelativePath, ScriptTypeResolver, numericPolicy);
                 if (!sceneCookedDependencies.TryGetValue(canonicalScenePath, out string[] dependencies) || !dependencies.Contains(cookedRelativePath, StringComparer.Ordinal)) {
                     throw new InvalidOperationException($"Cooked dependency selection is incomplete for scene '{sceneId}'.");
                 }
@@ -521,7 +525,7 @@ namespace helengine.editor {
         /// <param name="outputRootPath">Cooked output root path.</param>
         /// <param name="cookedRelativePath">Runtime-relative cooked scene payload path.</param>
         /// <returns>Compact 3D physics scene feature mask embedded in the cooked scene asset.</returns>
-        static uint ReadCookedScenePhysics3DFeatureFlags(string cookRootPath, string cookedRelativePath) {
+        static uint ReadCookedScenePhysics3DFeatureFlags(string cookRootPath, string cookedRelativePath, NumericPrecisionPolicy numericPolicy) {
             if (string.IsNullOrWhiteSpace(cookRootPath)) {
                 throw new ArgumentException("Cook root path must be provided.", nameof(cookRootPath));
             }
@@ -535,7 +539,7 @@ namespace helengine.editor {
             try {
                 EngineBinaryReadContext.CurrentAssetPath = fullScenePath;
                 using FileStream stream = File.OpenRead(fullScenePath);
-                Asset asset = DeserializeSerializedArtifact(stream);
+                Asset asset = DeserializeSerializedArtifact(stream, numericPolicy);
                 if (asset is not SceneAsset sceneAsset) {
                     throw new InvalidOperationException($"Cooked scene '{cookedRelativePath}' did not deserialize into a SceneAsset.");
                 }
@@ -558,7 +562,7 @@ namespace helengine.editor {
         static string ReadCookedSceneAutomaticRuntimeComponentTypeIds(
             string cookRootPath,
             string cookedRelativePath,
-            IScriptTypeResolver scriptTypeResolver) {
+            IScriptTypeResolver scriptTypeResolver, NumericPrecisionPolicy numericPolicy) {
             if (string.IsNullOrWhiteSpace(cookRootPath)) {
                 throw new ArgumentException("Cook root path must be provided.", nameof(cookRootPath));
             }
@@ -570,7 +574,7 @@ namespace helengine.editor {
             string fullScenePath = Path.Combine(cookRootPath, normalizedCookedRelativePath.Replace('/', Path.DirectorySeparatorChar));
             IReadOnlyList<Type> componentTypes = EditorGeneratedCoreRegenerationService.DiscoverAutomaticRuntimeComponentTypesFromCookedScenes(
                 [fullScenePath],
-                scriptTypeResolver);
+                scriptTypeResolver, numericPolicy);
             if (componentTypes.Count == 0) {
                 return string.Empty;
             }
@@ -589,7 +593,7 @@ namespace helengine.editor {
             IReadOnlyList<PlatformCookWorkItem> platformCookWorkItems,
             IReadOnlyList<PlatformCookedArtifactDeclaration> cookedArtifactDeclarations,
             string executionRootPath,
-            IReadOnlyList<string> selectedDependencyPaths) {
+            IReadOnlyList<string> selectedDependencyPaths, NumericPrecisionPolicy numericPolicy) {
             if (platformCookWorkItems == null) {
                 throw new ArgumentNullException(nameof(platformCookWorkItems));
             } else if (cookedArtifactDeclarations == null) {
@@ -613,7 +617,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                artifactPool.AddFile(fullPath, relativePath, ResolveArtifactKind(fullPath, relativePath), variantId);
+                artifactPool.AddFile(fullPath, relativePath, ResolveArtifactKind(fullPath, relativePath, numericPolicy), variantId);
             }
 
             string executionPrefix = Path.GetFullPath(executionRootPath) + Path.DirectorySeparatorChar;
@@ -625,7 +629,7 @@ namespace helengine.editor {
                 if (!fullPath.StartsWith(executionPrefix, StringComparison.OrdinalIgnoreCase) || !File.Exists(fullPath)) {
                     throw new FileNotFoundException("Selected runtime dependency was not materialized by the scene cook.", fullPath);
                 }
-                artifactPool.AddFile(fullPath, relativePath, ResolveArtifactKind(fullPath, relativePath), variantId);
+                artifactPool.AddFile(fullPath, relativePath, ResolveArtifactKind(fullPath, relativePath, numericPolicy), variantId);
             }
 
             return artifactPool.ToArray();
@@ -745,7 +749,7 @@ namespace helengine.editor {
             return cookedRelativePath;
         }
 
-        static string ResolveArtifactKind(string fullPath, string relativePath) {
+        static string ResolveArtifactKind(string fullPath, string relativePath, NumericPrecisionPolicy numericPolicy) {
             if (string.IsNullOrWhiteSpace(relativePath)) {
                 return "asset";
             }
@@ -759,7 +763,7 @@ namespace helengine.editor {
             if (relativePath.StartsWith("cooked/shaders/", StringComparison.OrdinalIgnoreCase)) {
                 return "shader";
             }
-            string serializedArtifactKind = TryResolveSerializedArtifactKind(fullPath, relativePath);
+            string serializedArtifactKind = TryResolveSerializedArtifactKind(fullPath, relativePath, numericPolicy);
             if (!string.IsNullOrWhiteSpace(serializedArtifactKind)) {
                 return serializedArtifactKind;
             }
@@ -767,7 +771,7 @@ namespace helengine.editor {
                 return "model";
             }
             if (relativePath.StartsWith("cooked/imported/", StringComparison.OrdinalIgnoreCase)) {
-                return ResolveImportedArtifactKind(fullPath, relativePath);
+                return ResolveImportedArtifactKind(fullPath, relativePath, numericPolicy);
             }
 
             return "asset";
@@ -779,7 +783,7 @@ namespace helengine.editor {
         /// <param name="fullPath">Full cooked artifact path on disk.</param>
         /// <param name="relativePath">Runtime-relative cooked artifact path.</param>
         /// <returns>Resolved serialized artifact kind, or an empty string when payload-based classification should not apply.</returns>
-        static string TryResolveSerializedArtifactKind(string fullPath, string relativePath) {
+        static string TryResolveSerializedArtifactKind(string fullPath, string relativePath, NumericPrecisionPolicy numericPolicy) {
             if (string.IsNullOrWhiteSpace(fullPath) || string.IsNullOrWhiteSpace(relativePath)) {
                 return string.Empty;
             }
@@ -806,7 +810,7 @@ namespace helengine.editor {
                     return string.Empty;
                 }
 
-                Asset asset = DeserializeSerializedArtifact(stream);
+                Asset asset = DeserializeSerializedArtifact(stream, numericPolicy);
                 if (asset is ModelAsset) {
                     return "model";
                 }
@@ -824,7 +828,7 @@ namespace helengine.editor {
             }
         }
 
-        static string ResolveImportedArtifactKind(string fullPath, string relativePath) {
+        static string ResolveImportedArtifactKind(string fullPath, string relativePath, NumericPrecisionPolicy numericPolicy) {
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Full path must be provided for imported artifact classification.", nameof(fullPath));
             }
@@ -840,7 +844,7 @@ namespace helengine.editor {
                     return "asset";
                 }
 
-                Asset asset = DeserializeSerializedArtifact(stream);
+                Asset asset = DeserializeSerializedArtifact(stream, numericPolicy);
                 if (asset is ModelAsset) {
                     return "model";
                 }
@@ -868,7 +872,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="stream">Seekable stream positioned at the beginning of a serialized payload.</param>
         /// <returns>The decoded asset instance.</returns>
-        static Asset DeserializeSerializedArtifact(Stream stream) {
+        static Asset DeserializeSerializedArtifact(Stream stream, NumericPrecisionPolicy numericPolicy) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             }
@@ -882,7 +886,7 @@ namespace helengine.editor {
                 return ShaderMaterialAssetBinarySerializer.Deserialize(stream);
             }
 
-            return global::helengine.AssetSerializer.Deserialize(stream);
+            return PackagedAssetBinarySerializer.Deserialize(stream, numericPolicy);
         }
 
         /// <summary>

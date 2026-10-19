@@ -68,7 +68,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void Read_WhenPayloadVersionIsWrong_ThrowsCurrentFormatError() {
             using MemoryStream stream = new MemoryStream();
             using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian)) {
-                writer.WriteByte(2);
+                writer.WriteByte(99);
                 writer.WriteInt32(0);
             }
 
@@ -76,7 +76,7 @@ namespace helengine.editor.tests.serialization.scene {
                 () => new EditorTaggedSceneComponentFieldReader(stream.ToArray()));
 
             Assert.Contains("received", exception.Message, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("2", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("99", exception.Message, StringComparison.Ordinal);
             Assert.Contains("current", exception.Message, StringComparison.OrdinalIgnoreCase);
             Assert.Contains(EditorTaggedSceneComponentPayloadFormat.CurrentVersion.ToString(), exception.Message, StringComparison.Ordinal);
             Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
@@ -91,6 +91,7 @@ namespace helengine.editor.tests.serialization.scene {
             using MemoryStream stream = new MemoryStream();
             using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian)) {
                 writer.WriteByte(EditorTaggedSceneComponentPayloadFormat.CurrentVersion);
+                RealBinaryCodec.WritePolicy(writer, RealRepresentation.Policy);
                 writer.WriteInt32(-1);
             }
 

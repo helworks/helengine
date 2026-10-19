@@ -341,12 +341,12 @@ namespace helengine.editor.tests.managers.scene {
             ModelAsset modelAsset = Assert.IsType<ModelAsset>(createModelAssetMethod.Invoke(null, null));
             Assert.NotNull(modelAsset.Positions);
 
-            float minZ = float.MaxValue;
-            float maxZ = float.MinValue;
+            double minZ = float.MaxValue;
+            double maxZ = float.MinValue;
             for (int index = 0; index < modelAsset.Positions.Length; index++) {
-                float z = modelAsset.Positions[index].Z;
-                minZ = Math.Min(minZ, z);
-                maxZ = Math.Max(maxZ, z);
+                double z = (double)(modelAsset.Positions[index].Z);
+                minZ = (double)(Math.Min(minZ, z));
+                maxZ = (double)(Math.Max(maxZ, z));
             }
 
             Assert.True(minZ < -0.1f);
@@ -393,16 +393,16 @@ namespace helengine.editor.tests.managers.scene {
             ModelAsset modelAsset = Assert.IsType<ModelAsset>(createModelAssetMethod.Invoke(null, null));
             Assert.NotNull(modelAsset.Positions);
 
-            float minZ = float.MaxValue;
-            float maxZ = float.MinValue;
+            double minZ = float.MaxValue;
+            double maxZ = float.MinValue;
             float tipRadius = float.MaxValue;
             float baseRadius = float.MinValue;
             for (int index = 0; index < modelAsset.Positions.Length; index++) {
                 float3 position = modelAsset.Positions[index];
-                float z = position.Z;
-                float horizontalRadius = (float)Math.Sqrt((position.X * position.X) + (position.Y * position.Y));
-                minZ = Math.Min(minZ, z);
-                maxZ = Math.Max(maxZ, z);
+                double z = (double)(position.Z);
+                float horizontalRadius = (float)Math.Sqrt((double)((position.X * position.X) + (position.Y * position.Y)));
+                minZ = (double)(Math.Min(minZ, z));
+                maxZ = (double)(Math.Max(maxZ, z));
 
                 if (Math.Abs(z - maxZ) < 0.0001f) {
                     tipRadius = Math.Min(tipRadius, horizontalRadius);
@@ -448,14 +448,14 @@ namespace helengine.editor.tests.managers.scene {
                 if (position.Z <= 0f) {
                     foundLeftCylinderVertex = true;
                     if (position.Z > leftCylinderMaxZ) {
-                        leftCylinderMaxZ = position.Z;
+                        leftCylinderMaxZ = (float)(position.Z);
                     }
                 }
 
                 if (position.Z >= 0f) {
                     foundRightCylinderVertex = true;
                     if (position.Z < rightCylinderMinZ) {
-                        rightCylinderMinZ = position.Z;
+                        rightCylinderMinZ = (float)(position.Z);
                     }
                 }
             }

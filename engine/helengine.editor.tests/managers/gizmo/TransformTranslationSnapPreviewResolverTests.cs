@@ -100,7 +100,7 @@ namespace helengine.editor.tests.managers.gizmo {
             float3 resolvedPrimary = Normalize(float4.RotateVector(new float3(1f, 0f, 0f), previewOrientation));
             float3 resolvedSecondary = Normalize(float4.RotateVector(new float3(0f, 1f, 0f), previewOrientation));
             AssertVectorClose(new float3(0f, 1f, 0f), resolvedPrimary);
-            Assert.InRange(Math.Abs(float3.Dot(resolvedPrimary, resolvedSecondary)), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(float3.Dot(resolvedPrimary, resolvedSecondary))), 0f, FloatTolerance);
         }
 
         /// <summary>
@@ -143,9 +143,9 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="expected">Expected normalized vector.</param>
         /// <param name="actual">Actual normalized vector.</param>
         void AssertVectorClose(float3 expected, float3 actual) {
-            Assert.InRange(Math.Abs(expected.X - actual.X), 0f, FloatTolerance);
-            Assert.InRange(Math.Abs(expected.Y - actual.Y), 0f, FloatTolerance);
-            Assert.InRange(Math.Abs(expected.Z - actual.Z), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(expected.X - actual.X)), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(expected.Y - actual.Y)), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(expected.Z - actual.Z)), 0f, FloatTolerance);
         }
 
         /// <summary>
@@ -154,7 +154,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="value">Vector to normalize.</param>
         /// <returns>Normalized vector.</returns>
         float3 Normalize(float3 value) {
-            double length = Math.Sqrt((value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z));
+            double length = Math.Sqrt((double)((value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z)));
             if (length <= 0.0) {
                 throw new InvalidOperationException("Cannot normalize a zero-length test vector.");
             }

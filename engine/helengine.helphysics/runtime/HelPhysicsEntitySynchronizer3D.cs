@@ -44,7 +44,7 @@ namespace helengine {
             float3 gravity = ToEngineVector(Binder.World.Settings.Gravity);
             double stepSeconds = Binder.World.Settings.FixedStepSeconds;
             float3 desired = binding.Controller.DesiredMoveDirection;
-            double lengthSquared = ((double)desired.X * desired.X) + ((double)desired.Z * desired.Z);
+            double lengthSquared = (double)(((double)desired.X * desired.X) + ((double)desired.Z * desired.Z));
             HelPhysicsCharacterControllerSupport3D currentSupport = Binder.FindControllerSupport(binding, currentPosition, binding.Controller.StepHeight);
             float3 targetPosition = new float3(
                 currentPosition.X + (currentSupport.IsValid ? currentSupport.Velocity.X * (float)stepSeconds : 0f),
@@ -431,9 +431,9 @@ namespace helengine {
             float3 parentScale = entity.Parent.Scale;
             float4 parentOrientation = entity.Parent.Orientation;
             ValidateFiniteVector(parentPosition, "Dynamic parent position must be finite before HelPhysics stepping.");
-            if (!float.IsFinite(parentScale.X) || parentScale.X == 0f ||
-                !float.IsFinite(parentScale.Y) || parentScale.Y == 0f ||
-                !float.IsFinite(parentScale.Z) || parentScale.Z == 0f) {
+            if (!float.IsFinite((float)(parentScale.X)) || parentScale.X == 0f ||
+                !float.IsFinite((float)(parentScale.Y)) || parentScale.Y == 0f ||
+                !float.IsFinite((float)(parentScale.Z)) || parentScale.Z == 0f) {
                 throw new InvalidOperationException("Dynamic parent scale must be finite and non-zero before HelPhysics stepping.");
             }
 
@@ -489,7 +489,7 @@ namespace helengine {
         /// <param name="message">Specific invalid-state diagnostic.</param>
         /// <exception cref="InvalidOperationException">Thrown when any component is non-finite.</exception>
         static void ValidateFiniteVector(float3 value, string message) {
-            if (!float.IsFinite(value.X) || !float.IsFinite(value.Y) || !float.IsFinite(value.Z)) {
+            if (!float.IsFinite((float)(value.X)) || !float.IsFinite((float)(value.Y)) || !float.IsFinite((float)(value.Z))) {
                 throw new InvalidOperationException(message);
             }
         }
@@ -502,10 +502,10 @@ namespace helengine {
         /// <exception cref="InvalidOperationException">Thrown when the quaternion cannot represent a normalized rotation.</exception>
         static void ValidateNormalizedQuaternion(float4 value, string message) {
             double lengthSquared =
-                ((double)value.X * value.X) +
+                (double)(((double)value.X * value.X) +
                 ((double)value.Y * value.Y) +
                 ((double)value.Z * value.Z) +
-                ((double)value.W * value.W);
+                ((double)value.W * value.W));
             if (!double.IsFinite(lengthSquared) ||
                 lengthSquared <= 0d ||
                 Math.Abs(lengthSquared - 1d) > QuaternionNormalizationTolerance) {
@@ -520,10 +520,10 @@ namespace helengine {
         /// <returns>A finite unit quaternion ready for atomic local-pose publication.</returns>
         static float4 NormalizeQuaternion(float4 value) {
             double lengthSquared =
-                ((double)value.X * value.X) +
+                (double)(((double)value.X * value.X) +
                 ((double)value.Y * value.Y) +
                 ((double)value.Z * value.Z) +
-                ((double)value.W * value.W);
+                ((double)value.W * value.W));
             if (!double.IsFinite(lengthSquared) || lengthSquared <= 0d) {
                 throw new InvalidOperationException("HelPhysics cannot normalize an invalid dynamic local orientation.");
             }
@@ -560,7 +560,7 @@ namespace helengine {
         /// <param name="value">Engine vector to convert component by component.</param>
         /// <returns>A physics vector carrying the same values.</returns>
         static PhysicsVector3 ToPhysicsVector(float3 value) {
-            return new PhysicsVector3(value.X, value.Y, value.Z);
+            return new PhysicsVector3(PhysicsScalar.FromFloat((float)(value.X)), PhysicsScalar.FromFloat((float)(value.Y)), PhysicsScalar.FromFloat((float)(value.Z)));
         }
 
         /// <summary>
@@ -570,10 +570,10 @@ namespace helengine {
         /// <returns>A physics quaternion carrying the same values.</returns>
         static PhysicsQuaternion ToPhysicsQuaternion(float4 value) {
             return new PhysicsQuaternion(
-                PhysicsScalar.FromFloat(value.X),
-                PhysicsScalar.FromFloat(value.Y),
-                PhysicsScalar.FromFloat(value.Z),
-                PhysicsScalar.FromFloat(value.W));
+                PhysicsScalar.FromFloat((float)(value.X)),
+                PhysicsScalar.FromFloat((float)(value.Y)),
+                PhysicsScalar.FromFloat((float)(value.Z)),
+                PhysicsScalar.FromFloat((float)(value.W)));
         }
     }
 }

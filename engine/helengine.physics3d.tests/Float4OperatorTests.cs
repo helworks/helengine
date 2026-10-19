@@ -102,7 +102,7 @@ namespace helengine {
             float4 left = new float4(1.0f, 2.0f, 3.0f, 4.0f);
             float4 right = new float4(-5.0f, 6.0f, -7.0f, 8.0f);
 
-            float result = float4.Dot(left, right);
+            double result = (double)(float4.Dot(left, right));
 
             Assert.Equal(18.0f, result);
         }
@@ -116,10 +116,10 @@ namespace helengine {
 
             float4.CreateFromAxisAngle(axis, (float)(Math.PI * 0.5d), out float4 result);
 
-            Assert.Equal(0.0f, result.X, 5);
-            Assert.Equal(0.0f, result.Y, 5);
-            Assert.Equal(0.70710677f, result.Z, 5);
-            Assert.Equal(0.70710677f, result.W, 5);
+            Assert.Equal(0.0f, result.X.ToDouble(), 5);
+            Assert.Equal(0.0f, result.Y.ToDouble(), 5);
+            Assert.Equal(0.70710677f, result.Z.ToDouble(), 5);
+            Assert.Equal(0.70710677f, result.W.ToDouble(), 5);
         }
     }
 }

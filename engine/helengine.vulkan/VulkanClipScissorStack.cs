@@ -95,10 +95,10 @@ namespace helengine.vulkan {
         protected override void ApplyClipScissor(float4 clipRect) {
             float4 effectiveRect = Intersect(ClipViewportRect, clipRect);
 
-            int scissorX = (int)Math.Round(effectiveRect.X * ClipPixelScaleX);
-            int scissorY = (int)Math.Round(effectiveRect.Y * ClipPixelScaleY);
-            int scissorWidth = Math.Max(0, (int)Math.Round(effectiveRect.Z * ClipPixelScaleX));
-            int scissorHeight = Math.Max(0, (int)Math.Round(effectiveRect.W * ClipPixelScaleY));
+            int scissorX = (int)RealMath.Round(effectiveRect.X * ClipPixelScaleX);
+            int scissorY = (int)RealMath.Round(effectiveRect.Y * ClipPixelScaleY);
+            int scissorWidth = Math.Max(0, (int)RealMath.Round(effectiveRect.Z * ClipPixelScaleX));
+            int scissorHeight = Math.Max(0, (int)RealMath.Round(effectiveRect.W * ClipPixelScaleY));
             Owner.SetScissorRect(scissorX, scissorY, scissorWidth, scissorHeight);
         }
     }

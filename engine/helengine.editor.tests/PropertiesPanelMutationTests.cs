@@ -657,9 +657,9 @@ namespace helengine.editor.tests {
             TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(CoreValue.RenderManager3D);
             Assert.NotEmpty(renderManager.BuiltModelAssets);
             ModelAsset previewAsset = renderManager.BuiltModelAssets[renderManager.BuiltModelAssets.Count - 1];
-            float maxAbsU = 0f;
+            double maxAbsU = 0f;
             for (int index = 0; index < previewAsset.TexCoords.Length; index++) {
-                maxAbsU = Math.Max(maxAbsU, Math.Abs(previewAsset.TexCoords[index].X));
+                maxAbsU = (double)(Math.Max(maxAbsU, Math.Abs((double)(previewAsset.TexCoords[index].X))));
             }
 
             // A unit cube half-extent of 0.5 with the default tiling of 1 spans +/-0.5 repeats; the entity scale is ignored.

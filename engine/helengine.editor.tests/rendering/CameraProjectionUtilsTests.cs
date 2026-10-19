@@ -42,8 +42,8 @@ namespace helengine.editor.tests.rendering {
             };
 
             float4x4 projection = CameraProjectionUtils.CreatePerspectiveProjection(camera, (float)(Math.PI / 4.0), 16f / 9f);
-            float expectedM33 = camera.FarPlaneDistance / (camera.NearPlaneDistance - camera.FarPlaneDistance);
-            float expectedM43 = camera.NearPlaneDistance * expectedM33;
+            double expectedM33 = (double)(camera.FarPlaneDistance / (camera.NearPlaneDistance - camera.FarPlaneDistance));
+            double expectedM43 = (double)(camera.NearPlaneDistance * expectedM33);
 
             Assert.Equal(expectedM33, projection.M33, 5);
             Assert.Equal(expectedM43, projection.M43, 5);
@@ -101,12 +101,12 @@ namespace helengine.editor.tests.rendering {
             const float aspectRatio = 2f;
 
             float4x4 projection = CameraProjectionUtils.CreateProjection(camera, aspectRatio);
-            float top = (10f * projection.M22) + projection.M42;
-            float bottom = (-10f * projection.M22) + projection.M42;
-            float right = (20f * projection.M11) + projection.M41;
-            float left = (-20f * projection.M11) + projection.M41;
-            float nearDepth = (-camera.NearPlaneDistance * projection.M33) + projection.M43;
-            float farDepth = (-camera.FarPlaneDistance * projection.M33) + projection.M43;
+            double top = (double)((10f * projection.M22) + projection.M42);
+            double bottom = (double)((-10f * projection.M22) + projection.M42);
+            double right = (double)((20f * projection.M11) + projection.M41);
+            double left = (double)((-20f * projection.M11) + projection.M41);
+            double nearDepth = (double)((-camera.NearPlaneDistance * projection.M33) + projection.M43);
+            double farDepth = (double)((-camera.FarPlaneDistance * projection.M33) + projection.M43);
 
             Assert.Equal(1f, top, 5);
             Assert.Equal(-1f, bottom, 5);
@@ -124,8 +124,8 @@ namespace helengine.editor.tests.rendering {
             InitializeCore();
             CameraComponent camera = CreateOrthographicCamera(20f);
 
-            double nearScale = CameraProjectionUtils.GetWorldUnitsPerPixel(camera, 1.0, 1000.0);
-            double farScale = CameraProjectionUtils.GetWorldUnitsPerPixel(camera, 100.0, 1000.0);
+            double nearScale = (double)(CameraProjectionUtils.GetWorldUnitsPerPixel(camera, 1.0, 1000.0));
+            double farScale = (double)(CameraProjectionUtils.GetWorldUnitsPerPixel(camera, 100.0, 1000.0));
 
             Assert.Equal(0.02, nearScale, 6);
             Assert.Equal(nearScale, farScale, 8);
@@ -139,7 +139,7 @@ namespace helengine.editor.tests.rendering {
             InitializeCore();
             CameraComponent camera = new CameraComponent { FieldOfView = (float)(Math.PI / 2.0) };
 
-            double scale = CameraProjectionUtils.GetWorldUnitsPerPixel(camera, 10.0, 100.0);
+            double scale = (double)(CameraProjectionUtils.GetWorldUnitsPerPixel(camera, 10.0, 100.0));
 
             Assert.Equal(0.2, scale, 5);
         }
@@ -222,7 +222,7 @@ namespace helengine.editor.tests.rendering {
         /// <param name="viewportHeight">Viewport height in pixels.</param>
         /// <returns>World-space distance represented by one vertical pixel.</returns>
         double InvokeWorldUnitsPerPixel(ICamera camera, double distance, double viewportHeight) {
-            return CameraProjectionUtils.GetWorldUnitsPerPixel(camera, distance, viewportHeight);
+            return (double)(CameraProjectionUtils.GetWorldUnitsPerPixel(camera, distance, viewportHeight));
         }
 
         /// <summary>

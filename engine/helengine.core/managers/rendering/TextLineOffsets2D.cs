@@ -12,7 +12,7 @@ namespace helengine {
         /// <param name="fontScale">Resolved glyph scale.</param>
         /// <param name="textureWidth">Font-atlas texture width used to resolve glyph bounds.</param>
         /// <returns>One horizontal offset per rendered line.</returns>
-        public static double[] Build(ITextDrawable2D drawable, FontAsset font, string content, double fontScale, int textureWidth) {
+        public static RealEvaluation[] Build(ITextDrawable2D drawable, FontAsset font, string content, RealEvaluation fontScale, int textureWidth) {
             if (drawable == null) {
                 throw new ArgumentNullException(nameof(drawable));
             } else if (font == null) {
@@ -26,9 +26,9 @@ namespace helengine {
             }
 
             string[] lines = content.Split('\n');
-            double[] lineOffsets = new double[lines.Length];
+            RealEvaluation[] lineOffsets = new RealEvaluation[lines.Length];
             for (int index = 0; index < lines.Length; index++) {
-                double visibleWidth = TextLayoutAlignmentUtils.MeasureVisibleLineWidth(lines[index], font, fontScale, textureWidth);
+                RealEvaluation visibleWidth = TextLayoutAlignmentUtils.MeasureVisibleLineWidth(lines[index], font, fontScale, textureWidth);
                 lineOffsets[index] = TextLayoutAlignmentUtils.ResolveHorizontalOffset(drawable.Alignment, drawable.Size.X, visibleWidth);
             }
 
@@ -41,7 +41,7 @@ namespace helengine {
         /// <param name="lineOffsets">Per-line horizontal offsets computed for the rendered text.</param>
         /// <param name="lineIndex">Rendered line index whose offset should be returned.</param>
         /// <returns>Horizontal line offset in pixels.</returns>
-        public static double Resolve(IReadOnlyList<double> lineOffsets, int lineIndex) {
+        public static RealEvaluation Resolve(IReadOnlyList<RealEvaluation> lineOffsets, int lineIndex) {
             if (lineOffsets == null) {
                 throw new ArgumentNullException(nameof(lineOffsets));
             }

@@ -76,8 +76,8 @@ namespace helengine.core.tests.managers.rendering {
             using RenderCommandListBuilder2D builder = new RenderCommandListBuilder2D();
             RenderCommandList2D commands = builder.Build(queue);
             AssertBothPaths(text, commands);
-            Assert.Equal(new[] { 12f, 18f, 12f, 15f }, Enumerable.Range(0, 4).Select(index => commands.GetGlyphQuadBounds(commands.GetGlyphQuadPayloadIndex(index)).X));
-            Assert.Equal(new[] { 22f, 21f, 32f, 31f }, Enumerable.Range(0, 4).Select(index => commands.GetGlyphQuadBounds(commands.GetGlyphQuadPayloadIndex(index)).Y));
+            Assert.Equal(new[] { 12d, 18d, 12d, 15d }, Enumerable.Range(0, 4).Select(index => commands.GetGlyphQuadBounds(commands.GetGlyphQuadPayloadIndex(index)).X.ToDouble()));
+            Assert.Equal(new[] { 22d, 21d, 32d, 31d }, Enumerable.Range(0, 4).Select(index => commands.GetGlyphQuadBounds(commands.GetGlyphQuadPayloadIndex(index)).Y.ToDouble()));
             Assert.Equal(12f, before.X);
             Assert.Equal(20f, before.Y);
         }
@@ -166,8 +166,8 @@ namespace helengine.core.tests.managers.rendering {
                 float4 source = commands.GetGlyphQuadSourceRect(payload);
                 Assert.Equal(bounds.X, vertices[index * 4].Position.X);
                 Assert.Equal(bounds.Y, vertices[index * 4].Position.Y);
-                Assert.Equal(bounds.X + bounds.Z, vertices[index * 4 + 2].Position.X);
-                Assert.Equal(bounds.Y + bounds.W, vertices[index * 4 + 2].Position.Y);
+                Assert.Equal((double)(bounds.X + bounds.Z),(double)(vertices[index * 4 + 2].Position.X.ToDouble()));
+                Assert.Equal((double)(bounds.Y + bounds.W),(double)(vertices[index * 4 + 2].Position.Y.ToDouble()));
                 Assert.Equal(source.X, vertices[index * 4].TexLocal.X);
                 Assert.Equal(source.Y, vertices[index * 4].TexLocal.Y);
             }

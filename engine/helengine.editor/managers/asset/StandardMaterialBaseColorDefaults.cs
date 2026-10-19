@@ -23,10 +23,10 @@ namespace helengine.editor {
         /// <returns>Sixteen-byte packed constant-buffer payload.</returns>
         public static byte[] CreateConstantBufferData(float4 value) {
             byte[] data = new byte[16];
-            Array.Copy(BitConverter.GetBytes(value.X), 0, data, 0, 4);
-            Array.Copy(BitConverter.GetBytes(value.Y), 0, data, 4, 4);
-            Array.Copy(BitConverter.GetBytes(value.Z), 0, data, 8, 4);
-            Array.Copy(BitConverter.GetBytes(value.W), 0, data, 12, 4);
+            Array.Copy(BitConverter.GetBytes(value.X.ToSingle()), 0, data, 0, 4);
+            Array.Copy(BitConverter.GetBytes(value.Y.ToSingle()), 0, data, 4, 4);
+            Array.Copy(BitConverter.GetBytes(value.Z.ToSingle()), 0, data, 8, 4);
+            Array.Copy(BitConverter.GetBytes(value.W.ToSingle()), 0, data, 12, 4);
             return data;
         }
 

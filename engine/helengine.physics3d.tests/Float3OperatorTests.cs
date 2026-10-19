@@ -24,8 +24,8 @@ namespace helengine {
         public void LengthHelpers_ReturnExpectedMagnitudeValues() {
             float3 value = new float3(2.0f, 3.0f, 6.0f);
 
-            float lengthSquared = value.LengthSquared();
-            float length = value.Length();
+            double lengthSquared = (double)(value.LengthSquared());
+            double length = (double)(value.Length());
 
             Assert.Equal(49.0f, lengthSquared);
             Assert.Equal(7.0f, length);

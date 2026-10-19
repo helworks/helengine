@@ -108,7 +108,7 @@ namespace helengine {
         /// <param name="value">Vector to format.</param>
         /// <returns>Compact tuple-like text suitable for one trace line.</returns>
         static string FormatFloat3(float3 value) {
-            return $"({FormatFloat(value.X)},{FormatFloat(value.Y)},{FormatFloat(value.Z)})";
+            return $"({FormatFloat((float)(value.X))},{FormatFloat((float)(value.Y))},{FormatFloat((float)(value.Z))})";
         }
 
         /// <summary>
@@ -117,7 +117,7 @@ namespace helengine {
         /// <param name="value">Vector to format.</param>
         /// <returns>Compact tuple-like text suitable for one trace line.</returns>
         static string FormatFloat4(float4 value) {
-            return $"({FormatFloat(value.X)},{FormatFloat(value.Y)},{FormatFloat(value.Z)},{FormatFloat(value.W)})";
+            return $"({FormatFloat((float)(value.X))},{FormatFloat((float)(value.Y))},{FormatFloat((float)(value.Z))},{FormatFloat((float)(value.W))})";
         }
 
         /// <summary>

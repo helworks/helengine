@@ -112,10 +112,10 @@ namespace helengine.core.tests.managers.rendering {
 
             Assert.Equal(9, actual.Length);
             for (int i = 0; i < 9; i++) {
-                Assert.True(MathF.Abs(expected[i].X - actual[i].X) <= Tolerance, $"tile {i} X mismatch: expected {expected[i].X}, actual {actual[i].X}");
-                Assert.True(MathF.Abs(expected[i].Y - actual[i].Y) <= Tolerance, $"tile {i} Y mismatch: expected {expected[i].Y}, actual {actual[i].Y}");
-                Assert.True(MathF.Abs(expected[i].Z - actual[i].Z) <= Tolerance, $"tile {i} width mismatch: expected {expected[i].Z}, actual {actual[i].Z}");
-                Assert.True(MathF.Abs(expected[i].W - actual[i].W) <= Tolerance, $"tile {i} height mismatch: expected {expected[i].W}, actual {actual[i].W}");
+                Assert.True(Math.Abs((double)(expected[i].X - actual[i].X)) <= Tolerance, $"tile {i} X mismatch: expected {expected[i].X}, actual {actual[i].X}");
+                Assert.True(Math.Abs((double)(expected[i].Y - actual[i].Y)) <= Tolerance, $"tile {i} Y mismatch: expected {expected[i].Y}, actual {actual[i].Y}");
+                Assert.True(Math.Abs((double)(expected[i].Z - actual[i].Z)) <= Tolerance, $"tile {i} width mismatch: expected {expected[i].Z}, actual {actual[i].Z}");
+                Assert.True(Math.Abs((double)(expected[i].W - actual[i].W)) <= Tolerance, $"tile {i} height mismatch: expected {expected[i].W}, actual {actual[i].W}");
             }
         }
 
@@ -125,8 +125,8 @@ namespace helengine.core.tests.managers.rendering {
         /// </summary>
         static void AssertClose(float2 expected, float2 actual, float width, float height, float radius, float centerX, float centerY, float angle) {
             string context = $"width={width}, height={height}, radius={radius}, centerX={centerX}, centerY={centerY}, angle={angle}";
-            Assert.True(MathF.Abs(expected.X - actual.X) <= Tolerance, $"X mismatch: expected {expected.X}, actual {actual.X} ({context})");
-            Assert.True(MathF.Abs(expected.Y - actual.Y) <= Tolerance, $"Y mismatch: expected {expected.Y}, actual {actual.Y} ({context})");
+            Assert.True(Math.Abs((double)(expected.X - actual.X)) <= Tolerance, $"X mismatch: expected {expected.X}, actual {actual.X} ({context})");
+            Assert.True(Math.Abs((double)(expected.Y - actual.Y)) <= Tolerance, $"Y mismatch: expected {expected.Y}, actual {actual.Y} ({context})");
         }
 
         /// <summary>

@@ -583,7 +583,7 @@ namespace helengine.editor {
                 return;
             }
 
-            double viewportHeight = previewCameraComponent.Viewport.W;
+            double viewportHeight = (double)(previewCameraComponent.Viewport.W);
             if (viewportHeight <= 0.0d) {
                 throw new InvalidOperationException("Model preview camera viewport height must be greater than zero.");
             }
@@ -597,9 +597,9 @@ namespace helengine.editor {
                 EditorEntity labelEntity = boundsDimensionLabelEntities[labelIndex];
                 float3 offset = labelEntity.Position - cameraEntity.Position;
                 double distance = Math.Sqrt(
-                    (double)offset.X * offset.X +
+                    (double)((double)offset.X * offset.X +
                     (double)offset.Y * offset.Y +
-                    (double)offset.Z * offset.Z);
+                    (double)offset.Z * offset.Z));
                 if (distance < MinimumDimensionLabelCameraDistance) {
                     distance = MinimumDimensionLabelCameraDistance;
                 }
@@ -627,8 +627,8 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Grid side length in world units.</returns>
         float ResolvePreviewGridSize() {
-            float width = Math.Abs(boundsMax.X - boundsMin.X);
-            float depth = Math.Abs(boundsMax.Z - boundsMin.Z);
+            float width = (float)RealMath.Abs(boundsMax.X - boundsMin.X);
+            float depth = (float)RealMath.Abs(boundsMax.Z - boundsMin.Z);
             return Math.Max(5f, Math.Max(width, depth));
         }
 
@@ -638,9 +638,9 @@ namespace helengine.editor {
         /// <returns>Absolute half extents on all model axes.</returns>
         float3 GetBoundsHalfExtents() {
             return new float3(
-                Math.Abs(boundsMax.X - boundsMin.X) * 0.5f,
-                Math.Abs(boundsMax.Y - boundsMin.Y) * 0.5f,
-                Math.Abs(boundsMax.Z - boundsMin.Z) * 0.5f);
+                RealMath.Abs(boundsMax.X - boundsMin.X) * 0.5f,
+                RealMath.Abs(boundsMax.Y - boundsMin.Y) * 0.5f,
+                RealMath.Abs(boundsMax.Z - boundsMin.Z) * 0.5f);
         }
 
         /// <summary>
@@ -664,9 +664,9 @@ namespace helengine.editor {
         double ResolveBoundsRadius() {
             float3 halfExtents = GetBoundsHalfExtents();
             return Math.Max(0.5d, Math.Sqrt(
-                (double)halfExtents.X * halfExtents.X +
+                (double)((double)halfExtents.X * halfExtents.X +
                 (double)halfExtents.Y * halfExtents.Y +
-                (double)halfExtents.Z * halfExtents.Z));
+                (double)halfExtents.Z * halfExtents.Z)));
         }
 
         /// <summary>
@@ -676,16 +676,16 @@ namespace helengine.editor {
         /// <param name="boundsRadius">Bounding-sphere radius of the previewed model.</param>
         void UpdateCameraClipPlanes(float3 cameraPosition, double boundsRadius) {
             double distanceToCenter = Math.Sqrt(
-                (double)cameraPosition.X * cameraPosition.X +
+                (double)((double)cameraPosition.X * cameraPosition.X +
                 (double)cameraPosition.Y * cameraPosition.Y +
-                (double)cameraPosition.Z * cameraPosition.Z);
+                (double)cameraPosition.Z * cameraPosition.Z));
             double paddedRadius = boundsRadius * ClipPlanePadding;
-            double nearPlaneDistance = CameraProjectionUtils.MinimumNearPlaneDistance;
-            double farPlaneDistance = Math.Max(
+            double nearPlaneDistance = (double)(CameraProjectionUtils.MinimumNearPlaneDistance);
+            double farPlaneDistance = RealMath.Max(
                 nearPlaneDistance + CameraProjectionUtils.MinimumPlaneSeparation,
-                distanceToCenter + paddedRadius);
-            previewCameraComponent.NearPlaneDistance = (float)nearPlaneDistance;
-            previewCameraComponent.FarPlaneDistance = (float)farPlaneDistance;
+                distanceToCenter + paddedRadius).ToDouble();
+            previewCameraComponent.NearPlaneDistance = nearPlaneDistance;
+            previewCameraComponent.FarPlaneDistance = farPlaneDistance;
         }
 
         /// <summary>

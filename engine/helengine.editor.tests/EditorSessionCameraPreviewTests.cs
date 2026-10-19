@@ -124,7 +124,7 @@ namespace helengine.editor.tests {
                 ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
             Session.UpdateFrame(1280, 720);
             CameraPreviewSource preview = Assert.IsType<CameraPreviewSource>(panel.ActivePreviewSource);
-            Assert.InRange(entity.Position.X, 0.999f, 1.001f);
+            Assert.InRange((double)(entity.Position.X), (double)(0.999f), (double)(1.001f));
             Assert.Equal(entity.Position, preview.PreviewCamera.Parent.Position);
 
             SetField(drag, "DragChanged", false);

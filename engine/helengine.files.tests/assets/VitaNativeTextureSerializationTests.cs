@@ -55,8 +55,8 @@ namespace helengine.files.tests.assets {
         }
         /// <summary>Uses the actual texture payload writer under an explicit metadata byte-order header.</summary>
         static MemoryStream TextureRecord(TextureAsset texture, EngineBinaryEndianness endian) {
-            MemoryStream stream = new(); EngineBinaryHeaderSerializer.Write(stream, new EngineBinaryHeader(endian, 25, EditorAssetBinarySerializer.FormatId, (ushort)EditorAssetBinarySerializer.RecordKind, (ushort)EditorAssetBinaryValueKind.TextureAsset));
-            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, endian)) new TextureAssetPayloadSerializer().Write(writer, texture);
+            MemoryStream stream = new(); EngineBinaryHeaderSerializer.Write(stream, new EngineBinaryHeader(endian, EditorAssetBinarySerializer.CurrentVersion, EditorAssetBinarySerializer.FormatId, (ushort)EditorAssetBinarySerializer.RecordKind, (ushort)EditorAssetBinaryValueKind.TextureAsset));
+            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, endian)) { writer.WriteNumericPolicy(); new TextureAssetPayloadSerializer().Write(writer, texture); }
             stream.Position = 0; return stream;
         }
         /// <summary>Writes a minimal version-five native atlas record independently of its readers.</summary>

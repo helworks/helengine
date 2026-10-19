@@ -42,21 +42,21 @@ namespace helengine.core.tests.managers.rendering {
             Assert.Equal(4, sink.Runs[0].ScissorY);
             Assert.Equal(190, sink.Runs[0].ScissorWidth);
             Assert.Equal(180, sink.Runs[0].ScissorHeight);
-            Assert.Equal(10f, sink.Vertices[0][0].Position.X, 4);
-            Assert.Equal(20f, sink.Vertices[0][0].Position.Y, 4);
-            Assert.Equal(10f, sink.Vertices[0][1].Position.X, 4);
-            Assert.Equal(80f, sink.Vertices[0][1].Position.Y, 4);
-            Assert.Equal(-110f, sink.Vertices[0][2].Position.X, 4);
-            Assert.Equal(80f, sink.Vertices[0][2].Position.Y, 4);
-            Assert.Equal(-110f, sink.Vertices[0][3].Position.X, 4);
-            Assert.Equal(20f, sink.Vertices[0][3].Position.Y, 4);
+            Assert.Equal((double)(10f),(double)(sink.Vertices[0][0].Position.X), 4);
+            Assert.Equal((double)(20f),(double)(sink.Vertices[0][0].Position.Y), 4);
+            Assert.Equal((double)(10f),(double)(sink.Vertices[0][1].Position.X), 4);
+            Assert.Equal((double)(80f),(double)(sink.Vertices[0][1].Position.Y), 4);
+            Assert.Equal((double)(-110f),(double)(sink.Vertices[0][2].Position.X), 4);
+            Assert.Equal((double)(80f),(double)(sink.Vertices[0][2].Position.Y), 4);
+            Assert.Equal((double)(-110f),(double)(sink.Vertices[0][3].Position.X), 4);
+            Assert.Equal((double)(20f),(double)(sink.Vertices[0][3].Position.Y), 4);
             Assert.Equal(0f, sink.Vertices[0][0].Position.Z);
             Assert.Equal(0.25f, sink.Vertices[0][0].TexLocal.X);
             Assert.Equal(0.5f, sink.Vertices[0][0].TexLocal.Y);
             Assert.Equal(0.75f, sink.Vertices[0][2].TexLocal.X);
             Assert.Equal(0.75f, sink.Vertices[0][2].TexLocal.Y);
-            Assert.Equal(128f / 255f, sink.Vertices[0][0].Color.Y, 5);
-            Assert.Equal(64f / 255f, sink.Vertices[0][0].Color.W, 5);
+            Assert.Equal((double)(128f / 255f),(double)(sink.Vertices[0][0].Color.Y), 5);
+            Assert.Equal((double)(64f / 255f),(double)(sink.Vertices[0][0].Color.W), 5);
         }
 
         /// <summary>Preserves an animated backdrop's authored parent pivot and corner orientation throughout inherited rotation.</summary>
@@ -99,8 +99,8 @@ namespace helengine.core.tests.managers.rendering {
             double[] localX = { -768d, 768d, 768d, -768d };
             double[] localY = { -768d, -768d, 768d, 768d };
             for (int index = 0; index < vertices.Length; index++) {
-                Assert.Equal(640d + localX[index] * cosine - localY[index] * sine, vertices[index].Position.X, 2);
-                Assert.Equal(360d + localX[index] * sine + localY[index] * cosine, vertices[index].Position.Y, 2);
+                Assert.Equal((double)(640d + localX[index] * cosine - localY[index] * sine),(double)(vertices[index].Position.X), 2);
+                Assert.Equal((double)(360d + localX[index] * sine + localY[index] * cosine),(double)(vertices[index].Position.Y), 2);
             }
         }
 
@@ -177,12 +177,12 @@ namespace helengine.core.tests.managers.rendering {
             Assert.Equal((mask >> 1) & 1, (int)first.Corners.Y);
             Assert.Equal((mask >> 2) & 1, (int)first.Corners.Z);
             Assert.Equal((mask >> 3) & 1, (int)first.Corners.W);
-            Assert.Equal(128f / 255f, first.Color.W, 5);
-            Assert.Equal(64f / 255f, first.BorderColor.W, 5);
+            Assert.Equal((double)(128f / 255f),(double)(first.Color.W), 5);
+            Assert.Equal((double)(64f / 255f),(double)(first.BorderColor.W), 5);
             Assert.Equal(0f, first.TexLocal.X);
             Assert.Equal(0f, first.TexLocal.Y);
-            Assert.Equal(9f, first.Position.X, 4);
-            Assert.Equal(21f, first.Position.Y, 4);
+            Assert.Equal((double)(9f),(double)(first.Position.X), 4);
+            Assert.Equal((double)(21f),(double)(first.Position.Y), 4);
             Assert.Equal(0f, first.Position.Z);
             Assert.Equal(-10f, first.TexLocal.Z);
             Assert.Equal(-5f, first.TexLocal.W);

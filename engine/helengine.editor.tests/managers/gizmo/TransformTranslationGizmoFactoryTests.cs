@@ -84,10 +84,10 @@ public class TransformTranslationGizmoFactoryTests : IDisposable {
             for (int positionIndex = 0; positionIndex < planeMesh.Positions.Length; positionIndex++) {
                 float3 position = planeMesh.Positions[positionIndex];
                 if (position.X > maxX) {
-                    maxX = position.X;
+                    maxX = (float)(position.X);
                 }
                 if (position.Y > maxY) {
-                    maxY = position.Y;
+                    maxY = (float)(position.Y);
                 }
             }
 

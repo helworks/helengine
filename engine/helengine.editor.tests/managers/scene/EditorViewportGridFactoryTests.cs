@@ -105,9 +105,9 @@ namespace helengine.editor.tests.managers.scene {
         /// <param name="actual">Actual vector value.</param>
         /// <param name="tolerance">Maximum allowed absolute difference per component.</param>
         void AssertFloat3Equal(float3 expected, float3 actual, float tolerance) {
-            Assert.InRange(Math.Abs(actual.X - expected.X), 0f, tolerance);
-            Assert.InRange(Math.Abs(actual.Y - expected.Y), 0f, tolerance);
-            Assert.InRange(Math.Abs(actual.Z - expected.Z), 0f, tolerance);
+            Assert.InRange(Math.Abs((double)(actual.X - expected.X)), 0f, tolerance);
+            Assert.InRange(Math.Abs((double)(actual.Y - expected.Y)), 0f, tolerance);
+            Assert.InRange(Math.Abs((double)(actual.Z - expected.Z)), 0f, tolerance);
         }
     }
 }

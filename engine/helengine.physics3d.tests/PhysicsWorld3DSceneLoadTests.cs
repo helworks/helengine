@@ -10,7 +10,8 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void Register_DoesNotAttachDefaultWorldUntilPhysicsSceneLoads() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
+                RuntimeComponentDeserializerFactory = new AutomaticRuntimeComponentDeserializerFactory()
             });
             try {
                 core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
@@ -29,7 +30,8 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithPhysicsComponents_LoadsAndSimulatesDynamicGroundContact() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
+                RuntimeComponentDeserializerFactory = new AutomaticRuntimeComponentDeserializerFactory()
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             BepuRuntimeComponentRegistration.Register(core);
@@ -47,9 +49,9 @@ namespace helengine.physics3d.tests {
             Entity dynamicEntity = rootEntities[1];
             RigidBody3DComponent rigidBody = FindRigidBody(dynamicEntity);
 
-            Assert.InRange(dynamicEntity.LocalPosition.Y, 0.49f, 0.51f);
+            Assert.InRange((double)(dynamicEntity.LocalPosition.Y), (double)(0.49f), (double)(0.51f));
             Assert.NotNull(rigidBody);
-            Assert.InRange(rigidBody.LinearVelocity.Y, -0.0001f, 0.0001f);
+            Assert.InRange((double)(rigidBody.LinearVelocity.Y), (double)(-0.0001f), (double)(0.0001f));
         }
 
         /// <summary>
@@ -58,7 +60,8 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithLegacyRigidBodyPayload_ThrowsUnsupportedMemberCount() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
+                RuntimeComponentDeserializerFactory = new AutomaticRuntimeComponentDeserializerFactory()
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             BepuRuntimeComponentRegistration.Register(core);
@@ -77,7 +80,8 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithRigidBodyPayloadMissingRequiredMember_ThrowsInvalidOperationException() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
+                RuntimeComponentDeserializerFactory = new AutomaticRuntimeComponentDeserializerFactory()
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
 
@@ -93,7 +97,8 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithSpherePhysicsComponents_LoadsAndSimulatesDynamicGroundContact() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
+                RuntimeComponentDeserializerFactory = new AutomaticRuntimeComponentDeserializerFactory()
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             BepuRuntimeComponentRegistration.Register(core);
@@ -111,9 +116,9 @@ namespace helengine.physics3d.tests {
             Entity dynamicEntity = rootEntities[1];
             RigidBody3DComponent rigidBody = FindRigidBody(dynamicEntity);
 
-            Assert.InRange(dynamicEntity.LocalPosition.Y, 0.49f, 0.51f);
+            Assert.InRange((double)(dynamicEntity.LocalPosition.Y), (double)(0.49f), (double)(0.51f));
             Assert.NotNull(rigidBody);
-            Assert.InRange(rigidBody.LinearVelocity.Y, -0.0001f, 0.0001f);
+            Assert.InRange((double)(rigidBody.LinearVelocity.Y), (double)(-0.0001f), (double)(0.0001f));
         }
 
         /// <summary>
@@ -122,7 +127,8 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithAutomaticSphereColliderPayload_LoadsRadiusAndSimulatesDynamicGroundContact() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
+                RuntimeComponentDeserializerFactory = new AutomaticRuntimeComponentDeserializerFactory()
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             BepuRuntimeComponentRegistration.Register(core);
@@ -142,9 +148,9 @@ namespace helengine.physics3d.tests {
             SphereCollider3DComponent sphereCollider = FindSphereCollider(dynamicEntity);
 
             Assert.Equal(0.5f, sphereCollider.Radius);
-            Assert.InRange(dynamicEntity.LocalPosition.Y, 0.49f, 0.51f);
+            Assert.InRange((double)(dynamicEntity.LocalPosition.Y), (double)(0.49f), (double)(0.51f));
             Assert.NotNull(rigidBody);
-            Assert.InRange(rigidBody.LinearVelocity.Y, -0.0001f, 0.0001f);
+            Assert.InRange((double)(rigidBody.LinearVelocity.Y), (double)(-0.0001f), (double)(0.0001f));
         }
 
         /// <summary>
@@ -153,7 +159,8 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithCapsulePhysicsComponents_LoadsAndSimulatesDynamicGroundContact() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
+                RuntimeComponentDeserializerFactory = new AutomaticRuntimeComponentDeserializerFactory()
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             BepuRuntimeComponentRegistration.Register(core);
@@ -171,9 +178,9 @@ namespace helengine.physics3d.tests {
             Entity dynamicEntity = rootEntities[1];
             RigidBody3DComponent rigidBody = FindRigidBody(dynamicEntity);
 
-            Assert.InRange(dynamicEntity.LocalPosition.Y, 0.99f, 1.01f);
+            Assert.InRange((double)(dynamicEntity.LocalPosition.Y), (double)(0.99f), (double)(1.01f));
             Assert.NotNull(rigidBody);
-            Assert.InRange(rigidBody.LinearVelocity.Y, -0.0001f, 0.0001f);
+            Assert.InRange((double)(rigidBody.LinearVelocity.Y), (double)(-0.0001f), (double)(0.0001f));
         }
 
         /// <summary>
@@ -182,7 +189,8 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithKinematicMotionComponent_MovesThePusherAndPushesTheDynamicTarget() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
+                RuntimeComponentDeserializerFactory = new AutomaticRuntimeComponentDeserializerFactory()
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             BepuRuntimeComponentRegistration.Register(core);
@@ -199,9 +207,9 @@ namespace helengine.physics3d.tests {
 
             Entity dynamicEntity = rootEntities[1];
             Entity pusherEntity = rootEntities[2];
-            float pusherX = pusherEntity.LocalPosition.X;
-            float dynamicX = dynamicEntity.LocalPosition.X;
-            float dynamicY = dynamicEntity.LocalPosition.Y;
+            double pusherX = (double)(pusherEntity.LocalPosition.X);
+            double dynamicX = (double)(dynamicEntity.LocalPosition.X);
+            double dynamicY = (double)(dynamicEntity.LocalPosition.Y);
 
             Assert.True(pusherX > -2f, $"Expected the kinematic pusher to advance along X, but its X position was {pusherX}.");
             Assert.True(dynamicX > 1.5f, $"Expected the dynamic target to be displaced along X, but its X position was {dynamicX} while the pusher X position was {pusherX}.");
@@ -214,7 +222,8 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithCharacterControllerComponent_ClimbsSlopeRamp() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
+                RuntimeComponentDeserializerFactory = new AutomaticRuntimeComponentDeserializerFactory()
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             BepuRuntimeComponentRegistration.Register(core);
@@ -241,7 +250,8 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithCharacterControllerComponent_DoesNotClimbSteepSlopeRamp() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
+                RuntimeComponentDeserializerFactory = new AutomaticRuntimeComponentDeserializerFactory()
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             BepuRuntimeComponentRegistration.Register(core);
@@ -268,7 +278,8 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithCharacterControllerComponent_ClimbsLowSteps() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
+                RuntimeComponentDeserializerFactory = new AutomaticRuntimeComponentDeserializerFactory()
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             BepuRuntimeComponentRegistration.Register(core);
@@ -295,7 +306,8 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithCharacterControllerOnMovingPlatform_RidesTheKinematicPlatform() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
+                RuntimeComponentDeserializerFactory = new AutomaticRuntimeComponentDeserializerFactory()
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             BepuRuntimeComponentRegistration.Register(core);
@@ -315,7 +327,7 @@ namespace helengine.physics3d.tests {
 
             Assert.True(platformEntity.LocalPosition.X > 1.4f, $"Expected the moving platform to advance along X, but its X position was {platformEntity.LocalPosition.X}.");
             Assert.True(controllerEntity.LocalPosition.X > 0.9f, $"Expected the character controller to ride the platform along X, but its X position was {controllerEntity.LocalPosition.X}.");
-            Assert.InRange(controllerEntity.LocalPosition.Y, 1.66f, 1.69f);
+            Assert.InRange((double)(controllerEntity.LocalPosition.Y), (double)(1.66f), (double)(1.69f));
         }
 
         /// <summary>
@@ -324,7 +336,8 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void LoadSceneAsset_WithCharacterControllerLiftedIntoCeiling_StopsBelowTheCeiling() {
             Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
+                RuntimeComponentDeserializerFactory = new AutomaticRuntimeComponentDeserializerFactory()
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             BepuRuntimeComponentRegistration.Register(core);
@@ -341,8 +354,8 @@ namespace helengine.physics3d.tests {
 
             Entity controllerEntity = rootEntities[3];
             Entity ceilingEntity = rootEntities[2];
-            float controllerTop = controllerEntity.LocalPosition.Y + (0.75f * controllerEntity.LocalScale.Y);
-            float ceilingBottom = ceilingEntity.LocalPosition.Y - (0.25f * ceilingEntity.LocalScale.Y);
+            double controllerTop = (double)(controllerEntity.LocalPosition.Y + (0.75f * controllerEntity.LocalScale.Y));
+            double ceilingBottom = (double)(ceilingEntity.LocalPosition.Y - (0.25f * ceilingEntity.LocalScale.Y));
 
             Assert.True(controllerEntity.LocalPosition.Y > 1.5f, $"Expected the platform to lift the controller upward, but its Y position was {controllerEntity.LocalPosition.Y}.");
             Assert.True(controllerTop <= ceilingBottom + 0.01f, $"Expected the controller to stop below the ceiling, but its top was {controllerTop} while the ceiling bottom was {ceilingBottom}.");
@@ -787,12 +800,13 @@ namespace helengine.physics3d.tests {
         static SceneComponentAssetRecord CreateRigidBodyRecord(BodyKind3D bodyKind, bool useGravity) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(8);
-            writer.WriteFloat3(float3.Zero);
+            writer.WriteReal3(float3.Zero);
             writer.WriteInt32((int)bodyKind);
             writer.WriteDouble(1d);
-            writer.WriteFloat3(float3.Zero);
+            writer.WriteReal3(float3.Zero);
             writer.WriteDouble(1d);
             writer.WriteByte(useGravity ? (byte)1 : (byte)0);
             writer.WriteDouble(0.5d);
@@ -814,12 +828,13 @@ namespace helengine.physics3d.tests {
         static SceneComponentAssetRecord CreateLegacyRigidBodyRecord(BodyKind3D bodyKind, bool useGravity) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(6);
-            writer.WriteFloat3(float3.Zero);
+            writer.WriteReal3(float3.Zero);
             writer.WriteInt32((int)bodyKind);
             writer.WriteDouble(1d);
-            writer.WriteFloat3(float3.Zero);
+            writer.WriteReal3(float3.Zero);
             writer.WriteDouble(1d);
             writer.WriteByte(useGravity ? (byte)1 : (byte)0);
 
@@ -837,12 +852,13 @@ namespace helengine.physics3d.tests {
         static SceneComponentAssetRecord CreateRigidBodyRecordMissingUseGravity() {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(5);
-            writer.WriteFloat3(float3.Zero);
+            writer.WriteReal3(float3.Zero);
             writer.WriteInt32((int)BodyKind3D.Dynamic);
             writer.WriteDouble(1d);
-            writer.WriteFloat3(float3.Zero);
+            writer.WriteReal3(float3.Zero);
             writer.WriteDouble(1d);
 
             return new SceneComponentAssetRecord {
@@ -885,14 +901,15 @@ namespace helengine.physics3d.tests {
         static SceneComponentAssetRecord CreateBoxColliderRecord(float3 boxSize) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(7);
             writer.WriteUInt16(1);
             writer.WriteUInt16(ushort.MaxValue);
             writer.WriteDouble(0.4d);
             writer.WriteByte(0);
             writer.WriteDouble(0d);
-            writer.WriteFloat3(boxSize);
+            writer.WriteReal3(boxSize);
             writer.WriteDouble(0.6d);
 
             return new SceneComponentAssetRecord {
@@ -919,7 +936,8 @@ namespace helengine.physics3d.tests {
         static SceneComponentAssetRecord CreateAutomaticSphereColliderRecord(float radius) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(7);
             writer.WriteUInt16(1);
             writer.WriteUInt16(ushort.MaxValue);
@@ -945,7 +963,8 @@ namespace helengine.physics3d.tests {
         static SceneComponentAssetRecord CreateCapsuleColliderRecord(float radius, float height) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(8);
             writer.WriteUInt16(1);
             writer.WriteUInt16(ushort.MaxValue);
@@ -975,7 +994,8 @@ namespace helengine.physics3d.tests {
 
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(8);
             writer.WriteByte(1);
             writer.WriteInt32(collisionData.Indices.Length);
@@ -984,7 +1004,7 @@ namespace helengine.physics3d.tests {
             }
             writer.WriteInt32(collisionData.Vertices.Length);
             for (int index = 0; index < collisionData.Vertices.Length; index++) {
-                writer.WriteFloat3(collisionData.Vertices[index]);
+                writer.WriteReal3(collisionData.Vertices[index]);
             }
             writer.WriteUInt16(1);
             writer.WriteUInt16(ushort.MaxValue);
@@ -1016,11 +1036,12 @@ namespace helengine.physics3d.tests {
             bool pingPong) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(4);
-            writer.WriteFloat3(endLocalPosition);
+            writer.WriteReal3(endLocalPosition);
             writer.WriteByte(pingPong ? (byte)1 : (byte)0);
-            writer.WriteFloat3(startLocalPosition);
+            writer.WriteReal3(startLocalPosition);
             writer.WriteDouble(travelDurationSeconds);
 
             return new SceneComponentAssetRecord {
@@ -1047,9 +1068,10 @@ namespace helengine.physics3d.tests {
             double groundSnapDistance) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(AutomaticScriptComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(6);
-            writer.WriteFloat3(desiredMoveDirection);
+            writer.WriteReal3(desiredMoveDirection);
             writer.WriteDouble(gravityScale);
             writer.WriteDouble(groundSnapDistance);
             writer.WriteDouble(45d);

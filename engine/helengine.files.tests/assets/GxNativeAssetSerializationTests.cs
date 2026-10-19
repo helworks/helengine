@@ -85,6 +85,7 @@ namespace helengine.files.tests.assets {
             EngineBinaryHeaderSerializer.Write(stream, new EngineBinaryHeader(endianness, EditorAssetBinarySerializer.CurrentVersion,
                 EditorAssetBinarySerializer.FormatId, (ushort)EditorAssetBinarySerializer.RecordKind, (ushort)EditorAssetBinaryValueKind.TextureAsset));
             using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, endianness)) {
+                writer.WriteNumericPolicy();
                 new TextureAssetPayloadSerializer().Write(writer, texture);
             }
             stream.Position = 0;

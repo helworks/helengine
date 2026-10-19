@@ -10,7 +10,7 @@ namespace helengine.core.tests {
         [InlineData(33f, 7f)]
         [InlineData(320f, 448f)]
         public void ResolveProjectionAspect_WithSquarePixels_IsExactlyWidthOverHeight(float width, float height) {
-            Assert.Equal(width / height, CameraProjectionUtils.ResolveProjectionAspect(width, height, RenderManager3D.SquarePixelAspect));
+            Assert.Equal(RealRepresentation.ArithmeticBits == 32 ? (double)(width / height) : (double)width / height, (double)CameraProjectionUtils.ResolveProjectionAspect(width, height, RenderManager3D.SquarePixelAspect));
         }
 
         /// <summary>A full-screen viewport of a framebuffer projects 4:3 when its pixel aspect shows the framebuffer 4:3.</summary>
@@ -25,7 +25,7 @@ namespace helengine.core.tests {
         public void ResolveProjectionAspect_ForAFourByThreeMode_IsFourThirds(int width, int height) {
             double pixelAspect = 4d * height / (3d * width);
 
-            Assert.Equal(4d / 3d, CameraProjectionUtils.ResolveProjectionAspect(width, height, pixelAspect), 5);
+            Assert.Equal((double)(4d / 3d),(double)(CameraProjectionUtils.ResolveProjectionAspect(width, height, pixelAspect)), 5);
         }
 
         /// <summary>
@@ -40,7 +40,7 @@ namespace helengine.core.tests {
         public void ResolveProjectionAspect_ForAWiderThanFourByThreeMode_IsTheDisplayAspect(int width, int height, int displayAspectWidth, int displayAspectHeight) {
             double pixelAspect = (double)displayAspectWidth * height / ((double)displayAspectHeight * width);
 
-            Assert.Equal((double)displayAspectWidth / displayAspectHeight, CameraProjectionUtils.ResolveProjectionAspect(width, height, pixelAspect), 5);
+            Assert.Equal((double)((double)displayAspectWidth / displayAspectHeight),(double)(CameraProjectionUtils.ResolveProjectionAspect(width, height, pixelAspect)), 5);
         }
 
         /// <summary>A sub-viewport scales by the same pixel aspect, so split screens keep their proportions.</summary>
@@ -48,7 +48,7 @@ namespace helengine.core.tests {
         public void ResolveProjectionAspect_ForAHalfWidthViewport_HalvesTheDisplayedAspect() {
             double pixelAspect = 4d * 224 / (3d * 640);
 
-            Assert.Equal(2d / 3d, CameraProjectionUtils.ResolveProjectionAspect(320f, 224f, pixelAspect), 5);
+            Assert.Equal((double)(2d / 3d),(double)(CameraProjectionUtils.ResolveProjectionAspect(320f, 224f, pixelAspect)), 5);
         }
 
         /// <summary>Non-positive or non-finite inputs are refused.</summary>

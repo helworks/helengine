@@ -18,6 +18,34 @@ namespace helengine.editor.tests {
     /// Verifies Windows scene packaging collects referenced shader ids from packaged material assets.
     /// </summary>
     public class EditorPlatformBuildScenePackagerTests : IDisposable {
+        /// <summary>The real packager uses one numeric policy for layout and all emitted payloads without rewriting authored input.</summary>
+        [Theory]
+        [InlineData(32)]
+        [InlineData(64)]
+        public void Package_NumericPolicy_CooksLayoutAndPreservesSourceHash(int bits) {
+            const string sceneId = "Scenes/NumericCook.helen";
+            NumericPrecisionPolicy policy = new(bits, bits);
+            ComponentPersistenceRegistry registry = new();
+            ViewportComponent viewport = new() { ScalingMode = ViewportComponent.ReferenceCanvasStretchScalingMode, ReferenceWidth = 640, ReferenceHeight = 480, LayoutProcessingMode = ViewportLayoutProcessingMode.Cook };
+            RoundedRectComponent rectangle = new() { Size = new int2(200, 80), Radius = 16777217d };
+            WriteSceneAsset(sceneId, new SceneAsset { Id = sceneId, RootEntities = [new SceneEntityAsset {
+                Id = 1, Name = "NumericRoot", LocalPosition = new float3(16777217d, 0d, 0d), LocalScale = float3.One, LocalOrientation = float4.Identity,
+                Components = [registry.GetDescriptor(viewport).SerializeComponent(viewport, 0, new EntityComponentSaveState()), registry.GetDescriptor(rectangle).SerializeComponent(rectangle, 1, new EntityComponentSaveState())]
+            }] });
+            string sourcePath = Path.Combine(ProjectRootPath, "assets", sceneId);
+            byte[] sourceHash = System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(sourcePath));
+            using EditorPlatformBuildScenePackager packager = new(ProjectRootPath, BuiltInShaderAssetLibrary) { NumericPolicy = policy, LayoutTarget = new PlatformLayoutTarget(320, 240, 1, false, 0, 1) };
+            packager.Package([sceneId], BuildRootPath);
+            using FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
+            SceneAsset cooked = (SceneAsset)PackagedAssetBinarySerializer.Deserialize(stream, policy);
+            SceneEntityAsset root = Assert.Single(cooked.RootEntities);
+            Assert.Equal(bits == 32 ? 8388608d : 8388608.5d, root.LocalPosition.X.ToDouble());
+            SceneComponentAssetRecord record = Assert.Single(root.Components.Where(item => item.ComponentTypeId == "helengine.RoundedRectComponent"));
+            RoundedRectComponent baked = (RoundedRectComponent)registry.GetDescriptor(rectangle).DeserializeComponent(record, null, null);
+            Assert.Equal(bits == 32 ? 8388608d : 8388608.5d, baked.Radius.ToDouble());
+            Assert.Equal(sourceHash, System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(sourcePath)));
+        }
+
         /// <summary>Effective platform policy is cooked before ordinal emission without rewriting the authored scene.</summary>
         [Fact]
         public void Package_ViewportCook_UsesOverrideAndPreservesAuthoring() {
@@ -988,8 +1016,8 @@ namespace helengine.editor.tests {
                 BuiltInShaderAssetLibrary);
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
-            Assert.Contains("received version '2'", exception.ToString(), StringComparison.Ordinal);
-            Assert.Contains("current version '1'", exception.ToString(), StringComparison.Ordinal);
+            Assert.Contains("received version '99'", exception.ToString(), StringComparison.Ordinal);
+            Assert.Contains($"current version '{AutomaticScriptComponentRuntimeDeserializer.CurrentVersion}'", exception.ToString(), StringComparison.Ordinal);
             Assert.Contains("Regenerate", exception.ToString(), StringComparison.OrdinalIgnoreCase);
         }
 
@@ -2083,6 +2111,7 @@ namespace helengine.editor.tests {
             using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
             Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            reader.NumericPolicy = RealBinaryCodec.ReadAndValidatePolicy(reader, RealRepresentation.Policy);
             Assert.Equal(0, reader.ReadInt32());
         }
 
@@ -2198,6 +2227,7 @@ namespace helengine.editor.tests {
             using (MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false))
             using (EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian)) {
                 Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+                reader.NumericPolicy = RealBinaryCodec.ReadAndValidatePolicy(reader, RealRepresentation.Policy);
                 Assert.Equal(6, reader.ReadInt32());
             }
 
@@ -2426,9 +2456,10 @@ namespace helengine.editor.tests {
             using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
             Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            reader.NumericPolicy = RealBinaryCodec.ReadAndValidatePolicy(reader, RealRepresentation.Policy);
             Assert.Equal(3, reader.ReadInt32());
             Assert.Equal((float)(Math.PI / 2.0), reader.ReadSingle());
-            Assert.Equal(new float3(0f, 1f, 0f), reader.ReadFloat3());
+            Assert.Equal(new float3(0f, 1f, 0f), reader.ReadReal3());
             Assert.Equal((byte)0, reader.ReadByte());
         }
 
@@ -2514,7 +2545,7 @@ namespace helengine.editor.tests {
             PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
             world.BindScene(loadedRoots);
             Entity fallingRoot = loadedRoots[0];
-            float initialY = fallingRoot.LocalPosition.Y;
+            double initialY = (double)(fallingRoot.LocalPosition.Y);
             for (int index = 0; index < 60; index++) {
                 world.Step(1.0 / 60.0);
             }
@@ -3238,6 +3269,7 @@ namespace helengine.editor.tests {
             using (MemoryStream stream = new MemoryStream()) {
                 using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
                 writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+                RealBinaryCodec.WritePolicy(writer, RealRepresentation.Policy);
                 writer.WriteInt32(1);
                 writer.WriteByte(0);
                 payload = stream.ToArray();
@@ -3337,6 +3369,7 @@ namespace helengine.editor.tests {
             using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
             Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            reader.NumericPolicy = RealBinaryCodec.ReadAndValidatePolicy(reader, RealRepresentation.Policy);
             Assert.Equal(3, reader.ReadInt32());
         }
 
@@ -4852,11 +4885,13 @@ namespace helengine.editor.tests {
             using MemoryStream inputStream = new MemoryStream(payload, false);
             using EngineBinaryReader inputReader = EngineBinaryReader.Create(inputStream, EngineBinaryEndianness.LittleEndian);
             byte version = inputReader.ReadByte();
+            NumericPrecisionPolicy policy = RealBinaryCodec.ReadPolicy(inputReader);
             int fieldCount = inputReader.ReadInt32();
 
             using MemoryStream outputStream = new MemoryStream();
             using EngineBinaryWriter outputWriter = EngineBinaryWriter.Create(outputStream, EngineBinaryEndianness.LittleEndian);
             outputWriter.WriteByte(version);
+            RealBinaryCodec.WritePolicy(outputWriter, policy);
             outputWriter.WriteInt32(fieldCount);
             for (int index = 0; index < fieldCount; index++) {
                 string currentFieldName = inputReader.ReadString();
@@ -4881,7 +4916,7 @@ namespace helengine.editor.tests {
         /// <returns>Serialized older-version FPS component payload.</returns>
         byte[] WriteOlderVersionFpsComponentPayload() {
             byte[] payload = WriteFpsComponentPayload();
-            payload[0] = 2;
+            payload[0] = 99;
             return payload;
         }
 
@@ -5255,6 +5290,7 @@ namespace helengine.editor.tests {
             using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
             Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            reader.NumericPolicy = RealBinaryCodec.ReadAndValidatePolicy(reader, RealRepresentation.Policy);
             Assert.Equal(schema.Members.Count, reader.ReadInt32());
         }
 

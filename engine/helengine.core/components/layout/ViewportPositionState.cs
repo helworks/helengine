@@ -13,7 +13,7 @@ namespace helengine {
         /// <summary>Restores the unscaled transform.</summary>
         public void Restore() { Entity.LocalPosition = LocalPosition; }
         /// <summary>Maps intentional editor changes back through the last preview factors.</summary>
-        public void RestoreEdited(ViewportPositionState applied, ViewportLayoutMetrics metrics, float2 origin) {
+        public void RestoreEdited(ViewportPositionState applied, in ViewportLayoutMetrics metrics, float2 origin) {
             float3 live = Entity.LocalPosition;
             Entity.LocalPosition = new float3(
                 AuthoredLayoutScaleUtils.UnscalePosition(live.X, applied.LocalPosition.X, LocalPosition.X, origin.X, metrics.ScaleX),

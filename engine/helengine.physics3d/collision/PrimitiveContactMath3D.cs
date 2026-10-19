@@ -29,9 +29,9 @@ namespace helengine {
         /// <param name="secondHalfExtents">Second box half extents.</param>
         /// <returns>True when the boxes overlap on every axis.</returns>
         public static bool Overlaps(float3 firstCenter, float3 firstHalfExtents, float3 secondCenter, float3 secondHalfExtents) {
-            return Math.Abs(firstCenter.X - secondCenter.X) < (firstHalfExtents.X + secondHalfExtents.X) &&
-                Math.Abs(firstCenter.Y - secondCenter.Y) < (firstHalfExtents.Y + secondHalfExtents.Y) &&
-                Math.Abs(firstCenter.Z - secondCenter.Z) < (firstHalfExtents.Z + secondHalfExtents.Z);
+            return RealMath.Abs(firstCenter.X - secondCenter.X) < (firstHalfExtents.X + secondHalfExtents.X) &&
+                RealMath.Abs(firstCenter.Y - secondCenter.Y) < (firstHalfExtents.Y + secondHalfExtents.Y) &&
+                RealMath.Abs(firstCenter.Z - secondCenter.Z) < (firstHalfExtents.Z + secondHalfExtents.Z);
         }
 
         /// <summary>
@@ -89,13 +89,13 @@ namespace helengine {
         /// <returns>Selected component value.</returns>
         public static float GetAxisValue(float3 value, int axisIndex) {
             if (axisIndex == 0) {
-                return value.X;
+                return (float)(value.X);
             }
             if (axisIndex == 1) {
-                return value.Y;
+                return (float)(value.Y);
             }
             if (axisIndex == 2) {
-                return value.Z;
+                return (float)(value.Z);
             }
 
             throw new ArgumentOutOfRangeException(nameof(axisIndex), "Axis index must be between zero and two.");
@@ -153,8 +153,8 @@ namespace helengine {
 
             float clampedY = Clamp(
                 targetY,
-                capsuleBody.Position.Y - capsuleBody.CapsuleSegmentHalfLength,
-                capsuleBody.Position.Y + capsuleBody.CapsuleSegmentHalfLength);
+                (float)(capsuleBody.Position.Y - capsuleBody.CapsuleSegmentHalfLength),
+                (float)(capsuleBody.Position.Y + capsuleBody.CapsuleSegmentHalfLength));
             return new float3(capsuleBody.Position.X, clampedY, capsuleBody.Position.Z);
         }
     }

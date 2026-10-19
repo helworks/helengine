@@ -42,8 +42,8 @@ namespace helengine.editor {
             float3 toCamera = cameraPosition - gizmoPosition;
             float3 horizontalToCamera = new float3(toCamera.X, 0f, toCamera.Z);
             double horizontalLengthSquared =
-                (horizontalToCamera.X * horizontalToCamera.X) +
-                (horizontalToCamera.Z * horizontalToCamera.Z);
+                (double)((horizontalToCamera.X * horizontalToCamera.X) +
+                (horizontalToCamera.Z * horizontalToCamera.Z));
             if (horizontalLengthSquared <= MinimumHorizontalFacingLengthSquared) {
                 return 0;
             }
@@ -53,7 +53,7 @@ namespace helengine.editor {
                 (float)(horizontalToCamera.X * inverseLength),
                 0f,
                 (float)(horizontalToCamera.Z * inverseLength));
-            double angleToCamera = NormalizeAngleRadians(Math.Atan2(horizontalDirection.X, horizontalDirection.Z));
+            double angleToCamera = NormalizeAngleRadians(Math.Atan2((double)(horizontalDirection.X), (double)(horizontalDirection.Z)));
             int snappedSectorIndex = (int)Math.Floor(angleToCamera / QuarterTurnRadians);
             while (snappedSectorIndex >= FullOrbitQuarterTurnCount / 2) {
                 snappedSectorIndex -= FullOrbitQuarterTurnCount;

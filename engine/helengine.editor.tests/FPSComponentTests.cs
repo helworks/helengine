@@ -139,7 +139,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal(2f, updateText.FontScale);
             Assert.Equal(2f, renderText.FontScale);
-            Assert.Equal(font.LineHeight * 2f, overlayHost.Children[1].LocalPosition.Y);
+            Assert.EqualEvaluation(font.LineHeight * 2f, overlayHost.Children[1].LocalPosition.Y);
         }
 
         /// <summary>

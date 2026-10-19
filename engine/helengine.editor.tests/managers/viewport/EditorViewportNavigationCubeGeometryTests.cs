@@ -126,8 +126,8 @@ namespace helengine.editor.tests.managers.viewport {
                 IReadOnlyList<float2> vertices = geometry.GetProjectedVertices(cameraOrientation, size);
                 Assert.Equal(8, vertices.Count);
                 for (int vertexIndex = 0; vertexIndex < vertices.Count; vertexIndex++) {
-                    Assert.InRange(vertices[vertexIndex].X, 0f, size);
-                    Assert.InRange(vertices[vertexIndex].Y, 0f, size);
+                    Assert.InRange((double)(vertices[vertexIndex].X), (double)(0f), (double)(size));
+                    Assert.InRange((double)(vertices[vertexIndex].Y), (double)(0f), (double)(size));
                 }
 
                 Assert.True(geometry.TryHit(new float2(size * 0.5f, size * 0.5f), cameraOrientation, size, out EditorViewportNavigationCubeHit hit));
@@ -157,15 +157,15 @@ namespace helengine.editor.tests.managers.viewport {
         /// <param name="actual">Actual direction.</param>
         /// <param name="tolerance">Maximum accepted component difference.</param>
         static void AssertVectorApproximately(float3 expected, float3 actual, float tolerance) {
-            Assert.InRange(Math.Abs(expected.X - actual.X), 0f, tolerance);
-            Assert.InRange(Math.Abs(expected.Y - actual.Y), 0f, tolerance);
-            Assert.InRange(Math.Abs(expected.Z - actual.Z), 0f, tolerance);
+            Assert.InRange(Math.Abs((double)(expected.X - actual.X)), 0f, tolerance);
+            Assert.InRange(Math.Abs((double)(expected.Y - actual.Y)), 0f, tolerance);
+            Assert.InRange(Math.Abs((double)(expected.Z - actual.Z)), 0f, tolerance);
         }
         static float4 CreateCameraOrientationForTarget(EditorViewportNavigationTarget target) {
             float targetLength = (float)Math.Sqrt((target.X * target.X) + (target.Y * target.Y) + (target.Z * target.Z));
             float3 forward = new float3(-target.X / targetLength, -target.Y / targetLength, -target.Z / targetLength);
-            double yaw = Math.Atan2(-forward.X, -forward.Z);
-            double pitch = Math.Asin(Math.Clamp(forward.Y, -1f, 1f));
+            double yaw = Math.Atan2((double)(-forward.X), (double)(-forward.Z));
+            double pitch = Math.Asin(Math.Clamp((double)(forward.Y), -1f, 1f));
             float4 orientation;
             float4.CreateFromYawPitchRoll((float)yaw, (float)pitch, 0f, out orientation);
             orientation.Normalize();

@@ -41,7 +41,7 @@ namespace helengine {
         /// <summary>
         /// Legacy rotation metadata; zero for resolved geometry, whose corners are authoritative.
         /// </summary>
-        readonly List<float> QuadRotations;
+        readonly List<RealEvaluation> QuadRotations;
 
         /// <summary>Resolved sprite corners consumed directly by every backend.</summary>
         readonly List<SpriteQuad2D> QuadGeometry;
@@ -74,12 +74,12 @@ namespace helengine {
         /// <summary>
         /// Corner radii used by rounded-rectangle commands.
         /// </summary>
-        readonly List<float> RoundedRectRadii;
+        readonly List<RealEvaluation> RoundedRectRadii;
 
         /// <summary>
         /// Border thicknesses used by rounded-rectangle commands.
         /// </summary>
-        readonly List<float> RoundedRectBorderThicknesses;
+        readonly List<RealEvaluation> RoundedRectBorderThicknesses;
 
         /// <summary>
         /// Corner masks used by rounded-rectangle commands.
@@ -131,15 +131,15 @@ namespace helengine {
             QuadBounds = new List<float4>(initialCapacity);
             QuadSourceRects = new List<float4>(initialCapacity);
             QuadColors = new List<byte4>(initialCapacity);
-            QuadRotations = new List<float>(initialCapacity);
+            QuadRotations = new List<RealEvaluation>(initialCapacity);
             QuadGeometry = new List<SpriteQuad2D>(initialCapacity);
             GlyphTextures = new List<RuntimeTexture>(initialCapacity);
             GlyphBounds = new List<float4>(initialCapacity);
             GlyphSourceRects = new List<float4>(initialCapacity);
             GlyphColors = new List<byte4>(initialCapacity);
             RoundedRectBounds = new List<float4>(initialCapacity);
-            RoundedRectRadii = new List<float>(initialCapacity);
-            RoundedRectBorderThicknesses = new List<float>(initialCapacity);
+            RoundedRectRadii = new List<RealEvaluation>(initialCapacity);
+            RoundedRectBorderThicknesses = new List<RealEvaluation>(initialCapacity);
             RoundedRectCornersValues = new List<RoundedRectCorners>(initialCapacity);
             RoundedRectFillColors = new List<byte4>(initialCapacity);
             RoundedRectBorderColors = new List<byte4>(initialCapacity);
@@ -255,7 +255,7 @@ namespace helengine {
         /// <param name="sourceRect">Resolved texture source rectangle.</param>
         /// <param name="color">Resolved tint color.</param>
         /// <param name="rotationRadians">Clockwise rotation angle, in radians, around the quad center.</param>
-        public void AddTexturedQuad(RuntimeTexture texture, float4 bounds, float4 sourceRect, byte4 color, float rotationRadians) {
+        public void AddTexturedQuad(RuntimeTexture texture, float4 bounds, float4 sourceRect, byte4 color, RealEvaluation rotationRadians) {
             Batch2DGeometry.CreateQuad(bounds.X, bounds.Y, bounds.Z, bounds.W, 0d, rotationRadians,
                 sourceRect, new float4(1f, 1f, 1f, 1f), out Batch2DVertex topLeft,
                 out Batch2DVertex topRight, out Batch2DVertex bottomRight, out Batch2DVertex bottomLeft);
@@ -274,10 +274,10 @@ namespace helengine {
         /// <param name="sourceRect">Normalized texture source rectangle.</param>
         /// <param name="color">Straight-alpha byte tint.</param>
         public void AddTexturedQuadGeometry(RuntimeTexture texture, SpriteQuad2D geometry, float4 sourceRect, byte4 color) {
-            float left = Math.Min(Math.Min(geometry.TopLeft.X, geometry.TopRight.X), Math.Min(geometry.BottomLeft.X, geometry.BottomRight.X));
-            float top = Math.Min(Math.Min(geometry.TopLeft.Y, geometry.TopRight.Y), Math.Min(geometry.BottomLeft.Y, geometry.BottomRight.Y));
-            float right = Math.Max(Math.Max(geometry.TopLeft.X, geometry.TopRight.X), Math.Max(geometry.BottomLeft.X, geometry.BottomRight.X));
-            float bottom = Math.Max(Math.Max(geometry.TopLeft.Y, geometry.TopRight.Y), Math.Max(geometry.BottomLeft.Y, geometry.BottomRight.Y));
+            RealEvaluation left = RealMath.Min(RealMath.Min(geometry.TopLeft.X, geometry.TopRight.X), RealMath.Min(geometry.BottomLeft.X, geometry.BottomRight.X));
+            RealEvaluation top = RealMath.Min(RealMath.Min(geometry.TopLeft.Y, geometry.TopRight.Y), RealMath.Min(geometry.BottomLeft.Y, geometry.BottomRight.Y));
+            RealEvaluation right = RealMath.Max(RealMath.Max(geometry.TopLeft.X, geometry.TopRight.X), RealMath.Max(geometry.BottomLeft.X, geometry.BottomRight.X));
+            RealEvaluation bottom = RealMath.Max(RealMath.Max(geometry.TopLeft.Y, geometry.TopRight.Y), RealMath.Max(geometry.BottomLeft.Y, geometry.BottomRight.Y));
             AddTexturedQuadPayload(texture, new float4(left, top, right - left, bottom - top), sourceRect, color, 0f, geometry);
         }
 
@@ -289,7 +289,7 @@ namespace helengine {
         /// <param name="rotationRadians">Legacy angle, or zero for an already resolved quad.</param>
         /// <param name="geometry">Authoritative resolved corners.</param>
         void AddTexturedQuadPayload(RuntimeTexture texture, float4 bounds, float4 sourceRect, byte4 color,
-            float rotationRadians, SpriteQuad2D geometry) {
+            RealEvaluation rotationRadians, SpriteQuad2D geometry) {
             if (texture == null) {
                 throw new ArgumentNullException(nameof(texture));
             }
@@ -392,8 +392,8 @@ namespace helengine {
         /// <param name="borderColor">Resolved border color.</param>
         public void AddRoundedRect(
             float4 bounds,
-            float radius,
-            float borderThickness,
+            RealEvaluation radius,
+            RealEvaluation borderThickness,
             RoundedRectCorners corners,
             byte4 fillColor,
             byte4 borderColor) {
@@ -503,7 +503,7 @@ namespace helengine {
         /// </summary>
         /// <param name="payloadIndex">Zero-based textured-quad payload index.</param>
         /// <returns>Stored clockwise rotation angle around the quad center.</returns>
-        public float GetTexturedQuadRotation(int payloadIndex) {
+        public RealEvaluation GetTexturedQuadRotation(int payloadIndex) {
             return QuadRotations[payloadIndex];
         }
 
@@ -557,7 +557,7 @@ namespace helengine {
         /// </summary>
         /// <param name="payloadIndex">Zero-based rounded-rectangle payload index.</param>
         /// <returns>Stored corner radius.</returns>
-        public float GetRoundedRectRadius(int payloadIndex) {
+        public RealEvaluation GetRoundedRectRadius(int payloadIndex) {
             return RoundedRectRadii[payloadIndex];
         }
 
@@ -566,7 +566,7 @@ namespace helengine {
         /// </summary>
         /// <param name="payloadIndex">Zero-based rounded-rectangle payload index.</param>
         /// <returns>Stored border thickness.</returns>
-        public float GetRoundedRectBorderThickness(int payloadIndex) {
+        public RealEvaluation GetRoundedRectBorderThickness(int payloadIndex) {
             return RoundedRectBorderThicknesses[payloadIndex];
         }
 

@@ -577,7 +577,7 @@ namespace helengine.editor {
             ActiveColorFieldId = fieldId;
             if (colorControl.SwatchButtonControl.Parent != null) {
                 float3 anchorPosition = colorControl.SwatchButtonControl.Parent.Position;
-                ColorPickerOverlay.SetAnchorPosition(anchorPosition.X, anchorPosition.Y, colorControl.SwatchButtonControl.Size.Y);
+                ColorPickerOverlay.SetAnchorPosition((float)(anchorPosition.X), (float)(anchorPosition.Y), colorControl.SwatchButtonControl.Size.Y);
             }
             ColorPickerOverlay.Open(colorControl.Value);
         }

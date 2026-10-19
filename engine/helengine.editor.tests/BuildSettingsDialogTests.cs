@@ -376,8 +376,8 @@ namespace helengine.editor.tests {
             InvokePrivate(dialog, "HandleHeaderCursor", new int2(32, 28), new int2(24, 12), PointerInteraction.Hover);
             InvokePrivate(dialog, "HandleHeaderCursor", new int2(32, 28), new int2(0, 0), PointerInteraction.Release);
 
-            Assert.Equal(initialPosition.X + 24, panelRoot.Position.X);
-            Assert.Equal(initialPosition.Y + 12, panelRoot.Position.Y);
+            Assert.EqualEvaluation(initialPosition.X + 24, panelRoot.Position.X);
+            Assert.EqualEvaluation(initialPosition.Y + 12, panelRoot.Position.Y);
         }
 
         /// <summary>
@@ -417,11 +417,11 @@ namespace helengine.editor.tests {
             int expectedSaveX = panelBackground.Size.X - BuildSettingsDialog.PanelPadding - saveButton.Size.X;
             int expectedStatusY = panelBackground.Size.Y - BuildSettingsDialog.FooterHeight - 38;
 
-            Assert.Equal(expectedStatusY, (int)Math.Round(statusHost.LocalPosition.Y));
-            Assert.Equal(expectedCancelX, (int)Math.Round(cancelButtonHost.LocalPosition.X));
-            Assert.Equal(expectedSaveX, (int)Math.Round(saveButtonHost.LocalPosition.X));
-            Assert.Equal(expectedButtonY, (int)Math.Round(cancelButtonHost.LocalPosition.Y));
-            Assert.Equal(expectedButtonY, (int)Math.Round(saveButtonHost.LocalPosition.Y));
+            Assert.Equal(expectedStatusY, (int)Math.Round((double)(statusHost.LocalPosition.Y)));
+            Assert.Equal(expectedCancelX, (int)Math.Round((double)(cancelButtonHost.LocalPosition.X)));
+            Assert.Equal(expectedSaveX, (int)Math.Round((double)(saveButtonHost.LocalPosition.X)));
+            Assert.Equal(expectedButtonY, (int)Math.Round((double)(cancelButtonHost.LocalPosition.Y)));
+            Assert.Equal(expectedButtonY, (int)Math.Round((double)(saveButtonHost.LocalPosition.Y)));
         }
 
         /// <summary>

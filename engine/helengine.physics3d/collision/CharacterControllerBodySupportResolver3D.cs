@@ -32,9 +32,9 @@ namespace helengine {
             bool foundSupport = false;
             supportHeight = 0f;
             supportBodyState = null;
-            float sampleOffsetX = halfExtents.X * 0.8f;
-            float sampleOffsetZ = halfExtents.Z * 0.8f;
-            float maximumSupportHeight = centerY + halfExtents.Y + 0.05f;
+            float sampleOffsetX = (float)(halfExtents.X * 0.8f);
+            float sampleOffsetZ = (float)(halfExtents.Z * 0.8f);
+            float maximumSupportHeight = (float)(centerY + halfExtents.Y + 0.05f);
 
             AccumulateSupportHeight(bodyStates, centerX, centerZ, maximumSupportHeight, maximumSlopeDegrees, ref foundSupport, ref supportHeight, ref supportBodyState);
             AccumulateSupportHeight(bodyStates, centerX - sampleOffsetX, centerZ - sampleOffsetZ, maximumSupportHeight, maximumSlopeDegrees, ref foundSupport, ref supportHeight, ref supportBodyState);
@@ -116,13 +116,13 @@ namespace helengine {
             }
 
             float3 planePoint = bodyState.Position + (localAxisY * bodyState.HalfExtents.Y);
-            float planeOffset = (localAxisY.X * (sampleX - planePoint.X)) + (localAxisY.Z * (sampleZ - planePoint.Z));
-            float sampleY = planePoint.Y - (planeOffset / localAxisY.Y);
+            float planeOffset = (float)((localAxisY.X * (sampleX - planePoint.X)) + (localAxisY.Z * (sampleZ - planePoint.Z)));
+            float sampleY = (float)(planePoint.Y - (planeOffset / localAxisY.Y));
             float3 samplePoint = new float3(sampleX, sampleY, sampleZ);
             float3 relativePoint = samplePoint - bodyState.Position;
-            float localX = float3.Dot(relativePoint, localAxisX);
-            float localY = float3.Dot(relativePoint, localAxisY);
-            float localZ = float3.Dot(relativePoint, localAxisZ);
+            float localX = (float)(float3.Dot(relativePoint, localAxisX));
+            float localY = (float)(float3.Dot(relativePoint, localAxisY));
+            float localZ = (float)(float3.Dot(relativePoint, localAxisZ));
             const float tolerance = 0.05f;
             if (Math.Abs(localX) > bodyState.HalfExtents.X + tolerance) {
                 supportHeight = 0f;
@@ -132,7 +132,7 @@ namespace helengine {
                 supportHeight = 0f;
                 return false;
             }
-            if (Math.Abs(localY - bodyState.HalfExtents.Y) > tolerance) {
+            if (RealMath.Abs(localY - bodyState.HalfExtents.Y) > tolerance) {
                 supportHeight = 0f;
                 return false;
             }

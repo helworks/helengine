@@ -85,7 +85,8 @@ namespace helengine.editor {
             FontAsset defaultFontAsset,
             IScriptTypeResolver scriptTypeResolver,
             EditorBuiltInShaderAssetLibrary shaderLibrary,
-            PlatformLayoutTarget effectiveLayoutTarget = null) {
+            PlatformLayoutTarget effectiveLayoutTarget = null,
+            NumericPrecisionPolicy numericPolicy = null) {
             if (platformDefinition == null) {
                 throw new ArgumentNullException(nameof(platformDefinition));
             } else if (sceneIds == null) {
@@ -99,7 +100,8 @@ namespace helengine.editor {
             }
 
             using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            AppendText(hash, "scene-package-v8-viewport-layout");
+            AppendText(hash, "scene-package-v9-numeric-policy");
+            AppendText(hash, (numericPolicy ?? NumericPrecisionPolicy.Default).Identity);
             AppendText(hash, ComputeLayoutFingerprint(effectiveLayoutTarget, ViewportLayoutCookProcessor.AlgorithmVersion));
             AppendText(hash, JsonSerializer.Serialize(platformDefinition));
             AppendText(hash, buildProfileId ?? string.Empty);

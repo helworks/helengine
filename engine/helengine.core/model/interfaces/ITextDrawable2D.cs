@@ -11,7 +11,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the non-negative pixel-space width of the cardinal outline copies.
         /// </summary>
-        float OutlineScale { get; set; }
+        Real OutlineScale { get; set; }
 
         /// <summary>
         /// Gets or sets the color applied to the cardinal outline copies.
@@ -56,7 +56,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the uniform scale applied to glyph bounds, advances, and line height during rendering.
         /// </summary>
-        float FontScale { get; set; }
+        Real FontScale { get; set; }
 
         /// <summary>
         /// Gets or sets how glyphs are positioned horizontally inside the authored text layout box.

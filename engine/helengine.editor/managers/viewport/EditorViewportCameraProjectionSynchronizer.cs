@@ -17,7 +17,7 @@ namespace helengine.editor {
             }
 
             destinationCamera.FieldOfView = sourceCamera.FieldOfView;
-            destinationCamera.NearPlaneDistance = Math.Min(
+            destinationCamera.NearPlaneDistance = RealMath.Min(
                 destinationCamera.NearPlaneDistance,
                 sourceCamera.NearPlaneDistance);
             destinationCamera.FarPlaneDistance = sourceCamera.FarPlaneDistance;

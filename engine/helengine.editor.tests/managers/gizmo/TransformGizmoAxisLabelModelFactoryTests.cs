@@ -138,8 +138,8 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="expected">Expected texture coordinate.</param>
         /// <param name="actual">Generated texture coordinate.</param>
         static void AssertFloat2ApproximatelyEqual(float2 expected, float2 actual) {
-            Assert.InRange(Math.Abs(expected.X - actual.X), 0f, FloatTolerance);
-            Assert.InRange(Math.Abs(expected.Y - actual.Y), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(expected.X - actual.X)), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(expected.Y - actual.Y)), 0f, FloatTolerance);
         }
 
         /// <summary>
@@ -157,10 +157,10 @@ namespace helengine.editor.tests.managers.gizmo {
 
             for (int positionIndex = 0; positionIndex < model.Positions.Length; positionIndex++) {
                 float3 position = model.Positions[positionIndex];
-                minX = Math.Min(minX, position.X);
-                minY = Math.Min(minY, position.Y);
-                maxX = Math.Max(maxX, position.X);
-                maxY = Math.Max(maxY, position.Y);
+                minX = (float)(Math.Min(minX, (double)(position.X)));
+                minY = (float)(Math.Min(minY, (double)(position.Y)));
+                maxX = (float)(Math.Max(maxX, (double)(position.X)));
+                maxY = (float)(Math.Max(maxY, (double)(position.Y)));
             }
         }
     }

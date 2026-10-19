@@ -281,9 +281,9 @@ namespace helengine.editor.tests.components {
             renderManager.OnWindowResize(IntPtr.Zero, 853, 480);
             Core.Instance.Update();
 
-            float panelRight = panelEntity.LocalPosition.X + panelBackground.Size.X;
-            float panelBottom = panelEntity.LocalPosition.Y + panelBackground.Size.Y;
-            float descriptionBottom = panelEntity.LocalPosition.Y + descriptionEntity.LocalPosition.Y + descriptionText.Size.Y;
+            double panelRight = (double)(panelEntity.LocalPosition.X + panelBackground.Size.X);
+            double panelBottom = (double)(panelEntity.LocalPosition.Y + panelBackground.Size.Y);
+            double descriptionBottom = (double)(panelEntity.LocalPosition.Y + descriptionEntity.LocalPosition.Y + descriptionText.Size.Y);
 
             Assert.True(panelEntity.LocalPosition.X >= 0f);
             Assert.True(panelEntity.LocalPosition.Y >= 0f);
@@ -362,7 +362,7 @@ namespace helengine.editor.tests.components {
 
             Assert.Equal(new int2(320, 240), viewport.AnchorSpace.Size);
             Assert.Equal(22f, panelEntity.LocalPosition.X);
-            Assert.InRange(Math.Abs(panelEntity.LocalPosition.Y - (190f / 3f)), 0f, 0.0001f);
+            Assert.InRange(Math.Abs((double)(panelEntity.LocalPosition.Y - (190f / 3f))), 0f, 0.0001f);
             Assert.Equal(new int2(140, 140), panelBackground.Size);
         }
 
@@ -700,9 +700,9 @@ namespace helengine.editor.tests.components {
         /// <param name="actual">Actual vector value.</param>
         /// <param name="tolerance">Maximum absolute difference allowed for each component.</param>
         static void AssertFloat3ApproximatelyEqual(float3 expected, float3 actual, float tolerance) {
-            AssertApproximatelyEqual(expected.X, actual.X, tolerance);
-            AssertApproximatelyEqual(expected.Y, actual.Y, tolerance);
-            AssertApproximatelyEqual(expected.Z, actual.Z, tolerance);
+            AssertApproximatelyEqual((double)(expected.X), (double)(actual.X), tolerance);
+            AssertApproximatelyEqual((double)(expected.Y), (double)(actual.Y), tolerance);
+            AssertApproximatelyEqual((double)(expected.Z), (double)(actual.Z), tolerance);
         }
 
         /// <summary>
@@ -712,10 +712,10 @@ namespace helengine.editor.tests.components {
         /// <param name="actual">Actual vector value.</param>
         /// <param name="tolerance">Maximum absolute difference allowed for each component.</param>
         static void AssertFloat4ApproximatelyEqual(float4 expected, float4 actual, float tolerance) {
-            AssertApproximatelyEqual(expected.X, actual.X, tolerance);
-            AssertApproximatelyEqual(expected.Y, actual.Y, tolerance);
-            AssertApproximatelyEqual(expected.Z, actual.Z, tolerance);
-            AssertApproximatelyEqual(expected.W, actual.W, tolerance);
+            AssertApproximatelyEqual((double)(expected.X), (double)(actual.X), tolerance);
+            AssertApproximatelyEqual((double)(expected.Y), (double)(actual.Y), tolerance);
+            AssertApproximatelyEqual((double)(expected.Z), (double)(actual.Z), tolerance);
+            AssertApproximatelyEqual((double)(expected.W), (double)(actual.W), tolerance);
         }
 
         /// <summary>
@@ -724,8 +724,8 @@ namespace helengine.editor.tests.components {
         /// <param name="expected">Expected floating-point value.</param>
         /// <param name="actual">Actual floating-point value.</param>
         /// <param name="tolerance">Maximum absolute difference allowed between the two values.</param>
-        static void AssertApproximatelyEqual(float expected, float actual, float tolerance) {
-            float difference = Math.Abs(expected - actual);
+        static void AssertApproximatelyEqual(double expected, double actual, double tolerance) {
+            double difference = (double)(Math.Abs(expected - actual));
             Assert.True(
                 difference <= tolerance,
                 $"Expected {expected} but received {actual}. Difference {difference} exceeded tolerance {tolerance}.");

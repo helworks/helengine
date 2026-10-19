@@ -805,15 +805,15 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void DeserializeComponent_WhenAutomaticScriptPayloadVersionIsWrong_ThrowsCurrentFormatError() {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
-            SceneComponentAssetRecord record = CreateRuntimeHeaderRecord(typeof(TestScriptSerializableComponent), 2, 3);
+            SceneComponentAssetRecord record = CreateRuntimeHeaderRecord(typeof(TestScriptSerializableComponent), 99, 3);
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
                 () => descriptor.DeserializeComponent(record, null, null));
 
             Assert.Contains("received version", exception.Message, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("2", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("99", exception.Message, StringComparison.Ordinal);
             Assert.Contains("current version", exception.Message, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("1", exception.Message, StringComparison.Ordinal);
+            Assert.Contains(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion.ToString(), exception.Message, StringComparison.Ordinal);
             Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("rebuild", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
@@ -824,7 +824,7 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void DeserializeComponent_WhenAutomaticScriptPayloadMemberCountIsWrong_ThrowsCurrentFormatError() {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
-            SceneComponentAssetRecord record = CreateRuntimeHeaderRecord(typeof(TestScriptSerializableComponent), 1, 2);
+            SceneComponentAssetRecord record = CreateRuntimeHeaderRecord(typeof(TestScriptSerializableComponent), AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, 2);
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
                 () => descriptor.DeserializeComponent(record, null, null));
@@ -869,6 +869,7 @@ namespace helengine.editor.tests.serialization.scene {
             using MemoryStream stream = new MemoryStream();
             using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian)) {
                 writer.WriteByte(version);
+                RealBinaryCodec.WritePolicy(writer, RealRepresentation.Policy);
                 writer.WriteInt32(memberCount);
             }
 
@@ -895,6 +896,7 @@ namespace helengine.editor.tests.serialization.scene {
             using MemoryStream stream = new MemoryStream();
             using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian)) {
                 writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+                RealBinaryCodec.WritePolicy(writer, RealRepresentation.Policy);
                 writer.WriteInt32(schema.Members.Count);
                 foreach (ScriptComponentReflectionMember member in schema.Members) {
                     AutomaticScriptComponentPersistenceDescriptor.WriteSupportedValue(writer, member.ValueType, member.GetValue(component));
@@ -1124,6 +1126,7 @@ namespace helengine.editor.tests.serialization.scene {
             using MemoryStream stream = new MemoryStream();
             using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian)) {
                 writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+                RealBinaryCodec.WritePolicy(writer, RealRepresentation.Policy);
                 writer.WriteInt32(3);
             }
 
@@ -1151,7 +1154,7 @@ namespace helengine.editor.tests.serialization.scene {
             const string componentTypeId = "helengine.editor.tests.testing.TestScriptSerializableComponent, helengine.editor.tests";
             using MemoryStream stream = new MemoryStream();
             using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian)) {
-                writer.WriteByte(2);
+                writer.WriteByte(99);
             }
 
             AutomaticScriptComponentRuntimeDeserializer deserializer = new AutomaticScriptComponentRuntimeDeserializer(
@@ -1165,9 +1168,9 @@ namespace helengine.editor.tests.serialization.scene {
                 null));
 
             Assert.Contains("received", exception.Message, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("2", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("99", exception.Message, StringComparison.Ordinal);
             Assert.Contains("current", exception.Message, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("1", exception.Message, StringComparison.Ordinal);
+            Assert.Contains(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion.ToString(), exception.Message, StringComparison.Ordinal);
             Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("rebuild", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
@@ -1181,6 +1184,7 @@ namespace helengine.editor.tests.serialization.scene {
             using MemoryStream stream = new MemoryStream();
             using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian)) {
                 writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+                RealBinaryCodec.WritePolicy(writer, RealRepresentation.Policy);
                 writer.WriteInt32(2);
             }
 

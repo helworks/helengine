@@ -361,8 +361,8 @@ namespace helengine.editor {
         /// <returns>True when the point is within the center hotspot radius.</returns>
         static bool IsCenterTogglePoint(float2 localPointer) {
             double center = LogicalCubeSize * 0.5;
-            double deltaX = localPointer.X - center;
-            double deltaY = localPointer.Y - center;
+            double deltaX = (double)(localPointer.X - center);
+            double deltaY = (double)(localPointer.Y - center);
             double radius = LogicalCenterToggleRadius;
             return (deltaX * deltaX) + (deltaY * deltaY) <= radius * radius;
         }

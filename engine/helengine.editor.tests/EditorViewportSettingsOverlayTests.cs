@@ -146,7 +146,7 @@ namespace helengine.editor.tests {
             EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
             EditorEntity overlayRoot = GetPrivateField<EditorEntity>(overlayComponent, "OverlayRoot");
 
-            float expectedOverlayY = toolbarRoot.LocalPosition.Y + settingsButtonRoot.LocalPosition.Y + settingsButtonInteractable.Size.Y;
+            double expectedOverlayY = (double)(toolbarRoot.LocalPosition.Y + settingsButtonRoot.LocalPosition.Y + settingsButtonInteractable.Size.Y);
             Assert.Equal(expectedOverlayY, overlayRoot.LocalPosition.Y, 3);
         }
 
@@ -175,8 +175,8 @@ namespace helengine.editor.tests {
 
             settingsTarget.ActivateFromKey(Keys.Enter);
             int2 insideBackgroundPoint = new int2(
-                (int)Math.Round(overlayRoot.Position.X + 4f),
-                (int)Math.Round(overlayRoot.Position.Y + 4f));
+                (int)Math.Round((double)(overlayRoot.Position.X + 4f)),
+                (int)Math.Round((double)(overlayRoot.Position.Y + 4f)));
             overlayComponent.HandleOutsidePointerPressed(insideBackgroundPoint, settingsTarget);
 
             Assert.True(overlayComponent.IsOpen);
@@ -195,8 +195,8 @@ namespace helengine.editor.tests {
 
             settingsTarget.ActivateFromKey(Keys.Enter);
 
-            int pointerX = (int)Math.Round(overlayRoot.Position.X + 16f);
-            int pointerY = (int)Math.Round(overlayRoot.Position.Y + 16f);
+            int pointerX = (int)Math.Round((double)(overlayRoot.Position.X + 16f));
+            int pointerY = (int)Math.Round((double)(overlayRoot.Position.Y + 16f));
             AdvanceInputFrame(inputManager, CreateMouseState(pointerX, pointerY, ButtonState.Released));
             overlayComponent.Update();
             AdvanceInputFrame(inputManager, CreateMouseState(pointerX, pointerY, ButtonState.Pressed));
@@ -224,8 +224,8 @@ namespace helengine.editor.tests {
             EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
             overlayComponent.Open();
 
-            int pointerX = (int)Math.Round(overlayComponent.NearPlaneSlider.Position.X + overlayComponent.NearPlaneSlider.ControlSize.X - 1);
-            int pointerY = (int)Math.Round(overlayComponent.NearPlaneSlider.Position.Y + 8f);
+            int pointerX = (int)Math.Round((double)(overlayComponent.NearPlaneSlider.Position.X + overlayComponent.NearPlaneSlider.ControlSize.X - 1));
+            int pointerY = (int)Math.Round((double)(overlayComponent.NearPlaneSlider.Position.Y + 8f));
             InteractableComponent nearPlaneTrack = Assert.IsType<InteractableComponent>(overlayComponent.NearPlaneSlider.Components.Single(component => component is InteractableComponent));
             IInteractable2D hit = PointerInteractableHitResolver.ResolveTopInteractableAt(
                 CoreValue.ObjectManager.Interactables,
@@ -260,8 +260,8 @@ namespace helengine.editor.tests {
             overlayComponent.Open();
 
             TextBoxComponent valueTextBox = overlayComponent.NearPlaneValueTextBox;
-            int pointerX = (int)Math.Round(valueTextBox.Parent.Position.X + 4f);
-            int pointerY = (int)Math.Round(valueTextBox.Parent.Position.Y + 8f);
+            int pointerX = (int)Math.Round((double)(valueTextBox.Parent.Position.X + 4f));
+            int pointerY = (int)Math.Round((double)(valueTextBox.Parent.Position.Y + 8f));
             InteractableComponent textBoxInteractable = GetPrivateField<InteractableComponent>(valueTextBox, "InteractableComponent");
             IInteractable2D hit = PointerInteractableHitResolver.ResolveTopInteractableAt(
                 CoreValue.ObjectManager.Interactables,
@@ -297,9 +297,9 @@ namespace helengine.editor.tests {
 
             TextBoxComponent valueTextBox = overlayComponent.NearPlaneValueTextBox;
             valueTextBox.Text = "1234";
-            int pointerY = (int)Math.Round(valueTextBox.Parent.Position.Y + 8f);
-            int startPointerX = (int)Math.Round(valueTextBox.Parent.Position.X + 9f);
-            int endPointerX = (int)Math.Round(valueTextBox.Parent.Position.X + 33f);
+            int pointerY = (int)Math.Round((double)(valueTextBox.Parent.Position.Y + 8f));
+            int startPointerX = (int)Math.Round((double)(valueTextBox.Parent.Position.X + 9f));
+            int endPointerX = (int)Math.Round((double)(valueTextBox.Parent.Position.X + 33f));
             TextBoxEditState editState = GetPrivateField<TextBoxEditState>(valueTextBox, "EditState");
 
             AdvanceInputFrame(inputManager, CreateMouseState(startPointerX, pointerY, ButtonState.Released));

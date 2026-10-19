@@ -20,8 +20,8 @@ namespace helengine.editor {
             double extent = 0;
             foreach (float3 vertex in UnitCubeVertices) {
                 float3 point = float4.RotateVector(vertex, inverse);
-                double divisor = ProjectionMode == CameraProjectionMode.Perspective ? CameraDistance - point.Z : 1.0;
-                extent = Math.Max(extent, Math.Max(Math.Abs(point.X), Math.Abs(point.Y)) / divisor);
+                double divisor = (double)(ProjectionMode == CameraProjectionMode.Perspective ? CameraDistance - point.Z : 1.0);
+                extent = Math.Max(extent, Math.Max(RealMath.Abs(point.X).ToDouble(), RealMath.Abs(point.Y).ToDouble()) / divisor);
             }
             return (float)(2.0 * extent / ProjectedCubeFillFraction);
         }
@@ -194,7 +194,7 @@ namespace helengine.editor {
         public float GetFaceDepth(EditorViewportNavigationTarget target, float4 cameraOrientation) {
             int faceIndex = GetFaceIndex(target);
             float3 cameraSpaceNormal = float4.RotateVector(FaceNormals[faceIndex], float4.Inverse(NormalizeOrientation(cameraOrientation)));
-            return cameraSpaceNormal.Z * 0.5f;
+            return (float)(cameraSpaceNormal.Z * 0.5f);
         }
 
         /// <summary>
@@ -246,7 +246,7 @@ namespace helengine.editor {
         public bool TryHit(float2 localPointer, float4 cameraOrientation, float size, out EditorViewportNavigationCubeHit hit) {
             ProjectedCube projectedCube = ProjectCube(cameraOrientation, size);
             hit = null;
-            if (!float.IsFinite(localPointer.X) || !float.IsFinite(localPointer.Y) ||
+            if (!float.IsFinite((float)(localPointer.X)) || !float.IsFinite((float)(localPointer.Y)) ||
                 localPointer.X < 0f || localPointer.Y < 0f || localPointer.X >= size || localPointer.Y >= size) {
                 return false;
             }
@@ -338,12 +338,12 @@ namespace helengine.editor {
             ProjectedCubeVertex[] vertices = new ProjectedCubeVertex[UnitCubeVertices.Length];
             for (int vertexIndex = 0; vertexIndex < cameraPositions.Length; vertexIndex++) {
                 float3 cameraPosition = cameraPositions[vertexIndex];
-                double divisor = ProjectionMode == CameraProjectionMode.Perspective ? CameraDistance - cameraPosition.Z : 1.0;
+                double divisor = (double)(ProjectionMode == CameraProjectionMode.Perspective ? CameraDistance - cameraPosition.Z : 1.0);
                 vertices[vertexIndex] = new ProjectedCubeVertex(
                     new float2(
                         (float)((size * 0.5) + (cameraPosition.X * scale / divisor)),
                         (float)((size * 0.5) - (cameraPosition.Y * scale / divisor))),
-                    cameraPosition.Z);
+                    (float)(cameraPosition.Z));
             }
 
             return new ProjectedCube(vertices, cameraPositions, NormalizeOrientation(cameraOrientation));
@@ -429,21 +429,21 @@ namespace helengine.editor {
             ProjectedCubeVertex second = projectedCube.Vertices[vertexIndices[1]];
             ProjectedCubeVertex third = projectedCube.Vertices[vertexIndices[2]];
             double determinant =
-                ((second.Position.X - first.Position.X) * (third.Position.Y - first.Position.Y)) -
-                ((third.Position.X - first.Position.X) * (second.Position.Y - first.Position.Y));
+                (double)(((second.Position.X - first.Position.X) * (third.Position.Y - first.Position.Y)) -
+                ((third.Position.X - first.Position.X) * (second.Position.Y - first.Position.Y)));
             if (Math.Abs(determinant) <= MinimumProjectedFaceArea) {
                 depth = 0f;
                 return false;
             }
 
             double depthX =
-                (((EncodeDepth(second.Depth) - EncodeDepth(first.Depth)) * (third.Position.Y - first.Position.Y)) -
-                 ((EncodeDepth(third.Depth) - EncodeDepth(first.Depth)) * (second.Position.Y - first.Position.Y))) / determinant;
+                (double)((((EncodeDepth(second.Depth) - EncodeDepth(first.Depth)) * (third.Position.Y - first.Position.Y)) -
+                 ((EncodeDepth(third.Depth) - EncodeDepth(first.Depth)) * (second.Position.Y - first.Position.Y))) / determinant);
             double depthY =
-                (((second.Position.X - first.Position.X) * (EncodeDepth(third.Depth) - EncodeDepth(first.Depth))) -
-                 ((third.Position.X - first.Position.X) * (EncodeDepth(second.Depth) - EncodeDepth(first.Depth)))) / determinant;
-            double depthOffset = EncodeDepth(first.Depth) - (depthX * first.Position.X) - (depthY * first.Position.Y);
-            depth = DecodeDepth((depthX * screenPoint.X) + (depthY * screenPoint.Y) + depthOffset);
+                (double)((((second.Position.X - first.Position.X) * (EncodeDepth(third.Depth) - EncodeDepth(first.Depth))) -
+                 ((third.Position.X - first.Position.X) * (EncodeDepth(second.Depth) - EncodeDepth(first.Depth)))) / determinant);
+            double depthOffset = (double)(EncodeDepth(first.Depth) - (depthX * first.Position.X) - (depthY * first.Position.Y));
+            depth = DecodeDepth((double)((depthX * screenPoint.X) + (depthY * screenPoint.Y) + depthOffset));
             return float.IsFinite(depth);
         }
 
@@ -522,9 +522,9 @@ namespace helengine.editor {
         static EditorViewportNavigationTarget GetEdgeTarget(float3 midpoint, int2 edgeIndices) {
             float3 firstVertex = UnitCubeVertices[edgeIndices.X];
             float3 secondVertex = UnitCubeVertices[edgeIndices.Y];
-            int x = firstVertex.X == secondVertex.X ? Math.Sign(midpoint.X) : 0;
-            int y = firstVertex.Y == secondVertex.Y ? Math.Sign(midpoint.Y) : 0;
-            int z = firstVertex.Z == secondVertex.Z ? Math.Sign(midpoint.Z) : 0;
+            int x = firstVertex.X == secondVertex.X ? RealMath.Sign(midpoint.X) : 0;
+            int y = firstVertex.Y == secondVertex.Y ? RealMath.Sign(midpoint.Y) : 0;
+            int z = firstVertex.Z == secondVertex.Z ? RealMath.Sign(midpoint.Z) : 0;
             return new EditorViewportNavigationTarget(x, y, z);
         }
 
@@ -534,7 +534,7 @@ namespace helengine.editor {
         /// <param name="vertex">Signed unit-cube corner position.</param>
         /// <returns>Target that identifies the cube corner.</returns>
         static EditorViewportNavigationTarget GetCornerTarget(float3 vertex) {
-            return new EditorViewportNavigationTarget(Math.Sign(vertex.X), Math.Sign(vertex.Y), Math.Sign(vertex.Z));
+            return new EditorViewportNavigationTarget(RealMath.Sign(vertex.X), RealMath.Sign(vertex.Y), RealMath.Sign(vertex.Z));
         }
 
         /// <summary>
@@ -543,16 +543,16 @@ namespace helengine.editor {
         /// <param name="orientation">Viewport camera orientation.</param>
         /// <returns>Finite normalized quaternion.</returns>
         static float4 NormalizeOrientation(float4 orientation) {
-            if (!float.IsFinite(orientation.X) || !float.IsFinite(orientation.Y) ||
-                !float.IsFinite(orientation.Z) || !float.IsFinite(orientation.W)) {
+            if (!float.IsFinite((float)(orientation.X)) || !float.IsFinite((float)(orientation.Y)) ||
+                !float.IsFinite((float)(orientation.Z)) || !float.IsFinite((float)(orientation.W))) {
                 throw new ArgumentOutOfRangeException(nameof(orientation), "Camera orientation components must be finite.");
             }
 
             double lengthSquared =
-                (orientation.X * orientation.X) +
+                (double)((orientation.X * orientation.X) +
                 (orientation.Y * orientation.Y) +
                 (orientation.Z * orientation.Z) +
-                (orientation.W * orientation.W);
+                (orientation.W * orientation.W));
             if (lengthSquared <= 0.000000000001) {
                 throw new ArgumentOutOfRangeException(nameof(orientation), "Camera orientation must have non-zero length.");
             }
@@ -594,8 +594,8 @@ namespace helengine.editor {
         /// <param name="second">Second screen-space point.</param>
         /// <returns>Squared Euclidean distance.</returns>
         static double GetDistanceSquared(float2 first, float2 second) {
-            double x = first.X - second.X;
-            double y = first.Y - second.Y;
+            double x = (double)(first.X - second.X);
+            double y = (double)(first.Y - second.Y);
             return (x * x) + (y * y);
         }
 
@@ -608,15 +608,15 @@ namespace helengine.editor {
         /// <param name="amountAlongSegment">Clamped segment parameter at the closest point.</param>
         /// <returns>Squared distance from point to closest segment point.</returns>
         static double GetDistanceToSegmentSquared(float2 point, float2 start, float2 end, out float amountAlongSegment) {
-            double deltaX = end.X - start.X;
-            double deltaY = end.Y - start.Y;
+            double deltaX = (double)(end.X - start.X);
+            double deltaY = (double)(end.Y - start.Y);
             double segmentLengthSquared = (deltaX * deltaX) + (deltaY * deltaY);
             if (segmentLengthSquared <= 0.000000000001) {
                 amountAlongSegment = 0f;
                 return GetDistanceSquared(point, start);
             }
 
-            double amount = Math.Clamp((((point.X - start.X) * deltaX) + ((point.Y - start.Y) * deltaY)) / segmentLengthSquared, 0.0, 1.0);
+            double amount = RealMath.Clamp((((point.X - start.X) * deltaX) + ((point.Y - start.Y) * deltaY)) / segmentLengthSquared, 0.0, 1.0).ToDouble();
             amountAlongSegment = (float)amount;
             float2 closestPoint = new float2((float)(start.X + (deltaX * amount)), (float)(start.Y + (deltaY * amount)));
             return GetDistanceSquared(point, closestPoint);

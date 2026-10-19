@@ -141,23 +141,23 @@ namespace helengine.editor {
         /// <returns>Serializable viewport state payload.</returns>
         public object CaptureState() {
             return new ViewportWorkspacePanelStateDocument {
-                CameraPositionX = State.SceneCameraEntity.Position.X,
-                CameraPositionY = State.SceneCameraEntity.Position.Y,
-                CameraPositionZ = State.SceneCameraEntity.Position.Z,
-                CameraOrientationX = State.SceneCameraEntity.Orientation.X,
-                CameraOrientationY = State.SceneCameraEntity.Orientation.Y,
-                CameraOrientationZ = State.SceneCameraEntity.Orientation.Z,
-                CameraOrientationW = State.SceneCameraEntity.Orientation.W,
+                CameraPositionX = (double)(State.SceneCameraEntity.Position.X),
+                CameraPositionY = (double)(State.SceneCameraEntity.Position.Y),
+                CameraPositionZ = (double)(State.SceneCameraEntity.Position.Z),
+                CameraOrientationX = (double)(State.SceneCameraEntity.Orientation.X),
+                CameraOrientationY = (double)(State.SceneCameraEntity.Orientation.Y),
+                CameraOrientationZ = (double)(State.SceneCameraEntity.Orientation.Z),
+                CameraOrientationW = (double)(State.SceneCameraEntity.Orientation.W),
                 ProjectionMode = GetProjectionSettings(State.SceneCamera).ProjectionMode,
                 OrthographicVerticalSpan = GetCapturedOrthographicSpan(State.SceneCamera, State.SceneCameraEntity.Position,
                     State.CameraController.GetOrbitTarget()),
                 HasOrbitPivot = true,
-                OrbitPivotX = State.CameraController.GetOrbitTarget().X,
-                OrbitPivotY = State.CameraController.GetOrbitTarget().Y,
-                OrbitPivotZ = State.CameraController.GetOrbitTarget().Z,
+                OrbitPivotX = (double)(State.CameraController.GetOrbitTarget().X),
+                OrbitPivotY = (double)(State.CameraController.GetOrbitTarget().Y),
+                OrbitPivotZ = (double)(State.CameraController.GetOrbitTarget().Z),
                 ToolMode = State.Viewport.ToolMode,
-                NearPlaneDistance = State.SceneCamera.NearPlaneDistance,
-                FarPlaneDistance = State.SceneCamera.FarPlaneDistance,
+                NearPlaneDistance = (double)(State.SceneCamera.NearPlaneDistance),
+                FarPlaneDistance = (double)(State.SceneCamera.FarPlaneDistance),
                 CameraSpeedMode = State.Viewport.CameraSpeedMode,
                 ManualCameraSpeedOverride = State.Viewport.ManualCameraSpeedOverride,
                 CanvasWidth = State.Viewport.CanvasPreviewSettings.CanvasWidth,
@@ -213,7 +213,7 @@ namespace helengine.editor {
             if (!double.IsFinite(orbitDistance) || orbitDistance < MinimumWorkspaceOrbitDistance) {
                 throw new ArgumentOutOfRangeException(nameof(state), "The saved camera pose must have a finite, non-zero orbit distance.");
             }
-            float resolvedSpan = document.OrthographicVerticalSpan == 0f
+            double resolvedSpan = document.OrthographicVerticalSpan == 0f
                 ? DeriveOrthographicSpan(State.SceneCamera, orbitDistance)
                 : document.OrthographicVerticalSpan;
             ICameraProjectionSettings projectionSettings = GetProjectionSettings(State.SceneCamera);
@@ -428,10 +428,10 @@ namespace helengine.editor {
         /// <param name="cameraPosition">Current camera world position.</param>
         /// <param name="orbitPivot">Current viewport orbit pivot.</param>
         /// <returns>Vertical world-space span to use in orthographic mode.</returns>
-        static float GetCapturedOrthographicSpan(CameraComponent camera, float3 cameraPosition, float3 orbitPivot) {
+        static double GetCapturedOrthographicSpan(CameraComponent camera, float3 cameraPosition, float3 orbitPivot) {
             ICameraProjectionSettings settings = GetProjectionSettings(camera);
             if (settings.ProjectionMode == CameraProjectionMode.Orthographic) {
-                return settings.OrthographicVerticalSpan;
+                return settings.OrthographicVerticalSpan.ToDouble();
             }
 
             return DeriveOrthographicSpan(camera, GetDistance(cameraPosition, orbitPivot));
@@ -443,18 +443,18 @@ namespace helengine.editor {
         /// <param name="camera">Camera whose field of view defines the scale.</param>
         /// <param name="distance">Distance between camera and orbit pivot.</param>
         /// <returns>Finite positive vertical world-space span.</returns>
-        static float DeriveOrthographicSpan(CameraComponent camera, double distance) {
-            float fieldOfView = camera.FieldOfView;
-            if (!float.IsFinite(fieldOfView) || fieldOfView <= 0f || !double.IsFinite(distance) || distance <= 0.0) {
+        static double DeriveOrthographicSpan(CameraComponent camera, double distance) {
+            double fieldOfView = camera.FieldOfView.ToDouble();
+            if (!double.IsFinite(fieldOfView) || fieldOfView <= 0f || !double.IsFinite(distance) || distance <= 0.0) {
                 throw new ArgumentOutOfRangeException(nameof(distance), "Camera field of view and pivot distance must be finite and positive.");
             }
 
-            double span = 2.0 * distance * Math.Tan(CameraProjectionUtils.ClampFieldOfView(fieldOfView) * 0.5);
-            if (!double.IsFinite(span) || span < CameraProjectionUtils.MinimumOrthographicVerticalSpan || span > float.MaxValue) {
+            double span = 2.0 * distance * Math.Tan((double)(CameraProjectionUtils.ClampFieldOfView(fieldOfView) * 0.5));
+            if (!double.IsFinite(span) || span < CameraProjectionUtils.MinimumOrthographicVerticalSpan || span > double.MaxValue) {
                 throw new ArgumentOutOfRangeException(nameof(distance), "The camera pose cannot be represented by an orthographic span.");
             }
 
-            return (float)span;
+            return span;
         }
 
         /// <summary>
@@ -465,11 +465,11 @@ namespace helengine.editor {
             if (document.ProjectionMode != CameraProjectionMode.Perspective && document.ProjectionMode != CameraProjectionMode.Orthographic) {
                 throw new ArgumentOutOfRangeException(nameof(document.ProjectionMode), document.ProjectionMode, "Workspace camera projection mode is not supported.");
             }
-            if (!float.IsFinite(document.OrthographicVerticalSpan) || document.OrthographicVerticalSpan < 0f ||
+            if (!double.IsFinite(document.OrthographicVerticalSpan) || document.OrthographicVerticalSpan < 0f ||
                 (document.OrthographicVerticalSpan > 0f && document.OrthographicVerticalSpan < CameraProjectionUtils.MinimumOrthographicVerticalSpan)) {
                 throw new ArgumentOutOfRangeException(nameof(document.OrthographicVerticalSpan), "Workspace orthographic span must be finite and positive when present.");
             }
-            if (!float.IsFinite(document.OrbitPivotX) || !float.IsFinite(document.OrbitPivotY) || !float.IsFinite(document.OrbitPivotZ)) {
+            if (!double.IsFinite(document.OrbitPivotX) || !double.IsFinite(document.OrbitPivotY) || !double.IsFinite(document.OrbitPivotZ)) {
                 throw new ArgumentOutOfRangeException(nameof(document.OrbitPivotX), "Workspace orbit pivot must contain only finite values.");
             }
         }
@@ -480,16 +480,16 @@ namespace helengine.editor {
         /// <param name="position">Restored camera world position.</param>
         /// <param name="orientation">Restored camera orientation.</param>
         static void ValidateCameraPose(float3 position, float4 orientation) {
-            if (!float.IsFinite(position.X) || !float.IsFinite(position.Y) || !float.IsFinite(position.Z)) {
+            if (!double.IsFinite((double)(position.X)) || !double.IsFinite((double)(position.Y)) || !double.IsFinite((double)(position.Z))) {
                 throw new ArgumentOutOfRangeException(nameof(position), "Workspace camera position must contain only finite values.");
             }
-            if (!float.IsFinite(orientation.X) || !float.IsFinite(orientation.Y) || !float.IsFinite(orientation.Z) || !float.IsFinite(orientation.W)) {
+            if (!double.IsFinite((double)(orientation.X)) || !double.IsFinite((double)(orientation.Y)) || !double.IsFinite((double)(orientation.Z)) || !double.IsFinite((double)(orientation.W))) {
                 throw new ArgumentOutOfRangeException(nameof(orientation), "Workspace camera orientation must contain only finite values.");
             }
 
             double lengthSquared =
-                (orientation.X * orientation.X) + (orientation.Y * orientation.Y) +
-                (orientation.Z * orientation.Z) + (orientation.W * orientation.W);
+                (double)((orientation.X * orientation.X) + (orientation.Y * orientation.Y) +
+                (orientation.Z * orientation.Z) + (orientation.W * orientation.W));
             if (!double.IsFinite(lengthSquared) || lengthSquared <= 0.000001) {
                 throw new ArgumentOutOfRangeException(nameof(orientation), "Workspace camera orientation must have non-zero magnitude.");
             }
@@ -502,9 +502,9 @@ namespace helengine.editor {
         /// <param name="orbitPivot">World-space orbit pivot.</param>
         /// <returns>Distance in world units.</returns>
         static double GetDistance(float3 cameraPosition, float3 orbitPivot) {
-            double deltaX = cameraPosition.X - orbitPivot.X;
-            double deltaY = cameraPosition.Y - orbitPivot.Y;
-            double deltaZ = cameraPosition.Z - orbitPivot.Z;
+            double deltaX = (double)(cameraPosition.X - orbitPivot.X);
+            double deltaY = (double)(cameraPosition.Y - orbitPivot.Y);
+            double deltaZ = (double)(cameraPosition.Z - orbitPivot.Z);
             return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
         }
 
@@ -610,10 +610,10 @@ namespace helengine.editor {
         /// <param name="sceneCameraEntity">Scene camera entity that should face the origin.</param>
         void ApplyDefaultSceneCameraOrientation(EditorEntity sceneCameraEntity) {
             float3 toOrigin = float3.Normalize(new float3(-sceneCameraEntity.Position.X, -sceneCameraEntity.Position.Y, -sceneCameraEntity.Position.Z));
-            double yaw = Math.Atan2(toOrigin.X, -toOrigin.Z);
-            double pitch = Math.Asin(toOrigin.Y);
+            double yaw = Math.Atan2((double)(toOrigin.X), (double)(-toOrigin.Z));
+            double pitch = Math.Asin((double)(toOrigin.Y));
             float4 orientation;
-            float4.CreateFromYawPitchRoll((float)yaw, (float)pitch, 0f, out orientation);
+            float4.CreateFromYawPitchRoll(yaw, pitch, 0f, out orientation);
             sceneCameraEntity.Orientation = orientation;
         }
 

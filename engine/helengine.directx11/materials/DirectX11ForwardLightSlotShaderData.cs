@@ -9,21 +9,21 @@ namespace helengine.directx11 {
         /// <summary>
         /// Light color scaled by intensity in XYZ and the packed light type in W.
         /// </summary>
-        public float4 ColorAndType;
+        public GpuFloat4 ColorAndType;
 
         /// <summary>
         /// Normalized light forward direction in XYZ and auxiliary shadow data in W.
         /// </summary>
-        public float4 DirectionAndShadow;
+        public GpuFloat4 DirectionAndShadow;
 
         /// <summary>
         /// Light position in XYZ and the effective range in W.
         /// </summary>
-        public float4 PositionAndRange;
+        public GpuFloat4 PositionAndRange;
 
         /// <summary>
         /// Packed spot-light cone parameters.
         /// </summary>
-        public float4 SpotAngles;
+        public GpuFloat4 SpotAngles;
     }
 }

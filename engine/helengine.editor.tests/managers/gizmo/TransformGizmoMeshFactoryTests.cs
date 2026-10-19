@@ -36,7 +36,7 @@ namespace helengine.editor.tests.managers.gizmo {
             double maxRadius = double.MinValue;
             for (int positionIndex = 0; positionIndex < model.Positions.Length; positionIndex++) {
                 float3 position = model.Positions[positionIndex];
-                double radius = Math.Sqrt((position.X * position.X) + (position.Z * position.Z));
+                double radius = Math.Sqrt((double)((position.X * position.X) + (position.Z * position.Z)));
                 minRadius = Math.Min(minRadius, radius);
                 maxRadius = Math.Max(maxRadius, radius);
             }
@@ -52,12 +52,12 @@ namespace helengine.editor.tests.managers.gizmo {
         public void CreateTubeRing_UsesRequestedHeight() {
             ModelAsset model = TransformGizmoMeshFactory.CreateTubeRing(0.9f, 1.0f, 0.08f, 24);
 
-            float minY = float.MaxValue;
-            float maxY = float.MinValue;
+            double minY = float.MaxValue;
+            double maxY = float.MinValue;
             for (int positionIndex = 0; positionIndex < model.Positions.Length; positionIndex++) {
-                float y = model.Positions[positionIndex].Y;
-                minY = Math.Min(minY, y);
-                maxY = Math.Max(maxY, y);
+                double y = (double)(model.Positions[positionIndex].Y);
+                minY = (double)(Math.Min(minY, y));
+                maxY = (double)(Math.Max(maxY, y));
             }
 
             Assert.InRange(Math.Abs(minY + 0.04f), 0f, FloatTolerance);
@@ -92,20 +92,20 @@ namespace helengine.editor.tests.managers.gizmo {
         public void CreateBox_UsesRequestedDimensionsWithBaseAtZero() {
             ModelAsset model = TransformGizmoMeshFactory.CreateBox(0.2f, 0.3f, 0.4f);
 
-            float minX = float.MaxValue;
-            float maxX = float.MinValue;
-            float minY = float.MaxValue;
-            float maxY = float.MinValue;
-            float minZ = float.MaxValue;
-            float maxZ = float.MinValue;
+            double minX = float.MaxValue;
+            double maxX = float.MinValue;
+            double minY = float.MaxValue;
+            double maxY = float.MinValue;
+            double minZ = float.MaxValue;
+            double maxZ = float.MinValue;
             for (int positionIndex = 0; positionIndex < model.Positions.Length; positionIndex++) {
                 float3 position = model.Positions[positionIndex];
-                minX = Math.Min(minX, position.X);
-                maxX = Math.Max(maxX, position.X);
-                minY = Math.Min(minY, position.Y);
-                maxY = Math.Max(maxY, position.Y);
-                minZ = Math.Min(minZ, position.Z);
-                maxZ = Math.Max(maxZ, position.Z);
+                minX = (double)(Math.Min(minX, (double)(position.X)));
+                maxX = (double)(Math.Max(maxX, (double)(position.X)));
+                minY = (double)(Math.Min(minY, (double)(position.Y)));
+                maxY = (double)(Math.Max(maxY, (double)(position.Y)));
+                minZ = (double)(Math.Min(minZ, (double)(position.Z)));
+                maxZ = (double)(Math.Max(maxZ, (double)(position.Z)));
             }
 
             Assert.InRange(Math.Abs(minX + 0.1f), 0f, FloatTolerance);
@@ -123,23 +123,23 @@ namespace helengine.editor.tests.managers.gizmo {
         public void CreateTipCone_UsesRequestedDimensionsWithTipAtZero() {
             ModelAsset model = TransformGizmoMeshFactory.CreateTipCone(0.2f, 0.3f, 24);
 
-            float minY = float.MaxValue;
-            float maxY = float.MinValue;
+            double minY = float.MaxValue;
+            double maxY = float.MinValue;
             float tipRadius = float.MaxValue;
             float baseRadius = float.MinValue;
 
             for (int positionIndex = 0; positionIndex < model.Positions.Length; positionIndex++) {
                 float3 position = model.Positions[positionIndex];
-                float horizontalRadius = (float)Math.Sqrt((position.X * position.X) + (position.Z * position.Z));
+                float horizontalRadius = (float)Math.Sqrt((double)((position.X * position.X) + (position.Z * position.Z)));
 
-                minY = Math.Min(minY, position.Y);
-                maxY = Math.Max(maxY, position.Y);
+                minY = (double)(Math.Min(minY, (double)(position.Y)));
+                maxY = (double)(Math.Max(maxY, (double)(position.Y)));
 
-                if (Math.Abs(position.Y - minY) < FloatTolerance) {
+                if (Math.Abs((double)(position.Y - minY)) < FloatTolerance) {
                     tipRadius = Math.Min(tipRadius, horizontalRadius);
                 }
 
-                if (Math.Abs(position.Y - maxY) < FloatTolerance) {
+                if (Math.Abs((double)(position.Y - maxY)) < FloatTolerance) {
                     baseRadius = Math.Max(baseRadius, horizontalRadius);
                 }
             }
@@ -168,18 +168,18 @@ namespace helengine.editor.tests.managers.gizmo {
             float radius = 2f;
             ModelAsset model = TransformGizmoMeshFactory.CreateSphere(radius, 12);
 
-            float minY = float.MaxValue;
-            float maxY = float.MinValue;
+            double minY = float.MaxValue;
+            double maxY = float.MinValue;
             float maxHorizontalRadius = float.MinValue;
             bool foundEquatorVertex = false;
             for (int positionIndex = 0; positionIndex < model.Positions.Length; positionIndex++) {
                 float3 position = model.Positions[positionIndex];
-                minY = Math.Min(minY, position.Y);
-                maxY = Math.Max(maxY, position.Y);
-                float horizontalRadius = (float)Math.Sqrt((position.X * position.X) + (position.Z * position.Z));
+                minY = (double)(Math.Min(minY, (double)(position.Y)));
+                maxY = (double)(Math.Max(maxY, (double)(position.Y)));
+                float horizontalRadius = (float)Math.Sqrt((double)((position.X * position.X) + (position.Z * position.Z)));
                 maxHorizontalRadius = Math.Max(maxHorizontalRadius, horizontalRadius);
 
-                if (Math.Abs(position.Y) < FloatTolerance && Math.Abs(horizontalRadius - radius) < FloatTolerance) {
+                if (Math.Abs((double)(position.Y)) < FloatTolerance && Math.Abs(horizontalRadius - radius) < FloatTolerance) {
                     foundEquatorVertex = true;
                 }
             }
@@ -227,7 +227,7 @@ namespace helengine.editor.tests.managers.gizmo {
                 float3 edge2 = position2 - position0;
                 float3 geometricNormal = float3.Normalize(float3.Cross(edge1, edge2));
                 float3 authoredNormal = float3.Normalize(model.Normals[index0]);
-                float alignment = float3.Dot(geometricNormal, authoredNormal);
+                double alignment = (double)(float3.Dot(geometricNormal, authoredNormal));
 
                 Assert.True(
                     alignment > 0.5f,
@@ -242,16 +242,16 @@ namespace helengine.editor.tests.managers.gizmo {
         public void CreateCenteredPlaneSquare_CentersPlaneAroundOrigin() {
             ModelAsset model = TransformGizmoMeshFactory.CreateCenteredPlaneSquare(48f);
 
-            float minX = float.MaxValue;
-            float maxX = float.MinValue;
-            float minY = float.MaxValue;
-            float maxY = float.MinValue;
+            double minX = float.MaxValue;
+            double maxX = float.MinValue;
+            double minY = float.MaxValue;
+            double maxY = float.MinValue;
             for (int positionIndex = 0; positionIndex < model.Positions.Length; positionIndex++) {
                 float3 position = model.Positions[positionIndex];
-                minX = Math.Min(minX, position.X);
-                maxX = Math.Max(maxX, position.X);
-                minY = Math.Min(minY, position.Y);
-                maxY = Math.Max(maxY, position.Y);
+                minX = (double)(Math.Min(minX, (double)(position.X)));
+                maxX = (double)(Math.Max(maxX, (double)(position.X)));
+                minY = (double)(Math.Min(minY, (double)(position.Y)));
+                maxY = (double)(Math.Max(maxY, (double)(position.Y)));
             }
 
             Assert.InRange(Math.Abs(minX + 24f), 0f, FloatTolerance);
@@ -269,8 +269,8 @@ namespace helengine.editor.tests.managers.gizmo {
             ModelAsset model = TransformGizmoMeshFactory.CreateCenteredPlaneSquare(4f, new float2(15f, 2f));
 
             for (int texCoordIndex = 0; texCoordIndex < model.TexCoords.Length; texCoordIndex++) {
-                Assert.InRange(Math.Abs(model.TexCoords[texCoordIndex].X - 15f), 0f, FloatTolerance);
-                Assert.InRange(Math.Abs(model.TexCoords[texCoordIndex].Y - 2f), 0f, FloatTolerance);
+                Assert.InRange(Math.Abs((double)(model.TexCoords[texCoordIndex].X - 15f)), 0f, FloatTolerance);
+                Assert.InRange(Math.Abs((double)(model.TexCoords[texCoordIndex].Y - 2f)), 0f, FloatTolerance);
             }
         }
     }

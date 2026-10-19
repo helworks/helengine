@@ -62,8 +62,8 @@ namespace helengine.editor.tests.managers.project {
         public void Cook_DensityUsesEffectiveDpiAndUiScale() {
             ViewportLayoutCookFixture fixture = new ViewportLayoutCookFixture();
             ViewportComponent viewport = new ViewportComponent {
-                ScalingMode = ViewportComponent.DensityScalingMode, PixelsPerCentimeter = (float)(96d / 2.54d),
-                UiScale = 0.8f, LayoutProcessingMode = ViewportLayoutProcessingMode.Cook
+                ScalingMode = ViewportComponent.DensityScalingMode, PixelsPerCentimeter = 96d / 2.54d,
+                UiScale = 0.8d, LayoutProcessingMode = ViewportLayoutProcessingMode.Cook
             };
             SceneEntityAsset root = fixture.CreateEntity("Density", viewport);
             TextComponent text = new TextComponent { Size = new int2(120, 30), FontScale = 1.5f };
@@ -95,7 +95,7 @@ namespace helengine.editor.tests.managers.project {
             new ViewportLayoutCookProcessor(fixture.Resolve).Process(scene, new PlatformLayoutTarget(width, height, aspect, false, 0, 1));
             Assert.Equal(new int2(expectedWidth, expectedHeight), rectangle.Size);
             Assert.Equal(new float3(x, y, 0), child.LocalPosition);
-            Assert.Equal(1, viewport.CookedLayout.AlgorithmVersion);
+            Assert.Equal(ViewportLayoutCookProcessor.AlgorithmVersion, viewport.CookedLayout.AlgorithmVersion);
             Assert.Equal(width, viewport.CookedLayout.TargetWidth);
             Assert.Equal(0, viewport.RetainedLayoutPositionCount);
         }

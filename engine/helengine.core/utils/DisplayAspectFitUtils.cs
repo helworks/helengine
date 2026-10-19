@@ -16,30 +16,8 @@ namespace helengine {
         /// <param name="pixelAspect">Displayed width of one framebuffer pixel divided by its displayed height.</param>
         /// <returns>The fitted canvas size in framebuffer pixels.</returns>
         /// <exception cref="ArgumentOutOfRangeException">Thrown for an empty reference canvas or a non-finite or non-positive pixel aspect.</exception>
-        public static int2 ResolveFittedSize(double liveWidth, double liveHeight, int referenceWidth, int referenceHeight, double pixelAspect) {
-            if (referenceWidth < 1) {
-                throw new ArgumentOutOfRangeException(nameof(referenceWidth), "The reference canvas width must be at least one.");
-            } else if (referenceHeight < 1) {
-                throw new ArgumentOutOfRangeException(nameof(referenceHeight), "The reference canvas height must be at least one.");
-            }
-            ValidatePixelAspect(pixelAspect);
-
-            double expectedWidth = liveHeight * referenceWidth / (referenceHeight * pixelAspect);
-            double expectedHeight = liveWidth * pixelAspect * referenceHeight / referenceWidth;
-            if (Math.Abs(liveWidth - expectedWidth) <= 0.5d || Math.Abs(liveHeight - expectedHeight) <= 0.5d) {
-                return new int2((int)Math.Round(liveWidth), (int)Math.Round(liveHeight));
-            }
-
-            double widthScale = liveWidth * pixelAspect / referenceWidth;
-            double heightScale = liveHeight / referenceHeight;
-            double scale = Math.Min(widthScale, heightScale);
-            if (scale <= 0d) {
-                return new int2(referenceWidth, referenceHeight);
-            }
-
-            int fittedWidth = Math.Max(1, (int)Math.Round(referenceWidth * scale / pixelAspect));
-            int fittedHeight = Math.Max(1, (int)Math.Round(referenceHeight * scale));
-            return new int2(fittedWidth, fittedHeight);
+        public static int2 ResolveFittedSize(RealEvaluation liveWidth, RealEvaluation liveHeight, int referenceWidth, int referenceHeight, RealEvaluation pixelAspect) {
+            return LayoutNumericKernel<RealEvaluation, RuntimeNumericOperations>.Fit(liveWidth, liveHeight, referenceWidth, referenceHeight, pixelAspect, new RuntimeNumericOperations());
         }
 
         /// <summary>
@@ -51,17 +29,17 @@ namespace helengine {
         /// <param name="pixelAspect">Displayed width of one framebuffer pixel divided by its displayed height.</param>
         /// <returns>The uniform scale.</returns>
         /// <exception cref="ArgumentOutOfRangeException">Thrown for a non-finite or non-positive pixel aspect.</exception>
-        public static double ResolveGlyphScale(double widthScale, double heightScale, double pixelAspect) {
+        public static RealEvaluation ResolveGlyphScale(RealEvaluation widthScale, RealEvaluation heightScale, RealEvaluation pixelAspect) {
             ValidatePixelAspect(pixelAspect);
-            return Math.Min(widthScale * pixelAspect, heightScale);
+            return RealMath.Min(widthScale * pixelAspect, heightScale);
         }
 
         /// <summary>
         /// Validates a pixel aspect.
         /// </summary>
         /// <param name="pixelAspect">Displayed width of one framebuffer pixel divided by its displayed height.</param>
-        static void ValidatePixelAspect(double pixelAspect) {
-            if (!double.IsFinite(pixelAspect) || pixelAspect <= 0d) {
+        static void ValidatePixelAspect(RealEvaluation pixelAspect) {
+            if (!RealEvaluation.IsFinite(pixelAspect) || pixelAspect <= 0d) {
                 throw new ArgumentOutOfRangeException(nameof(pixelAspect), "The pixel aspect must be finite and positive.");
             }
         }

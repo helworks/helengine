@@ -46,8 +46,8 @@ public sealed class EntityHierarchyTransformTests {
     /// <param name="expected">Expected vector.</param>
     /// <param name="actual">Actual vector.</param>
     static void AssertApproximately(float3 expected, float3 actual) {
-        Assert.True(Math.Abs(expected.X - actual.X) < 0.0001f);
-        Assert.True(Math.Abs(expected.Y - actual.Y) < 0.0001f);
-        Assert.True(Math.Abs(expected.Z - actual.Z) < 0.0001f);
+        Assert.True(Math.Abs((double)(expected.X - actual.X)) < 0.0001f);
+        Assert.True(Math.Abs((double)(expected.Y - actual.Y)) < 0.0001f);
+        Assert.True(Math.Abs((double)(expected.Z - actual.Z)) < 0.0001f);
     }
 }

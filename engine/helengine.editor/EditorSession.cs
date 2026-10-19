@@ -1,4 +1,4 @@
-﻿using helengine.baseplatform.Definitions;
+using helengine.baseplatform.Definitions;
 using helengine.platforms;
 using helengine.projectfile;
 
@@ -2143,7 +2143,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                int2 position = new int2((int)Math.Round(dockable.Position.X), (int)Math.Round(dockable.Position.Y));
+                int2 position = new int2((int)RealMath.Round(dockable.Position.X), (int)RealMath.Round(dockable.Position.Y));
                 interactionServices.InputCapture.SetBlocker(dockable, position, new int2(width, height));
             }
         }
@@ -2814,8 +2814,8 @@ namespace helengine.editor {
                 if (!instance.Dockable.IsDocked) {
                     slot.FloatingPanels.Add(new EditorWorkspaceFloatingPanelDocument {
                         InstanceId = instance.InstanceId,
-                        X = (int)Math.Round(instance.Dockable.Position.X),
-                        Y = (int)Math.Round(instance.Dockable.Position.Y),
+                        X = (int)RealMath.Round(instance.Dockable.Position.X),
+                        Y = (int)RealMath.Round(instance.Dockable.Position.Y),
                         Width = instance.Dockable.Size.X,
                         Height = instance.Dockable.Size.Y
                     });

@@ -5,6 +5,9 @@ namespace helengine {
     /// Provides endianness-specific binary reads over a stream after the reader has been selected once.
     /// </summary>
     public abstract class EngineBinaryReader : IDisposable {
+        /// <summary>Immutable numeric contract selected explicitly for this stream's configurable values.</summary>
+        NumericPrecisionPolicy NumericPolicyValue = RealRepresentation.Policy;
+
         /// <summary>
         /// Underlying stream supplying the payload bytes.
         /// </summary>
@@ -62,6 +65,15 @@ namespace helengine {
         /// Gets or sets the stable component type id that owns references decoded by this reader.
         /// </summary>
         public string SceneReferenceOwnerTypeId { get; set; }
+
+        /// <summary>Gets or sets this stream's validated numeric context without changing fixed-width IO methods.</summary>
+        public NumericPrecisionPolicy NumericPolicy {
+            get { return NumericPolicyValue; }
+            set {
+                if (value == null) { throw new ArgumentNullException(nameof(value)); }
+                NumericPolicyValue = value;
+            }
+        }
 
         /// <summary>
         /// Gets the payload endianness handled by this reader.
@@ -372,5 +384,53 @@ namespace helengine {
 
             return new EndOfStreamException($"Unexpected end of stream while reading engine binary data from '{assetPath}' during '{readStage}'.{positionText}{checkpointText}");
         }
+        /// <summary>Reads a configurable scalar using the contract selected for this stream.</summary>
+        /// <returns>Stored engine value decoded at the declared width.</returns>
+        public Real ReadReal() { return ReadReal(NumericPolicy); }
+
+        /// <summary>Reads configurable 2-component storage using this stream's declared contract.</summary>
+        /// <returns>Decoded engine aggregate.</returns>
+        public float2 ReadReal2() { return ReadReal2(NumericPolicy); }
+
+        /// <summary>Reads configurable 2-component storage under an explicit numeric contract.</summary>
+        /// <param name="policy">Declared storage and arithmetic policy for the payload.</param>
+        /// <returns>Decoded engine aggregate.</returns>
+        public float2 ReadReal2(NumericPrecisionPolicy policy) {
+            return new float2(ReadReal(policy), ReadReal(policy));
+        }
+
+        /// <summary>Reads configurable 3-component storage using this stream's declared contract.</summary>
+        /// <returns>Decoded engine aggregate.</returns>
+        public float3 ReadReal3() { return ReadReal3(NumericPolicy); }
+
+        /// <summary>Reads configurable 3-component storage under an explicit numeric contract.</summary>
+        /// <param name="policy">Declared storage and arithmetic policy for the payload.</param>
+        /// <returns>Decoded engine aggregate.</returns>
+        public float3 ReadReal3(NumericPrecisionPolicy policy) {
+            return new float3(ReadReal(policy), ReadReal(policy), ReadReal(policy));
+        }
+
+        /// <summary>Reads configurable 4-component storage using this stream's declared contract.</summary>
+        /// <returns>Decoded engine aggregate.</returns>
+        public float4 ReadReal4() { return ReadReal4(NumericPolicy); }
+
+        /// <summary>Reads configurable 4-component storage under an explicit numeric contract.</summary>
+        /// <param name="policy">Declared storage and arithmetic policy for the payload.</param>
+        /// <returns>Decoded engine aggregate.</returns>
+        public float4 ReadReal4(NumericPrecisionPolicy policy) {
+            return new float4(ReadReal(policy), ReadReal(policy), ReadReal(policy), ReadReal(policy));
+        }
+
+        /// <summary>Reads configurable 4x4-component storage using this stream's declared contract.</summary>
+        /// <returns>Decoded engine aggregate.</returns>
+        public float4x4 ReadReal4x4() { return ReadReal4x4(NumericPolicy); }
+
+        /// <summary>Reads configurable 4x4-component storage under an explicit numeric contract.</summary>
+        /// <param name="policy">Declared storage and arithmetic policy for the payload.</param>
+        /// <returns>Decoded engine aggregate.</returns>
+        public float4x4 ReadReal4x4(NumericPrecisionPolicy policy) {
+            return new float4x4(ReadReal(policy), ReadReal(policy), ReadReal(policy), ReadReal(policy), ReadReal(policy), ReadReal(policy), ReadReal(policy), ReadReal(policy), ReadReal(policy), ReadReal(policy), ReadReal(policy), ReadReal(policy), ReadReal(policy), ReadReal(policy), ReadReal(policy), ReadReal(policy));
+        }
+
     }
 }

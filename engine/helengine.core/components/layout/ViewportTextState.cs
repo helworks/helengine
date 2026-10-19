@@ -6,9 +6,9 @@ namespace helengine {
         /// <summary>Original Size before owner layout processing.</summary>
         public int2 Size;
         /// <summary>Original FontScale before owner layout processing.</summary>
-        public float FontScale;
+        public Real FontScale;
         /// <summary>Original OutlineScale before owner layout processing.</summary>
-        public float OutlineScale;
+        public Real OutlineScale;
         /// <summary>Original ShadowOffset before owner layout processing.</summary>
         public float2 ShadowOffset;
         /// <summary>Captures this participant without allocating a record object.</summary>
@@ -27,7 +27,7 @@ namespace helengine {
             Component.ShadowOffset = ShadowOffset;
         }
         /// <summary>Maps only deliberate preview edits back into authored space.</summary>
-        public void RestoreEdited(ViewportTextState applied, ViewportLayoutMetrics metrics) {
+        public void RestoreEdited(ViewportTextState applied, in ViewportLayoutMetrics metrics) {
             Component.Size = AuthoredLayoutScaleUtils.UnscaleInt2(Component.Size, applied.Size, Size, metrics.ScaleX, metrics.ScaleY);
             Component.FontScale = AuthoredLayoutScaleUtils.UnscaleFloat(Component.FontScale, applied.FontScale, FontScale, Component.NativeFontPixels == TextNativePixelMode.Disabled ? metrics.GlyphScale : 1d);
             Component.OutlineScale = AuthoredLayoutScaleUtils.UnscaleFloat(Component.OutlineScale, applied.OutlineScale, OutlineScale, metrics.GlyphScale);

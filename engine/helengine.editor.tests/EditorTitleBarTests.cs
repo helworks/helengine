@@ -399,18 +399,18 @@ namespace helengine.editor.tests {
             RoundedRectComponent maximizeBackground = FindComponent<RoundedRectComponent>(maximizeButtonEntity);
             RoundedRectComponent closeBackground = FindComponent<RoundedRectComponent>(closeButtonEntity);
 
-            AssertBorderPositions(fileButtonEntity, fileButtonEntity.Position.X);
-            AssertBorderPositions(addButtonEntity, addButtonEntity.Position.X, addButtonEntity.Position.X + addBackground.Size.X - 1f);
-            AssertBorderPositions(buildButtonEntity, buildButtonEntity.Position.X + buildBackground.Size.X - 1f);
-            AssertBorderPositions(minimizeButtonEntity, minimizeButtonEntity.Position.X);
-            AssertBorderPositions(maximizeButtonEntity, maximizeButtonEntity.Position.X);
-            AssertBorderPositions(closeButtonEntity, closeButtonEntity.Position.X);
+            AssertBorderPositions(fileButtonEntity, (float)(fileButtonEntity.Position.X));
+            AssertBorderPositions(addButtonEntity, (float)(addButtonEntity.Position.X), (float)(addButtonEntity.Position.X + addBackground.Size.X - 1f));
+            AssertBorderPositions(buildButtonEntity, (float)(buildButtonEntity.Position.X + buildBackground.Size.X - 1f));
+            AssertBorderPositions(minimizeButtonEntity, (float)(minimizeButtonEntity.Position.X));
+            AssertBorderPositions(maximizeButtonEntity, (float)(maximizeButtonEntity.Position.X));
+            AssertBorderPositions(closeButtonEntity, (float)(closeButtonEntity.Position.X));
 
-            Assert.DoesNotContain(fileButtonEntity.Position.X + fileBackground.Size.X - 1f, GetButtonBorderAbsoluteXPositions(fileButtonEntity));
-            Assert.DoesNotContain(buildButtonEntity.Position.X, GetButtonBorderAbsoluteXPositions(buildButtonEntity));
-            Assert.DoesNotContain(minimizeButtonEntity.Position.X + minimizeBackground.Size.X - 1f, GetButtonBorderAbsoluteXPositions(minimizeButtonEntity));
-            Assert.DoesNotContain(maximizeButtonEntity.Position.X + maximizeBackground.Size.X - 1f, GetButtonBorderAbsoluteXPositions(maximizeButtonEntity));
-            Assert.DoesNotContain(closeButtonEntity.Position.X + closeBackground.Size.X - 1f, GetButtonBorderAbsoluteXPositions(closeButtonEntity));
+            Assert.DoesNotContain((float)(fileButtonEntity.Position.X + fileBackground.Size.X - 1f), GetButtonBorderAbsoluteXPositions(fileButtonEntity));
+            Assert.DoesNotContain((float)(buildButtonEntity.Position.X), GetButtonBorderAbsoluteXPositions(buildButtonEntity));
+            Assert.DoesNotContain((float)(minimizeButtonEntity.Position.X + minimizeBackground.Size.X - 1f), GetButtonBorderAbsoluteXPositions(minimizeButtonEntity));
+            Assert.DoesNotContain((float)(maximizeButtonEntity.Position.X + maximizeBackground.Size.X - 1f), GetButtonBorderAbsoluteXPositions(maximizeButtonEntity));
+            Assert.DoesNotContain((float)(closeButtonEntity.Position.X + closeBackground.Size.X - 1f), GetButtonBorderAbsoluteXPositions(closeButtonEntity));
         }
 
         /// <summary>
@@ -545,7 +545,7 @@ namespace helengine.editor.tests {
             }
 
             RoundedRectComponent leftBackground = FindComponent<RoundedRectComponent>(leftButtonEntity);
-            float expectedRightButtonX = leftButtonEntity.Position.X + leftBackground.Size.X;
+            double expectedRightButtonX = (double)(leftButtonEntity.Position.X + leftBackground.Size.X);
 
             Assert.Equal(expectedRightButtonX, rightButtonEntity.Position.X);
         }
@@ -647,7 +647,7 @@ namespace helengine.editor.tests {
                             spriteComponent.Size.X == 1 &&
                             spriteComponent.Size.Y == EditorTitleBar.ContentHeightPixels &&
                             spriteComponent.Color.Equals(ThemeManager.Colors.AccentQuaternary)) {
-                            borderPositions.Add(currentEntity.Position.X);
+                            borderPositions.Add((float)(currentEntity.Position.X));
                         }
                     }
                 }

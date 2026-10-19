@@ -678,7 +678,7 @@ namespace helengine.editor {
             };
             labelRoot.AddComponent(NearPlaneLabelText);
 
-            NearPlaneSliderInternal = new EditorSlider(Parent.OwnerCore, EditorSessionInteractionServices.From(Parent), 0.01, 10.0, Camera.NearPlaneDistance, EditorSliderScaleMode.Logarithmic, SliderWidth, SliderHeight) {
+            NearPlaneSliderInternal = new EditorSlider(Parent.OwnerCore, EditorSessionInteractionServices.From(Parent), 0.01, 10.0, (double)(Camera.NearPlaneDistance), EditorSliderScaleMode.Logarithmic, SliderWidth, SliderHeight) {
                 InternalEntity = true
             };
             NearPlaneSliderInternal.ApplyLayerMask(OverlayLayerMask);
@@ -709,7 +709,7 @@ namespace helengine.editor {
             };
             labelRoot.AddComponent(FarPlaneLabelText);
 
-            FarPlaneSliderInternal = new EditorSlider(Parent.OwnerCore, EditorSessionInteractionServices.From(Parent), 1.0, 5000.0, Camera.FarPlaneDistance, EditorSliderScaleMode.Logarithmic, SliderWidth, SliderHeight) {
+            FarPlaneSliderInternal = new EditorSlider(Parent.OwnerCore, EditorSessionInteractionServices.From(Parent), 1.0, 5000.0, (double)(Camera.FarPlaneDistance), EditorSliderScaleMode.Logarithmic, SliderWidth, SliderHeight) {
                 InternalEntity = true
             };
             FarPlaneSliderInternal.ApplyLayerMask(OverlayLayerMask);
@@ -1294,11 +1294,11 @@ namespace helengine.editor {
                 return;
             }
 
-            double maximumNear = Math.Max(
+            double maximumNear = RealMath.Max(
                 CameraProjectionUtils.MinimumNearPlaneDistance,
-                Camera.FarPlaneDistance - CameraProjectionUtils.MinimumPlaneSeparation);
-            double clampedValue = Math.Clamp(value, CameraProjectionUtils.MinimumNearPlaneDistance, maximumNear);
-            Camera.NearPlaneDistance = (float)clampedValue;
+                Camera.FarPlaneDistance - CameraProjectionUtils.MinimumPlaneSeparation).ToDouble();
+            double clampedValue = RealMath.Clamp(value, CameraProjectionUtils.MinimumNearPlaneDistance, maximumNear).ToDouble();
+            Camera.NearPlaneDistance = clampedValue;
             SynchronizeFromState();
         }
 
@@ -1311,9 +1311,9 @@ namespace helengine.editor {
                 return;
             }
 
-            double minimumFar = Math.Max(1.0, Camera.NearPlaneDistance + CameraProjectionUtils.MinimumPlaneSeparation);
+            double minimumFar = RealMath.Max(1.0, Camera.NearPlaneDistance + CameraProjectionUtils.MinimumPlaneSeparation).ToDouble();
             double clampedValue = Math.Clamp(value, minimumFar, 5000.0);
-            Camera.FarPlaneDistance = (float)clampedValue;
+            Camera.FarPlaneDistance = clampedValue;
             SynchronizeFromState();
         }
 
@@ -1393,8 +1393,8 @@ namespace helengine.editor {
             IsSynchronizingState = true;
             try {
                 PixelsPerWorldUnitSliderInternal.SetValue(CanvasPreviewSettings.PixelsPerWorldUnit);
-                NearPlaneSliderInternal.SetValue(Camera.NearPlaneDistance);
-                FarPlaneSliderInternal.SetValue(Camera.FarPlaneDistance);
+                NearPlaneSliderInternal.SetValue((double)(Camera.NearPlaneDistance));
+                FarPlaneSliderInternal.SetValue((double)(Camera.FarPlaneDistance));
                 ManualCameraSpeedSliderInternal.SetValue(OwnerViewport.ManualCameraSpeedOverride);
                 UpdateGridToggleVisuals();
                 UpdateCameraSpeedModeVisuals();
@@ -1460,10 +1460,10 @@ namespace helengine.editor {
                 PixelsPerWorldUnitValueTextBoxInternal.Text = FormatIntegerValue(CanvasPreviewSettings.PixelsPerWorldUnit);
             }
             if (NearPlaneValueTextBoxInternal != null) {
-                NearPlaneValueTextBoxInternal.Text = FormatDistance(Camera.NearPlaneDistance);
+                NearPlaneValueTextBoxInternal.Text = FormatDistance((double)(Camera.NearPlaneDistance));
             }
             if (FarPlaneValueTextBoxInternal != null) {
-                FarPlaneValueTextBoxInternal.Text = FormatDistance(Camera.FarPlaneDistance);
+                FarPlaneValueTextBoxInternal.Text = FormatDistance((double)(Camera.FarPlaneDistance));
             }
             if (ManualCameraSpeedValueTextBoxInternal != null) {
                 ManualCameraSpeedValueTextBoxInternal.Text = FormatDistance(OwnerViewport.ManualCameraSpeedOverride);
@@ -1576,8 +1576,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            int left = (int)Math.Round(child.Position.X);
-            int top = (int)Math.Round(child.Position.Y);
+            int left = (int)RealMath.Round(child.Position.X);
+            int top = (int)RealMath.Round(child.Position.Y);
             return point.X >= left &&
                    point.X < left + width &&
                    point.Y >= top &&
@@ -1594,8 +1594,8 @@ namespace helengine.editor {
             }
 
             return new int2(
-                (int)Math.Round(OverlayRoot.Position.X),
-                (int)Math.Round(OverlayRoot.Position.Y));
+                (int)RealMath.Round(OverlayRoot.Position.X),
+                (int)RealMath.Round(OverlayRoot.Position.Y));
         }
 
         /// <summary>

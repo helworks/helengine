@@ -171,16 +171,16 @@ namespace helengine.editor.tests {
             int dontSaveButtonX = cancelButtonX - 8 - dontSaveButton.Size.X;
             int saveButtonX = dontSaveButtonX - 8 - saveButton.Size.X;
 
-            Assert.Equal(UnsavedChangesDialog.PanelPadding, (int)Math.Round(messageHost.LocalPosition.X));
-            Assert.Equal(UnsavedChangesDialog.PanelPadding + UnsavedChangesDialog.HeaderHeight + UnsavedChangesDialog.SectionSpacing, (int)Math.Round(messageHost.LocalPosition.Y));
-            Assert.Equal(UnsavedChangesDialog.PanelWidth - UnsavedChangesDialog.PanelPadding - footerWidth, (int)Math.Round(footerHost.LocalPosition.X));
-            Assert.Equal(footerTop, (int)Math.Round(footerHost.LocalPosition.Y));
-            Assert.Equal(saveButtonX, (int)Math.Round(saveButtonHost.LocalPosition.X));
-            Assert.Equal(dontSaveButtonX, (int)Math.Round(dontSaveButtonHost.LocalPosition.X));
-            Assert.Equal(cancelButtonX, (int)Math.Round(cancelButtonHost.LocalPosition.X));
-            Assert.Equal(saveButtonY, (int)Math.Round(saveButtonHost.LocalPosition.Y));
-            Assert.Equal(dontSaveButtonY, (int)Math.Round(dontSaveButtonHost.LocalPosition.Y));
-            Assert.Equal(cancelButtonY, (int)Math.Round(cancelButtonHost.LocalPosition.Y));
+            Assert.Equal(UnsavedChangesDialog.PanelPadding, (int)Math.Round((double)(messageHost.LocalPosition.X)));
+            Assert.Equal(UnsavedChangesDialog.PanelPadding + UnsavedChangesDialog.HeaderHeight + UnsavedChangesDialog.SectionSpacing, (int)Math.Round((double)(messageHost.LocalPosition.Y)));
+            Assert.Equal(UnsavedChangesDialog.PanelWidth - UnsavedChangesDialog.PanelPadding - footerWidth, (int)Math.Round((double)(footerHost.LocalPosition.X)));
+            Assert.Equal(footerTop, (int)Math.Round((double)(footerHost.LocalPosition.Y)));
+            Assert.Equal(saveButtonX, (int)Math.Round((double)(saveButtonHost.LocalPosition.X)));
+            Assert.Equal(dontSaveButtonX, (int)Math.Round((double)(dontSaveButtonHost.LocalPosition.X)));
+            Assert.Equal(cancelButtonX, (int)Math.Round((double)(cancelButtonHost.LocalPosition.X)));
+            Assert.Equal(saveButtonY, (int)Math.Round((double)(saveButtonHost.LocalPosition.Y)));
+            Assert.Equal(dontSaveButtonY, (int)Math.Round((double)(dontSaveButtonHost.LocalPosition.Y)));
+            Assert.Equal(cancelButtonY, (int)Math.Round((double)(cancelButtonHost.LocalPosition.Y)));
             Assert.Equal(UnsavedChangesDialog.PanelWidth - UnsavedChangesDialog.PanelPadding * 2, messageText.Size.X);
 
             EditorEntity topLeftGrip = Assert.IsType<EditorEntity>(Assert.Single(panelRoot.Children, child => string.Equals(((EditorEntity)child).Name, "ResizeTopLeftGrip", StringComparison.Ordinal)));
@@ -192,16 +192,16 @@ namespace helengine.editor.tests {
 
             int resizedFooterTop = panelBackground.Size.Y - UnsavedChangesDialog.PanelPadding - UnsavedChangesDialog.FooterHeight;
 
-            Assert.Equal(UnsavedChangesDialog.PanelPadding, (int)Math.Round(messageHost.LocalPosition.X));
-            Assert.Equal(UnsavedChangesDialog.PanelPadding + UnsavedChangesDialog.HeaderHeight + UnsavedChangesDialog.SectionSpacing, (int)Math.Round(messageHost.LocalPosition.Y));
-            Assert.Equal(panelBackground.Size.X - UnsavedChangesDialog.PanelPadding - footerWidth, (int)Math.Round(footerHost.LocalPosition.X));
-            Assert.Equal(resizedFooterTop, (int)Math.Round(footerHost.LocalPosition.Y));
-            Assert.Equal(saveButtonX, (int)Math.Round(saveButtonHost.LocalPosition.X));
-            Assert.Equal(dontSaveButtonX, (int)Math.Round(dontSaveButtonHost.LocalPosition.X));
-            Assert.Equal(cancelButtonX, (int)Math.Round(cancelButtonHost.LocalPosition.X));
-            Assert.Equal(saveButtonY, (int)Math.Round(saveButtonHost.LocalPosition.Y));
-            Assert.Equal(dontSaveButtonY, (int)Math.Round(dontSaveButtonHost.LocalPosition.Y));
-            Assert.Equal(cancelButtonY, (int)Math.Round(cancelButtonHost.LocalPosition.Y));
+            Assert.Equal(UnsavedChangesDialog.PanelPadding, (int)Math.Round((double)(messageHost.LocalPosition.X)));
+            Assert.Equal(UnsavedChangesDialog.PanelPadding + UnsavedChangesDialog.HeaderHeight + UnsavedChangesDialog.SectionSpacing, (int)Math.Round((double)(messageHost.LocalPosition.Y)));
+            Assert.Equal(panelBackground.Size.X - UnsavedChangesDialog.PanelPadding - footerWidth, (int)Math.Round((double)(footerHost.LocalPosition.X)));
+            Assert.Equal(resizedFooterTop, (int)Math.Round((double)(footerHost.LocalPosition.Y)));
+            Assert.Equal(saveButtonX, (int)Math.Round((double)(saveButtonHost.LocalPosition.X)));
+            Assert.Equal(dontSaveButtonX, (int)Math.Round((double)(dontSaveButtonHost.LocalPosition.X)));
+            Assert.Equal(cancelButtonX, (int)Math.Round((double)(cancelButtonHost.LocalPosition.X)));
+            Assert.Equal(saveButtonY, (int)Math.Round((double)(saveButtonHost.LocalPosition.Y)));
+            Assert.Equal(dontSaveButtonY, (int)Math.Round((double)(dontSaveButtonHost.LocalPosition.Y)));
+            Assert.Equal(cancelButtonY, (int)Math.Round((double)(cancelButtonHost.LocalPosition.Y)));
             Assert.Equal(panelBackground.Size.X - UnsavedChangesDialog.PanelPadding * 2, messageText.Size.X);
         }
 
@@ -219,7 +219,7 @@ namespace helengine.editor.tests {
             TextComponent messageText = GetPrivateField<TextComponent>(dialog, "MessageText");
             SpriteComponent footerBoundsSurface = GetPrivateField<SpriteComponent>(dialog, "FooterBoundsSurface");
 
-            Assert.Equal(metrics.ScalePixels(UnsavedChangesDialog.PanelPadding + UnsavedChangesDialog.HeaderHeight + UnsavedChangesDialog.SectionSpacing), (int)Math.Round(messageHost.LocalPosition.Y));
+            Assert.Equal(metrics.ScalePixels(UnsavedChangesDialog.PanelPadding + UnsavedChangesDialog.HeaderHeight + UnsavedChangesDialog.SectionSpacing), (int)Math.Round((double)(messageHost.LocalPosition.Y)));
             Assert.Equal(metrics.ScalePixels(UnsavedChangesDialog.PanelWidth - (UnsavedChangesDialog.PanelPadding * 2)), messageText.Size.X);
             Assert.Equal(
                 new int2(
@@ -306,8 +306,8 @@ namespace helengine.editor.tests {
             InvokePrivate(dialog, "HandleHeaderCursor", new int2(36, 28), new int2(20, 12), PointerInteraction.Hover);
             InvokePrivate(dialog, "HandleHeaderCursor", new int2(36, 28), new int2(0, 0), PointerInteraction.Release);
 
-            Assert.Equal(initialPosition.X + 20, panelRoot.Position.X);
-            Assert.Equal(initialPosition.Y + 12, panelRoot.Position.Y);
+            Assert.EqualEvaluation(initialPosition.X + 20, panelRoot.Position.X);
+            Assert.EqualEvaluation(initialPosition.Y + 12, panelRoot.Position.Y);
         }
 
         /// <summary>
@@ -331,8 +331,8 @@ namespace helengine.editor.tests {
             topLeftInteractable.OnCursor(new int2(8, 8), new int2(-20, -12), PointerInteraction.Hover);
             topLeftInteractable.OnCursor(new int2(8, 8), new int2(0, 0), PointerInteraction.Release);
 
-            Assert.Equal(initialPosition.X - 20, panelRoot.Position.X);
-            Assert.Equal(initialPosition.Y - 12, panelRoot.Position.Y);
+            Assert.EqualEvaluation(initialPosition.X - 20, panelRoot.Position.X);
+            Assert.EqualEvaluation(initialPosition.Y - 12, panelRoot.Position.Y);
             Assert.Equal(initialSize.X + 20, panelBackground.Size.X);
             Assert.Equal(initialSize.Y + 12, panelBackground.Size.Y);
         }

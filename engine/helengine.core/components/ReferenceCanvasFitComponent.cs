@@ -42,7 +42,7 @@ namespace helengine {
         /// <summary>
         /// Stores the display pixel aspect the last fit pass used, so the recorded glyph scale matches the one the snapshots applied.
         /// </summary>
-        double CurrentPixelAspectValue;
+        Real CurrentPixelAspectValue;
 
         /// <summary>
         /// Tracks whether the component is currently subscribed to layout-window size events.
@@ -133,8 +133,8 @@ namespace helengine {
         public float2 CalculateScale() {
             int2 anchorSpaceSize = HasAppliedLayout ? CurrentMetrics.AnchorSize : ResolveCurrentAnchorSpaceSize();
             return new float2(
-                (float)((double)anchorSpaceSize.X / ReferenceWidthValue),
-                (float)((double)anchorSpaceSize.Y / ReferenceHeightValue));
+                (RealEvaluation)((RealEvaluation)anchorSpaceSize.X / ReferenceWidthValue),
+                (RealEvaluation)((RealEvaluation)anchorSpaceSize.Y / ReferenceHeightValue));
         }
 
         /// <summary>
@@ -415,7 +415,7 @@ namespace helengine {
 
         /// <summary>Uses the authored viewport's pixel aspect, or the nearest camera's output pixel aspect.</summary>
         /// <returns>Displayed width of one layout-surface pixel divided by its displayed height.</returns>
-        double ResolveLayoutPixelAspect() {
+        RealEvaluation ResolveLayoutPixelAspect() {
             RefreshLayoutProviders();
             return LayoutViewport != null ? LayoutViewport.ResolvedPixelAspect
                 : CameraWindowLayoutUtils.ResolveCameraPixelAspect(OwnerCore.RenderManager3D, LayoutCamera);
@@ -505,8 +505,8 @@ namespace helengine {
         /// <returns>Anchor space that descendants should use for local anchoring.</returns>
         int2 ResolveCurrentAnchorSpaceSize() {
             int2 mainWindowSize = ResolveLayoutSurfaceSize();
-            double liveWidth = mainWindowSize.X > 0 ? mainWindowSize.X : ReferenceWidthValue;
-            double liveHeight = mainWindowSize.Y > 0 ? mainWindowSize.Y : ReferenceHeightValue;
+            RealEvaluation liveWidth = mainWindowSize.X > 0 ? mainWindowSize.X : ReferenceWidthValue;
+            RealEvaluation liveHeight = mainWindowSize.Y > 0 ? mainWindowSize.Y : ReferenceHeightValue;
             return DisplayAspectFitUtils.ResolveFittedSize(liveWidth, liveHeight, ReferenceWidthValue, ReferenceHeightValue, ResolveLayoutPixelAspect());
         }
 
@@ -517,10 +517,10 @@ namespace helengine {
         /// <returns>Root-entity offset that places the fitted canvas inside the live window.</returns>
         float2 ResolveCurrentCanvasOrigin(int2 anchorSpaceSize) {
             int2 mainWindowSize = ResolveLayoutSurfaceSize();
-            double liveWidth = mainWindowSize.X > 0 ? mainWindowSize.X : ReferenceWidthValue;
-            double liveHeight = mainWindowSize.Y > 0 ? mainWindowSize.Y : ReferenceHeightValue;
-            float originX = (float)((liveWidth - anchorSpaceSize.X) * 0.5d);
-            float originY = (float)((liveHeight - anchorSpaceSize.Y) * 0.5d);
+            RealEvaluation liveWidth = mainWindowSize.X > 0 ? mainWindowSize.X : ReferenceWidthValue;
+            RealEvaluation liveHeight = mainWindowSize.Y > 0 ? mainWindowSize.Y : ReferenceHeightValue;
+            RealEvaluation originX = (RealEvaluation)((liveWidth - anchorSpaceSize.X) * 0.5d);
+            RealEvaluation originY = (RealEvaluation)((liveHeight - anchorSpaceSize.Y) * 0.5d);
             return new float2(originX, originY);
         }
 

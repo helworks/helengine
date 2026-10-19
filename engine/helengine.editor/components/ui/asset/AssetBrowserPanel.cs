@@ -354,8 +354,8 @@ namespace helengine.editor {
             }
 
             int2 local = new int2(
-                pointer.X - (int)Math.Round(Position.X),
-                pointer.Y - (int)Math.Round(Position.Y));
+                pointer.X - (int)RealMath.Round(Position.X),
+                pointer.Y - (int)RealMath.Round(Position.Y));
 
             int2 browserLocal = new int2(local.X, local.Y - TitleBarHeightPixels);
             AssetBrowserEntry hoveredEntry;
@@ -491,8 +491,8 @@ namespace helengine.editor {
         /// <param name="pointer">Pointer position in window coordinates.</param>
         /// <returns>True when the pointer is within the content area.</returns>
         bool IsPointerInsideContent(int2 pointer) {
-            float left = Position.X;
-            float top = Position.Y + TitleBarHeightPixels;
+            float left = (float)(Position.X);
+            float top = (float)(Position.Y + TitleBarHeightPixels);
             float right = left + Size.X;
             float bottom = top + Size.Y;
 

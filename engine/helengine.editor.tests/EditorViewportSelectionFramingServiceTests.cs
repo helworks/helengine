@@ -36,11 +36,11 @@ namespace helengine.editor.tests {
                 child.AddComponent(new RoundedRectComponent { Size = new int2(1280, 720) });
             }
             double radius = Math.Sqrt(640.0 * 640.0 + 360.0 * 360.0);
-            double originalDistance = radius * 1.1 / Math.Sin(camera.FieldOfView * 0.5);
+            double originalDistance = radius * 1.1 / Math.Sin((double)(camera.FieldOfView * 0.5));
 
             new EditorViewportSelectionFramingService().FocusSelection(camera, controller, selected);
 
-            double distance = float3.Distance(cameraEntity.Position, controller.GetOrbitTarget());
+            double distance = (double)(float3.Distance(cameraEntity.Position, controller.GetOrbitTarget()));
             double expectedFactor = kind == "mixed" ? 1.0 : 0.455;
             Assert.InRange(distance / originalDistance, expectedFactor - 0.00001, expectedFactor + 0.00001);
             AssertPointIsVisible(cameraEntity, camera, float3.Zero);
@@ -105,9 +105,9 @@ namespace helengine.editor.tests {
             new EditorViewportSelectionFramingService().FocusSelection(camera, controller, selected);
 
             Assert.Equal(selected.Position, controller.GetOrbitTarget());
-            Assert.True(float.IsFinite(cameraEntity.Position.X));
-            Assert.True(float.IsFinite(cameraEntity.Position.Y));
-            Assert.True(float.IsFinite(cameraEntity.Position.Z));
+            Assert.True(float.IsFinite((float)(cameraEntity.Position.X)));
+            Assert.True(float.IsFinite((float)(cameraEntity.Position.Y)));
+            Assert.True(float.IsFinite((float)(cameraEntity.Position.Z)));
         }
 
         /// <summary>Unrepresentable focus bounds leave the existing view and clipping range intact.</summary>
@@ -400,14 +400,14 @@ namespace helengine.editor.tests {
         void AssertPointIsVisible(EditorEntity cameraEntity, CameraComponent camera, float3 worldPoint) {
             double verticalFieldOfView = Math.PI / 4.0;
             float4 viewport = camera.Viewport;
-            double aspectRatio = viewport.Z / viewport.W;
+            double aspectRatio = (double)(viewport.Z / viewport.W);
             double horizontalFieldOfView = 2.0 * Math.Atan(Math.Tan(verticalFieldOfView * 0.5) * aspectRatio);
             float3 relativePoint = worldPoint - cameraEntity.Position;
             float4 inverseOrientation = float4.Inverse(cameraEntity.Orientation);
             float3 viewPoint = float4.RotateVector(relativePoint, inverseOrientation);
             double depth = Math.Max(-(double)viewPoint.Z, 0.0001);
-            double halfHorizontal = Math.Abs(viewPoint.X) / depth;
-            double halfVertical = Math.Abs(viewPoint.Y) / depth;
+            double halfHorizontal = Math.Abs((double)(viewPoint.X)) / depth;
+            double halfVertical = Math.Abs((double)(viewPoint.Y)) / depth;
 
             Assert.True(viewPoint.Z < 0f);
             Assert.True(halfHorizontal <= Math.Tan(horizontalFieldOfView * 0.5) + 0.0001);
@@ -422,16 +422,16 @@ namespace helengine.editor.tests {
         /// <param name="worldPoint">World-space point that should remain visible.</param>
         void AssertPointIsVisibleOrthographic(EditorEntity cameraEntity, EditorViewportCameraComponent camera, float3 worldPoint) {
             float4 viewport = camera.Viewport;
-            double aspectRatio = viewport.Z / viewport.W;
+            double aspectRatio = (double)(viewport.Z / viewport.W);
             float3 relativePoint = worldPoint - cameraEntity.Position;
             float4 inverseOrientation = float4.Inverse(cameraEntity.Orientation);
             float3 viewPoint = float4.RotateVector(relativePoint, inverseOrientation);
-            double halfVerticalSpan = camera.OrthographicVerticalSpan * 0.5;
+            double halfVerticalSpan = (double)(camera.OrthographicVerticalSpan * 0.5);
             double halfHorizontalSpan = halfVerticalSpan * aspectRatio;
 
             Assert.True(viewPoint.Z < 0f);
-            Assert.True(Math.Abs(viewPoint.X) <= halfHorizontalSpan + 0.0001);
-            Assert.True(Math.Abs(viewPoint.Y) <= halfVerticalSpan + 0.0001);
+            Assert.True(Math.Abs((double)(viewPoint.X)) <= halfHorizontalSpan + 0.0001);
+            Assert.True(Math.Abs((double)(viewPoint.Y)) <= halfVerticalSpan + 0.0001);
         }
     }
 }

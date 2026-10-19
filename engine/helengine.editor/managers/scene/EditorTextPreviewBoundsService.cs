@@ -18,13 +18,13 @@ namespace helengine.editor {
             string text = component.WrapText
                 ? TextLayoutUtils.WrapText(component.Text, font, Math.Max(1, (int)Math.Round(component.Size.X / scale)))
                 : component.Text;
-            double[] lineOffsets = TextLineOffsets2D.Build(component, font, text, scale, font.AtlasWidth);
+            RealEvaluation[] lineOffsets = TextLineOffsets2D.Build(component, font, text, scale, font.AtlasWidth);
             List<TextRenderEffectPass> passes = TextRenderEffectPassBuilder.Build(component);
             double x = 0, y = 0;
             int lineIndex = 0;
             foreach (char character in text) {
                 if (character == '\n') {
-                    y += Math.Max(font.LineHeight * scale, 1.0);
+                    y += RealMath.Max(font.LineHeight * scale, 1.0).ToDouble();
                     x = 0;
                     lineIndex++;
                     continue;
@@ -36,11 +36,11 @@ namespace helengine.editor {
                 if (!font.Characters.TryGetValue(character, out FontChar glyph)) {
                     continue;
                 }
-                double width = glyph.SourceRect.Z * font.AtlasWidth * scale;
-                double height = glyph.SourceRect.W * font.AtlasHeight * scale;
+                double width = (double)(glyph.SourceRect.Z * font.AtlasWidth * scale);
+                double height = (double)(glyph.SourceRect.W * font.AtlasHeight * scale);
                 foreach (TextRenderEffectPass pass in passes) {
-                    double glyphX = TextLineOffsets2D.Resolve(lineOffsets, lineIndex) + x + pass.Offset.X;
-                    double glyphY = Math.Round(y) + glyph.OffsetY * scale + pass.Offset.Y;
+                    double glyphX = (TextLineOffsets2D.Resolve(lineOffsets, lineIndex) + x + pass.Offset.X).ToDouble();
+                    double glyphY = (double)(Math.Round(y) + glyph.OffsetY * scale + pass.Offset.Y);
                     left = Math.Min(left, glyphX);
                     top = Math.Min(top, glyphY);
                     right = Math.Max(right, glyphX + width);

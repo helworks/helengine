@@ -386,7 +386,7 @@ namespace helengine.editor {
                 Font = font,
                 Text = "Save Scene",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f)))),
+                Size = new int2(1, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(font.LineHeight, 1f)))),
             };
             HeaderHost.AddComponent(HeaderText);
 
@@ -413,7 +413,7 @@ namespace helengine.editor {
                 Font = font,
                 Text = "File Name",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f)))),
+                Size = new int2(1, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(font.LineHeight, 1f)))),
             };
             FileNameLabelHost.AddComponent(FileNameLabel);
 
@@ -436,7 +436,7 @@ namespace helengine.editor {
                 Font = font,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.StateWarning,
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f)))),
+                Size = new int2(1, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(font.LineHeight, 1f)))),
             };
             StatusHost.AddComponent(StatusText);
 
@@ -672,7 +672,7 @@ namespace helengine.editor {
 
             StatusHost.Position = new float3(GetPanelPaddingPixels(), fieldTop + GetFileNameFieldHeightPixels() + GetSectionSpacingPixels(), 0.2f);
             FontTightMetrics statusMetrics = Font.MeasureTight(StatusText.Text ?? string.Empty);
-            StatusText.Size = new int2(contentWidth, (int)Math.Ceiling(Math.Max(statusMetrics.Height, Font.LineHeight)));
+            StatusText.Size = new int2(contentWidth, (int)RealMath.Ceiling(RealMath.Max(statusMetrics.Height, Font.LineHeight)));
         }
 
         /// <summary>
@@ -791,7 +791,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Scaled status-text height in pixels.</returns>
         int GetStatusHeightPixels() {
-            return Math.Max(GetFileNameLabelHeightPixels(), (int)Math.Ceiling(Font.LineHeight));
+            return Math.Max(GetFileNameLabelHeightPixels(), (int)RealMath.Ceiling(Font.LineHeight));
         }
 
         /// <summary>

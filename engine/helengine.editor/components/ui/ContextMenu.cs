@@ -661,8 +661,8 @@ namespace helengine.editor {
             }
 
             int2 worldPosition = new int2(
-                (int)Math.Round(Root.Position.X),
-                (int)Math.Round(Root.Position.Y));
+                (int)RealMath.Round(Root.Position.X),
+                (int)RealMath.Round(Root.Position.Y));
             if (MenuSize.X <= 0 || MenuSize.Y <= 0) {
                 InteractionServices.InputCapture.ClearBlocker(this);
                 return;
@@ -678,8 +678,8 @@ namespace helengine.editor {
         /// <returns>True when the pointer is inside the menu bounds.</returns>
         internal bool ContainsPointer(int2 pointer) {
             int2 worldPosition = new int2(
-                (int)Math.Round(Root.Position.X),
-                (int)Math.Round(Root.Position.Y));
+                (int)RealMath.Round(Root.Position.X),
+                (int)RealMath.Round(Root.Position.Y));
 
             int left = worldPosition.X;
             int top = worldPosition.Y;

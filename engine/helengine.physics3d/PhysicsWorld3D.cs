@@ -307,9 +307,9 @@ namespace helengine {
 
             float3 angularVelocity = bodyState.AngularVelocity;
             double angularSpeedSquared =
-                (angularVelocity.X * angularVelocity.X) +
+                (double)((angularVelocity.X * angularVelocity.X) +
                 (angularVelocity.Y * angularVelocity.Y) +
-                (angularVelocity.Z * angularVelocity.Z);
+                (angularVelocity.Z * angularVelocity.Z));
             if (angularSpeedSquared <= 0.0000001d) {
                 return;
             }
@@ -343,13 +343,13 @@ namespace helengine {
                     ? bodyState.AngularVelocity * (float)angularDamping
                     : bodyState.AngularVelocity;
                 double angularSpeedSquared =
-                    (angularVelocity.X * angularVelocity.X) +
+                    (double)((angularVelocity.X * angularVelocity.X) +
                     (angularVelocity.Y * angularVelocity.Y) +
-                    (angularVelocity.Z * angularVelocity.Z);
+                    (angularVelocity.Z * angularVelocity.Z));
                 double linearSpeedSquared =
-                    (bodyState.Velocity.X * bodyState.Velocity.X) +
+                    (double)((bodyState.Velocity.X * bodyState.Velocity.X) +
                     (bodyState.Velocity.Y * bodyState.Velocity.Y) +
-                    (bodyState.Velocity.Z * bodyState.Velocity.Z);
+                    (bodyState.Velocity.Z * bodyState.Velocity.Z));
                 if (canApplyRestingAngularDamping && linearSpeedSquared <= ContactLinearSleepSpeedSquared && angularSpeedSquared <= AngularSleepSpeedSquared) {
                     bodyState.AngularVelocity = float3.Zero;
                 } else {
@@ -369,9 +369,9 @@ namespace helengine {
         /// <param name="bodyState">Dynamic body whose angular velocity should be constrained.</param>
         static void ClampDynamicAngularVelocity(BodyState3D bodyState) {
             double angularSpeedSquared =
-                (bodyState.AngularVelocity.X * bodyState.AngularVelocity.X) +
+                (double)((bodyState.AngularVelocity.X * bodyState.AngularVelocity.X) +
                 (bodyState.AngularVelocity.Y * bodyState.AngularVelocity.Y) +
-                (bodyState.AngularVelocity.Z * bodyState.AngularVelocity.Z);
+                (bodyState.AngularVelocity.Z * bodyState.AngularVelocity.Z));
             double maximumAngularSpeedSquared = MaximumDynamicAngularSpeed * MaximumDynamicAngularSpeed;
             if (angularSpeedSquared <= maximumAngularSpeedSquared) {
                 return;
@@ -387,9 +387,9 @@ namespace helengine {
         /// <param name="bodyState">Dynamic body that may be resting on contact.</param>
         static void ApplyContactSleep(BodyState3D bodyState) {
             double linearSpeedSquared =
-                (bodyState.Velocity.X * bodyState.Velocity.X) +
+                (double)((bodyState.Velocity.X * bodyState.Velocity.X) +
                 (bodyState.Velocity.Y * bodyState.Velocity.Y) +
-                (bodyState.Velocity.Z * bodyState.Velocity.Z);
+                (bodyState.Velocity.Z * bodyState.Velocity.Z));
             bool linearCanSleep = linearSpeedSquared <= ContactLinearSleepSpeedSquared;
 
             bool isRestingUprightCandidate = IsRestingUprightCandidate(bodyState);
@@ -410,9 +410,9 @@ namespace helengine {
             }
 
             double angularSpeedSquared =
-                (bodyState.AngularVelocity.X * bodyState.AngularVelocity.X) +
+                (double)((bodyState.AngularVelocity.X * bodyState.AngularVelocity.X) +
                 (bodyState.AngularVelocity.Y * bodyState.AngularVelocity.Y) +
-                (bodyState.AngularVelocity.Z * bodyState.AngularVelocity.Z);
+                (bodyState.AngularVelocity.Z * bodyState.AngularVelocity.Z));
             bool angularCanSleep = angularSpeedSquared <= ContactAngularSleepSpeedSquared;
             bool tiltedSupportFinishedRocking = isRestingUprightCandidate || angularSpeedSquared <= AngularSleepSpeedSquared;
             bool contactCanLinearSleep =
@@ -1082,13 +1082,13 @@ namespace helengine {
                 return;
             }
 
-            double correctionLengthSquared = float3.Dot(correction, correction);
+            double correctionLengthSquared = (double)(float3.Dot(correction, correction));
             if (correctionLengthSquared <= 0.0000001d) {
                 return;
             }
 
             float3 correctionNormal = correction / (float)Math.Sqrt(correctionLengthSquared);
-            float velocityTowardContact = float3.Dot(bodyState.Velocity, correctionNormal);
+            float velocityTowardContact = (float)(float3.Dot(bodyState.Velocity, correctionNormal));
             if (velocityTowardContact < 0f) {
                 bodyState.Velocity = bodyState.Velocity - (correctionNormal * velocityTowardContact);
             }
@@ -1113,9 +1113,9 @@ namespace helengine {
         /// <returns>Speculative contact margin for the current pair.</returns>
         static float ResolveSpeculativeContactMargin(BodyState3D first, BodyState3D second, double stepSeconds) {
             float3 relativeVelocity = first.Velocity - second.Velocity;
-            double relativeSpeedSquared = (relativeVelocity.X * relativeVelocity.X) +
+            double relativeSpeedSquared = (double)((relativeVelocity.X * relativeVelocity.X) +
                 (relativeVelocity.Y * relativeVelocity.Y) +
-                (relativeVelocity.Z * relativeVelocity.Z);
+                (relativeVelocity.Z * relativeVelocity.Z));
             float velocityMargin = (float)(Math.Sqrt(relativeSpeedSquared) * stepSeconds);
             return Math.Max(MinimumSpeculativeContactMargin, velocityMargin);
         }
@@ -1190,13 +1190,13 @@ namespace helengine {
         /// <returns>Selected vector component.</returns>
         static float ReadComponent(float3 value, int componentIndex) {
             if (componentIndex == 0) {
-                return value.X;
+                return (float)(value.X);
             }
             if (componentIndex == 1) {
-                return value.Y;
+                return (float)(value.Y);
             }
             if (componentIndex == 2) {
-                return value.Z;
+                return (float)(value.Z);
             }
 
             throw new ArgumentOutOfRangeException(nameof(componentIndex), "Component index must be between zero and two.");
@@ -1393,7 +1393,7 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(bodyState));
             }
             if (contactNormal.Y > bodyState.MaximumContactNormalY) {
-                bodyState.MaximumContactNormalY = contactNormal.Y;
+                bodyState.MaximumContactNormalY = (float)(contactNormal.Y);
             }
         }
 
@@ -1504,10 +1504,10 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(supportBody));
             }
 
-            float supportMinimumX = supportBody.Position.X - supportBody.AxisAlignedHalfExtents.X;
-            float supportMaximumX = supportBody.Position.X + supportBody.AxisAlignedHalfExtents.X;
-            float supportMinimumZ = supportBody.Position.Z - supportBody.AxisAlignedHalfExtents.Z;
-            float supportMaximumZ = supportBody.Position.Z + supportBody.AxisAlignedHalfExtents.Z;
+            float supportMinimumX = (float)(supportBody.Position.X - supportBody.AxisAlignedHalfExtents.X);
+            float supportMaximumX = (float)(supportBody.Position.X + supportBody.AxisAlignedHalfExtents.X);
+            float supportMinimumZ = (float)(supportBody.Position.Z - supportBody.AxisAlignedHalfExtents.Z);
+            float supportMaximumZ = (float)(supportBody.Position.Z + supportBody.AxisAlignedHalfExtents.Z);
             return supportedBody.Position.X < supportMinimumX ||
                 supportedBody.Position.X > supportMaximumX ||
                 supportedBody.Position.Z < supportMinimumZ ||
@@ -1540,18 +1540,18 @@ namespace helengine {
 
                 float3 contactPoint = ResolveSupportContactPoint(manifold, contactIndex);
                 if (!hasResolvedSupportContact) {
-                    minimumX = contactPoint.X;
-                    maximumX = contactPoint.X;
-                    minimumZ = contactPoint.Z;
-                    maximumZ = contactPoint.Z;
+                    minimumX = (float)(contactPoint.X);
+                    maximumX = (float)(contactPoint.X);
+                    minimumZ = (float)(contactPoint.Z);
+                    maximumZ = (float)(contactPoint.Z);
                     hasResolvedSupportContact = true;
                     continue;
                 }
 
-                minimumX = Math.Min(minimumX, contactPoint.X);
-                maximumX = Math.Max(maximumX, contactPoint.X);
-                minimumZ = Math.Min(minimumZ, contactPoint.Z);
-                maximumZ = Math.Max(maximumZ, contactPoint.Z);
+                minimumX = (float)(RealMath.Min(minimumX, contactPoint.X));
+                maximumX = (float)(RealMath.Max(maximumX, contactPoint.X));
+                minimumZ = (float)(RealMath.Min(minimumZ, contactPoint.Z));
+                maximumZ = (float)(RealMath.Max(maximumZ, contactPoint.Z));
             }
 
             if (!hasResolvedSupportContact) {
@@ -1657,7 +1657,7 @@ namespace helengine {
             }
 
             float3 up = float4.RotateVector(new float3(0f, 1f, 0f), bodyState.Orientation);
-            return up.Y;
+            return (float)(up.Y);
         }
 
         /// <summary>

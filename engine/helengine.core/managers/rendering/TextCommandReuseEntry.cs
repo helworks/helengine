@@ -16,9 +16,9 @@ namespace helengine {
         /// <summary>Number of retained primary and effect glyphs.</summary>
         public int Count;
         /// <summary>Last world X origin rounded by the ordinary text emission path.</summary>
-        public double OriginX;
+        public Real OriginX;
         /// <summary>Last world Y origin rounded by the ordinary text emission path.</summary>
-        public double OriginY;
+        public Real OriginY;
         /// <summary>Whether this text passed hierarchy and clipping filters when its range was captured.</summary>
         public bool Visible;
         /// <summary>Captured atlas width used by glyph layout.</summary>
@@ -30,8 +30,8 @@ namespace helengine {
         /// <summary>Captured physical texture height.</summary>
         public int TextureHeight;
         /// <summary>Captured line height used by wrapping and glyph placement.</summary>
-        public float LineHeight;
+        public Real LineHeight;
         /// <summary>Captured advance of a space.</summary>
-        public float SpaceWidth;
+        public Real SpaceWidth;
     }
 }

@@ -83,8 +83,8 @@ namespace helengine.editor.tests {
             ButtonComponent copyButton = GetPrivateField<ButtonComponent>(dialog, "CopyButton");
             ButtonComponent cancelButton = GetPrivateField<ButtonComponent>(dialog, "CancelButton");
 
-            Assert.Equal(metrics.ScalePixels(BuildDialogCopySettingsDialog.PanelPadding), (int)Math.Round(sourceLabelHost.LocalPosition.X));
-            Assert.Equal(metrics.ScalePixels(BuildDialogCopySettingsDialog.PanelPadding + BuildDialogCopySettingsDialog.HeaderHeight + BuildDialogCopySettingsDialog.SectionSpacing), (int)Math.Round(sourceLabelHost.LocalPosition.Y));
+            Assert.Equal(metrics.ScalePixels(BuildDialogCopySettingsDialog.PanelPadding), (int)Math.Round((double)(sourceLabelHost.LocalPosition.X)));
+            Assert.Equal(metrics.ScalePixels(BuildDialogCopySettingsDialog.PanelPadding + BuildDialogCopySettingsDialog.HeaderHeight + BuildDialogCopySettingsDialog.SectionSpacing), (int)Math.Round((double)(sourceLabelHost.LocalPosition.Y)));
             Assert.Equal(new int2(metrics.ScalePixels(BuildDialogCopySettingsDialog.PanelWidth - (BuildDialogCopySettingsDialog.PanelPadding * 2)), metrics.ScalePixels(BuildDialogCopySettingsDialog.SourceComboHeight)), sourceComboBox.Size);
             Assert.Equal(metrics.ScalePixels(BuildDialogCopySettingsDialog.FooterHeight), copyButton.Size.Y);
             Assert.Equal(metrics.ScalePixels(BuildDialogCopySettingsDialog.FooterHeight), cancelButton.Size.Y);

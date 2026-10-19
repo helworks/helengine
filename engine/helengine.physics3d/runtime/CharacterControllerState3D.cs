@@ -79,9 +79,9 @@ namespace helengine {
         /// <returns>Axis-aligned half extents used by the controller.</returns>
         static float3 CreateHalfExtents(float3 size, float3 scale) {
             return new float3(
-                Math.Abs(size.X * scale.X) * 0.5f,
-                Math.Abs(size.Y * scale.Y) * 0.5f,
-                Math.Abs(size.Z * scale.Z) * 0.5f);
+                RealMath.Abs(size.X * scale.X) * 0.5f,
+                RealMath.Abs(size.Y * scale.Y) * 0.5f,
+                RealMath.Abs(size.Z * scale.Z) * 0.5f);
         }
     }
 }

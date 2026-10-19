@@ -692,9 +692,9 @@ namespace helengine.editor.tests {
         /// <param name="actual">Actual vector value.</param>
         /// <param name="tolerance">Maximum absolute difference allowed for each component.</param>
         static void AssertFloat3ApproximatelyEqual(float3 expected, float3 actual, float tolerance) {
-            AssertApproximatelyEqual(expected.X, actual.X, tolerance);
-            AssertApproximatelyEqual(expected.Y, actual.Y, tolerance);
-            AssertApproximatelyEqual(expected.Z, actual.Z, tolerance);
+            AssertApproximatelyEqual((double)(expected.X), (double)(actual.X), tolerance);
+            AssertApproximatelyEqual((double)(expected.Y), (double)(actual.Y), tolerance);
+            AssertApproximatelyEqual((double)(expected.Z), (double)(actual.Z), tolerance);
         }
 
         /// <summary>
@@ -703,8 +703,8 @@ namespace helengine.editor.tests {
         /// <param name="expected">Expected floating-point value.</param>
         /// <param name="actual">Actual floating-point value.</param>
         /// <param name="tolerance">Maximum absolute difference allowed between the two values.</param>
-        static void AssertApproximatelyEqual(float expected, float actual, float tolerance) {
-            float difference = Math.Abs(expected - actual);
+        static void AssertApproximatelyEqual(double expected, double actual, double tolerance) {
+            double difference = (double)(Math.Abs(expected - actual));
             Assert.True(
                 difference <= tolerance,
                 $"Expected {expected} but received {actual}. Difference {difference} exceeded tolerance {tolerance}.");

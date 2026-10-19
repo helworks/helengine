@@ -11,7 +11,7 @@ namespace helengine.core.tests.assets {
         /// <param name="version">Unsupported packaged asset header version.</param>
         [Theory]
         [InlineData(24)]
-        [InlineData(26)]
+        [InlineData(27)]
         public void Deserialize_WhenHeaderVersionIsNotCurrent_ThrowsRegenerationGuidance(byte version) {
             using MemoryStream stream = CreateHeaderOnlyStream(version);
 
@@ -53,9 +53,9 @@ namespace helengine.core.tests.assets {
                 writer.WriteByte(1);
                 writer.WriteByte(0);
                 writer.WriteUInt16(7);
-                writer.WriteFloat3(new float3(1, 2, 3));
-                writer.WriteFloat3(new float3(1, 1, 1));
-                writer.WriteFloat4(new float4(0, 0, 0, 1));
+                writer.WriteReal3(new float3(1, 2, 3));
+                writer.WriteReal3(new float3(1, 1, 1));
+                writer.WriteReal4(new float4(0, 0, 0, 1));
                 writer.WriteByte(hasOrder ? (byte)1 : (byte)0);
                 if (payloadLength < 0) {
                     writer.WriteInt32(-1);

@@ -195,7 +195,7 @@ namespace helengine {
                 controllerBinding.BoxCollider.Size,
                 controllerBinding.Entity.Scale,
                 controllerBinding.Entity.Orientation);
-            float controllerBottom = position.Y - controllerHalf.Y;
+            float controllerBottom = (float)(position.Y - controllerHalf.Y);
             float bestHeight = float.NegativeInfinity;
             float3 bestVelocity = float3.Zero;
             float3 bestNormal = new float3(0f, 1f, 0f);
@@ -227,33 +227,33 @@ namespace helengine {
                 float3 candidateAxisX = float4.RotateVector(new float3(1f, 0f, 0f), candidateOrientation);
                 float3 candidateAxisY = float4.RotateVector(new float3(0f, 1f, 0f), candidateOrientation);
                 float3 candidateAxisZ = float4.RotateVector(new float3(0f, 0f, 1f), candidateOrientation);
-                float candidateExtentX = Math.Abs(candidateAxisX.X) * candidateHalf.X +
-                    Math.Abs(candidateAxisY.X) * candidateHalf.Y +
-                    Math.Abs(candidateAxisZ.X) * candidateHalf.Z;
-                float candidateExtentZ = Math.Abs(candidateAxisX.Z) * candidateHalf.X +
-                    Math.Abs(candidateAxisY.Z) * candidateHalf.Y +
-                    Math.Abs(candidateAxisZ.Z) * candidateHalf.Z;
-                if (Math.Abs(position.X - candidatePosition.X) > controllerHalf.X + candidateExtentX ||
-                    Math.Abs(position.Z - candidatePosition.Z) > controllerHalf.Z + candidateExtentZ) {
+                float candidateExtentX = (float)(RealMath.Abs(candidateAxisX.X) * candidateHalf.X +
+                    RealMath.Abs(candidateAxisY.X) * candidateHalf.Y +
+                    RealMath.Abs(candidateAxisZ.X) * candidateHalf.Z);
+                float candidateExtentZ = (float)(RealMath.Abs(candidateAxisX.Z) * candidateHalf.X +
+                    RealMath.Abs(candidateAxisY.Z) * candidateHalf.Y +
+                    RealMath.Abs(candidateAxisZ.Z) * candidateHalf.Z);
+                if (RealMath.Abs(position.X - candidatePosition.X) > controllerHalf.X + candidateExtentX ||
+                    RealMath.Abs(position.Z - candidatePosition.Z) > controllerHalf.Z + candidateExtentZ) {
                     continue;
                 }
 
-                float normalY = candidateAxisY.Y;
+                float normalY = (float)(candidateAxisY.Y);
                 if (normalY <= 0.0001f) {
                     continue;
                 }
 
                 float3 candidateTop = candidatePosition + (candidateAxisY * candidateHalf.Y);
                 float surfaceHeight = float.NegativeInfinity;
-                float sampleHeight = GetTopFaceSampleHeight(position.X, position.Z, candidatePosition, candidateTop, candidateAxisX, candidateAxisY, candidateAxisZ, candidateHalf, normalY);
+                float sampleHeight = GetTopFaceSampleHeight((float)(position.X), (float)(position.Z), candidatePosition, candidateTop, candidateAxisX, candidateAxisY, candidateAxisZ, candidateHalf, normalY);
                 if (float.IsFinite(sampleHeight)) surfaceHeight = Math.Max(surfaceHeight, sampleHeight);
-                sampleHeight = GetTopFaceSampleHeight(position.X - controllerHalf.X, position.Z - controllerHalf.Z, candidatePosition, candidateTop, candidateAxisX, candidateAxisY, candidateAxisZ, candidateHalf, normalY);
+                sampleHeight = GetTopFaceSampleHeight((float)(position.X - controllerHalf.X), (float)(position.Z - controllerHalf.Z), candidatePosition, candidateTop, candidateAxisX, candidateAxisY, candidateAxisZ, candidateHalf, normalY);
                 if (float.IsFinite(sampleHeight)) surfaceHeight = Math.Max(surfaceHeight, sampleHeight);
-                sampleHeight = GetTopFaceSampleHeight(position.X - controllerHalf.X, position.Z + controllerHalf.Z, candidatePosition, candidateTop, candidateAxisX, candidateAxisY, candidateAxisZ, candidateHalf, normalY);
+                sampleHeight = GetTopFaceSampleHeight((float)(position.X - controllerHalf.X), (float)(position.Z + controllerHalf.Z), candidatePosition, candidateTop, candidateAxisX, candidateAxisY, candidateAxisZ, candidateHalf, normalY);
                 if (float.IsFinite(sampleHeight)) surfaceHeight = Math.Max(surfaceHeight, sampleHeight);
-                sampleHeight = GetTopFaceSampleHeight(position.X + controllerHalf.X, position.Z - controllerHalf.Z, candidatePosition, candidateTop, candidateAxisX, candidateAxisY, candidateAxisZ, candidateHalf, normalY);
+                sampleHeight = GetTopFaceSampleHeight((float)(position.X + controllerHalf.X), (float)(position.Z - controllerHalf.Z), candidatePosition, candidateTop, candidateAxisX, candidateAxisY, candidateAxisZ, candidateHalf, normalY);
                 if (float.IsFinite(sampleHeight)) surfaceHeight = Math.Max(surfaceHeight, sampleHeight);
-                sampleHeight = GetTopFaceSampleHeight(position.X + controllerHalf.X, position.Z + controllerHalf.Z, candidatePosition, candidateTop, candidateAxisX, candidateAxisY, candidateAxisZ, candidateHalf, normalY);
+                sampleHeight = GetTopFaceSampleHeight((float)(position.X + controllerHalf.X), (float)(position.Z + controllerHalf.Z), candidatePosition, candidateTop, candidateAxisX, candidateAxisY, candidateAxisZ, candidateHalf, normalY);
                 if (float.IsFinite(sampleHeight)) surfaceHeight = Math.Max(surfaceHeight, sampleHeight);
                 if (!float.IsFinite(surfaceHeight)) {
                     continue;
@@ -291,19 +291,19 @@ namespace helengine {
             float3 candidateAxisZ,
             float3 candidateHalf,
             float normalY) {
-            float sampleY = candidateTop.Y -
+            float sampleY = (float)(candidateTop.Y -
                 ((candidateAxisY.X * (sampleX - candidateTop.X)) +
-                (candidateAxisY.Z * (sampleZ - candidateTop.Z))) / normalY;
+                (candidateAxisY.Z * (sampleZ - candidateTop.Z))) / normalY);
             float3 relative = new float3(
                 sampleX - candidatePosition.X,
                 sampleY - candidatePosition.Y,
                 sampleZ - candidatePosition.Z);
-            float localX = (relative.X * candidateAxisX.X) +
+            float localX = (float)((relative.X * candidateAxisX.X) +
                 (relative.Y * candidateAxisX.Y) +
-                (relative.Z * candidateAxisX.Z);
-            float localZ = (relative.X * candidateAxisZ.X) +
+                (relative.Z * candidateAxisX.Z));
+            float localZ = (float)((relative.X * candidateAxisZ.X) +
                 (relative.Y * candidateAxisZ.Y) +
-                (relative.Z * candidateAxisZ.Z);
+                (relative.Z * candidateAxisZ.Z));
             const float tolerance = 0.01f;
             return Math.Abs(localX) <= candidateHalf.X + tolerance &&
                 Math.Abs(localZ) <= candidateHalf.Z + tolerance
@@ -316,13 +316,13 @@ namespace helengine {
             float3 axisY = float4.RotateVector(new float3(0f, 1f, 0f), orientation);
             float3 axisZ = float4.RotateVector(new float3(0f, 0f, 1f), orientation);
             float3 half = new float3(
-                Math.Abs(size.X * scale.X) * 0.5f,
-                Math.Abs(size.Y * scale.Y) * 0.5f,
-                Math.Abs(size.Z * scale.Z) * 0.5f);
+                RealMath.Abs(size.X * scale.X) * 0.5f,
+                RealMath.Abs(size.Y * scale.Y) * 0.5f,
+                RealMath.Abs(size.Z * scale.Z) * 0.5f);
             return new float3(
-                Math.Abs(axisX.X) * half.X + Math.Abs(axisY.X) * half.Y + Math.Abs(axisZ.X) * half.Z,
-                Math.Abs(axisX.Y) * half.X + Math.Abs(axisY.Y) * half.Y + Math.Abs(axisZ.Y) * half.Z,
-                Math.Abs(axisX.Z) * half.X + Math.Abs(axisY.Z) * half.Y + Math.Abs(axisZ.Z) * half.Z);
+                RealMath.Abs(axisX.X) * half.X + RealMath.Abs(axisY.X) * half.Y + RealMath.Abs(axisZ.X) * half.Z,
+                RealMath.Abs(axisX.Y) * half.X + RealMath.Abs(axisY.Y) * half.Y + RealMath.Abs(axisZ.Y) * half.Z,
+                RealMath.Abs(axisX.Z) * half.X + RealMath.Abs(axisY.Z) * half.Y + RealMath.Abs(axisZ.Z) * half.Z);
         }
 
         internal float3 ClampControllerTarget(
@@ -360,36 +360,36 @@ namespace helengine {
                 float3 axisX = float4.RotateVector(new float3(1f, 0f, 0f), orientation);
                 float3 axisY = float4.RotateVector(new float3(0f, 1f, 0f), orientation);
                 float3 axisZ = float4.RotateVector(new float3(0f, 0f, 1f), orientation);
-                double axisLength = Math.Sqrt(((double)axisY.X * axisY.X) + ((double)axisY.Y * axisY.Y) + ((double)axisY.Z * axisY.Z));
+                double axisLength = Math.Sqrt((double)(((double)axisY.X * axisY.X) + ((double)axisY.Y * axisY.Y) + ((double)axisY.Z * axisY.Z)));
                 double minimumCosine = Math.Cos(controllerBinding.Controller.MaximumSlopeDegrees * Math.PI / 180d);
                 float3 candidateTop = center + (axisY * half.Y);
                 float targetSurface = float.NegativeInfinity;
-                float sampleHeight = GetTopFaceSampleHeight(targetPosition.X, targetPosition.Z, center, candidateTop, axisX, axisY, axisZ, half, axisY.Y);
+                float sampleHeight = GetTopFaceSampleHeight((float)(targetPosition.X), (float)(targetPosition.Z), center, candidateTop, axisX, axisY, axisZ, half, (float)(axisY.Y));
                 if (float.IsFinite(sampleHeight)) targetSurface = Math.Max(targetSurface, sampleHeight);
-                sampleHeight = GetTopFaceSampleHeight(targetPosition.X - controllerHalf.X, targetPosition.Z - controllerHalf.Z, center, candidateTop, axisX, axisY, axisZ, half, axisY.Y);
+                sampleHeight = GetTopFaceSampleHeight((float)(targetPosition.X - controllerHalf.X), (float)(targetPosition.Z - controllerHalf.Z), center, candidateTop, axisX, axisY, axisZ, half, (float)(axisY.Y));
                 if (float.IsFinite(sampleHeight)) targetSurface = Math.Max(targetSurface, sampleHeight);
-                sampleHeight = GetTopFaceSampleHeight(targetPosition.X - controllerHalf.X, targetPosition.Z + controllerHalf.Z, center, candidateTop, axisX, axisY, axisZ, half, axisY.Y);
+                sampleHeight = GetTopFaceSampleHeight((float)(targetPosition.X - controllerHalf.X), (float)(targetPosition.Z + controllerHalf.Z), center, candidateTop, axisX, axisY, axisZ, half, (float)(axisY.Y));
                 if (float.IsFinite(sampleHeight)) targetSurface = Math.Max(targetSurface, sampleHeight);
-                sampleHeight = GetTopFaceSampleHeight(targetPosition.X + controllerHalf.X, targetPosition.Z - controllerHalf.Z, center, candidateTop, axisX, axisY, axisZ, half, axisY.Y);
+                sampleHeight = GetTopFaceSampleHeight((float)(targetPosition.X + controllerHalf.X), (float)(targetPosition.Z - controllerHalf.Z), center, candidateTop, axisX, axisY, axisZ, half, (float)(axisY.Y));
                 if (float.IsFinite(sampleHeight)) targetSurface = Math.Max(targetSurface, sampleHeight);
-                sampleHeight = GetTopFaceSampleHeight(targetPosition.X + controllerHalf.X, targetPosition.Z + controllerHalf.Z, center, candidateTop, axisX, axisY, axisZ, half, axisY.Y);
+                sampleHeight = GetTopFaceSampleHeight((float)(targetPosition.X + controllerHalf.X), (float)(targetPosition.Z + controllerHalf.Z), center, candidateTop, axisX, axisY, axisZ, half, (float)(axisY.Y));
                 if (float.IsFinite(sampleHeight)) targetSurface = Math.Max(targetSurface, sampleHeight);
-                float supportDelta = targetSurface - (currentPosition.Y - controllerHalf.Y);
+                float supportDelta = (float)(targetSurface - (currentPosition.Y - controllerHalf.Y));
                 if (float.IsFinite(targetSurface) && axisLength > 0d && axisY.Y / axisLength >= minimumCosine && supportDelta <= (float)controllerBinding.Controller.StepHeight && supportDelta >= -(float)controllerBinding.Controller.GroundSnapDistance) {
                     continue;
                 }
-                float extentX = Math.Abs(axisX.X) * half.X + Math.Abs(axisY.X) * half.Y + Math.Abs(axisZ.X) * half.Z;
-                float extentY = Math.Abs(axisX.Y) * half.X + Math.Abs(axisY.Y) * half.Y + Math.Abs(axisZ.Y) * half.Z;
-                float extentZ = Math.Abs(axisX.Z) * half.X + Math.Abs(axisY.Z) * half.Y + Math.Abs(axisZ.Z) * half.Z;
-                float controllerBottom = currentPosition.Y - controllerHalf.Y;
-                float controllerTop = currentPosition.Y + controllerHalf.Y;
+                float extentX = (float)(RealMath.Abs(axisX.X) * half.X + RealMath.Abs(axisY.X) * half.Y + RealMath.Abs(axisZ.X) * half.Z);
+                float extentY = (float)(RealMath.Abs(axisX.Y) * half.X + RealMath.Abs(axisY.Y) * half.Y + RealMath.Abs(axisZ.Y) * half.Z);
+                float extentZ = (float)(RealMath.Abs(axisX.Z) * half.X + RealMath.Abs(axisY.Z) * half.Y + RealMath.Abs(axisZ.Z) * half.Z);
+                float controllerBottom = (float)(currentPosition.Y - controllerHalf.Y);
+                float controllerTop = (float)(currentPosition.Y + controllerHalf.Y);
                 if (center.Y + extentY <= controllerBottom || center.Y - extentY >= controllerTop ||
-                    (Math.Abs(currentPosition.Z - center.Z) > controllerHalf.Z + extentZ &&
-                    Math.Abs(result.Z - center.Z) > controllerHalf.Z + extentZ)) {
+                    (RealMath.Abs(currentPosition.Z - center.Z) > controllerHalf.Z + extentZ &&
+                    RealMath.Abs(result.Z - center.Z) > controllerHalf.Z + extentZ)) {
                     continue;
                 }
-                float left = center.X - extentX;
-                float right = center.X + extentX;
+                float left = (float)(center.X - extentX);
+                float right = (float)(center.X + extentX);
                 if (targetPosition.X > currentPosition.X &&
                     currentPosition.X + controllerHalf.X <= left &&
                     result.X + controllerHalf.X > left &&
@@ -401,8 +401,8 @@ namespace helengine {
                     center.Y + extentY - controllerBottom > (float)controllerBinding.Controller.StepHeight) {
                     result = new float3(right + controllerHalf.X + 0.001f, result.Y, result.Z);
                 }
-                float nearFace = center.Z - extentZ;
-                float farFace = center.Z + extentZ;
+                float nearFace = (float)(center.Z - extentZ);
+                float farFace = (float)(center.Z + extentZ);
                 if (targetPosition.Z > currentPosition.Z &&
                     currentPosition.Z + controllerHalf.Z <= nearFace &&
                     result.Z + controllerHalf.Z > nearFace &&
@@ -733,14 +733,14 @@ namespace helengine {
         /// <exception cref="ArgumentOutOfRangeException">Thrown when any resulting dimension is non-finite or not strictly positive.</exception>
         static void ValidateEffectiveBoxSize(Entity entity, BoxCollider3DComponent boxCollider) {
             float3 effectiveSize = boxCollider.Size * entity.Scale;
-            if (float.IsNaN(effectiveSize.X) ||
-                float.IsInfinity(effectiveSize.X) ||
+            if (float.IsNaN((float)(effectiveSize.X)) ||
+                float.IsInfinity((float)(effectiveSize.X)) ||
                 effectiveSize.X <= 0f ||
-                float.IsNaN(effectiveSize.Y) ||
-                float.IsInfinity(effectiveSize.Y) ||
+                float.IsNaN((float)(effectiveSize.Y)) ||
+                float.IsInfinity((float)(effectiveSize.Y)) ||
                 effectiveSize.Y <= 0f ||
-                float.IsNaN(effectiveSize.Z) ||
-                float.IsInfinity(effectiveSize.Z) ||
+                float.IsNaN((float)(effectiveSize.Z)) ||
+                float.IsInfinity((float)(effectiveSize.Z)) ||
                 effectiveSize.Z <= 0f) {
                 throw new ArgumentOutOfRangeException(
                     nameof(entity),
@@ -755,7 +755,7 @@ namespace helengine {
         /// <param name="sphereCollider">Sphere collider supplying authored radius.</param>
         static void ValidateEffectiveSphereRadius(Entity entity, SphereCollider3DComponent sphereCollider) {
             float3 scale = entity.Scale;
-            float maximumScale = Math.Max(Math.Abs(scale.X), Math.Max(Math.Abs(scale.Y), Math.Abs(scale.Z)));
+            float maximumScale = (float)(RealMath.Max(RealMath.Abs(scale.X), RealMath.Max(RealMath.Abs(scale.Y), RealMath.Abs(scale.Z))));
             float radius = sphereCollider.Radius * maximumScale;
             if (float.IsNaN(radius) || float.IsInfinity(radius) || radius <= 0f) {
                 throw new ArgumentOutOfRangeException(
@@ -928,9 +928,9 @@ namespace helengine {
                 : PhysicsScalar.Zero;
             return new HelPhysicsBodyDescription3D(
                 new HelPhysicsBoxShape3D(new PhysicsVector3(
-                    effectiveSize.X * 0.5f,
-                    effectiveSize.Y * 0.5f,
-                    effectiveSize.Z * 0.5f)),
+                    PhysicsScalar.FromFloat((float)(effectiveSize.X * 0.5f)),
+                    PhysicsScalar.FromFloat((float)(effectiveSize.Y * 0.5f)),
+                    PhysicsScalar.FromFloat((float)(effectiveSize.Z * 0.5f)))),
                 rigidBody.BodyKind,
                 ToPhysicsVector(entity.Position),
                 ToPhysicsQuaternion(entity.Orientation),
@@ -963,7 +963,7 @@ namespace helengine {
         [NativeOwnedReturn]
         static HelPhysicsBodyDescription3D CreateBodyDescription(Entity entity, RigidBody3DComponent rigidBody, SphereCollider3DComponent sphereCollider, int bindingId) {
             float3 scale = entity.Scale;
-            float radius = sphereCollider.Radius * Math.Max(Math.Abs(scale.X), Math.Max(Math.Abs(scale.Y), Math.Abs(scale.Z)));
+            float radius = (float)(sphereCollider.Radius * RealMath.Max(RealMath.Abs(scale.X), RealMath.Max(RealMath.Abs(scale.Y), RealMath.Abs(scale.Z))));
             PhysicsScalar mass = rigidBody.BodyKind == BodyKind3D.Dynamic ? PhysicsScalar.FromFloat((float)rigidBody.Mass) : PhysicsScalar.Zero;
             return new HelPhysicsBodyDescription3D(
                 new HelPhysicsSphereShape3D(PhysicsScalar.FromFloat(radius)),
@@ -997,9 +997,9 @@ namespace helengine {
             float3 effectiveSize = boxCollider.Size * entity.Scale;
             return new HelPhysicsBodyDescription3D(
                 new HelPhysicsBoxShape3D(new PhysicsVector3(
-                    effectiveSize.X * 0.5f,
-                    effectiveSize.Y * 0.5f,
-                    effectiveSize.Z * 0.5f)),
+                    PhysicsScalar.FromFloat((float)(effectiveSize.X * 0.5f)),
+                    PhysicsScalar.FromFloat((float)(effectiveSize.Y * 0.5f)),
+                    PhysicsScalar.FromFloat((float)(effectiveSize.Z * 0.5f)))),
                 BodyKind3D.Kinematic,
                 ToPhysicsVector(entity.Position),
                 ToPhysicsQuaternion(entity.Orientation),
@@ -1024,7 +1024,7 @@ namespace helengine {
         }
 
         static PhysicsVector3 ToPhysicsVector(float3 value) {
-            return new PhysicsVector3(value.X, value.Y, value.Z);
+            return new PhysicsVector3(PhysicsScalar.FromFloat((float)(value.X)), PhysicsScalar.FromFloat((float)(value.Y)), PhysicsScalar.FromFloat((float)(value.Z)));
         }
 
         /// <summary>
@@ -1034,10 +1034,10 @@ namespace helengine {
         /// <returns>A physics quaternion carrying the same values.</returns>
         static PhysicsQuaternion ToPhysicsQuaternion(float4 value) {
             return new PhysicsQuaternion(
-                PhysicsScalar.FromFloat(value.X),
-                PhysicsScalar.FromFloat(value.Y),
-                PhysicsScalar.FromFloat(value.Z),
-                PhysicsScalar.FromFloat(value.W));
+                PhysicsScalar.FromFloat((float)(value.X)),
+                PhysicsScalar.FromFloat((float)(value.Y)),
+                PhysicsScalar.FromFloat((float)(value.Z)),
+                PhysicsScalar.FromFloat((float)(value.W)));
         }
     }
 }

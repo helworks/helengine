@@ -156,13 +156,13 @@ namespace helengine.editor.tests.managers.workspace {
             EditorViewportNavigationCubeInteractionController interaction = viewport.NavigationCube.InteractionController;
             EditorEntity cubeRoot = Assert.Single(viewport.Children.OfType<EditorEntity>(), child => child.Name == "Navigation Cube Root");
             SpriteComponent cubeSprite = Assert.Single(cubeRoot.Components.OfType<SpriteComponent>());
-            Assert.Equal(interaction.CubeScreenPosition, new int2((int)Math.Round(cubeRoot.Position.X), (int)Math.Round(cubeRoot.Position.Y)));
+            Assert.Equal(interaction.CubeScreenPosition, new int2((int)Math.Round((double)(cubeRoot.Position.X)), (int)Math.Round((double)(cubeRoot.Position.Y))));
             Assert.Equal(interaction.CubeScreenSize, cubeSprite.Size);
 
             EditorEntity projectionRoot = Assert.Single(cubeRoot.Children.OfType<EditorEntity>(), child => child.Name == "Navigation Cube Projection Button");
             RoundedRectComponent projectionBackground = Assert.Single(projectionRoot.Components.OfType<RoundedRectComponent>());
             Assert.Equal(interaction.ProjectionControlScreenPosition,
-                new int2((int)Math.Round(projectionRoot.Position.X), (int)Math.Round(projectionRoot.Position.Y)));
+                new int2((int)Math.Round((double)(projectionRoot.Position.X)), (int)Math.Round((double)(projectionRoot.Position.Y))));
             Assert.Equal(interaction.ProjectionControlScreenSize, projectionBackground.Size);
         }
 

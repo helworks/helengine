@@ -30,7 +30,7 @@ namespace helengine.files.tests.assets {
             };
             using MemoryStream stream = CreateTextureRecord(source, endianness);
             EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
-            Assert.Equal((byte)25, header.Version);
+            Assert.Equal(EditorAssetBinarySerializer.CurrentVersion, header.Version);
             Assert.Equal(endianness, header.Endianness);
             Assert.Equal(EditorAssetBinarySerializer.FormatId, header.FormatId);
             Assert.Same(palette, source.PaletteColors);
@@ -154,10 +154,11 @@ namespace helengine.files.tests.assets {
             if (endianness == EngineBinaryEndianness.LittleEndian) {
                 EditorAssetBinarySerializer.Serialize(stream, source);
             } else {
-                EngineBinaryHeaderSerializer.Write(stream, new EngineBinaryHeader(endianness, 25,
+                EngineBinaryHeaderSerializer.Write(stream, new EngineBinaryHeader(endianness, EditorAssetBinarySerializer.CurrentVersion,
                     EditorAssetBinarySerializer.FormatId, (ushort)EditorAssetBinarySerializer.RecordKind,
                     (ushort)EditorAssetBinaryValueKind.TextureAsset));
                 using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, endianness);
+                writer.WriteNumericPolicy();
                 new TextureAssetPayloadSerializer().Write(writer, source);
             }
             stream.Position = 0;

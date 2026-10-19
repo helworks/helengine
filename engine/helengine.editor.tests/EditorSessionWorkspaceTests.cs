@@ -1141,7 +1141,7 @@ namespace helengine.editor.tests {
             /// <returns>Near clip plane distance.</returns>
             public float GetViewportNearPlane(EditorWorkspacePanelInstance instance) {
                 ViewportWorkspacePanelController controller = GetViewportController(instance);
-                return controller.ViewportState.SceneCamera.NearPlaneDistance;
+                return (float)(controller.ViewportState.SceneCamera.NearPlaneDistance);
             }
 
             /// <summary>
@@ -1151,7 +1151,7 @@ namespace helengine.editor.tests {
             /// <returns>Far clip plane distance.</returns>
             public float GetViewportFarPlane(EditorWorkspacePanelInstance instance) {
                 ViewportWorkspacePanelController controller = GetViewportController(instance);
-                return controller.ViewportState.SceneCamera.FarPlaneDistance;
+                return (float)(controller.ViewportState.SceneCamera.FarPlaneDistance);
             }
 
             /// <summary>

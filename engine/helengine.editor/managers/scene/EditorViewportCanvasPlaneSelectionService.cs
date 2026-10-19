@@ -103,14 +103,14 @@ namespace helengine.editor {
                 hitPoint = default;
                 return false;
             }
-            double directionZ = rayDirection.Z;
+            double directionZ = (double)(rayDirection.Z);
             if (Math.Abs(directionZ) <= double.Epsilon) {
                 hitPoint = default;
                 return false;
             }
 
-            double planeZ = planeEntity.Position.Z;
-            double distance = (planeZ - rayOrigin.Z) / directionZ;
+            double planeZ = (double)(planeEntity.Position.Z);
+            double distance = (double)((planeZ - rayOrigin.Z) / directionZ);
             if (distance < 0.0) {
                 hitPoint = default;
                 return false;
@@ -169,12 +169,12 @@ namespace helengine.editor {
         static int2 MapPlaneHitToCanvas(float3 hitPoint, EditorEntity planeEntity, CameraComponent previewCamera) {
             GetPlaneBounds(planeEntity, out float minX, out _, out float minY, out _);
 
-            double planeWidth = planeEntity.LocalScale.X;
-            double planeHeight = planeEntity.LocalScale.Y;
-            int canvasWidth = Math.Max(1, (int)Math.Round(previewCamera.Viewport.Z));
-            int canvasHeight = Math.Max(1, (int)Math.Round(previewCamera.Viewport.W));
-            double localX = (hitPoint.X - minX) / planeWidth;
-            double localY = (hitPoint.Y - minY) / planeHeight;
+            double planeWidth = (double)(planeEntity.LocalScale.X);
+            double planeHeight = (double)(planeEntity.LocalScale.Y);
+            int canvasWidth = Math.Max(1, (int)RealMath.Round(previewCamera.Viewport.Z));
+            int canvasHeight = Math.Max(1, (int)RealMath.Round(previewCamera.Viewport.W));
+            double localX = (double)((hitPoint.X - minX) / planeWidth);
+            double localY = (double)((hitPoint.Y - minY) / planeHeight);
             int canvasX = ClampToRange((int)Math.Round(localX * canvasWidth), 0, canvasWidth - 1);
             int canvasY = ClampToRange(canvasHeight - (int)Math.Round(localY * canvasHeight), 0, canvasHeight - 1);
             return new int2(canvasX, canvasY);
@@ -198,12 +198,12 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(planeEntity));
             }
 
-            float halfWidth = planeEntity.LocalScale.X * 0.5f;
-            float halfHeight = planeEntity.LocalScale.Y * 0.5f;
-            minX = planeEntity.Position.X - halfWidth;
-            maxX = planeEntity.Position.X + halfWidth;
-            minY = planeEntity.Position.Y - halfHeight;
-            maxY = planeEntity.Position.Y + halfHeight;
+            float halfWidth = (float)(planeEntity.LocalScale.X * 0.5f);
+            float halfHeight = (float)(planeEntity.LocalScale.Y * 0.5f);
+            minX = (float)(planeEntity.Position.X - halfWidth);
+            maxX = (float)(planeEntity.Position.X + halfWidth);
+            minY = (float)(planeEntity.Position.Y - halfHeight);
+            maxY = (float)(planeEntity.Position.Y + halfHeight);
         }
 
         /// <summary>

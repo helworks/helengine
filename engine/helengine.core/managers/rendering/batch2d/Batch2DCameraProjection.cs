@@ -15,12 +15,12 @@ namespace helengine {
                 throw new ArgumentException("Pixel viewport values must be finite and its dimensions must be positive.", nameof(pixelViewport));
             }
 
-            double inverseWidth = 1d / pixelViewport.Z;
-            double inverseHeight = 1d / pixelViewport.W;
-            float scaleX = (float)(2d * inverseWidth);
-            float scaleY = (float)(-2d * inverseHeight);
-            float translateX = (float)(-1d - 2d * pixelViewport.X * inverseWidth);
-            float translateY = (float)(1d + 2d * pixelViewport.Y * inverseHeight);
+            RealEvaluation inverseWidth = 1d / pixelViewport.Z;
+            RealEvaluation inverseHeight = 1d / pixelViewport.W;
+            RealEvaluation scaleX = (RealEvaluation)(2d * inverseWidth);
+            RealEvaluation scaleY = (RealEvaluation)(-2d * inverseHeight);
+            RealEvaluation translateX = (RealEvaluation)(-1d - 2d * pixelViewport.X * inverseWidth);
+            RealEvaluation translateY = (RealEvaluation)(1d + 2d * pixelViewport.Y * inverseHeight);
 
             float4x4 projection = new float4x4(
                 scaleX, 0f, 0f, 0f,
@@ -29,7 +29,7 @@ namespace helengine {
                 translateX, translateY, 0f, 1f);
             if (!IsFinite(projection.M11) || !IsFinite(projection.M22) ||
                 !IsFinite(projection.M41) || !IsFinite(projection.M42)) {
-                throw new ArgumentException("Pixel viewport produces projection coefficients outside the finite float range.", nameof(pixelViewport));
+                throw new ArgumentException("Pixel viewport produces projection coefficients outside the finite RealEvaluation range.", nameof(pixelViewport));
             }
 
             return projection;
@@ -40,8 +40,8 @@ namespace helengine {
         /// </summary>
         /// <param name="value">Component to check.</param>
         /// <returns>True when the value is neither infinite nor NaN.</returns>
-        static bool IsFinite(float value) {
-            return !float.IsNaN(value) && !float.IsInfinity(value);
+        static bool IsFinite(RealEvaluation value) {
+            return !RealEvaluation.IsNaN(value) && !RealEvaluation.IsInfinity(value);
         }
     }
 }

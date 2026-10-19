@@ -574,13 +574,16 @@ namespace helengine.editor {
             using MemoryStream sourceStream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(sourceStream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != EditorTaggedSceneComponentPayloadFormat.CurrentVersion) {
+            if (!EditorTaggedSceneComponentPayloadFormat.IsSupportedVersion(version)) {
                 throw new InvalidOperationException($"Blueprint component '{componentTypeId}' needs a current tagged payload to remap internal entity references.");
             }
+            NumericPrecisionPolicy numericPolicy = version == EditorTaggedSceneComponentPayloadFormat.LegacyVersion
+                ? NumericPrecisionPolicy.Default : RealBinaryCodec.ReadPolicy(reader);
             int fieldCount = reader.ReadInt32();
             using MemoryStream outputStream = new MemoryStream();
             using (EngineBinaryWriter writer = EngineBinaryWriter.Create(outputStream, EngineBinaryEndianness.LittleEndian, true)) {
                 writer.WriteByte(version);
+                if (version == EditorTaggedSceneComponentPayloadFormat.CurrentVersion) { RealBinaryCodec.WritePolicy(writer, numericPolicy); }
                 writer.WriteInt32(fieldCount);
                 for (int index = 0; index < fieldCount; index++) {
                     string name = reader.ReadString();

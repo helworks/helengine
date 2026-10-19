@@ -172,7 +172,7 @@ namespace helengine.editor {
                 Font = DialogFont,
                 Text = DefaultMessage,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
+                Size = new int2(1, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(DialogFont.LineHeight, 1f)))),
             };
             MessageHost.AddComponent(MessageText);
 
@@ -315,7 +315,7 @@ namespace helengine.editor {
         void LayoutMessage() {
             int contentWidth = Math.Max(1, DialogWidth - (GetPanelPaddingPixels() * 2));
             FontTightMetrics messageMetrics = DialogFont.MeasureTight(MessageText.Text);
-            MessageText.Size = new int2(contentWidth, Math.Max(1, (int)Math.Ceiling(Math.Max(messageMetrics.Height, DialogFont.LineHeight))));
+            MessageText.Size = new int2(contentWidth, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(messageMetrics.Height, DialogFont.LineHeight))));
         }
 
         /// <summary>

@@ -91,5 +91,14 @@ namespace helengine.core.tests.numeric {
         public void UnsupportedHalfPolicyFailsExplicitly(int storageBits, int arithmeticBits) {
             Assert.Throws<NotSupportedException>(() => new NumericArithmetic(new NumericPrecisionPolicy(storageBits, arithmeticBits)));
         }
+        /// <summary>Clamp evaluates selected-width operands and rejects an inverted interval.</summary>
+        [Fact]
+        public void ClampUsesSelectedArithmetic() {
+            Assert.Equal(2d, RealMath.Clamp(3d, 1d, 2d).ToDouble());
+            Assert.Equal(1d, RealMath.Clamp(-3d, 1d, 2d).ToDouble());
+            Assert.Equal(1.5d, RealMath.Clamp(1.5d, 1d, 2d).ToDouble());
+            Assert.True(double.IsNaN(RealMath.Clamp(double.NaN, 1d, 2d).ToDouble()));
+            Assert.Throws<ArgumentException>(() => RealMath.Clamp(1d, 3d, 2d));
+        }
     }
 }

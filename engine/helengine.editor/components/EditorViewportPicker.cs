@@ -202,8 +202,8 @@ namespace helengine.editor {
             PendingViewport = sourceCamera.Viewport;
             RebuildPickerRenderQueue(pickLayerMask, pickMode);
             BuildPickColors(pickMode);
-            double viewportWidth = Math.Max(1.0, PendingViewport.Z);
-            double viewportHeight = Math.Max(1.0, PendingViewport.W);
+            double viewportWidth = RealMath.Max(1.0, PendingViewport.Z).ToDouble();
+            double viewportHeight = RealMath.Max(1.0, PendingViewport.W).ToDouble();
             PickerCamera.Viewport = new float4(0f, 0f, (float)viewportWidth, (float)viewportHeight);
             PickingBackend.Render(PickerCamera, PickColors);
             PendingPickMode = pickMode;
@@ -226,8 +226,8 @@ namespace helengine.editor {
         /// Resolves the most recent picker render into an entity selection or hovered gizmo axis.
         /// </summary>
         void ResolvePick() {
-            int targetWidth = Math.Max(1, (int)Math.Ceiling(Math.Max(1.0, PickerCamera.Viewport.Z)));
-            int targetHeight = Math.Max(1, (int)Math.Ceiling(Math.Max(1.0, PickerCamera.Viewport.W)));
+            int targetWidth = Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(1.0, PickerCamera.Viewport.Z)));
+            int targetHeight = Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(1.0, PickerCamera.Viewport.W)));
             int2 pixel = MapPointerToTarget(PendingPointer, PendingViewport, targetWidth, targetHeight);
             if (!PickingBackend.TryReadPixel(pixel, out byte4 color)) {
                 return;
@@ -424,10 +424,10 @@ namespace helengine.editor {
                 throw new ArgumentOutOfRangeException(nameof(targetHeight), "Pick target height must be positive.");
             }
 
-            double viewportWidth = Math.Max(1.0, viewport.Z);
-            double viewportHeight = Math.Max(1.0, viewport.W);
-            double localX = pointer.X - viewport.X;
-            double localY = pointer.Y - viewport.Y;
+            double viewportWidth = RealMath.Max(1.0, viewport.Z).ToDouble();
+            double viewportHeight = RealMath.Max(1.0, viewport.W).ToDouble();
+            double localX = (double)(pointer.X - viewport.X);
+            double localY = (double)(pointer.Y - viewport.Y);
             double normalizedX = localX / viewportWidth;
             double normalizedY = localY / viewportHeight;
             double clampedNormalizedX = Math.Clamp(normalizedX, 0.0, 0.999999999);

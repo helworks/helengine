@@ -57,7 +57,7 @@ namespace helengine {
         static bool TryGetSphereTriangleContact(float3 sphereCenter, float sphereRadius, float3 a, float3 b, float3 c, out float3 collisionNormal, out float penetration) {
             float3 closestPoint = StaticMeshTriangleMath3D.GetClosestPointOnTriangle(sphereCenter, a, b, c);
             float3 delta = sphereCenter - closestPoint;
-            float distanceSquared = float3.Dot(delta, delta);
+            float distanceSquared = (float)(float3.Dot(delta, delta));
             float radiusSquared = sphereRadius * sphereRadius;
             if (distanceSquared > radiusSquared) {
                 collisionNormal = float3.Zero;

@@ -6,19 +6,19 @@ namespace helengine {
     /// </summary>
     public static class AuthoredLayoutScaleUtils {
         /// <summary>
-        /// Resolves the authored value for one float field.
+        /// Resolves the authored value for one RealEvaluation field.
         /// </summary>
         /// <param name="live">Current live value.</param>
         /// <param name="applied">Value written by the last scale pass.</param>
         /// <param name="authored">Captured authored value.</param>
         /// <param name="scale">Scale used by the last scale pass.</param>
         /// <returns>Authored value that should be persisted and scaled next.</returns>
-        public static float UnscaleFloat(float live, float applied, float authored, double scale) {
+        public static RealEvaluation UnscaleFloat(RealEvaluation live, RealEvaluation applied, RealEvaluation authored, RealEvaluation scale) {
             if (live == applied || !(scale > 0d)) {
                 return authored;
             }
 
-            return (float)(live / scale);
+            return (RealEvaluation)(live / scale);
         }
 
         /// <summary>
@@ -29,7 +29,7 @@ namespace helengine {
         /// <param name="authored">Captured authored value.</param>
         /// <param name="scale">Scale used by the last scale pass.</param>
         /// <returns>Authored value that should be persisted and scaled next.</returns>
-        public static int UnscaleInt(int live, int applied, int authored, double scale) {
+        public static int UnscaleInt(int live, int applied, int authored, RealEvaluation scale) {
             if (live == applied || !(scale > 0d)) {
                 return authored;
             }
@@ -37,7 +37,7 @@ namespace helengine {
                 return 0;
             }
 
-            return Math.Max(1, (int)Math.Round(live / scale));
+            return RealMath.Max(1, (int)RealMath.Round(live / scale));
         }
 
         /// <summary>
@@ -49,7 +49,7 @@ namespace helengine {
         /// <param name="widthScale">Horizontal scale used by the last scale pass.</param>
         /// <param name="heightScale">Vertical scale used by the last scale pass.</param>
         /// <returns>Authored vector that should be persisted and scaled next.</returns>
-        public static int2 UnscaleInt2(int2 live, int2 applied, int2 authored, double widthScale, double heightScale) {
+        public static int2 UnscaleInt2(int2 live, int2 applied, int2 authored, RealEvaluation widthScale, RealEvaluation heightScale) {
             return new int2(
                 UnscaleInt(live.X, applied.X, authored.X, widthScale),
                 UnscaleInt(live.Y, applied.Y, authored.Y, heightScale));
@@ -64,12 +64,12 @@ namespace helengine {
         /// <param name="origin">Root displacement added by the last scale pass, or zero for non-root entities.</param>
         /// <param name="scale">Axis scale used by the last scale pass.</param>
         /// <returns>Authored coordinate that should be persisted and scaled next.</returns>
-        public static float UnscalePosition(float live, float applied, float authored, float origin, double scale) {
+        public static RealEvaluation UnscalePosition(RealEvaluation live, RealEvaluation applied, RealEvaluation authored, RealEvaluation origin, RealEvaluation scale) {
             if (live == applied || !(scale > 0d)) {
                 return authored;
             }
 
-            return (float)((live - origin) / scale);
+            return (RealEvaluation)((live - origin) / scale);
         }
     }
 }

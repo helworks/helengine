@@ -75,8 +75,8 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Plane scale directions must affect two distinct scale components.");
             }
 
-            double primaryDelta = float3.Dot(planeDelta, normalizedPrimary);
-            double secondaryDelta = float3.Dot(planeDelta, normalizedSecondary);
+            double primaryDelta = (double)(float3.Dot(planeDelta, normalizedPrimary));
+            double secondaryDelta = (double)(float3.Dot(planeDelta, normalizedSecondary));
             double resolvedPrimary = ClampScaleComponent(GetScaleComponent(startScale, primaryAxisIndex) + primaryDelta, minimumScaleComponent);
             double resolvedSecondary = ClampScaleComponent(GetScaleComponent(startScale, secondaryAxisIndex) + secondaryDelta, minimumScaleComponent);
 
@@ -108,8 +108,8 @@ namespace helengine.editor {
 
             float3 normalizedPrimary = NormalizeDirection(worldPrimaryDirection);
             float3 normalizedSecondary = NormalizeDirection(worldSecondaryDirection);
-            double primaryDelta = float3.Dot(planeDelta, normalizedPrimary);
-            double secondaryDelta = float3.Dot(planeDelta, normalizedSecondary);
+            double primaryDelta = (double)(float3.Dot(planeDelta, normalizedPrimary));
+            double secondaryDelta = (double)(float3.Dot(planeDelta, normalizedSecondary));
             int primaryAxisIndex = ResolveDominantAxisIndex(normalizedPrimary);
             int secondaryAxisIndex = ResolveDominantAxisIndex(normalizedSecondary);
             if (primaryAxisIndex == secondaryAxisIndex) {
@@ -133,9 +133,9 @@ namespace helengine.editor {
         /// <returns>Component index where 0=X, 1=Y, and 2=Z.</returns>
         static int ResolveDominantAxisIndex(float3 direction) {
             float3 normalizedDirection = NormalizeDirection(direction);
-            double absX = Math.Abs(normalizedDirection.X);
-            double absY = Math.Abs(normalizedDirection.Y);
-            double absZ = Math.Abs(normalizedDirection.Z);
+            double absX = RealMath.Abs(normalizedDirection.X).ToDouble();
+            double absY = RealMath.Abs(normalizedDirection.Y).ToDouble();
+            double absZ = RealMath.Abs(normalizedDirection.Z).ToDouble();
 
             if (absX > absY && absX > absZ) {
                 return 0;
@@ -159,9 +159,9 @@ namespace helengine.editor {
         /// <returns>Normalized direction vector.</returns>
         static float3 NormalizeDirection(float3 direction) {
             double lengthSquared =
-                (direction.X * direction.X) +
+                (double)((direction.X * direction.X) +
                 (direction.Y * direction.Y) +
-                (direction.Z * direction.Z);
+                (direction.Z * direction.Z));
             if (lengthSquared <= MinimumDirectionLengthSquared) {
                 throw new InvalidOperationException("Scale direction vector must be non-zero.");
             }
@@ -182,11 +182,11 @@ namespace helengine.editor {
         static double GetScaleComponent(float3 scale, int axisIndex) {
             switch (axisIndex) {
                 case 0:
-                    return scale.X;
+                    return (double)(scale.X);
                 case 1:
-                    return scale.Y;
+                    return (double)(scale.Y);
                 case 2:
-                    return scale.Z;
+                    return (double)(scale.Z);
                 default:
                     throw new ArgumentOutOfRangeException(nameof(axisIndex), "Axis index must be between 0 and 2.");
             }

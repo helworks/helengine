@@ -11,6 +11,12 @@ namespace helengine.editor {
         /// Field names in their serialized order so payload rewriting remains deterministic.
         /// </summary>
         readonly List<string> FieldOrder;
+        /// <summary>Container version retained when opaque field bytes are copied without decoding them.</summary>
+        readonly byte SourceVersion;
+
+        /// <summary>Explicit numeric contract used by every configurable field in this container.</summary>
+        public NumericPrecisionPolicy NumericPolicy { get; }
+
 
         /// <summary>
         /// Initializes a reader over one serialized editor component payload.
@@ -29,10 +35,14 @@ namespace helengine.editor {
                 using MemoryStream stream = new MemoryStream(payload, false);
                 using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
                 receivedVersion = reader.ReadByte();
-                if (receivedVersion != EditorTaggedSceneComponentPayloadFormat.CurrentVersion) {
+                if (!EditorTaggedSceneComponentPayloadFormat.IsSupportedVersion(receivedVersion.Value)) {
                     throw new InvalidOperationException(
                         $"Unsupported editor tagged scene component payload received version '{receivedVersion}'; current version '{EditorTaggedSceneComponentPayloadFormat.CurrentVersion}' is required. Regenerate/rebuild the asset in the current format.");
                 }
+
+                SourceVersion = receivedVersion.Value;
+                NumericPolicy = SourceVersion == EditorTaggedSceneComponentPayloadFormat.LegacyVersion
+                    ? NumericPrecisionPolicy.Default : RealBinaryCodec.ReadPolicy(reader);
 
                 receivedFieldCount = reader.ReadInt32();
                 if (receivedFieldCount < 0) {
@@ -91,6 +101,7 @@ namespace helengine.editor {
             }
 
             fieldReader = EngineBinaryReader.Create(new MemoryStream(payload, false), EngineBinaryEndianness.LittleEndian, false);
+            fieldReader.NumericPolicy = NumericPolicy;
             return true;
         }
 
@@ -132,7 +143,8 @@ namespace helengine.editor {
 
             using MemoryStream stream = new MemoryStream();
             using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian)) {
-                writer.WriteByte(EditorTaggedSceneComponentPayloadFormat.CurrentVersion);
+                writer.WriteByte(SourceVersion);
+                if (SourceVersion == EditorTaggedSceneComponentPayloadFormat.CurrentVersion) { RealBinaryCodec.WritePolicy(writer, NumericPolicy); }
                 writer.WriteInt32(FieldOrder.Count - 1);
                 for (int index = 0; index < FieldOrder.Count; index++) {
                     string currentFieldName = FieldOrder[index];

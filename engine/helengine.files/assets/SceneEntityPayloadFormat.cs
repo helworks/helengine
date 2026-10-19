@@ -107,9 +107,9 @@ namespace helengine.files {
             writer.WriteByte(asset.Enabled ? (byte)1 : (byte)0);
             writer.WriteByte(asset.HiddenInEditor ? (byte)1 : (byte)0);
             writer.WriteUInt16(asset.LayerMask);
-            writer.WriteFloat3(asset.LocalPosition);
-            writer.WriteFloat3(asset.LocalScale);
-            writer.WriteFloat4(asset.LocalOrientation);
+            writer.WriteReal3(asset.LocalPosition);
+            writer.WriteReal3(asset.LocalScale);
+            writer.WriteReal4(asset.LocalOrientation);
             writer.WriteByte(asset.HasOverrideLevelOrder ? (byte)1 : (byte)0);
             writer.WriteArray(asset.HasOverrideLevelOrder ? asset.OverrideLevelOrder ?? Array.Empty<SceneOverrideScopeStepKind>() : Array.Empty<SceneOverrideScopeStepKind>(), WriteSceneOverrideScopeStepKind);
             writer.WriteArray(asset.Components, WriteSceneComponentAssetRecordValue);
@@ -140,9 +140,9 @@ namespace helengine.files {
             bool enabled = reader.ReadByte() != 0;
             bool hiddenInEditor = payloadVersion >= 10 && reader.ReadByte() != 0;
             ushort layerMask = reader.ReadUInt16();
-            float3 localPosition = reader.ReadFloat3();
-            float3 localScale = reader.ReadFloat3();
-            float4 localOrientation = reader.ReadFloat4();
+            float3 localPosition = reader.ReadReal3();
+            float3 localScale = reader.ReadReal3();
+            float4 localOrientation = reader.ReadReal4();
             bool hasOverrideLevelOrder = reader.ReadByte() != 0;
             SceneOverrideScopeStepKind[] overrideLevelOrder = reader.ReadArray(ReadSceneOverrideScopeStepKind) ?? Array.Empty<SceneOverrideScopeStepKind>();
             SceneComponentAssetRecord[] components = ReadSceneComponentAssetRecordArray(reader) ?? Array.Empty<SceneComponentAssetRecord>();
@@ -350,11 +350,11 @@ namespace helengine.files {
 
             WriteSceneOverrideScopeSteps(writer, asset.Scope);
             writer.WriteByte(asset.HasLocalPositionOverride ? (byte)1 : (byte)0);
-            writer.WriteFloat3(asset.LocalPosition);
+            writer.WriteReal3(asset.LocalPosition);
             writer.WriteByte(asset.HasLocalScaleOverride ? (byte)1 : (byte)0);
-            writer.WriteFloat3(asset.LocalScale);
+            writer.WriteReal3(asset.LocalScale);
             writer.WriteByte(asset.HasLocalOrientationOverride ? (byte)1 : (byte)0);
-            writer.WriteFloat4(asset.LocalOrientation);
+            writer.WriteReal4(asset.LocalOrientation);
         }
 
         /// <summary>
@@ -370,11 +370,11 @@ namespace helengine.files {
             return new SceneEntityPlatformTransformOverrideAsset {
                 Scope = ReadSceneOverrideScopeSteps(reader),
                 HasLocalPositionOverride = reader.ReadByte() != 0,
-                LocalPosition = reader.ReadFloat3(),
+                LocalPosition = reader.ReadReal3(),
                 HasLocalScaleOverride = reader.ReadByte() != 0,
-                LocalScale = reader.ReadFloat3(),
+                LocalScale = reader.ReadReal3(),
                 HasLocalOrientationOverride = reader.ReadByte() != 0,
-                LocalOrientation = reader.ReadFloat4()
+                LocalOrientation = reader.ReadReal4()
             };
         }
 

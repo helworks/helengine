@@ -391,8 +391,8 @@ namespace helengine.editor.tests {
         /// <returns>Screen-space pointer position inside the row body.</returns>
         int2 GetRowBodyPointer(SceneHierarchyRow row) {
             int bodyOffsetX = Math.Max(row.ArrowHitLeft + row.ArrowHitWidth + 8, 32);
-            int pointerX = (int)Math.Round(row.Entity.Position.X) + bodyOffsetX;
-            int pointerY = (int)Math.Round(row.Entity.Position.Y) + (SceneHierarchyPanel.RowHeight / 2);
+            int pointerX = (int)Math.Round((double)(row.Entity.Position.X)) + bodyOffsetX;
+            int pointerY = (int)Math.Round((double)(row.Entity.Position.Y)) + (SceneHierarchyPanel.RowHeight / 2);
             return new int2(pointerX, pointerY);
         }
 
@@ -473,9 +473,9 @@ namespace helengine.editor.tests {
         /// <param name="expected">Expected vector.</param>
         /// <param name="actual">Actual vector.</param>
         void AssertFloat3Equal(float3 expected, float3 actual) {
-            Assert.InRange(Math.Abs(expected.X - actual.X), 0f, TransformTolerance);
-            Assert.InRange(Math.Abs(expected.Y - actual.Y), 0f, TransformTolerance);
-            Assert.InRange(Math.Abs(expected.Z - actual.Z), 0f, TransformTolerance);
+            Assert.InRange(Math.Abs((double)(expected.X - actual.X)), 0f, TransformTolerance);
+            Assert.InRange(Math.Abs((double)(expected.Y - actual.Y)), 0f, TransformTolerance);
+            Assert.InRange(Math.Abs((double)(expected.Z - actual.Z)), 0f, TransformTolerance);
         }
 
         /// <summary>

@@ -168,7 +168,7 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the current uniform gizmo scale applied to the translation handles.
         /// </summary>
-        public float CurrentScale => GizmoRoot.Scale.X;
+        public float CurrentScale => (float)(GizmoRoot.Scale.X);
 
         /// <summary>
         /// Gets the snapped yaw-facing orientation currently applied to the translation handles.
@@ -230,7 +230,7 @@ namespace helengine.editor {
             EnsureHandleBaseTransformsCached();
             if (!isDragging) {
                 float4 viewport = SceneCamera.Viewport;
-                double viewportHeight = viewport.W;
+                double viewportHeight = (double)(viewport.W);
                 if (viewportHeight <= 0.0) {
                     throw new InvalidOperationException("Scene camera viewport height must be greater than zero.");
                 }
@@ -501,12 +501,12 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Transform gizmo axis length must be greater than zero.");
             }
 
-            double distance = float3.Distance(origin, cameraPosition);
+            double distance = (double)(float3.Distance(origin, cameraPosition));
             if (distance < MinimumDistance) {
                 distance = MinimumDistance;
             }
 
-            double worldUnitsPerPixel = CameraProjectionUtils.GetWorldUnitsPerPixel(SceneCamera, distance, viewportHeight);
+            double worldUnitsPerPixel = (double)(CameraProjectionUtils.GetWorldUnitsPerPixel(SceneCamera, distance, viewportHeight));
             double targetWorldAxisLength = targetAxisPixels * worldUnitsPerPixel;
             return targetWorldAxisLength / TransformTranslationGizmoFactory.AxisLength;
         }
@@ -762,9 +762,9 @@ namespace helengine.editor {
         /// <returns>Normalized vector, or zero when input magnitude is too small.</returns>
         float3 NormalizeDirection(float3 value) {
             double lengthSquared =
-                (value.X * value.X) +
+                (double)((value.X * value.X) +
                 (value.Y * value.Y) +
-                (value.Z * value.Z);
+                (value.Z * value.Z));
             if (lengthSquared <= MinimumDirectionLengthSquared) {
                 return float3.Zero;
             }

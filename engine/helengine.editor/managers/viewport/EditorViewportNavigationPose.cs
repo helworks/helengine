@@ -10,17 +10,17 @@ namespace helengine.editor {
         /// <param name="orientation">Camera orientation.</param>
         /// <param name="distance">Positive distance between the camera and pivot.</param>
         public EditorViewportNavigationPose(float3 pivot, float4 orientation, double distance) {
-            if (!float.IsFinite(pivot.X) || !float.IsFinite(pivot.Y) || !float.IsFinite(pivot.Z)) {
+            if (!float.IsFinite((float)(pivot.X)) || !float.IsFinite((float)(pivot.Y)) || !float.IsFinite((float)(pivot.Z))) {
                 throw new ArgumentOutOfRangeException(nameof(pivot), "The pose pivot must contain only finite values.");
             }
-            if (!float.IsFinite(orientation.X) || !float.IsFinite(orientation.Y) || !float.IsFinite(orientation.Z) || !float.IsFinite(orientation.W)) {
+            if (!float.IsFinite((float)(orientation.X)) || !float.IsFinite((float)(orientation.Y)) || !float.IsFinite((float)(orientation.Z)) || !float.IsFinite((float)(orientation.W))) {
                 throw new ArgumentOutOfRangeException(nameof(orientation), "The pose orientation must contain only finite values.");
             }
             double orientationLengthSquared =
-                (orientation.X * orientation.X) +
+                (double)((orientation.X * orientation.X) +
                 (orientation.Y * orientation.Y) +
                 (orientation.Z * orientation.Z) +
-                (orientation.W * orientation.W);
+                (orientation.W * orientation.W));
             if (!double.IsFinite(orientationLengthSquared) || orientationLengthSquared <= 0.000000000001) {
                 throw new ArgumentOutOfRangeException(nameof(orientation), "The pose orientation must have non-zero magnitude.");
             }

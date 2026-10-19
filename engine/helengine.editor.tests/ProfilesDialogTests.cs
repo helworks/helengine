@@ -250,17 +250,17 @@ namespace helengine.editor.tests {
             ButtonComponent saveButton = GetPrivateField<ButtonComponent>(dialog, "SaveButton");
             ButtonComponent cancelButton = GetPrivateField<ButtonComponent>(dialog, "CancelButton");
 
-            Assert.Equal(metrics.ScalePixels(ProfilesDialog.PanelPadding + ProfilesDialog.LabelColumnWidth + 12), (int)Math.Round(platformComboBoxHost.LocalPosition.X));
-            Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding), (int)Math.Round(platformComboBoxHost.LocalPosition.Y));
+            Assert.Equal(metrics.ScalePixels(ProfilesDialog.PanelPadding + ProfilesDialog.LabelColumnWidth + 12), (int)Math.Round((double)(platformComboBoxHost.LocalPosition.X)));
+            Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding), (int)Math.Round((double)(platformComboBoxHost.LocalPosition.Y)));
             Assert.Equal(new int2(metrics.ScalePixels(ProfilesDialog.PlatformComboBoxWidth), metrics.ScalePixels(ProfilesDialog.FieldRowHeight)), platformComboBox.Size);
-            Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding + ProfilesDialog.FieldRowHeight + ProfilesDialog.SectionSpacing), (int)Math.Round(versionTextBoxHost.LocalPosition.Y));
+            Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding + ProfilesDialog.FieldRowHeight + ProfilesDialog.SectionSpacing), (int)Math.Round((double)(versionTextBoxHost.LocalPosition.Y)));
             Assert.Equal(new int2(metrics.ScalePixels(ProfilesDialog.PanelWidth - (ProfilesDialog.PanelPadding * 2) - ProfilesDialog.LabelColumnWidth - 12), metrics.ScalePixels(ProfilesDialog.FieldRowHeight)), versionTextBox.Size);
-            Assert.Equal(metrics.ScalePixels(ProfilesDialog.PanelPadding), (int)Math.Round(buildTabButtonHost.LocalPosition.X));
-            Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding + (ProfilesDialog.FieldRowHeight * 2) + (ProfilesDialog.SectionSpacing * 2)), (int)Math.Round(buildTabButtonHost.LocalPosition.Y));
+            Assert.Equal(metrics.ScalePixels(ProfilesDialog.PanelPadding), (int)Math.Round((double)(buildTabButtonHost.LocalPosition.X)));
+            Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding + (ProfilesDialog.FieldRowHeight * 2) + (ProfilesDialog.SectionSpacing * 2)), (int)Math.Round((double)(buildTabButtonHost.LocalPosition.Y)));
             Assert.Equal(new int2(metrics.ScalePixels(ProfilesDialog.TabButtonWidth), metrics.ScalePixels(ProfilesDialog.TabButtonHeight)), buildTabButton.Size);
-            Assert.Equal(metrics.ScalePixels(ProfilesDialog.PanelPadding), (int)Math.Round(buildContentHost.LocalPosition.X));
-            Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding + (ProfilesDialog.FieldRowHeight * 2) + (ProfilesDialog.SectionSpacing * 2) + ProfilesDialog.TabButtonHeight + ProfilesDialog.TabContentSpacing), (int)Math.Round(buildContentHost.LocalPosition.Y));
-            Assert.Equal(0, (int)Math.Round(buildSettingsSection.Root.LocalPosition.Y));
+            Assert.Equal(metrics.ScalePixels(ProfilesDialog.PanelPadding), (int)Math.Round((double)(buildContentHost.LocalPosition.X)));
+            Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding + (ProfilesDialog.FieldRowHeight * 2) + (ProfilesDialog.SectionSpacing * 2) + ProfilesDialog.TabButtonHeight + ProfilesDialog.TabContentSpacing), (int)Math.Round((double)(buildContentHost.LocalPosition.Y)));
+            Assert.Equal(0, (int)Math.Round((double)(buildSettingsSection.Root.LocalPosition.Y)));
             Assert.Equal(new int2(metrics.ScalePixels(88), metrics.ScalePixels(22)), saveButton.Size);
             Assert.Equal(new int2(metrics.ScalePixels(88), metrics.ScalePixels(22)), cancelButton.Size);
         }

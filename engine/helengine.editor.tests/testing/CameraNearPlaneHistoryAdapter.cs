@@ -41,7 +41,7 @@ namespace helengine.editor.tests.testing {
             return new CameraNearPlaneHistoryOperation(
                 cameraComponent,
                 PreviousNearPlaneDistance,
-                cameraComponent.NearPlaneDistance);
+                (float)(cameraComponent.NearPlaneDistance));
         }
     }
 }

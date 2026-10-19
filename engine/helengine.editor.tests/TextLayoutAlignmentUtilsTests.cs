@@ -13,7 +13,7 @@ namespace helengine.editor.tests {
         public void MeasureVisibleLineWidth_WhenLineIsEmpty_ReturnsZero() {
             FontAsset font = CreateFont();
 
-            double visibleWidth = TextLayoutAlignmentUtils.MeasureVisibleLineWidth(string.Empty, font, 1d, 128d);
+            double visibleWidth = (double)(TextLayoutAlignmentUtils.MeasureVisibleLineWidth(string.Empty, font, 1d, 128d));
 
             Assert.Equal(0d, visibleWidth);
         }

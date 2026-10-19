@@ -705,9 +705,9 @@ public class ModelPreviewSourceTests : IDisposable {
         /// <param name="target">Target point.</param>
         /// <returns>Euclidean distance between both points.</returns>
         double GetDistance(float3 position, float3 target) {
-            double dx = position.X - target.X;
-            double dy = position.Y - target.Y;
-            double dz = position.Z - target.Z;
+            double dx = (double)(position.X - target.X);
+            double dy = (double)(position.Y - target.Y);
+            double dz = (double)(position.Z - target.Z);
             return Math.Sqrt(dx * dx + dy * dy + dz * dz);
         }
 

@@ -9,16 +9,16 @@ namespace helengine.directx11 {
         /// <summary>
         /// Normalized atlas rectangle as <c>x, y, width, height</c>.
         /// </summary>
-        public float4 AtlasRect;
+        public GpuFloat4 AtlasRect;
 
         /// <summary>
         /// Packed metadata where X stores whether the slot uses atlas shadows and Y stores shadow strength.
         /// </summary>
-        public float4 Metadata;
+        public GpuFloat4 Metadata;
 
         /// <summary>
         /// Transposed world-to-shadow-clip matrix for the slot.
         /// </summary>
-        public float4x4 WorldToShadowClip;
+        public GpuFloat4x4 WorldToShadowClip;
     }
 }

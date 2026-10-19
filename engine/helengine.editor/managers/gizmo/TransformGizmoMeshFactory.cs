@@ -909,7 +909,7 @@ namespace helengine.editor {
         /// <param name="value">Vector to normalize.</param>
         /// <returns>Normalized vector.</returns>
         static float3 Normalize3(float3 value) {
-            double length = Math.Sqrt(value.X * value.X + value.Y * value.Y + value.Z * value.Z);
+            double length = Math.Sqrt((double)(value.X * value.X + value.Y * value.Y + value.Z * value.Z));
             if (length <= 0.0) {
                 throw new InvalidOperationException("Cannot normalize a zero-length vector.");
             }

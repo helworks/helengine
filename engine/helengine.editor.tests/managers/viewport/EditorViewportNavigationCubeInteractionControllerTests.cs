@@ -137,12 +137,12 @@ namespace helengine.editor.tests.managers.viewport {
             int2 controlCenter = new int2(controlPosition.X + (controlSize.X / 2), controlPosition.Y + (controlSize.Y / 2));
             float4 originalOrientation = CameraEntityValue.Orientation;
             float3 originalPosition = CameraEntityValue.Position;
-            double perspectiveScale = CameraProjectionUtils.GetWorldUnitsPerPixel(CameraValue, 10.0, CameraValue.Viewport.W);
+            double perspectiveScale = (double)(CameraProjectionUtils.GetWorldUnitsPerPixel(CameraValue, 10.0, CameraValue.Viewport.W));
 
             UpdatePointer(controlCenter, true, true, true);
             UpdatePointer(controlCenter, false, false, true);
 
-            double orthographicScale = CameraProjectionUtils.GetWorldUnitsPerPixel(CameraValue, 10.0, CameraValue.Viewport.W);
+            double orthographicScale = (double)(CameraProjectionUtils.GetWorldUnitsPerPixel(CameraValue, 10.0, CameraValue.Viewport.W));
             Assert.Equal(CameraProjectionMode.Orthographic, CameraValue.ProjectionMode);
             Assert.Equal(originalOrientation, CameraEntityValue.Orientation);
             Assert.Equal(originalPosition, CameraEntityValue.Position);

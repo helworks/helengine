@@ -19,7 +19,7 @@ namespace helengine {
             Component.ItemExtent = ItemExtent;
         }
         /// <summary>Maps only deliberate preview edits back into authored space.</summary>
-        public void RestoreEdited(ViewportScrollState applied, ViewportLayoutMetrics metrics) {
+        public void RestoreEdited(ViewportScrollState applied, in ViewportLayoutMetrics metrics) {
             Component.Size = AuthoredLayoutScaleUtils.UnscaleInt2(Component.Size, applied.Size, Size, metrics.ScaleX, metrics.ScaleY);
             Component.ItemExtent = AuthoredLayoutScaleUtils.UnscaleInt(Component.ItemExtent, applied.ItemExtent, ItemExtent, metrics.GlyphScale);
         }

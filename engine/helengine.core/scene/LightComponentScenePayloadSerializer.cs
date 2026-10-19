@@ -21,7 +21,7 @@ namespace helengine {
             }
 
             WriteCommonLightFields(writer, lightComponent);
-            writer.WriteSingle(lightComponent.ShadowDistance);
+            writer.WriteSingle((float)(lightComponent.ShadowDistance));
         }
 
         /// <summary>
@@ -107,7 +107,7 @@ namespace helengine {
             }
 
             WriteCommonLightFields(writer, lightComponent);
-            writer.WriteSingle(lightComponent.Range);
+            writer.WriteSingle((float)(lightComponent.Range));
         }
 
         /// <summary>
@@ -151,9 +151,9 @@ namespace helengine {
             }
 
             WriteCommonLightFields(writer, lightComponent);
-            writer.WriteSingle(lightComponent.Range);
-            writer.WriteSingle(lightComponent.InnerConeAngleDegrees);
-            writer.WriteSingle(lightComponent.OuterConeAngleDegrees);
+            writer.WriteSingle((float)(lightComponent.Range));
+            writer.WriteSingle((float)(lightComponent.InnerConeAngleDegrees));
+            writer.WriteSingle((float)(lightComponent.OuterConeAngleDegrees));
         }
 
         /// <summary>
@@ -199,10 +199,10 @@ namespace helengine {
             }
 
             WriteFloat4(writer, lightComponent.Color);
-            writer.WriteSingle(lightComponent.Intensity);
+            writer.WriteSingle((float)(lightComponent.Intensity));
             writer.WriteByte(lightComponent.ShadowsEnabled ? (byte)1 : (byte)0);
             writer.WriteByte((byte)lightComponent.ShadowMapMode);
-            writer.WriteSingle(lightComponent.ShadowStrength);
+            writer.WriteSingle((float)(lightComponent.ShadowStrength));
         }
 
         /// <summary>
@@ -234,10 +234,10 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(writer));
             }
 
-            writer.WriteSingle(value.X);
-            writer.WriteSingle(value.Y);
-            writer.WriteSingle(value.Z);
-            writer.WriteSingle(value.W);
+            writer.WriteSingle((float)(value.X));
+            writer.WriteSingle((float)(value.Y));
+            writer.WriteSingle((float)(value.Z));
+            writer.WriteSingle((float)(value.W));
         }
 
         /// <summary>

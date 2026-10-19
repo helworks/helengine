@@ -12,7 +12,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the rotation applied to the shape.
         /// </summary>
-        public float Rotation { get; set; }
+        public Real Rotation { get; set; }
 
         /// <summary>
         /// Gets or sets the fill color.
@@ -37,12 +37,12 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the corner radius.
         /// </summary>
-        public float Radius { get; set; }
+        public Real Radius { get; set; }
 
         /// <summary>
         /// Gets or sets the border thickness.
         /// </summary>
-        public float BorderThickness { get; set; }
+        public Real BorderThickness { get; set; }
 
         /// <summary>
         /// Gets or sets the fill color applied to the shape interior.

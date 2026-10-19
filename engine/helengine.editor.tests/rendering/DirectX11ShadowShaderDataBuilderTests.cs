@@ -139,7 +139,7 @@ namespace helengine.editor.tests.rendering {
             float4x4 lightViewProjection = builder.BuildShadowViewProjectionMatrix(camera, allocation);
             float3 clipPoint = TransformPointToNormalizedDeviceCoordinates(new float3(30f, 0f, 5f), lightViewProjection);
 
-            Assert.InRange(Math.Abs(clipPoint.X), 0f, 1f);
+            Assert.InRange(Math.Abs((double)(clipPoint.X)), 0f, 1f);
         }
 
         /// <summary>
@@ -166,12 +166,12 @@ namespace helengine.editor.tests.rendering {
             float3 nearCameraPointClip = TransformPointToNormalizedDeviceCoordinates(new float3(0f, 0f, -10f), lightViewProjection);
             float3 distantPointClip = TransformPointToNormalizedDeviceCoordinates(new float3(0f, 0f, -150f), lightViewProjection);
 
-            Assert.InRange(nearCameraPointClip.X, -1f, 1f);
-            Assert.InRange(nearCameraPointClip.Y, -1f, 1f);
-            Assert.InRange(nearCameraPointClip.Z, 0f, 1f);
-            Assert.InRange(distantPointClip.X, -1f, 1f);
-            Assert.InRange(distantPointClip.Y, -1f, 1f);
-            Assert.InRange(distantPointClip.Z, 0f, 1f);
+            Assert.InRange((double)(nearCameraPointClip.X), (double)(-1f), (double)(1f));
+            Assert.InRange((double)(nearCameraPointClip.Y), (double)(-1f), (double)(1f));
+            Assert.InRange((double)(nearCameraPointClip.Z), (double)(0f), (double)(1f));
+            Assert.InRange((double)(distantPointClip.X), (double)(-1f), (double)(1f));
+            Assert.InRange((double)(distantPointClip.Y), (double)(-1f), (double)(1f));
+            Assert.InRange((double)(distantPointClip.Z), (double)(0f), (double)(1f));
         }
 
         /// <summary>
@@ -203,9 +203,9 @@ namespace helengine.editor.tests.rendering {
             float4x4 lightViewProjection = builder.BuildShadowViewProjectionMatrix(camera, allocation);
             float3 clipPoint = TransformPointToNormalizedDeviceCoordinates(float3.Zero, lightViewProjection);
 
-            Assert.InRange(clipPoint.X, -1f, 1f);
-            Assert.InRange(clipPoint.Y, -1f, 1f);
-            Assert.InRange(clipPoint.Z, 0f, 1f);
+            Assert.InRange((double)(clipPoint.X), (double)(-1f), (double)(1f));
+            Assert.InRange((double)(clipPoint.Y), (double)(-1f), (double)(1f));
+            Assert.InRange((double)(clipPoint.Z), (double)(0f), (double)(1f));
         }
 
         /// <summary>
@@ -225,10 +225,10 @@ namespace helengine.editor.tests.rendering {
             float3 negativeZPointClip = TransformPointToNormalizedDeviceCoordinates(new float3(0f, 0f, -1f), positiveZFaceMatrix);
             float3 positiveZPointClip = TransformPointToNormalizedDeviceCoordinates(new float3(0f, 0f, 1f), negativeZFaceMatrix);
 
-            Assert.InRange(Math.Abs(negativeZPointClip.X), 0f, 0.0001f);
-            Assert.InRange(Math.Abs(negativeZPointClip.Y), 0f, 0.0001f);
-            Assert.InRange(Math.Abs(positiveZPointClip.X), 0f, 0.0001f);
-            Assert.InRange(Math.Abs(positiveZPointClip.Y), 0f, 0.0001f);
+            Assert.InRange(Math.Abs((double)(negativeZPointClip.X)), 0f, 0.0001f);
+            Assert.InRange(Math.Abs((double)(negativeZPointClip.Y)), 0f, 0.0001f);
+            Assert.InRange(Math.Abs((double)(positiveZPointClip.X)), 0f, 0.0001f);
+            Assert.InRange(Math.Abs((double)(positiveZPointClip.Y)), 0f, 0.0001f);
         }
 
         /// <summary>
@@ -355,9 +355,9 @@ namespace helengine.editor.tests.rendering {
             float3 coneEdgePoint = new float3((float)(Math.Tan(outerConeRadians) * 10.0), 0f, -10f);
             float3 clipPoint = TransformPointToNormalizedDeviceCoordinates(coneEdgePoint, lightViewProjection);
 
-            Assert.InRange(clipPoint.X, 0.95f, 1.05f);
-            Assert.InRange(clipPoint.Y, -0.05f, 0.05f);
-            Assert.InRange(clipPoint.Z, 0f, 1f);
+            Assert.InRange((double)(clipPoint.X), (double)(0.95f), (double)(1.05f));
+            Assert.InRange((double)(clipPoint.Y), (double)(-0.05f), (double)(0.05f));
+            Assert.InRange((double)(clipPoint.Z), (double)(0f), (double)(1f));
         }
 
         /// <summary>
@@ -390,7 +390,7 @@ namespace helengine.editor.tests.rendering {
             float4x4 lightViewProjection = builder.BuildShadowViewProjectionMatrix(camera, allocation);
             float3 clipPoint = TransformPointToNormalizedDeviceCoordinates(receiverPoint, lightViewProjection);
 
-            Assert.InRange(receiverPoint.Y, -0.01f, 0.01f);
+            Assert.InRange((double)(receiverPoint.Y), (double)(-0.01f), (double)(0.01f));
             Assert.True(clipPoint.Z < 1f, "Spotlight receivers at the authored range should remain inside the shadow frustum.");
         }
 
@@ -436,10 +436,10 @@ namespace helengine.editor.tests.rendering {
         /// <param name="matrix">Row-major matrix used by the runtime shader path.</param>
         /// <returns>Normalized-device coordinates for the transformed point.</returns>
         float3 TransformPointToNormalizedDeviceCoordinates(float3 point, float4x4 matrix) {
-            float clipX = (point.X * matrix.M11) + (point.Y * matrix.M21) + (point.Z * matrix.M31) + matrix.M41;
-            float clipY = (point.X * matrix.M12) + (point.Y * matrix.M22) + (point.Z * matrix.M32) + matrix.M42;
-            float clipZ = (point.X * matrix.M13) + (point.Y * matrix.M23) + (point.Z * matrix.M33) + matrix.M43;
-            float clipW = (point.X * matrix.M14) + (point.Y * matrix.M24) + (point.Z * matrix.M34) + matrix.M44;
+            double clipX = (double)((point.X * matrix.M11) + (point.Y * matrix.M21) + (point.Z * matrix.M31) + matrix.M41);
+            double clipY = (double)((point.X * matrix.M12) + (point.Y * matrix.M22) + (point.Z * matrix.M32) + matrix.M42);
+            double clipZ = (double)((point.X * matrix.M13) + (point.Y * matrix.M23) + (point.Z * matrix.M33) + matrix.M43);
+            double clipW = (double)((point.X * matrix.M14) + (point.Y * matrix.M24) + (point.Z * matrix.M34) + matrix.M44);
             if (Math.Abs(clipW) <= 0.0001f) {
                 throw new InvalidOperationException("Point-shadow clip-space transform produced an invalid W component.");
             }

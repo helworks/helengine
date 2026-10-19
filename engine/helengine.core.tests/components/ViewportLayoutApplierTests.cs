@@ -26,8 +26,8 @@ namespace helengine.core.tests.components {
         [Fact]
         public void NonSquarePixels_PreserveGlyphScale() {
             ViewportLayoutMetrics metrics = ViewportLayoutMath.Resolve(1, new int2(320, 240), new int2(256, 240), 1.25, 1, 160, 160);
-            Assert.Equal(0.8, metrics.ScaleX, 8);
-            Assert.Equal(1, metrics.GlyphScale, 8);
+            Assert.Equal(RealRepresentation.ArithmeticBits == 32 || RealRepresentation.StorageBits == 32 ? (double)0.8f : 0.8d, (double)metrics.ScaleX, 8);
+            Assert.Equal((double)(1),(double)(metrics.GlyphScale), 8);
             SpriteComponent sprite = new SpriteComponent { Size = new int2(100, 40) };
             ViewportLayoutApplier.ApplyComponent(sprite, metrics);
             Assert.Equal(new int2(80, 40), sprite.Size);

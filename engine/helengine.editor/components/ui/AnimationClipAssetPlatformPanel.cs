@@ -230,7 +230,7 @@ namespace helengine.editor {
                 return;
             }
 
-            int labelHeight = (int)Math.Ceiling(Font.LineHeight);
+            int labelHeight = (int)RealMath.Ceiling(Font.LineHeight);
             int labelOffsetY = (int)Math.Round((RowHeight - labelHeight) / 2d);
             int controlLeft = left + LabelWidth + RowSpacing;
             int controlWidth = Math.Max(1, Math.Min(ComboWidth, width - LabelWidth - RowSpacing));

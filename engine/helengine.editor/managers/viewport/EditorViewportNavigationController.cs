@@ -121,15 +121,15 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="deltaRadians">Yaw and pitch changes in radians.</param>
         public void Orbit(float2 deltaRadians) {
-            if (!float.IsFinite(deltaRadians.X) || !float.IsFinite(deltaRadians.Y)) {
+            if (!float.IsFinite((float)(deltaRadians.X)) || !float.IsFinite((float)(deltaRadians.Y))) {
                 throw new ArgumentOutOfRangeException(nameof(deltaRadians), "Orbit deltas must contain only finite values.");
             }
 
             CancelTransition();
             EditorViewportNavigationPose currentPose = CaptureCurrentPose();
             float3 forward = NormalizeSafe(float4.RotateVector(CameraForwardAxis, currentPose.Orientation), CameraForwardAxis);
-            double yaw = Math.Atan2(-forward.X, -forward.Z) - deltaRadians.X;
-            double pitch = Math.Clamp(Math.Asin(Math.Clamp(forward.Y, -1f, 1f)) - deltaRadians.Y, -MaximumOrbitPitch, MaximumOrbitPitch);
+            double yaw = Math.Atan2((double)(-forward.X), (double)(-forward.Z)) - deltaRadians.X.ToDouble();
+            double pitch = Math.Clamp(Math.Asin(RealMath.Clamp(forward.Y, -1f, 1f).ToDouble()) - deltaRadians.Y.ToDouble(), -MaximumOrbitPitch, MaximumOrbitPitch);
             float4 orientation;
             float4.CreateFromYawPitchRoll((float)yaw, (float)pitch, 0f, out orientation);
             orientation.Normalize();
@@ -223,9 +223,9 @@ namespace helengine.editor {
             float3 pivot = CameraController.GetOrbitTarget();
             float3 offset = cameraEntity.Position - pivot;
             double distance = Math.Sqrt(
-                (offset.X * offset.X) +
+                (double)((offset.X * offset.X) +
                 (offset.Y * offset.Y) +
-                (offset.Z * offset.Z));
+                (offset.Z * offset.Z)));
             if (!double.IsFinite(distance) || distance < MinimumNavigationDistance) {
                 distance = MinimumNavigationDistance;
             }
@@ -241,9 +241,9 @@ namespace helengine.editor {
         static float4 CreateOrientationForCameraOffset(EditorViewportNavigationTarget target) {
             float3 cameraOffset = NormalizeSafe(new float3(target.X, target.Y, target.Z), CameraUpAxis);
             float3 forward = new float3(-cameraOffset.X, -cameraOffset.Y, -cameraOffset.Z);
-            double horizontalLength = Math.Sqrt((forward.X * forward.X) + (forward.Z * forward.Z));
-            double yaw = horizontalLength <= 0.000001 ? 0.0 : Math.Atan2(-forward.X, -forward.Z);
-            double pitch = Math.Asin(Math.Clamp(forward.Y, -1f, 1f));
+            double horizontalLength = Math.Sqrt((double)((forward.X * forward.X) + (forward.Z * forward.Z)));
+            double yaw = horizontalLength <= 0.000001 ? 0.0 : Math.Atan2((double)(-forward.X), (double)(-forward.Z));
+            double pitch = Math.Asin(RealMath.Clamp(forward.Y, -1f, 1f).ToDouble());
             float4 orientation;
             float4.CreateFromYawPitchRoll((float)yaw, (float)pitch, 0f, out orientation);
             orientation.Normalize();
@@ -258,7 +258,7 @@ namespace helengine.editor {
         /// <param name="amount">Interpolation amount in the inclusive zero-to-one range.</param>
         /// <returns>Normalized interpolated orientation.</returns>
         static float4 SlerpShortest(float4 start, float4 end, float amount) {
-            double dot = float4.Dot(start, end);
+            double dot = (double)(float4.Dot(start, end));
             float4 adjustedEnd = end;
             if (dot < 0.0) {
                 adjustedEnd = new float4(-end.X, -end.Y, -end.Z, -end.W);
@@ -311,7 +311,7 @@ namespace helengine.editor {
                 return false;
             }
             if (mode == CameraProjectionMode.Orthographic &&
-                Math.Abs(projectionSettings.OrthographicVerticalSpan - LastDisplayedOrthographicSpan) > PoseChangeTolerance) {
+                RealMath.Abs(projectionSettings.OrthographicVerticalSpan - LastDisplayedOrthographicSpan) > PoseChangeTolerance) {
                 return false;
             }
 
@@ -325,7 +325,7 @@ namespace helengine.editor {
             CameraComponent camera = CameraController.Camera;
             ICameraProjectionSettings projectionSettings = camera as ICameraProjectionSettings;
             LastDisplayedProjectionMode = projectionSettings == null ? CameraProjectionMode.Perspective : projectionSettings.ProjectionMode;
-            LastDisplayedOrthographicSpan = projectionSettings == null ? 0.0 : projectionSettings.OrthographicVerticalSpan;
+            LastDisplayedOrthographicSpan = (double)(projectionSettings == null ? 0.0 : projectionSettings.OrthographicVerticalSpan);
         }
 
         /// <summary>
@@ -335,9 +335,9 @@ namespace helengine.editor {
         /// <param name="right">Second vector.</param>
         /// <returns>True when each component is within the configured tolerance.</returns>
         static bool AreVectorsApproximatelyEqual(float3 left, float3 right) {
-            return Math.Abs(left.X - right.X) <= PoseChangeTolerance &&
-                   Math.Abs(left.Y - right.Y) <= PoseChangeTolerance &&
-                   Math.Abs(left.Z - right.Z) <= PoseChangeTolerance;
+            return RealMath.Abs(left.X - right.X) <= PoseChangeTolerance &&
+                   RealMath.Abs(left.Y - right.Y) <= PoseChangeTolerance &&
+                   RealMath.Abs(left.Z - right.Z) <= PoseChangeTolerance;
         }
 
         /// <summary>
@@ -348,11 +348,11 @@ namespace helengine.editor {
         /// <returns>True when the orientation components represent the same rotation.</returns>
         static bool AreVectorsApproximatelyEqual(float4 left, float4 right) {
             double directError = Math.Max(
-                Math.Max(Math.Abs(left.X - right.X), Math.Abs(left.Y - right.Y)),
-                Math.Max(Math.Abs(left.Z - right.Z), Math.Abs(left.W - right.W)));
+                Math.Max(RealMath.Abs(left.X - right.X).ToDouble(), RealMath.Abs(left.Y - right.Y).ToDouble()),
+                Math.Max(RealMath.Abs(left.Z - right.Z).ToDouble(), RealMath.Abs(left.W - right.W).ToDouble()));
             double negatedError = Math.Max(
-                Math.Max(Math.Abs(left.X + right.X), Math.Abs(left.Y + right.Y)),
-                Math.Max(Math.Abs(left.Z + right.Z), Math.Abs(left.W + right.W)));
+                Math.Max(RealMath.Abs(left.X + right.X).ToDouble(), RealMath.Abs(left.Y + right.Y).ToDouble()),
+                Math.Max(RealMath.Abs(left.Z + right.Z).ToDouble(), RealMath.Abs(left.W + right.W).ToDouble()));
             return Math.Min(directError, negatedError) <= PoseChangeTolerance;
         }
 
@@ -364,9 +364,9 @@ namespace helengine.editor {
         /// <returns>Normalized vector when valid; otherwise the fallback value.</returns>
         static float3 NormalizeSafe(float3 value, float3 fallback) {
             double lengthSquared =
-                (value.X * value.X) +
+                (double)((value.X * value.X) +
                 (value.Y * value.Y) +
-                (value.Z * value.Z);
+                (value.Z * value.Z));
             if (lengthSquared <= 0.000000000001) {
                 return fallback;
             }

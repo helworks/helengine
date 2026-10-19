@@ -143,8 +143,8 @@ namespace helengine.editor {
             CreateProjectionControl();
             CreateDestinationPreview();
             IsInitialized = true;
-            Resize(new int2(Math.Max(0, (int)Math.Round(SceneCamera.Viewport.Z)),
-                Math.Max(0, (int)Math.Round(SceneCamera.Viewport.W))), (float)UiMetrics.Scale);
+            Resize(new int2(Math.Max(0, (int)RealMath.Round(SceneCamera.Viewport.Z)),
+                Math.Max(0, (int)RealMath.Round(SceneCamera.Viewport.W))), (float)UiMetrics.Scale);
         }
 
         /// <summary>Updates device bounds and overlay positions after content or UI scale changes.</summary>
@@ -155,7 +155,7 @@ namespace helengine.editor {
             if (!float.IsFinite(uiScale) || uiScale <= 0f) {
                 throw new ArgumentOutOfRangeException(nameof(uiScale), "UI scale must be finite and positive.");
             }
-            int2 origin = new int2((int)Math.Round(SceneCamera.Viewport.X), (int)Math.Round(SceneCamera.Viewport.Y));
+            int2 origin = new int2((int)RealMath.Round(SceneCamera.Viewport.X), (int)RealMath.Round(SceneCamera.Viewport.Y));
             Interaction.Resize(origin, contentSize, uiScale);
             if (!IsInitialized) {
                 return;
@@ -169,7 +169,7 @@ namespace helengine.editor {
             }
             int margin = ScalePixels(EditorViewportNavigationCubeInteractionController.LogicalContentMargin, uiScale);
             int cubeSize = ScalePixels(CanvasSize, uiScale);
-            float contentTopOffset = SceneCamera.Viewport.Y - ViewportEntity.Position.Y;
+            float contentTopOffset = (float)(SceneCamera.Viewport.Y - ViewportEntity.Position.Y);
             OverlayRoot.Position = new float3(Math.Max(0, contentSize.X - margin - cubeSize), contentTopOffset + margin, 0.35f);
             CubeSprite.Size = new int2(cubeSize, cubeSize);
             HoverSprite.Size = CubeSprite.Size;
@@ -203,8 +203,8 @@ namespace helengine.editor {
                 FaceLabelTexts[labelIndex].Font = Font;
             }
             ProjectionText.Font = Font;
-            Resize(new int2(Math.Max(0, (int)Math.Round(SceneCamera.Viewport.Z)),
-                Math.Max(0, (int)Math.Round(SceneCamera.Viewport.W))), (float)UiMetrics.Scale);
+            Resize(new int2(Math.Max(0, (int)RealMath.Round(SceneCamera.Viewport.Z)),
+                Math.Max(0, (int)RealMath.Round(SceneCamera.Viewport.W))), (float)UiMetrics.Scale);
             UpdateFaceLabels(SceneCamera.Parent.Orientation);
             LayoutProjectionText();
         }
@@ -239,8 +239,8 @@ namespace helengine.editor {
             UpdateFaceLabels(cameraEntity.Orientation);
             UpdateProjectionText();
             UpdateDestinationPreview(pointerPosition, new int2(
-                Math.Max(0, (int)Math.Round(SceneCamera.Viewport.Z)),
-                Math.Max(0, (int)Math.Round(SceneCamera.Viewport.W))));
+                Math.Max(0, (int)RealMath.Round(SceneCamera.Viewport.Z)),
+                Math.Max(0, (int)RealMath.Round(SceneCamera.Viewport.W))));
         }
 
         /// <summary>Releases blockers, overlay entities, and the renderer-owned cube texture.</summary>
@@ -391,8 +391,8 @@ namespace helengine.editor {
                 float centerX = 0f;
                 float centerY = 0f;
                 for (int p = 0; p < polygon.Count; p++) {
-                    centerX += polygon[p].X;
-                    centerY += polygon[p].Y;
+                    centerX += (float)(polygon[p].X);
+                    centerY += (float)(polygon[p].Y);
                 }
                 centerX /= polygon.Count;
                 centerY /= polygon.Count;
@@ -401,7 +401,7 @@ namespace helengine.editor {
                 FaceLabelEntities[i].Position = new float3(
                     (float)((centerX * scale) - (metrics.Width * 0.5)),
                     (float)((centerY * scale) - (Font.LineHeight * 0.5)), 0.1f);
-                FaceLabelTexts[i].Size = new int2(Math.Max(1, (int)Math.Ceiling(metrics.Width)), Math.Max(1, (int)Math.Ceiling(Font.LineHeight)));
+                FaceLabelTexts[i].Size = new int2(Math.Max(1, (int)Math.Ceiling(metrics.Width)), Math.Max(1, (int)RealMath.Ceiling(Font.LineHeight)));
             }
         }
 
@@ -445,10 +445,10 @@ namespace helengine.editor {
             int availableContentWidth = Math.Max(1, contentSize.X - (margin * 2));
             int desiredPanelWidth = Math.Max(1, (int)Math.Ceiling(textMetrics.Width) + (paddingX * 2));
             int panelWidth = Math.Min(desiredPanelWidth, availableContentWidth);
-            int contentOriginX = (int)Math.Round(SceneCamera.Viewport.X - ViewportEntity.Position.X);
-            int contentOriginY = (int)Math.Round(SceneCamera.Viewport.Y - ViewportEntity.Position.Y);
-            int cubeX = (int)Math.Round(OverlayRoot.LocalPosition.X - contentOriginX);
-            int cubeY = (int)Math.Round(OverlayRoot.LocalPosition.Y - contentOriginY);
+            int contentOriginX = (int)RealMath.Round(SceneCamera.Viewport.X - ViewportEntity.Position.X);
+            int contentOriginY = (int)RealMath.Round(SceneCamera.Viewport.Y - ViewportEntity.Position.Y);
+            int cubeX = (int)RealMath.Round(OverlayRoot.LocalPosition.X - contentOriginX);
+            int cubeY = (int)RealMath.Round(OverlayRoot.LocalPosition.Y - contentOriginY);
             int leftSpace = cubeX - margin - gap;
             bool placeLeftOfCube = leftSpace >= ScalePixels(48, (float)UiMetrics.Scale);
             if (placeLeftOfCube) {
@@ -457,7 +457,7 @@ namespace helengine.editor {
 
             int textWidth = Math.Max(1, panelWidth - (paddingX * 2));
             int lineCount = CountWrappedLines(HoverPreviewText.Text, textWidth);
-            int lineHeight = Math.Max(1, (int)Math.Ceiling(Font.LineHeight));
+            int lineHeight = Math.Max(1, (int)RealMath.Ceiling(Font.LineHeight));
             int panelHeight = (lineHeight * lineCount) + (paddingY * 2);
             int previewX;
             int previewY;
@@ -488,7 +488,7 @@ namespace helengine.editor {
             HoverPreviewText.Size = new int2(textWidth, Math.Max(lineHeight, lineHeight * lineCount));
             HoverPreviewRoot.Enabled = true;
             Interaction.SetHoverPreviewBounds(
-                new int2((int)Math.Round(HoverPreviewRoot.Position.X), (int)Math.Round(HoverPreviewRoot.Position.Y)),
+                new int2((int)RealMath.Round(HoverPreviewRoot.Position.X), (int)RealMath.Round(HoverPreviewRoot.Position.Y)),
                 new int2(panelWidth, panelHeight));
         }
 
@@ -556,11 +556,11 @@ namespace helengine.editor {
         /// <summary>Centers the projection label in the current button bounds.</summary>
         void LayoutProjectionText() {
             FontTightMetrics metrics = Font.MeasureTight(ProjectionText.Text);
-            ProjectionText.Size = new int2(Math.Max(1, (int)Math.Ceiling(metrics.Width)), Math.Max(1, (int)Math.Ceiling(Font.LineHeight)));
+            ProjectionText.Size = new int2(Math.Max(1, (int)Math.Ceiling(metrics.Width)), Math.Max(1, (int)RealMath.Ceiling(Font.LineHeight)));
             EditorEntity labelRoot = ProjectionText.Parent as EditorEntity;
             labelRoot.Position = new float3(
                 Math.Max(0f, (ProjectionBackground.Size.X - metrics.Width) * 0.5f),
-                Math.Max(0f, (ProjectionBackground.Size.Y - Font.LineHeight) * 0.5f), 0.1f);
+                RealMath.Max(0f, (ProjectionBackground.Size.Y - Font.LineHeight) * 0.5f), 0.1f);
         }
 
         /// <summary>Draws hover feedback for the center projection toggle or a face, edge, or corner target.</summary>
@@ -604,10 +604,10 @@ namespace helengine.editor {
             float minX = float.PositiveInfinity, minY = float.PositiveInfinity;
             float maxX = float.NegativeInfinity, maxY = float.NegativeInfinity;
             for (int i = 0; i < vertices.Count; i++) {
-                minX = Math.Min(minX, vertices[i].X);
-                minY = Math.Min(minY, vertices[i].Y);
-                maxX = Math.Max(maxX, vertices[i].X);
-                maxY = Math.Max(maxY, vertices[i].Y);
+                minX = (float)RealMath.Min(minX, vertices[i].X);
+                minY = (float)RealMath.Min(minY, vertices[i].Y);
+                maxX = (float)RealMath.Max(maxX, vertices[i].X);
+                maxY = (float)RealMath.Max(maxY, vertices[i].Y);
             }
             int left = Math.Clamp((int)Math.Floor(minX), 0, CanvasSize - 1);
             int top = Math.Clamp((int)Math.Floor(minY), 0, CanvasSize - 1);
@@ -627,8 +627,8 @@ namespace helengine.editor {
         /// <param name="end">Projected line end.</param>
         /// <param name="color">RGBA line color.</param>
         void DrawLine(float2 start, float2 end, byte4 color) {
-            int x = (int)Math.Round(start.X), y = (int)Math.Round(start.Y);
-            int endX = (int)Math.Round(end.X), endY = (int)Math.Round(end.Y);
+            int x = (int)RealMath.Round(start.X), y = (int)RealMath.Round(start.Y);
+            int endX = (int)RealMath.Round(end.X), endY = (int)RealMath.Round(end.Y);
             int dx = Math.Abs(endX - x), sx = x < endX ? 1 : -1;
             int dy = -Math.Abs(endY - y), sy = y < endY ? 1 : -1;
             int error = dx + dy;
@@ -650,10 +650,10 @@ namespace helengine.editor {
         void DrawHighlightedEdge(float2 start, float2 end, byte4 color) {
             double radius = CanvasSize * EditorViewportNavigationCubeGeometry.EdgeHitRadiusFraction;
             int padding = (int)Math.Ceiling(radius);
-            int left = Math.Max(0, (int)Math.Floor(Math.Min(start.X, end.X)) - padding);
-            int right = Math.Min(CanvasSize - 1, (int)Math.Ceiling(Math.Max(start.X, end.X)) + padding);
-            int top = Math.Max(0, (int)Math.Floor(Math.Min(start.Y, end.Y)) - padding);
-            int bottom = Math.Min(CanvasSize - 1, (int)Math.Ceiling(Math.Max(start.Y, end.Y)) + padding);
+            int left = Math.Max(0, (int)RealMath.Floor(RealMath.Min(start.X, end.X)) - padding);
+            int right = Math.Min(CanvasSize - 1, (int)RealMath.Ceiling(RealMath.Max(start.X, end.X)) + padding);
+            int top = Math.Max(0, (int)RealMath.Floor(RealMath.Min(start.Y, end.Y)) - padding);
+            int bottom = Math.Min(CanvasSize - 1, (int)RealMath.Ceiling(RealMath.Max(start.Y, end.Y)) + padding);
             double radiusSquared = radius * radius;
             for (int y = top; y <= bottom; y++) {
                 for (int x = left; x <= right; x++) {
@@ -670,16 +670,16 @@ namespace helengine.editor {
         /// <param name="end">Projected segment end.</param>
         /// <returns>Squared point-to-segment distance.</returns>
         static double GetDistanceToSegmentSquared(float2 point, float2 start, float2 end) {
-            double deltaX = end.X - start.X;
-            double deltaY = end.Y - start.Y;
+            double deltaX = (double)(end.X - start.X);
+            double deltaY = (double)(end.Y - start.Y);
             double lengthSquared = (deltaX * deltaX) + (deltaY * deltaY);
             double amount = lengthSquared <= 0.000000000001
                 ? 0.0
-                : Math.Clamp((((point.X - start.X) * deltaX) + ((point.Y - start.Y) * deltaY)) / lengthSquared, 0.0, 1.0);
-            double nearestX = start.X + (deltaX * amount);
-            double nearestY = start.Y + (deltaY * amount);
-            double offsetX = point.X - nearestX;
-            double offsetY = point.Y - nearestY;
+                : RealMath.Clamp((((point.X - start.X) * deltaX) + ((point.Y - start.Y) * deltaY)) / lengthSquared, 0.0, 1.0).ToDouble();
+            double nearestX = (double)(start.X + (deltaX * amount));
+            double nearestY = (double)(start.Y + (deltaY * amount));
+            double offsetX = (double)(point.X - nearestX);
+            double offsetY = (double)(point.Y - nearestY);
             return (offsetX * offsetX) + (offsetY * offsetY);
         }
 
@@ -687,13 +687,13 @@ namespace helengine.editor {
         /// <param name="center">Projected corner position.</param>
         /// <param name="color">RGBA highlight color.</param>
         void DrawCornerHighlight(float2 center, byte4 color) {
-            int cx = (int)Math.Round(center.X), cy = (int)Math.Round(center.Y);
+            int cx = (int)RealMath.Round(center.X), cy = (int)RealMath.Round(center.Y);
             double radius = CanvasSize * EditorViewportNavigationCubeGeometry.CornerHitRadiusFraction;
             int padding = (int)Math.Ceiling(radius);
             for (int y = cy - padding; y <= cy + padding; y++) {
                 for (int x = cx - padding; x <= cx + padding; x++) {
-                    double dx = (x + 0.5) - center.X;
-                    double dy = (y + 0.5) - center.Y;
+                    double dx = (double)((x + 0.5) - center.X);
+                    double dy = (double)((y + 0.5) - center.Y);
                     if ((dx * dx) + (dy * dy) <= radius * radius) {
                         BlendPixel(x, y, color);
                     }

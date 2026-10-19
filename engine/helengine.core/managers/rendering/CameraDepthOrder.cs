@@ -17,8 +17,8 @@ namespace helengine {
             if (leftEntity == null || rightEntity == null) {
                 return 0;
             }
-            double leftDepth = ResolveDepth(left, forward, cameraPosition);
-            double rightDepth = ResolveDepth(right, forward, cameraPosition);
+            RealEvaluation leftDepth = ResolveDepth(left, forward, cameraPosition);
+            RealEvaluation rightDepth = ResolveDepth(right, forward, cameraPosition);
             int depthOrder = rightDepth.CompareTo(leftDepth);
             if (depthOrder != 0) {
                 return depthOrder;
@@ -36,16 +36,16 @@ namespace helengine {
         /// <param name="forward">Camera forward vector.</param>
         /// <param name="cameraPosition">Camera world position.</param>
         /// <returns>Signed camera-relative depth used consistently for all comparisons.</returns>
-        static double ResolveDepth(IDrawable3D drawable, float3 forward, float3 cameraPosition) {
+        static RealEvaluation ResolveDepth(IDrawable3D drawable, float3 forward, float3 cameraPosition) {
             float3 offset = drawable.Parent.Position - cameraPosition;
             if (drawable is IPlanarDrawable3D plane) {
                 float3 normal = plane.WorldPlaneNormal;
-                double denominator = (double)normal.X * forward.X + (double)normal.Y * forward.Y + (double)normal.Z * forward.Z;
-                if (Math.Abs(denominator) > 0.000001) {
-                    return ((double)normal.X * offset.X + (double)normal.Y * offset.Y + (double)normal.Z * offset.Z) / denominator;
+                RealEvaluation denominator = (RealEvaluation)normal.X * forward.X + (RealEvaluation)normal.Y * forward.Y + (RealEvaluation)normal.Z * forward.Z;
+                if (RealMath.Abs(denominator) > 0.000001) {
+                    return ((RealEvaluation)normal.X * offset.X + (RealEvaluation)normal.Y * offset.Y + (RealEvaluation)normal.Z * offset.Z) / denominator;
                 }
             }
-            return (double)offset.X * forward.X + (double)offset.Y * forward.Y + (double)offset.Z * forward.Z;
+            return (RealEvaluation)offset.X * forward.X + (RealEvaluation)offset.Y * forward.Y + (RealEvaluation)offset.Z * forward.Z;
         }
 
         /// <summary>Identifies immediate drawables containing alpha-blended material content.</summary>

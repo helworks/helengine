@@ -40,10 +40,10 @@ namespace helengine.directx11 {
             }
 
             float4 resolvedViewport = CameraViewportResolver.ResolveViewport(viewport, targetWidth, targetHeight);
-            int left = ClampToRange((int)Math.Floor(resolvedViewport.X), 0, targetWidth);
-            int top = ClampToRange((int)Math.Floor(resolvedViewport.Y), 0, targetHeight);
-            int right = ClampToRange((int)Math.Ceiling(resolvedViewport.X + resolvedViewport.Z), left, targetWidth);
-            int bottom = ClampToRange((int)Math.Ceiling(resolvedViewport.Y + resolvedViewport.W), top, targetHeight);
+            int left = ClampToRange((int)RealMath.Floor(resolvedViewport.X), 0, targetWidth);
+            int top = ClampToRange((int)RealMath.Floor(resolvedViewport.Y), 0, targetHeight);
+            int right = ClampToRange((int)RealMath.Ceiling(resolvedViewport.X + resolvedViewport.Z), left, targetWidth);
+            int bottom = ClampToRange((int)RealMath.Ceiling(resolvedViewport.Y + resolvedViewport.W), top, targetHeight);
             return new RawRectangle(left, top, right, bottom);
         }
 

@@ -2022,8 +2022,8 @@ public class BuildDialog : EditorDialogBase {
         /// </summary>
         void UpdateSceneListContentViewport() {
             int borderInset = GetSceneListViewportBorderInsetPixels();
-            float viewportX = SceneListRoot.Position.X + borderInset;
-            float viewportY = SceneListRoot.Position.Y + borderInset;
+            float viewportX = (float)(SceneListRoot.Position.X + borderInset);
+            float viewportY = (float)(SceneListRoot.Position.Y + borderInset);
             float viewportWidth = Math.Max(1, SceneListBackground.Size.X - (borderInset * 2));
             float viewportHeight = Math.Max(1, SceneListBackground.Size.Y - (borderInset * 2));
             SceneListContentCameraComponent.Viewport = new float4(viewportX, viewportY, viewportWidth, viewportHeight);
@@ -2112,7 +2112,7 @@ public class BuildDialog : EditorDialogBase {
         /// </summary>
         /// <returns>Border inset in pixels.</returns>
         int GetSceneListViewportBorderInsetPixels() {
-            return Math.Max(0, (int)Math.Ceiling(SceneListBackground.BorderThickness));
+            return Math.Max(0, (int)RealMath.Ceiling(SceneListBackground.BorderThickness));
         }
 
         /// <summary>

@@ -493,8 +493,8 @@ namespace helengine.editor {
         /// <param name="point">Screen point to evaluate.</param>
         /// <returns>True when the point lies inside the dock bounds.</returns>
         public bool ContainsScreenPoint(int2 point) {
-            int left = (int)Math.Round(Position.X);
-            int top = (int)Math.Round(Position.Y);
+            int left = (int)RealMath.Round(Position.X);
+            int top = (int)RealMath.Round(Position.Y);
             int width = Size.X;
             int height = Size.Y + TitleBarHeightPixels;
             return point.X >= left &&
@@ -508,7 +508,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Scaled top offset for the dock title text.</returns>
         float GetTitleTextTopOffset() {
-            float lineHeight = Math.Max(font.LineHeight, 1f);
+            float lineHeight = (float)RealMath.Max(font.LineHeight, 1f);
             return (TitleBarHeightPixels - lineHeight) * 0.5f;
         }
 

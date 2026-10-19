@@ -129,9 +129,9 @@ namespace helengine.physics3d.tests {
                 float3 expectedPosition = expectedEntities[index].LocalPosition;
                 float3 actualPosition = actualEntities[index].LocalPosition;
                 double positionErrorSquared =
-                    ((double)expectedPosition.X - actualPosition.X) * ((double)expectedPosition.X - actualPosition.X) +
+                    (double)(((double)expectedPosition.X - actualPosition.X) * ((double)expectedPosition.X - actualPosition.X) +
                     ((double)expectedPosition.Y - actualPosition.Y) * ((double)expectedPosition.Y - actualPosition.Y) +
-                    ((double)expectedPosition.Z - actualPosition.Z) * ((double)expectedPosition.Z - actualPosition.Z);
+                    ((double)expectedPosition.Z - actualPosition.Z) * ((double)expectedPosition.Z - actualPosition.Z));
                 Assert.True(
                     positionErrorSquared <= maximumDistanceSquared,
                     $"Expected box {index} to stay near the direct BEPU reference after hitch recovery, but expected {expectedPosition}, actual {actualPosition}, squared error {positionErrorSquared}.");

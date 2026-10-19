@@ -31,17 +31,17 @@ namespace helengine {
         /// projections for this camera. It belongs to the authored camera rather than to each
         /// platform renderer, so one scene frames the same way everywhere.
         /// </summary>
-        float FieldOfView { get; set; }
+        Real FieldOfView { get; set; }
 
         /// <summary>
         /// Gets or sets the near clip-plane distance used when building perspective projections for this camera.
         /// </summary>
-        float NearPlaneDistance { get; set; }
+        Real NearPlaneDistance { get; set; }
 
         /// <summary>
         /// Gets or sets the far clip-plane distance used when building perspective projections for this camera.
         /// </summary>
-        float FarPlaneDistance { get; set; }
+        Real FarPlaneDistance { get; set; }
 
         /// <summary>
         /// Gets or sets the render target that receives this camera's output; null renders to the main back buffer.

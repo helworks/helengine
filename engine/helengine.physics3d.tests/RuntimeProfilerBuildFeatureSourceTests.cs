@@ -69,12 +69,11 @@ namespace helengine {
         /// Resolves the repository root for source-audit assertions.
         /// </summary>
         /// <returns>Absolute HelEngine repository root path.</returns>
-        static string ResolveRepositoryRootPath() {
-            string currentDirectory = AppContext.BaseDirectory;
+        static string ResolveRepositoryRootPath([System.Runtime.CompilerServices.CallerFilePath] string sourcePath = "") {
+            string currentDirectory = Path.GetDirectoryName(sourcePath);
             while (!string.IsNullOrWhiteSpace(currentDirectory)) {
-                if (Directory.Exists(Path.Combine(currentDirectory, "engine"))
-                    && Directory.Exists(Path.Combine(currentDirectory, "helengine.ui"))
-                    && File.Exists(Path.Combine(currentDirectory, "helengine.ui", "helengine.sln"))) {
+                if (File.Exists(Path.Combine(currentDirectory, "engine", "helengine.core", "helengine.core.csproj"))
+                    && File.Exists(Path.Combine(currentDirectory, "engine", "helengine.editor", "helengine.editor.csproj"))) {
                     return currentDirectory;
                 }
 

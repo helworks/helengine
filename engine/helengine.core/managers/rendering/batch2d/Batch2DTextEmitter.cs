@@ -35,9 +35,9 @@ namespace helengine {
                 throw new InvalidOperationException("Cannot emit nonempty text with a disposed font atlas texture.");
             }
 
-            double fontScale = Math.Max((double)drawable.FontScale, 0.0001d);
+            RealEvaluation fontScale = RealMath.Max((RealEvaluation)drawable.FontScale, 0.0001d);
             if (drawable.WrapText) {
-                int maximumWidth = Math.Max(1, (int)Math.Round(drawable.Size.X / fontScale));
+                int maximumWidth = RealMath.Max(1, (int)RealMath.Round(drawable.Size.X / fontScale));
                 text = TextLayoutUtils.WrapText(text, font, maximumWidth);
             }
             if (text.Length == 0) {
@@ -45,7 +45,7 @@ namespace helengine {
             }
 
             List<TextRenderEffectPass> effectPasses = null;
-            double[] lineOffsets = null;
+            RealEvaluation[] lineOffsets = null;
             try {
                 effectPasses = TextRenderEffectPassBuilder.Build(drawable);
                 lineOffsets = TextLineOffsets2D.Build(drawable, font, text, fontScale, atlas.Width);
@@ -68,16 +68,16 @@ namespace helengine {
         /// <param name="lineOffsets">Offsets built from the final text, with one entry per newline-delimited line.</param>
         /// <param name="run">Scissor snapshot supplied for this text drawable.</param>
         static void EmitLaidOutText(Batch2DWriter writer, ITextDrawable2D drawable, FontAsset font, RuntimeTexture atlas, string text,
-            double fontScale, List<TextRenderEffectPass> effectPasses, double[] lineOffsets, Batch2DRun run) {
+            RealEvaluation fontScale, List<TextRenderEffectPass> effectPasses, RealEvaluation[] lineOffsets, Batch2DRun run) {
             float3 position = drawable.Parent.Position;
-            double lineHeight = Math.Max((double)font.LineHeight * fontScale, 1d);
-            double baseX = Math.Round(position.X);
-            double baseY = Math.Round(position.Y);
-            double offsetX = 0d;
-            double offsetY = 0d;
+            RealEvaluation lineHeight = RealMath.Max((RealEvaluation)font.LineHeight * fontScale, 1d);
+            RealEvaluation baseX = RealMath.Round(position.X);
+            RealEvaluation baseY = RealMath.Round(position.Y);
+            RealEvaluation offsetX = 0d;
+            RealEvaluation offsetY = 0d;
             int lineIndex = 0;
             // Build uses the final text's newline split; this traversal advances lineIndex only for those same newlines.
-            double lineOriginX = baseX + lineOffsets[lineIndex];
+            RealEvaluation lineOriginX = baseX + lineOffsets[lineIndex];
             Batch2DRun textRun = new Batch2DRun(Batch2DVariant.Textured, atlas,
                 run.ScissorX, run.ScissorY, run.ScissorWidth, run.ScissorHeight);
 
@@ -100,12 +100,12 @@ namespace helengine {
                     continue;
                 }
 
-                double pixelWidth = glyph.SourceRect.Z * atlas.Width * fontScale;
-                double pixelHeight = glyph.SourceRect.W * atlas.Height * fontScale;
-                double snappedLineOffsetY = Math.Round(offsetY);
-                double advance = glyph.AdvanceWidth > 0f ? glyph.AdvanceWidth * fontScale : pixelWidth;
-                double glyphX = lineOriginX + offsetX + glyph.BearingX * fontScale;
-                double glyphY = baseY + snappedLineOffsetY + glyph.OffsetY * fontScale;
+                RealEvaluation pixelWidth = glyph.SourceRect.Z * atlas.Width * fontScale;
+                RealEvaluation pixelHeight = glyph.SourceRect.W * atlas.Height * fontScale;
+                RealEvaluation snappedLineOffsetY = RealMath.Round(offsetY);
+                RealEvaluation advance = glyph.AdvanceWidth > 0f ? glyph.AdvanceWidth * fontScale : pixelWidth;
+                RealEvaluation glyphX = lineOriginX + offsetX + glyph.BearingX * fontScale;
+                RealEvaluation glyphY = baseY + snappedLineOffsetY + glyph.OffsetY * fontScale;
                 offsetX += advance;
 
                 for (int passIndex = 0; passIndex < effectPasses.Count; passIndex++) {

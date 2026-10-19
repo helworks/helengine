@@ -19,7 +19,7 @@ namespace helengine {
         /// <summary>
         /// Physical local-Z offset that places the open list above nested sibling controls.
         /// </summary>
-        const float DropdownRootDepth = 1f;
+        static readonly Real DropdownRootDepth = 1f;
         /// <summary>
         /// ASCII glyph used to indicate the drop-down arrow.
         /// </summary>
@@ -576,26 +576,26 @@ namespace helengine {
                 return;
             }
 
-            double lineHeight = Math.Max((double)FontValue.LineHeight, 1.0);
-            double labelY = Math.Round((SizeValue.Y - lineHeight) / 2.0, MidpointRounding.AwayFromZero);
+            RealEvaluation lineHeight = RealMath.Max((RealEvaluation)FontValue.LineHeight, 1.0);
+            RealEvaluation labelY = RealMath.Round((SizeValue.Y - lineHeight) / 2.0, MidpointRounding.AwayFromZero);
 
             FontTightMetrics labelMetrics = FontValue.MeasureTight(LabelText.Text);
-            int labelWidth = (int)Math.Ceiling(labelMetrics.Width);
-            int labelHeight = (int)Math.Ceiling(Math.Max((double)labelMetrics.Height, 1.0));
+            int labelWidth = (int)RealMath.Ceiling(labelMetrics.Width);
+            int labelHeight = (int)RealMath.Ceiling(RealMath.Max((RealEvaluation)labelMetrics.Height, 1.0));
             LabelText.Size = new int2(labelWidth, labelHeight);
-            LabelEntity.Position = new float3(TextPaddingX, (float)labelY, 0.1f);
+            LabelEntity.Position = new float3(TextPaddingX, (RealEvaluation)labelY, 0.1f);
 
             FontTightMetrics arrowMetrics = FontValue.MeasureTight(ArrowGlyph);
-            int arrowWidth = (int)Math.Ceiling(arrowMetrics.Width);
-            int arrowHeight = (int)Math.Ceiling(Math.Max((double)arrowMetrics.Height, 1.0));
+            int arrowWidth = (int)RealMath.Ceiling(arrowMetrics.Width);
+            int arrowHeight = (int)RealMath.Ceiling(RealMath.Max((RealEvaluation)arrowMetrics.Height, 1.0));
             ArrowText.Size = new int2(arrowWidth, arrowHeight);
 
-            double arrowX = SizeValue.X - ArrowPaddingX - arrowMetrics.Width;
+            RealEvaluation arrowX = SizeValue.X - ArrowPaddingX - arrowMetrics.Width;
             if (arrowX < TextPaddingX) {
                 arrowX = TextPaddingX;
             }
-            arrowX = Math.Round(arrowX, MidpointRounding.AwayFromZero);
-            ArrowEntity.Position = new float3((float)arrowX, (float)labelY, 0.1f);
+            arrowX = RealMath.Round(arrowX, MidpointRounding.AwayFromZero);
+            ArrowEntity.Position = new float3((RealEvaluation)arrowX, (RealEvaluation)labelY, 0.1f);
         }
 
         /// <summary>
@@ -613,7 +613,7 @@ namespace helengine {
 
             // Open upward when the downward list would leave the nearest ancestor clip region: clipped list
             // items are both invisible and rejected by pointer hit-testing, so they could never be selected.
-            float listOffsetY = SizeValue.Y + ListGap;
+            RealEvaluation listOffsetY = SizeValue.Y + ListGap;
             if (Parent != null && TryFindNearestAncestorClipRect(out float4 clipRect)) {
                 float3 comboOrigin = Parent.Position;
                 bool overflowsBelow = comboOrigin.Y + SizeValue.Y + ListGap + listHeight > clipRect.Y + clipRect.W;
@@ -631,7 +631,7 @@ namespace helengine {
 
             EnsureItemVisuals(ItemsValue.Count);
 
-            double lineHeight = Math.Max((double)FontValue.LineHeight, 1.0);
+            RealEvaluation lineHeight = RealMath.Max((RealEvaluation)FontValue.LineHeight, 1.0);
             bool shouldShow = IsOpenValue && ItemsValue.Count > 0;
             for (int i = 0; i < ItemVisuals.Count; i++) {
                 ComboBoxItemVisual entry = ItemVisuals[i];
@@ -665,12 +665,12 @@ namespace helengine {
 
                 FontTightMetrics itemMetrics = FontValue.MeasureTight(itemText);
                 entry.Label.Size = new int2(
-                    (int)Math.Ceiling(itemMetrics.Width),
-                    (int)Math.Ceiling(Math.Max((double)itemMetrics.Height, 1.0))
+                    (int)RealMath.Ceiling(itemMetrics.Width),
+                    (int)RealMath.Ceiling(RealMath.Max((RealEvaluation)itemMetrics.Height, 1.0))
                 );
 
-                double textY = Math.Round((ItemHeight - lineHeight) / 2.0, MidpointRounding.AwayFromZero);
-                entry.LabelHost.Position = new float3(TextPaddingX, (float)textY, 0.1f);
+                RealEvaluation textY = RealMath.Round((ItemHeight - lineHeight) / 2.0, MidpointRounding.AwayFromZero);
+                entry.LabelHost.Position = new float3(TextPaddingX, (RealEvaluation)textY, 0.1f);
                 UpdateItemVisualState(entry, i == SelectedIndexValue);
             }
         }
@@ -723,7 +723,7 @@ namespace helengine {
         /// Updates the visuals for all active item rows.
         /// </summary>
         void UpdateAllItemStates() {
-            int count = Math.Min(ItemsValue.Count, ItemVisuals.Count);
+            int count = RealMath.Min(ItemsValue.Count, ItemVisuals.Count);
             for (int i = 0; i < count; i++) {
                 UpdateItemVisualState(ItemVisuals[i], i == SelectedIndexValue);
             }
@@ -916,9 +916,9 @@ namespace helengine {
         /// </summary>
         /// <param name="size">Size used to derive the radius.</param>
         /// <returns>Rounded corner radius.</returns>
-        float GetCornerRadius(int2 size) {
-            double minAxis = Math.Min(size.X, size.Y);
-            return (float)(minAxis * 0.15);
+        RealEvaluation GetCornerRadius(int2 size) {
+            RealEvaluation minAxis = RealMath.Min(size.X, size.Y);
+            return (RealEvaluation)(minAxis * 0.15);
         }
 
         /// <summary>
@@ -957,8 +957,8 @@ namespace helengine {
 
             float3 comboOrigin = Parent.Position;
             float3 listOrigin = ListRoot.Position;
-            double listRelativeX = relativeX - (listOrigin.X - comboOrigin.X);
-            double listRelativeY = relativeY - (listOrigin.Y - comboOrigin.Y);
+            RealEvaluation listRelativeX = relativeX - (listOrigin.X - comboOrigin.X);
+            RealEvaluation listRelativeY = relativeY - (listOrigin.Y - comboOrigin.Y);
             return listRelativeX >= 0 && listRelativeX < SizeValue.X && listRelativeY >= 0 && listRelativeY < listHeight;
         }
 

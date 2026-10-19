@@ -37,8 +37,8 @@ namespace helengine.editor {
         internal bool IsVisible => IndicatorRoot.Enabled;
 
         internal int2 IndicatorTopLeft => new int2(
-            (int)MathF.Round(IndicatorRoot.Position.X),
-            (int)MathF.Round(IndicatorRoot.Position.Y));
+            (int)MathF.Round((float)(IndicatorRoot.Position.X)),
+            (int)MathF.Round((float)(IndicatorRoot.Position.Y)));
 
         internal ScrollOrientation? VisibleOrientation {
             get {

@@ -58,9 +58,9 @@ namespace helengine.editor {
             visualEntity.LocalPosition = selectedEntity.Position;
             visualEntity.LocalOrientation = selectedEntity.Orientation;
             visualEntity.LocalScale = new float3(
-                Math.Abs(boxCollider.Size.X * worldScale.X),
-                Math.Abs(boxCollider.Size.Y * worldScale.Y),
-                Math.Abs(boxCollider.Size.Z * worldScale.Z));
+                RealMath.Abs(boxCollider.Size.X * worldScale.X),
+                RealMath.Abs(boxCollider.Size.Y * worldScale.Y),
+                RealMath.Abs(boxCollider.Size.Z * worldScale.Z));
         }
     }
 }

@@ -29,9 +29,9 @@ namespace helengine {
 
             bool foundSupport = false;
             supportHeight = 0f;
-            float sampleOffsetX = halfExtents.X * 0.8f;
-            float sampleOffsetZ = halfExtents.Z * 0.8f;
-            float maximumSupportHeight = centerY + halfExtents.Y + 0.05f;
+            float sampleOffsetX = (float)(halfExtents.X * 0.8f);
+            float sampleOffsetZ = (float)(halfExtents.Z * 0.8f);
+            float maximumSupportHeight = (float)(centerY + halfExtents.Y + 0.05f);
 
             AccumulateSupportHeight(staticMeshStates, centerX, centerZ, maximumSupportHeight, maximumSlopeDegrees, ref foundSupport, ref supportHeight);
             AccumulateSupportHeight(staticMeshStates, centerX - sampleOffsetX, centerZ - sampleOffsetZ, maximumSupportHeight, maximumSlopeDegrees, ref foundSupport, ref supportHeight);
@@ -148,8 +148,8 @@ namespace helengine {
                 return false;
             }
 
-            float planeNumerator = (normal.X * (sampleX - a.X)) + (normal.Z * (sampleZ - a.Z));
-            supportHeight = a.Y - (planeNumerator / normal.Y);
+            float planeNumerator = (float)((normal.X * (sampleX - a.X)) + (normal.Z * (sampleZ - a.Z)));
+            supportHeight = (float)(a.Y - (planeNumerator / normal.Y));
             return true;
         }
     }

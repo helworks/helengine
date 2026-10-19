@@ -5,12 +5,12 @@ using System.Runtime.InteropServices;
 namespace helengine.directx11 {
     [StructLayout(LayoutKind.Sequential)]
     public struct VertexPositionUV {
-        public float3 Position;
-        public float2 TexCoord;
+        public GpuFloat3 Position;
+        public GpuFloat2 TexCoord;
 
         public VertexPositionUV(float3 pos,  float2 tc) {
-            Position = pos; 
-            TexCoord = tc;
+            Position = GpuFloat3.FromEngine(pos);
+            TexCoord = GpuFloat2.FromEngine(tc);
         }
 
         public static InputElement[] Elements = [

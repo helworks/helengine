@@ -42,20 +42,20 @@ namespace helengine.editor {
             }
 
             float4 viewport = sceneCamera.Viewport;
-            if (!float.IsFinite(viewport.Z) || !float.IsFinite(viewport.W) || viewport.Z <= 1f || viewport.W <= 1f) {
+            if (!float.IsFinite((float)(viewport.Z)) || !float.IsFinite((float)(viewport.W)) || viewport.Z <= 1f || viewport.W <= 1f) {
                 return;
             }
 
             float3 focusCenter;
             double focusRadius;
             ResolveFocusBounds(selectedEntity, out focusCenter, out focusRadius, out float3[] focusPoints, out bool is2DSelection);
-            if (!float.IsFinite(focusCenter.X) || !float.IsFinite(focusCenter.Y) || !float.IsFinite(focusCenter.Z) ||
+            if (!float.IsFinite((float)(focusCenter.X)) || !float.IsFinite((float)(focusCenter.Y)) || !float.IsFinite((float)(focusCenter.Z)) ||
                 !double.IsFinite(focusRadius)) {
                 return;
             }
 
-            double viewportWidth = viewport.Z;
-            double viewportHeight = viewport.W;
+            double viewportWidth = (double)(viewport.Z);
+            double viewportHeight = (double)(viewport.W);
             double aspectRatio = viewportWidth / viewportHeight;
             if (!double.IsFinite(aspectRatio) || aspectRatio <= 0.0) {
                 return;
@@ -69,14 +69,14 @@ namespace helengine.editor {
                     return;
                 }
 
-                requiredDistance = Math.Max(focusRadius + Math.Max(0.1, sceneCamera.NearPlaneDistance),
+                requiredDistance = Math.Max(focusRadius + Math.Max(0.1, sceneCamera.NearPlaneDistance.ToDouble()),
                     GetDistance(cameraController.Parent.Position, cameraController.GetOrbitTarget()));
             } else {
-                float fieldOfView = sceneCamera.FieldOfView;
+                float fieldOfView = (float)(sceneCamera.FieldOfView);
                 if (!float.IsFinite(fieldOfView) || fieldOfView <= 0f) {
                     return;
                 }
-                double halfVerticalFieldOfView = CameraProjectionUtils.ClampFieldOfView(fieldOfView) * 0.5;
+                double halfVerticalFieldOfView = (double)(CameraProjectionUtils.ClampFieldOfView(fieldOfView) * 0.5);
                 double halfHorizontalFieldOfView = Math.Atan(Math.Tan(halfVerticalFieldOfView) * aspectRatio);
                 double limitingHalfFieldOfView = Math.Min(halfVerticalFieldOfView, halfHorizontalFieldOfView);
                 requiredDistance = focusRadius * FocusPaddingFactor / Math.Sin(limitingHalfFieldOfView);
@@ -89,7 +89,7 @@ namespace helengine.editor {
                 }
             }
 
-            requiredDistance = Math.Max(requiredDistance, focusRadius + Math.Max(0.1, sceneCamera.NearPlaneDistance));
+            requiredDistance = Math.Max(requiredDistance, focusRadius + Math.Max(0.1, sceneCamera.NearPlaneDistance.ToDouble()));
             double requiredFarPlane = requiredDistance + focusRadius + FarPlaneMargin;
             // Reject bounds that cannot fit within the camera's single-precision world and clipping range before changing its state.
             if (!double.IsFinite(requiredFarPlane) || requiredFarPlane > float.MaxValue ||
@@ -126,10 +126,10 @@ namespace helengine.editor {
             float3 minimum = points[0];
             float3 maximum = points[0];
             foreach (float3 point in points) {
-                minimum = new float3(Math.Min(minimum.X, point.X), Math.Min(minimum.Y, point.Y), Math.Min(minimum.Z, point.Z));
-                maximum = new float3(Math.Max(maximum.X, point.X), Math.Max(maximum.Y, point.Y), Math.Max(maximum.Z, point.Z));
+                minimum = new float3(RealMath.Min(minimum.X, point.X), RealMath.Min(minimum.Y, point.Y), RealMath.Min(minimum.Z, point.Z));
+                maximum = new float3(RealMath.Max(maximum.X, point.X), RealMath.Max(maximum.Y, point.Y), RealMath.Max(maximum.Z, point.Z));
             }
-            return Math.Max((double)maximum.X - minimum.X, Math.Max((double)maximum.Y - minimum.Y, (double)maximum.Z - minimum.Z));
+            return RealMath.Max((double)maximum.X - minimum.X, RealMath.Max((double)maximum.Y - minimum.Y, (double)maximum.Z - minimum.Z)).ToDouble();
         }
 
         /// <summary>
@@ -197,9 +197,9 @@ namespace helengine.editor {
             float3 forward = float4.RotateVector(new float3(0, 0, -1), orientation);
             foreach (float3 point in points) {
                 float3 offset = point - center;
-                double depth = float3.Dot(offset, forward);
-                double horizontalDistance = Math.Abs(float3.Dot(offset, right)) * FocusPaddingFactor / horizontalTangent - depth;
-                double verticalDistance = Math.Abs(float3.Dot(offset, up)) * FocusPaddingFactor / verticalTangent - depth;
+                double depth = (double)(float3.Dot(offset, forward));
+                double horizontalDistance = (RealMath.Abs(float3.Dot(offset, right)) * FocusPaddingFactor / horizontalTangent - depth).ToDouble();
+                double verticalDistance = (RealMath.Abs(float3.Dot(offset, up)) * FocusPaddingFactor / verticalTangent - depth).ToDouble();
                 distance = Math.Max(distance, Math.Max(horizontalDistance, verticalDistance));
             }
             return distance;
@@ -289,9 +289,9 @@ namespace helengine.editor {
             };
             points?.AddRange(corners);
             ResolveBoundsFromPoints(corners, out focusCenter, out focusRadius);
-            double width = Math.Abs(((double)boundsMax.X - boundsMin.X) * selectedEntity.Scale.X);
-            double height = Math.Abs(((double)boundsMax.Y - boundsMin.Y) * selectedEntity.Scale.Y);
-            double depth = Math.Abs(((double)boundsMax.Z - boundsMin.Z) * selectedEntity.Scale.Z);
+            double width = RealMath.Abs(((double)boundsMax.X - boundsMin.X) * selectedEntity.Scale.X).ToDouble();
+            double height = RealMath.Abs(((double)boundsMax.Y - boundsMin.Y) * selectedEntity.Scale.Y).ToDouble();
+            double depth = RealMath.Abs(((double)boundsMax.Z - boundsMin.Z) * selectedEntity.Scale.Z).ToDouble();
             selectionExtent = Math.Max(width, Math.Max(height, depth));
             return true;
         }
@@ -369,13 +369,13 @@ namespace helengine.editor {
             for (int pointIndex = 1; pointIndex < points.Length; pointIndex++) {
                 float3 point = points[pointIndex];
                 minimum = new float3(
-                    Math.Min(minimum.X, point.X),
-                    Math.Min(minimum.Y, point.Y),
-                    Math.Min(minimum.Z, point.Z));
+                    RealMath.Min(minimum.X, point.X),
+                    RealMath.Min(minimum.Y, point.Y),
+                    RealMath.Min(minimum.Z, point.Z));
                 maximum = new float3(
-                    Math.Max(maximum.X, point.X),
-                    Math.Max(maximum.Y, point.Y),
-                    Math.Max(maximum.Z, point.Z));
+                    RealMath.Max(maximum.X, point.X),
+                    RealMath.Max(maximum.Y, point.Y),
+                    RealMath.Max(maximum.Z, point.Z));
             }
 
             focusCenter = new float3(
@@ -461,7 +461,7 @@ namespace helengine.editor {
         /// <param name="right">Second point.</param>
         /// <returns>Distance between the two points.</returns>
         double GetDistance(float3 left, float3 right) {
-            return float3.Distance(left, right);
+            return (double)(float3.Distance(left, right));
         }
 
     }

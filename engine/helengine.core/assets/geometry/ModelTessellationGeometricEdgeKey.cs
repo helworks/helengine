@@ -4,34 +4,34 @@ namespace helengine {
     /// </summary>
     internal sealed class ModelTessellationGeometricEdgeKey : IEquatable<ModelTessellationGeometricEdgeKey> {
         /// <summary>
-        /// Packed bit pattern for the first endpoint's X coordinate.
+        /// Stored coordinate value for the first endpoint's X coordinate.
         /// </summary>
-        readonly int FirstX;
+        readonly Real FirstX;
 
         /// <summary>
-        /// Packed bit pattern for the first endpoint's Y coordinate.
+        /// Stored coordinate value for the first endpoint's Y coordinate.
         /// </summary>
-        readonly int FirstY;
+        readonly Real FirstY;
 
         /// <summary>
-        /// Packed bit pattern for the first endpoint's Z coordinate.
+        /// Stored coordinate value for the first endpoint's Z coordinate.
         /// </summary>
-        readonly int FirstZ;
+        readonly Real FirstZ;
 
         /// <summary>
-        /// Packed bit pattern for the second endpoint's X coordinate.
+        /// Stored coordinate value for the second endpoint's X coordinate.
         /// </summary>
-        readonly int SecondX;
+        readonly Real SecondX;
 
         /// <summary>
-        /// Packed bit pattern for the second endpoint's Y coordinate.
+        /// Stored coordinate value for the second endpoint's Y coordinate.
         /// </summary>
-        readonly int SecondY;
+        readonly Real SecondY;
 
         /// <summary>
-        /// Packed bit pattern for the second endpoint's Z coordinate.
+        /// Stored coordinate value for the second endpoint's Z coordinate.
         /// </summary>
-        readonly int SecondZ;
+        readonly Real SecondZ;
 
         /// <summary>
         /// Initializes one unordered position-space edge key.
@@ -39,12 +39,12 @@ namespace helengine {
         /// <param name="first">First endpoint position.</param>
         /// <param name="second">Second endpoint position.</param>
         public ModelTessellationGeometricEdgeKey(float3 first, float3 second) {
-            int firstX = BitConverter.SingleToInt32Bits(first.X);
-            int firstY = BitConverter.SingleToInt32Bits(first.Y);
-            int firstZ = BitConverter.SingleToInt32Bits(first.Z);
-            int secondX = BitConverter.SingleToInt32Bits(second.X);
-            int secondY = BitConverter.SingleToInt32Bits(second.Y);
-            int secondZ = BitConverter.SingleToInt32Bits(second.Z);
+            Real firstX = first.X;
+            Real firstY = first.Y;
+            Real firstZ = first.Z;
+            Real secondX = second.X;
+            Real secondY = second.Y;
+            Real secondZ = second.Z;
             if (Compare(firstX, firstY, firstZ, secondX, secondY, secondZ) <= 0) {
                 FirstX = firstX;
                 FirstY = firstY;
@@ -66,7 +66,7 @@ namespace helengine {
         /// Determines whether another position-space edge has the same endpoints.
         /// </summary>
         /// <param name="other">Other key to compare.</param>
-        /// <returns>True when the packed endpoints match.</returns>
+        /// <returns>True when the stored endpoints match.</returns>
         public bool Equals(ModelTessellationGeometricEdgeKey other) {
             return FirstX == other.FirstX && FirstY == other.FirstY && FirstZ == other.FirstZ
                 && SecondX == other.SecondX && SecondY == other.SecondY && SecondZ == other.SecondZ;
@@ -84,20 +84,20 @@ namespace helengine {
         /// <summary>
         /// Gets a stable hash code for dictionary lookup.
         /// </summary>
-        /// <returns>Hash code derived from the packed endpoint coordinates.</returns>
+        /// <returns>Hash code derived from the stored endpoint coordinates.</returns>
         public override int GetHashCode() {
             unchecked {
-                int hashCode = FirstX;
-                hashCode = (hashCode * 397) ^ FirstY;
-                hashCode = (hashCode * 397) ^ FirstZ;
-                hashCode = (hashCode * 397) ^ SecondX;
-                hashCode = (hashCode * 397) ^ SecondY;
-                return (hashCode * 397) ^ SecondZ;
+                int hashCode = FirstX.GetHashCode();
+                hashCode = (hashCode * 397) ^ FirstY.GetHashCode();
+                hashCode = (hashCode * 397) ^ FirstZ.GetHashCode();
+                hashCode = (hashCode * 397) ^ SecondX.GetHashCode();
+                hashCode = (hashCode * 397) ^ SecondY.GetHashCode();
+                return (hashCode * 397) ^ SecondZ.GetHashCode();
             }
         }
 
         /// <summary>
-        /// Compares two packed three-component positions lexicographically.
+        /// Compares two stored three-component positions lexicographically.
         /// </summary>
         /// <param name="leftX">First left coordinate.</param>
         /// <param name="leftY">Second left coordinate.</param>
@@ -106,7 +106,7 @@ namespace helengine {
         /// <param name="rightY">Second right coordinate.</param>
         /// <param name="rightZ">Third right coordinate.</param>
         /// <returns>Negative when left precedes right, zero when equal, otherwise positive.</returns>
-        static int Compare(int leftX, int leftY, int leftZ, int rightX, int rightY, int rightZ) {
+        static int Compare(Real leftX, Real leftY, Real leftZ, Real rightX, Real rightY, Real rightZ) {
             int result = leftX.CompareTo(rightX);
             if (result != 0) {
                 return result;

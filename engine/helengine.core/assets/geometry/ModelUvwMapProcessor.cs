@@ -44,10 +44,10 @@ namespace helengine {
             ModelAsset asset,
             string axisU,
             string axisV,
-            double scaleU,
-            double scaleV,
-            double offsetU,
-            double offsetV,
+            RealEvaluation scaleU,
+            RealEvaluation scaleV,
+            RealEvaluation offsetU,
+            RealEvaluation offsetV,
             float3 worldPosition,
             float4 worldOrientation) {
             ValidateAsset(asset);
@@ -66,8 +66,8 @@ namespace helengine {
             for (int vertexIndex = 0; vertexIndex < asset.Positions.Length; vertexIndex++) {
                 float3 worldVertex = worldPosition + float4.RotateVector(asset.Positions[vertexIndex], worldOrientation);
                 texCoords[vertexIndex] = new float2(
-                    SelectAxisComponent(worldVertex, axisU) * (float)scaleU + (float)offsetU,
-                    SelectAxisComponent(worldVertex, axisV) * (float)scaleV + (float)offsetV);
+                    SelectAxisComponent(worldVertex, axisU) * (RealEvaluation)scaleU + (RealEvaluation)offsetU,
+                    SelectAxisComponent(worldVertex, axisV) * (RealEvaluation)scaleV + (RealEvaluation)offsetV);
             }
 
             NativeOwnership.Release(ref asset.TexCoords);
@@ -89,14 +89,14 @@ namespace helengine {
         /// <param name="offsetV">Offset added to the V component after mapping.</param>
         public static void ApplyBoxMap(
             ModelAsset asset,
-            double boxWidth,
-            double boxHeight,
-            double boxLength,
-            double tileU,
-            double tileV,
-            double tileW,
-            double offsetU,
-            double offsetV) {
+            RealEvaluation boxWidth,
+            RealEvaluation boxHeight,
+            RealEvaluation boxLength,
+            RealEvaluation tileU,
+            RealEvaluation tileV,
+            RealEvaluation tileW,
+            RealEvaluation offsetU,
+            RealEvaluation offsetV) {
             ValidateAsset(asset);
             ValidateBoxDimension(boxWidth, nameof(boxWidth));
             ValidateBoxDimension(boxHeight, nameof(boxHeight));
@@ -114,10 +114,10 @@ namespace helengine {
             }
 
             float3 axisScale = new float3(
-                (float)(tileU / boxWidth),
-                (float)(tileV / boxHeight),
-                (float)(tileW / boxLength));
-            float2 uvOffset = new float2((float)offsetU, (float)offsetV);
+                (RealEvaluation)(tileU / boxWidth),
+                (RealEvaluation)(tileV / boxHeight),
+                (RealEvaluation)(tileW / boxLength));
+            float2 uvOffset = new float2((RealEvaluation)offsetU, (RealEvaluation)offsetV);
             List<float3> positions = new List<float3>(asset.Positions);
             List<float3> normals = new List<float3>(asset.Normals);
             List<float2> texCoords = new List<float2>(new float2[asset.Positions.Length]);
@@ -223,9 +223,9 @@ namespace helengine {
         /// <param name="normal">Unnormalized geometric triangle normal.</param>
         /// <returns>0 for X-dominant, 1 for Y-dominant, and 2 for Z-dominant triangles.</returns>
         static int ResolveDominantAxis(float3 normal) {
-            float absoluteX = Math.Abs(normal.X);
-            float absoluteY = Math.Abs(normal.Y);
-            float absoluteZ = Math.Abs(normal.Z);
+            RealEvaluation absoluteX = RealMath.Abs(normal.X);
+            RealEvaluation absoluteY = RealMath.Abs(normal.Y);
+            RealEvaluation absoluteZ = RealMath.Abs(normal.Z);
             if (absoluteX >= absoluteY && absoluteX >= absoluteZ) {
                 return 0;
             }
@@ -258,7 +258,7 @@ namespace helengine {
         /// <param name="worldVertex">World-space vertex position.</param>
         /// <param name="axis">Axis identifier to select.</param>
         /// <returns>Selected world component.</returns>
-        static float SelectAxisComponent(float3 worldVertex, string axis) {
+        static RealEvaluation SelectAxisComponent(float3 worldVertex, string axis) {
             if (string.Equals(axis, AxisX, StringComparison.Ordinal)) {
                 return worldVertex.X;
             }
@@ -287,8 +287,8 @@ namespace helengine {
         /// </summary>
         /// <param name="value">Scale or offset value to validate.</param>
         /// <param name="parameterName">Name of the validated parameter.</param>
-        static void ValidateFinite(double value, string parameterName) {
-            if (double.IsNaN(value) || double.IsInfinity(value)) {
+        static void ValidateFinite(RealEvaluation value, string parameterName) {
+            if (RealEvaluation.IsNaN(value) || RealEvaluation.IsInfinity(value)) {
                 throw new ArgumentOutOfRangeException(parameterName, "UVW map scales and offsets must be finite.");
             }
         }
@@ -298,8 +298,8 @@ namespace helengine {
         /// </summary>
         /// <param name="value">Box dimension in world units.</param>
         /// <param name="parameterName">Name of the validated parameter.</param>
-        static void ValidateBoxDimension(double value, string parameterName) {
-            if (double.IsNaN(value) || double.IsInfinity(value) || value == 0d) {
+        static void ValidateBoxDimension(RealEvaluation value, string parameterName) {
+            if (RealEvaluation.IsNaN(value) || RealEvaluation.IsInfinity(value) || value == 0d) {
                 throw new ArgumentOutOfRangeException(parameterName, "UVW box dimensions must be finite and non-zero.");
             }
         }

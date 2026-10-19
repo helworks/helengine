@@ -363,9 +363,9 @@ namespace helengine.editor.tests {
 
             InvokePrivateMethod(viewport, "UpdateViewport");
 
-            float playX = GetPrivateField<EditorEntity>(viewport, "PlayButtonRoot").Position.X;
-            float stopX = GetPrivateField<EditorEntity>(viewport, "StopButtonRoot").Position.X;
-            float statsX = GetPrivateField<EditorEntity>(viewport, "StatsButtonRoot").Position.X;
+            double playX = (double)(GetPrivateField<EditorEntity>(viewport, "PlayButtonRoot").Position.X);
+            double stopX = (double)(GetPrivateField<EditorEntity>(viewport, "StopButtonRoot").Position.X);
+            double statsX = (double)(GetPrivateField<EditorEntity>(viewport, "StatsButtonRoot").Position.X);
             Assert.True(playX < stopX, "Expected Play to sit left of Stop.");
             Assert.True(stopX + 22f <= statsX, "Expected Stop to end before the stats button begins.");
         }
@@ -508,8 +508,8 @@ namespace helengine.editor.tests {
             InvokePrivateMethod(viewport, "UpdateViewport");
 
             EditorEntity[] decreaseButtons = GetPrivateField<EditorEntity[]>(viewport, "SnapDecreaseButtonRoots");
-            float snapGroupRight = decreaseButtons[decreaseButtons.Length - 1].Position.X + 22f;
-            float playX = GetPrivateField<EditorEntity>(viewport, "PlayButtonRoot").Position.X;
+            double snapGroupRight = (double)(decreaseButtons[decreaseButtons.Length - 1].Position.X + 22f);
+            double playX = (double)(GetPrivateField<EditorEntity>(viewport, "PlayButtonRoot").Position.X);
             Assert.True(playX >= snapGroupRight, $"Expected Play ({playX}) to start after the snap group ends ({snapGroupRight}).");
         }
 
@@ -524,10 +524,10 @@ namespace helengine.editor.tests {
 
             InvokePrivateMethod(viewport, "UpdateViewport");
 
-            float playX = GetPrivateField<EditorEntity>(viewport, "PlayButtonRoot").Position.X;
+            double playX = (double)(GetPrivateField<EditorEntity>(viewport, "PlayButtonRoot").Position.X);
             ComboBoxComponent selector = GetPrivateField<ComboBoxComponent>(viewport, "PlayPlatformComboBox");
-            float selectorX = selector.Parent.Position.X;
-            float stopX = GetPrivateField<EditorEntity>(viewport, "StopButtonRoot").Position.X;
+            double selectorX = (double)(selector.Parent.Position.X);
+            double stopX = (double)(GetPrivateField<EditorEntity>(viewport, "StopButtonRoot").Position.X);
             Assert.True(playX + 22f <= selectorX, "Expected the selector to start after the Play button ends.");
             Assert.True(selectorX + selector.Size.X <= stopX, "Expected the selector to end before Stop begins.");
         }

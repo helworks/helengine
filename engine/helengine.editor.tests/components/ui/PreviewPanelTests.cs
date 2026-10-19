@@ -288,8 +288,8 @@ namespace helengine.editor.tests {
             panel.SetPreviewSource(source);
             EditorEntity gridButtonRoot = GetPrivateField<EditorEntity>(panel, "gridButtonRoot");
             float4 initialOrientation = source.PreviewCamera.Parent.Orientation;
-            int pointerX = (int)Math.Round(gridButtonRoot.Position.X) + 4;
-            int pointerY = (int)Math.Round(gridButtonRoot.Position.Y) + 4;
+            int pointerX = (int)Math.Round((double)(gridButtonRoot.Position.X)) + 4;
+            int pointerY = (int)Math.Round((double)(gridButtonRoot.Position.Y)) + 4;
 
             CompleteInputFrame(new MouseState(
                 pointerX,
@@ -334,8 +334,8 @@ namespace helengine.editor.tests {
             float3 initialPosition = textureHost.Position;
             int2 initialSize = textureSprite.Size;
 
-            int pointerX = (int)Math.Round(initialPosition.X) + 100;
-            int pointerY = (int)Math.Round(initialPosition.Y) + 50;
+            int pointerX = (int)Math.Round((double)(initialPosition.X)) + 100;
+            int pointerY = (int)Math.Round((double)(initialPosition.Y)) + 50;
 
             CompleteInputFrame(new MouseState(
                 pointerX,
@@ -362,8 +362,8 @@ namespace helengine.editor.tests {
             Assert.Equal(new int2(458, 229), textureSprite.Size);
             double widthScale = textureSprite.Size.X / (double)initialSize.X;
             double heightScale = textureSprite.Size.Y / (double)initialSize.Y;
-            double expectedOffsetX = (pointerX - initialPosition.X) * (widthScale - 1d);
-            double expectedOffsetY = (pointerY - initialPosition.Y) * (heightScale - 1d);
+            double expectedOffsetX = (double)((pointerX - initialPosition.X) * (widthScale - 1d));
+            double expectedOffsetY = (double)((pointerY - initialPosition.Y) * (heightScale - 1d));
 
             Assert.Equal(initialPosition.X - expectedOffsetX, textureHost.Position.X, 3);
             Assert.Equal(initialPosition.Y - expectedOffsetY, textureHost.Position.Y, 3);
@@ -385,8 +385,8 @@ namespace helengine.editor.tests {
             float3 initialPosition = textureHost.LocalPosition;
 
             CompleteInputFrame(new MouseState(
-                (int)Math.Round(initialPosition.X) + 100,
-                (int)Math.Round(initialPosition.Y) + 50,
+                (int)Math.Round((double)(initialPosition.X)) + 100,
+                (int)Math.Round((double)(initialPosition.Y)) + 50,
                 0,
                 ButtonState.Released,
                 ButtonState.Released,
@@ -394,8 +394,8 @@ namespace helengine.editor.tests {
                 ButtonState.Released,
                 ButtonState.Released));
             AdvanceInputFrame(new MouseState(
-                (int)Math.Round(initialPosition.X) + 120,
-                (int)Math.Round(initialPosition.Y) + 70,
+                (int)Math.Round((double)(initialPosition.X)) + 120,
+                (int)Math.Round((double)(initialPosition.Y)) + 70,
                 0,
                 ButtonState.Released,
                 ButtonState.Pressed,
@@ -406,8 +406,8 @@ namespace helengine.editor.tests {
             panel.UpdatePreviewSource();
             Input.Update();
 
-            Assert.Equal(initialPosition.X + 20f, textureHost.LocalPosition.X);
-            Assert.Equal(initialPosition.Y + 20f, textureHost.LocalPosition.Y);
+            Assert.EqualEvaluation(initialPosition.X + 20f, textureHost.LocalPosition.X);
+            Assert.EqualEvaluation(initialPosition.Y + 20f, textureHost.LocalPosition.Y);
         }
 
         /// <summary>
@@ -424,8 +424,8 @@ namespace helengine.editor.tests {
             panel.SetPreviewSource(source);
 
             EditorEntity contentRoot = GetPrivateField<EditorEntity>(panel, "contentRoot");
-            int pointerX = (int)Math.Round(contentRoot.Position.X) + 100;
-            int pointerY = (int)Math.Round(contentRoot.Position.Y) + 80;
+            int pointerX = (int)Math.Round((double)(contentRoot.Position.X)) + 100;
+            int pointerY = (int)Math.Round((double)(contentRoot.Position.Y)) + 80;
 
             CompleteInputFrame(new MouseState(
                 pointerX,
@@ -469,8 +469,8 @@ namespace helengine.editor.tests {
             panel.SetPreviewSource(source);
 
             EditorEntity contentRoot = GetPrivateField<EditorEntity>(panel, "contentRoot");
-            int pointerX = (int)Math.Round(contentRoot.Position.X) + 100;
-            int pointerY = (int)Math.Round(contentRoot.Position.Y) + 80;
+            int pointerX = (int)Math.Round((double)(contentRoot.Position.X)) + 100;
+            int pointerY = (int)Math.Round((double)(contentRoot.Position.Y)) + 80;
 
             CompleteInputFrame(new MouseState(
                 pointerX,
@@ -513,8 +513,8 @@ namespace helengine.editor.tests {
             panel.SetPreviewSource(source);
 
             EditorEntity contentRoot = GetPrivateField<EditorEntity>(panel, "contentRoot");
-            int pointerX = (int)Math.Round(contentRoot.Position.X) + 100;
-            int pointerY = (int)Math.Round(contentRoot.Position.Y) + 80;
+            int pointerX = (int)Math.Round((double)(contentRoot.Position.X)) + 100;
+            int pointerY = (int)Math.Round((double)(contentRoot.Position.Y)) + 80;
 
             CompleteInputFrame(new MouseState(
                 pointerX,

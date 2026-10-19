@@ -629,13 +629,13 @@ namespace helengine.directx11 {
                 vertices[i] = new VertexPositionNormalUV(pos, normal, tex);
                 if (i > 0) {
                     boundsMin = new float3(
-                        Math.Min(boundsMin.X, pos.X),
-                        Math.Min(boundsMin.Y, pos.Y),
-                        Math.Min(boundsMin.Z, pos.Z));
+                        RealMath.Min(boundsMin.X, pos.X),
+                        RealMath.Min(boundsMin.Y, pos.Y),
+                        RealMath.Min(boundsMin.Z, pos.Z));
                     boundsMax = new float3(
-                        Math.Max(boundsMax.X, pos.X),
-                        Math.Max(boundsMax.Y, pos.Y),
-                        Math.Max(boundsMax.Z, pos.Z));
+                        RealMath.Max(boundsMax.X, pos.X),
+                        RealMath.Max(boundsMax.Y, pos.Y),
+                        RealMath.Max(boundsMax.Z, pos.Z));
                 }
             }
 
@@ -882,7 +882,7 @@ namespace helengine.directx11 {
             ClearShaderResourceBindingsForRenderTargetChange();
             context.OutputMerger.SetTargets(depthStencilView, renderTargetView);
             if (clearColor) {
-                context.ClearRenderTargetView(renderTargetView, new RawColor4(clearColorValue.X, clearColorValue.Y, clearColorValue.Z, clearColorValue.W));
+                context.ClearRenderTargetView(renderTargetView, new RawColor4((float)(clearColorValue.X), (float)(clearColorValue.Y), (float)(clearColorValue.Z), (float)(clearColorValue.W)));
             }
             DepthStencilClearFlags clearFlags = 0;
             if (clearDepth) {
@@ -905,7 +905,7 @@ namespace helengine.directx11 {
             float4x4.CreateLookAt(ref cameraPos, ref cameraTarget, ref cameraUp, out view);
 
             float4 viewport = CameraViewportResolver.ResolveViewport(camera.Viewport, directX11Target.Width, directX11Target.Height);
-            context.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
+            context.Rasterizer.SetViewport((float)(viewport.X), (float)(viewport.Y), (float)(viewport.Z), (float)(viewport.W));
 
             float4x4 projection = CreateCameraProjection(camera, viewport, SquarePixelAspect);
 
@@ -1029,7 +1029,7 @@ namespace helengine.directx11 {
             float4x4.CreateLookAt(ref cameraPos, ref cameraTarget, ref cameraUp, out view);
 
             float4 viewport = ResolveCameraViewport(camera, context.Surface);
-            deviceContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
+            deviceContext.Rasterizer.SetViewport((float)(viewport.X), (float)(viewport.Y), (float)(viewport.Z), (float)(viewport.W));
 
             double pixelAspect = renderTarget != null ? SquarePixelAspect : GetWindowPixelAspect(context.Surface.WindowHandle);
             float4x4 projection = CreateCameraProjection(camera, viewport, pixelAspect);
@@ -1121,7 +1121,7 @@ namespace helengine.directx11 {
                 if (DirectX11CameraClearRegionResolver.RequiresViewportScopedBackBufferColorClear(renderTarget, surface, viewport)) {
                     ClearViewportColorRegion(renderTargetView, clearColorValue, viewport, surface.Width, surface.Height);
                 } else {
-                    deviceContext.ClearRenderTargetView(renderTargetView, new RawColor4(clearColorValue.X, clearColorValue.Y, clearColorValue.Z, clearColorValue.W));
+                    deviceContext.ClearRenderTargetView(renderTargetView, new RawColor4((float)(clearColorValue.X), (float)(clearColorValue.Y), (float)(clearColorValue.Z), (float)(clearColorValue.W)));
                 }
             }
 
@@ -1157,7 +1157,7 @@ namespace helengine.directx11 {
 
             using DeviceContext1 deviceContext1 = Device.ImmediateContext.QueryInterface<DeviceContext1>();
             RawRectangle rectangle = DirectX11CameraClearRegionResolver.ResolveViewportRectangle(viewport, targetWidth, targetHeight);
-            deviceContext1.ClearView(renderTargetView, new RawColor4(clearColorValue.X, clearColorValue.Y, clearColorValue.Z, clearColorValue.W), new[] { rectangle });
+            deviceContext1.ClearView(renderTargetView, new RawColor4((float)(clearColorValue.X), (float)(clearColorValue.Y), (float)(clearColorValue.Z), (float)(clearColorValue.W)), new[] { rectangle });
         }
 
         /// <summary>
@@ -1229,7 +1229,7 @@ namespace helengine.directx11 {
             deviceContext.OutputMerger.SetTargets(depthStencilView, renderTargetView);
             PipelineStateCache.BindRestoredCameraFrameState(deviceContext);
             float4 viewport = ResolveCameraViewport(camera, context.Surface);
-            deviceContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
+            deviceContext.Rasterizer.SetViewport((float)(viewport.X), (float)(viewport.Y), (float)(viewport.Z), (float)(viewport.W));
             deviceContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
             deviceContext.VertexShader.SetConstantBuffer(0, ConstantBuffer);
             deviceContext.PixelShader.SetConstantBuffer(0, ConstantBuffer);
@@ -1597,8 +1597,8 @@ namespace helengine.directx11 {
             float4x4.Transpose(ref worldLightViewProjection, out worldLightViewProjectionTransposed);
 
             CustomEffectShaderData shadowData = new CustomEffectShaderData {
-                worldViewProj = worldLightViewProjectionTransposed,
-                color = new float4(0f, 0f, 0f, 0f)
+                worldViewProj = GpuFloat4x4.FromEngine(worldLightViewProjectionTransposed),
+                color = GpuFloat4.FromEngine(new float4(0f, 0f, 0f, 0f))
             };
             deviceContext.UpdateSubresource(ref shadowData, CustomPassConstantBuffer);
             DrawSubmesh(data, ResolveSubmesh(data, submission.SubmeshIndex));
@@ -1635,9 +1635,9 @@ namespace helengine.directx11 {
             float4x4.Transpose(ref worldLightViewProjection, out worldLightViewProjectionTransposed);
 
             DirectX11PointShadowDepthShaderData shadowData = new DirectX11PointShadowDepthShaderData {
-                World = worldTransposed,
-                WorldViewProj = worldLightViewProjectionTransposed,
-                LightPositionAndRange = new float4(lightPosition.X, lightPosition.Y, lightPosition.Z, lightRange)
+                World = GpuFloat4x4.FromEngine(worldTransposed),
+                WorldViewProj = GpuFloat4x4.FromEngine(worldLightViewProjectionTransposed),
+                LightPositionAndRange = GpuFloat4.FromEngine(new float4(lightPosition.X, lightPosition.Y, lightPosition.Z, lightRange))
             };
             deviceContext.UpdateSubresource(ref shadowData, PointShadowDepthConstantBuffer);
             DrawSubmesh(data, ResolveSubmesh(data, submission.SubmeshIndex));
@@ -1771,9 +1771,9 @@ namespace helengine.directx11 {
                 byte4 customColor = CustomColorProvider(drawable);
                 bool alphaTest = MaterialBinder.BindCustomPassMaterial(runtimeMaterial);
                 var customData = new CustomEffectShaderData {
-                    worldViewProj = worldViewProjTransposed,
-                    color = new float4(customColor.X / 255f, customColor.Y / 255f, customColor.Z / 255f, customColor.W / 255f),
-                    AlphaTest = new float4(alphaTest ? 1f : 0f, 0.001f, 0f, 0f)
+                    worldViewProj = GpuFloat4x4.FromEngine(worldViewProjTransposed),
+                    color = GpuFloat4.FromEngine(new float4(customColor.X / 255f, customColor.Y / 255f, customColor.Z / 255f, customColor.W / 255f)),
+                    AlphaTest = GpuFloat4.FromEngine(new float4(alphaTest ? 1f : 0f, 0.001f, 0f, 0f))
                 };
                 context.UpdateSubresource(ref customData, CustomPassConstantBuffer);
             } else {
@@ -1788,11 +1788,12 @@ namespace helengine.directx11 {
                     rootMaterial.Layout.VertexProgram,
                     rootMaterial.Layout.PixelProgram)) {
                     StandardMeshShaderData standardData = BuildStandardMeshShaderData(world, CurrentCameraPosition, effectiveRuntimeMaterial.ReceivesShadows, effectiveRuntimeMaterial.SupportsEmissive);
-                    standardData.World = worldTransposed;
-                    standardData.WorldViewProj = worldViewProjTransposed;
+                    standardData.World = GpuFloat4x4.FromEngine(worldTransposed);
+                    standardData.WorldViewProj = GpuFloat4x4.FromEngine(worldViewProjTransposed);
                     context.UpdateSubresource(ref standardData, ConstantBuffer);
                 } else {
-                    context.UpdateSubresource(ref worldViewProjTransposed, ConstantBuffer);
+                    GpuFloat4x4 packet = GpuFloat4x4.FromEngine(worldViewProjTransposed);
+                    context.UpdateSubresource(ref packet, ConstantBuffer);
                 }
             }
 
@@ -1816,9 +1817,9 @@ namespace helengine.directx11 {
             return new StandardMeshShaderData {
                 World = default,
                 WorldViewProj = default,
-                NormalMatrix = normalMatrixTransposed,
-                CameraPosition = new float4(cameraPosition.X, cameraPosition.Y, cameraPosition.Z, 0f),
-                MaterialFlags = new float4(receivesShadows ? 1f : 0f, hasEmissiveTexture ? 1f : 0f, 0f, 0f)
+                NormalMatrix = GpuFloat4x4.FromEngine(normalMatrixTransposed),
+                CameraPosition = GpuFloat4.FromEngine(new float4(cameraPosition.X, cameraPosition.Y, cameraPosition.Z, 0f)),
+                MaterialFlags = GpuFloat4.FromEngine(new float4(receivesShadows ? 1f : 0f, hasEmissiveTexture ? 1f : 0f, 0f, 0f))
             };
         }
 

@@ -67,7 +67,7 @@ namespace helengine.editor.tests {
             world.BindScene(rootEntities);
 
             Entity upperBoxEntity = rootEntities[2];
-            float initialY = upperBoxEntity.LocalPosition.Y;
+            float initialY = (float)(upperBoxEntity.LocalPosition.Y);
 
             for (int index = 0; index < 60; index++) {
                 world.Step(1.0 / 60.0);

@@ -265,6 +265,10 @@ namespace helengine {
                 value = reader.ReadSingle();
                 return true;
             }
+            if (valueType == typeof(Real)) {
+                value = reader.ReadReal();
+                return true;
+            }
             if (valueType == typeof(double)) {
                 value = reader.ReadDouble();
                 return true;
@@ -278,15 +282,15 @@ namespace helengine {
                 return true;
             }
             if (valueType == typeof(float2)) {
-                value = reader.ReadFloat2();
+                value = reader.ReadReal2();
                 return true;
             }
             if (valueType == typeof(float3)) {
-                value = reader.ReadFloat3();
+                value = reader.ReadReal3();
                 return true;
             }
             if (valueType == typeof(float4)) {
-                value = reader.ReadFloat4();
+                value = reader.ReadReal4();
                 return true;
             }
             if (valueType == typeof(byte4)) {

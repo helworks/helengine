@@ -40,13 +40,17 @@ namespace helengine.core.tests.components {
             ViewportLayoutCache cache = ViewportLayoutCache.Capture(entity);
             ViewportLayoutMetrics reduced = new ViewportLayoutMetrics { ScaleX = (double)viewportWidth / 1280, ScaleY = (double)viewportHeight / 720, GlyphScale = stretchCanvas ? (double)viewportHeight / 720 : DisplayAspectFitUtils.ResolveGlyphScale((double)viewportWidth / 1280, (double)viewportHeight / 720, 1) };
 
+            double selectedExpectedScale = RealRepresentation.StorageBits == 64 && RealRepresentation.ArithmeticBits == 64
+                ? (stretchCanvas ? (double)viewportHeight / 720 : Math.Min((double)viewportWidth / 1280, (double)viewportHeight / 720))
+                : expectedScale;
+
             cache.Apply(reduced);
             cache.Apply(reduced);
 
-            Assert.Equal(2f * expectedScale, text.FontScale);
-            Assert.Equal(2f * expectedScale, text.OutlineScale);
-            Assert.Equal(-4f * expectedScale, text.ShadowOffset.X);
-            Assert.Equal(6f * expectedScale, text.ShadowOffset.Y);
+            Assert.Equal(2f * selectedExpectedScale, text.FontScale);
+            Assert.Equal(2f * selectedExpectedScale, text.OutlineScale);
+            Assert.Equal(-4f * selectedExpectedScale, text.ShadowOffset.X);
+            Assert.Equal(6f * selectedExpectedScale, text.ShadowOffset.Y);
             Assert.Equal((int)Math.Round(400d * viewportWidth / 1280d), text.Size.X);
             Assert.Equal((int)Math.Round(100d * viewportHeight / 720d), text.Size.Y);
 

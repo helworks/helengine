@@ -123,7 +123,7 @@ namespace helengine {
             }
 
             float3 relativeVelocity = first.Velocity - second.Velocity;
-            double relativeNormalVelocity = float3.Dot(relativeVelocity, collisionNormal);
+            double relativeNormalVelocity = (double)(float3.Dot(relativeVelocity, collisionNormal));
             if (relativeNormalVelocity >= 0d) {
                 return;
             }
@@ -169,7 +169,7 @@ namespace helengine {
             }
 
             float3 relativeVelocity = first.Velocity - second.Velocity;
-            double relativeNormalVelocity = float3.Dot(relativeVelocity, collisionNormal);
+            double relativeNormalVelocity = (double)(float3.Dot(relativeVelocity, collisionNormal));
             if (relativeNormalVelocity >= 0d) {
                 return;
             }
@@ -217,7 +217,7 @@ namespace helengine {
 
             float3 angular = float3.Cross(offset, direction);
             float3 inertiaAngular = bodyState.ResolveAngularVelocityDelta(angular);
-            return float3.Dot(float3.Cross(inertiaAngular, offset), direction);
+            return (double)(float3.Dot(float3.Cross(inertiaAngular, offset), direction));
         }
 
         /// <summary>
@@ -328,7 +328,7 @@ namespace helengine {
             float3 firstVelocity = first.Velocity + float3.Cross(first.AngularVelocity, firstOffset);
             float3 secondVelocity = second.Velocity + float3.Cross(second.AngularVelocity, secondOffset);
             float3 relativeVelocity = firstVelocity - secondVelocity;
-            double closingSpeed = float3.Dot(relativeVelocity, manifold.Normal);
+            double closingSpeed = (double)(float3.Dot(relativeVelocity, manifold.Normal));
             double effectiveMass = ResolveEffectiveMass(first, second, manifold.Normal, firstOffset, secondOffset);
             if (effectiveMass <= 0d) {
                 return;
@@ -432,7 +432,7 @@ namespace helengine {
             float3 secondVelocity = second.Velocity + float3.Cross(second.AngularVelocity, secondOffset);
             float3 relativeVelocity = firstVelocity - secondVelocity;
             float3 tangentVelocity = relativeVelocity - (manifold.Normal * float3.Dot(relativeVelocity, manifold.Normal));
-            double tangentSpeedSquared = float3.Dot(tangentVelocity, tangentVelocity);
+            double tangentSpeedSquared = (double)(float3.Dot(tangentVelocity, tangentVelocity));
             if (tangentSpeedSquared <= 0.0000001d) {
                 return;
             }
@@ -445,7 +445,7 @@ namespace helengine {
 
             float impulseDelta = (float)(-Math.Sqrt(tangentSpeedSquared) / effectiveMass);
             float3 candidateImpulse = constraint.TangentImpulse + (tangentDirection * impulseDelta);
-            float candidateLengthSquared = float3.Dot(candidateImpulse, candidateImpulse);
+            float candidateLengthSquared = (float)(float3.Dot(candidateImpulse, candidateImpulse));
             float maximumImpulseSquared = maximumImpulse * maximumImpulse;
             if (candidateLengthSquared > maximumImpulseSquared) {
                 candidateImpulse = candidateImpulse * (maximumImpulse / (float)Math.Sqrt(candidateLengthSquared));
@@ -475,7 +475,7 @@ namespace helengine {
                 return;
             }
 
-            double relativeTwistVelocity = float3.Dot(first.AngularVelocity - second.AngularVelocity, manifold.Normal);
+            double relativeTwistVelocity = (double)(float3.Dot(first.AngularVelocity - second.AngularVelocity, manifold.Normal));
             double effectiveMass = ResolveAngularImpulseEffectiveMass(first, second, manifold.Normal);
             if (effectiveMass <= 0d) {
                 return;
@@ -516,10 +516,10 @@ namespace helengine {
         static double ResolveAngularImpulseEffectiveMass(BodyState3D first, BodyState3D second, float3 normal) {
             double effectiveMass = 0d;
             if (first.RigidBody.BodyKind == BodyKind3D.Dynamic) {
-                effectiveMass += float3.Dot(normal, first.ResolveAngularVelocityDelta(normal));
+                effectiveMass += (double)(float3.Dot(normal, first.ResolveAngularVelocityDelta(normal)));
             }
             if (second.RigidBody.BodyKind == BodyKind3D.Dynamic) {
-                effectiveMass += float3.Dot(normal, second.ResolveAngularVelocityDelta(normal));
+                effectiveMass += (double)(float3.Dot(normal, second.ResolveAngularVelocityDelta(normal)));
             }
 
             return effectiveMass;
@@ -552,7 +552,7 @@ namespace helengine {
                 }
 
                 float3 offset = ResolveManifoldContactPoint(manifold, contactIndex) - center;
-                float radius = (float)Math.Sqrt(float3.Dot(offset, offset));
+                float radius = (float)Math.Sqrt((double)(float3.Dot(offset, offset)));
                 weightedRadiusImpulse += normalImpulse * radius;
             }
 
@@ -777,7 +777,7 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(surfaceCollider));
             }
 
-            double normalVelocity = float3.Dot(bodyState.Velocity, collisionNormal);
+            double normalVelocity = (double)(float3.Dot(bodyState.Velocity, collisionNormal));
             if (normalVelocity >= 0d) {
                 return;
             }
@@ -845,7 +845,7 @@ namespace helengine {
         static void ApplyPairFriction(BodyState3D first, BodyState3D second, float3 collisionNormal, double normalImpulseMagnitude, double firstInverseMass, double secondInverseMass, float3 contactPoint) {
             float3 relativeVelocity = first.Velocity - second.Velocity;
             float3 tangentVelocity = relativeVelocity - (collisionNormal * float3.Dot(relativeVelocity, collisionNormal));
-            double tangentSpeedSquared = float3.Dot(tangentVelocity, tangentVelocity);
+            double tangentSpeedSquared = (double)(float3.Dot(tangentVelocity, tangentVelocity));
             if (tangentSpeedSquared <= 0.0000001d) {
                 return;
             }
@@ -888,7 +888,7 @@ namespace helengine {
         static void ApplyLinearPairFriction(BodyState3D first, BodyState3D second, float3 collisionNormal, double normalImpulseMagnitude, double firstInverseMass, double secondInverseMass) {
             float3 relativeVelocity = first.Velocity - second.Velocity;
             float3 tangentVelocity = relativeVelocity - (collisionNormal * float3.Dot(relativeVelocity, collisionNormal));
-            double tangentSpeedSquared = float3.Dot(tangentVelocity, tangentVelocity);
+            double tangentSpeedSquared = (double)(float3.Dot(tangentVelocity, tangentVelocity));
             if (tangentSpeedSquared <= 0.0000001d) {
                 return;
             }
@@ -945,8 +945,8 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(bodyState));
             }
 
-            float offsetX = contactPoint.X - bodyState.Position.X;
-            float offsetZ = contactPoint.Z - bodyState.Position.Z;
+            float offsetX = (float)(contactPoint.X - bodyState.Position.X);
+            float offsetZ = (float)(contactPoint.Z - bodyState.Position.Z);
             float leverArm = (float)Math.Sqrt((offsetX * offsetX) + (offsetZ * offsetZ));
             if (leverArm > bodyState.MaximumNormalContactLeverArmXZ) {
                 bodyState.MaximumNormalContactLeverArmXZ = leverArm;
@@ -964,7 +964,7 @@ namespace helengine {
         /// <returns>Velocity updated with tangential friction.</returns>
         static float3 ApplyTangentialFriction(float3 velocity, float3 collisionNormal, double staticFriction, double dynamicFriction, double normalImpulseMagnitude) {
             float3 tangentialVelocity = velocity - (collisionNormal * float3.Dot(velocity, collisionNormal));
-            double tangentSpeedSquared = float3.Dot(tangentialVelocity, tangentialVelocity);
+            double tangentSpeedSquared = (double)(float3.Dot(tangentialVelocity, tangentialVelocity));
             if (tangentSpeedSquared <= 0.0000001d) {
                 return velocity;
             }
@@ -1069,9 +1069,9 @@ namespace helengine {
         /// <param name="normal">Contact normal to inspect.</param>
         /// <returns>Zero for X, one for Y, or two for Z.</returns>
         static int ResolveDominantAxisIndex(float3 normal) {
-            float absoluteX = Math.Abs(normal.X);
-            float absoluteY = Math.Abs(normal.Y);
-            float absoluteZ = Math.Abs(normal.Z);
+            float absoluteX = (float)(RealMath.Abs(normal.X));
+            float absoluteY = (float)(RealMath.Abs(normal.Y));
+            float absoluteZ = (float)(RealMath.Abs(normal.Z));
             if (absoluteX >= absoluteY && absoluteX >= absoluteZ) {
                 return 0;
             }
@@ -1090,13 +1090,13 @@ namespace helengine {
         /// <returns>Selected vector component.</returns>
         static float GetComponent(float3 value, int componentIndex) {
             if (componentIndex == 0) {
-                return value.X;
+                return (float)(value.X);
             }
             if (componentIndex == 1) {
-                return value.Y;
+                return (float)(value.Y);
             }
             if (componentIndex == 2) {
-                return value.Z;
+                return (float)(value.Z);
             }
 
             throw new ArgumentOutOfRangeException(nameof(componentIndex), "Component index must be 0, 1, or 2.");

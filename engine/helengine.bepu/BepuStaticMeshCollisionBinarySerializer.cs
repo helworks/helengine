@@ -67,7 +67,7 @@ namespace helengine {
         /// <param name="value">Float3 value to convert.</param>
         /// <returns>Converted numerics vector.</returns>
         static Vector3 CreateVector3(float3 value) {
-            return new Vector3(value.X, value.Y, value.Z);
+            return new Vector3((float)(value.X), (float)(value.Y), (float)(value.Z));
         }
     }
 }

@@ -40,7 +40,7 @@ namespace helengine.editor.tests {
             Assert.Equal(moveSpeed, controller.MoveSpeed);
             Assert.Equal(zoomSpeed, controller.WheelZoomSpeed);
             if (mode == CameraProjectionMode.Perspective) {
-                Assert.InRange(previousPosition.Z - cameraEntity.Position.Z, (float)zoomSpeed - 0.01f, (float)zoomSpeed + 0.01f);
+                Assert.InRange((double)(previousPosition.Z - cameraEntity.Position.Z), (double)((float)zoomSpeed - 0.01f), (double)((float)zoomSpeed + 0.01f));
             } else {
                 Assert.Equal(previousPosition, cameraEntity.Position);
             }
@@ -177,13 +177,13 @@ namespace helengine.editor.tests {
             float4.CreateFromYawPitchRoll(0.35f, -0.2f, 0f, out orientation);
             const double distance = 18.0;
             controller.SetViewPose(pivot, orientation, distance);
-            double initialScale = CameraProjectionUtils.GetWorldUnitsPerPixel(camera, distance, camera.Viewport.W);
+            double initialScale = (double)(CameraProjectionUtils.GetWorldUnitsPerPixel(camera, distance, camera.Viewport.W));
 
             controller.SetProjectionMode(CameraProjectionMode.Orthographic);
-            double orthographicScale = CameraProjectionUtils.GetWorldUnitsPerPixel(camera, distance, camera.Viewport.W);
+            double orthographicScale = (double)(CameraProjectionUtils.GetWorldUnitsPerPixel(camera, distance, camera.Viewport.W));
             float3 orthographicPosition = cameraEntity.Position;
             controller.SetProjectionMode(CameraProjectionMode.Perspective);
-            double restoredScale = CameraProjectionUtils.GetWorldUnitsPerPixel(camera, distance, camera.Viewport.W);
+            double restoredScale = (double)(CameraProjectionUtils.GetWorldUnitsPerPixel(camera, distance, camera.Viewport.W));
 
             Assert.Equal(pivot, controller.GetOrbitTarget());
             Assert.Equal(orientation, cameraEntity.Orientation);
@@ -293,9 +293,9 @@ namespace helengine.editor.tests {
             float4x4.CreateLookAt(ref position, ref target, ref up, out float4x4 view);
             float4x4 projection = CameraProjectionUtils.CreateProjection(camera, camera.Viewport.Z / camera.Viewport.W);
             float4x4.Multiply(ref view, ref projection, out float4x4 matrix);
-            double clipX = point.X * matrix.M11 + point.Y * matrix.M21 + point.Z * matrix.M31 + matrix.M41;
-            double clipY = point.X * matrix.M12 + point.Y * matrix.M22 + point.Z * matrix.M32 + matrix.M42;
-            double clipW = point.X * matrix.M14 + point.Y * matrix.M24 + point.Z * matrix.M34 + matrix.M44;
+            double clipX = (double)(point.X * matrix.M11 + point.Y * matrix.M21 + point.Z * matrix.M31 + matrix.M41);
+            double clipY = (double)(point.X * matrix.M12 + point.Y * matrix.M22 + point.Z * matrix.M32 + matrix.M42);
+            double clipW = (double)(point.X * matrix.M14 + point.Y * matrix.M24 + point.Z * matrix.M34 + matrix.M44);
             return new float2((float)(camera.Viewport.X + (clipX / clipW + 1) * camera.Viewport.Z / 2),
                 (float)(camera.Viewport.Y + (1 - clipY / clipW) * camera.Viewport.W / 2));
         }
@@ -817,9 +817,9 @@ namespace helengine.editor.tests {
         /// <param name="right">Second position.</param>
         /// <returns>Distance in world units.</returns>
         double Distance(float3 left, float3 right) {
-            double deltaX = left.X - right.X;
-            double deltaY = left.Y - right.Y;
-            double deltaZ = left.Z - right.Z;
+            double deltaX = (double)(left.X - right.X);
+            double deltaY = (double)(left.Y - right.Y);
+            double deltaZ = (double)(left.Z - right.Z);
             return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
         }
     }

@@ -119,11 +119,11 @@ namespace helengine.editor.tests {
             ButtonComponent cancelButton = GetPrivateField<ButtonComponent>(dialog, "CancelButton");
             ButtonComponent applyButton = GetPrivateField<ButtonComponent>(dialog, "ApplyButton");
 
-            Assert.Equal(metrics.ScalePixels(ReparentEntityDialog.PanelPadding), (int)Math.Round(targetHost.LocalPosition.X));
-            Assert.Equal(metrics.ScalePixels(ReparentEntityDialog.PanelPadding + ReparentEntityDialog.HeaderHeight + ReparentEntityDialog.SectionSpacing), (int)Math.Round(targetHost.LocalPosition.Y));
+            Assert.Equal(metrics.ScalePixels(ReparentEntityDialog.PanelPadding), (int)Math.Round((double)(targetHost.LocalPosition.X)));
+            Assert.Equal(metrics.ScalePixels(ReparentEntityDialog.PanelPadding + ReparentEntityDialog.HeaderHeight + ReparentEntityDialog.SectionSpacing), (int)Math.Round((double)(targetHost.LocalPosition.Y)));
             Assert.Equal(new int2(metrics.ScalePixels(88), metrics.ScalePixels(22)), cancelButton.Size);
             Assert.Equal(new int2(metrics.ScalePixels(88), metrics.ScalePixels(22)), applyButton.Size);
-            Assert.Equal(metrics.ScalePixels(ReparentEntityDialog.PanelWidth - ReparentEntityDialog.PanelPadding - 88), (int)Math.Round(cancelButtonHost.LocalPosition.X));
+            Assert.Equal(metrics.ScalePixels(ReparentEntityDialog.PanelWidth - ReparentEntityDialog.PanelPadding - 88), (int)Math.Round((double)(cancelButtonHost.LocalPosition.X)));
         }
 
         /// <summary>
@@ -191,8 +191,8 @@ namespace helengine.editor.tests {
             InvokePrivate(dialog, "HandleHeaderCursor", new int2(40, 24), new int2(24, 8), PointerInteraction.Hover);
             InvokePrivate(dialog, "HandleHeaderCursor", new int2(40, 24), new int2(0, 0), PointerInteraction.Release);
 
-            Assert.Equal(initialPosition.X + 24, panelRoot.Position.X);
-            Assert.Equal(initialPosition.Y + 8, panelRoot.Position.Y);
+            Assert.EqualEvaluation(initialPosition.X + 24, panelRoot.Position.X);
+            Assert.EqualEvaluation(initialPosition.Y + 8, panelRoot.Position.Y);
         }
 
         /// <summary>

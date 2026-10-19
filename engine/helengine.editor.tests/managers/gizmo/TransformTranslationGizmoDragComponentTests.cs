@@ -390,11 +390,11 @@ namespace helengine.editor.tests.managers.gizmo {
             bool rayBuilt = EditorViewportPointerRayBuilder.TryBuildPerspectiveCameraRay(sceneCamera, pointer, out float3 rayOrigin, out float3 rayDirection);
             Assert.True(rayBuilt);
 
-            double denominator = float3.Dot(planeNormal, rayDirection);
+            double denominator = (double)(float3.Dot(planeNormal, rayDirection));
             Assert.NotEqual(0.0, denominator);
 
             float3 planeDelta = planeOrigin - rayOrigin;
-            double distanceAlongRay = float3.Dot(planeDelta, planeNormal) / denominator;
+            double distanceAlongRay = (double)(float3.Dot(planeDelta, planeNormal) / denominator);
             return rayOrigin + (rayDirection * (float)distanceAlongRay);
         }
 
@@ -410,13 +410,13 @@ namespace helengine.editor.tests.managers.gizmo {
             bool rayBuilt = EditorViewportPointerRayBuilder.TryBuildPerspectiveCameraRay(sceneCamera, pointer, out float3 rayOrigin, out float3 rayDirection);
             Assert.True(rayBuilt);
 
-            double rayAxisDot = float3.Dot(rayDirection, axisDirection);
+            double rayAxisDot = (double)(float3.Dot(rayDirection, axisDirection));
             double denominator = 1.0 - (rayAxisDot * rayAxisDot);
             Assert.NotEqual(0.0, denominator);
 
             float3 cameraToAxis = rayOrigin - axisOrigin;
-            double rayCameraDot = float3.Dot(rayDirection, cameraToAxis);
-            double axisCameraDot = float3.Dot(axisDirection, cameraToAxis);
+            double rayCameraDot = (double)(float3.Dot(rayDirection, cameraToAxis));
+            double axisCameraDot = (double)(float3.Dot(axisDirection, cameraToAxis));
             return (axisCameraDot - (rayAxisDot * rayCameraDot)) / denominator;
         }
 

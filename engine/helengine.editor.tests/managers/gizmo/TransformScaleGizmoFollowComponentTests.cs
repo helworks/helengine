@@ -207,16 +207,16 @@ namespace helengine.editor.tests.managers.gizmo {
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             UpdateFollowComponent(gizmoRoot);
-            float initialScale = gizmoRoot.Scale.X;
+            double initialScale = (double)(gizmoRoot.Scale.X);
 
             sceneCamera.Parent.Position = new float3(0f, 2f, -20f);
             InteractionServices.GizmoDrag.BeginDrag(sceneCamera, selectedEntity);
             UpdateFollowComponent(gizmoRoot);
-            float dragScale = gizmoRoot.Scale.X;
+            double dragScale = (double)(gizmoRoot.Scale.X);
 
             InteractionServices.GizmoDrag.EndDrag(sceneCamera);
             UpdateFollowComponent(gizmoRoot);
-            float releasedScale = gizmoRoot.Scale.X;
+            double releasedScale = (double)(gizmoRoot.Scale.X);
 
             Assert.Equal(initialScale, dragScale);
             Assert.True(releasedScale > initialScale);

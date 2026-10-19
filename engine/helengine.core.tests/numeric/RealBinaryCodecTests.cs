@@ -91,5 +91,33 @@ namespace helengine.core.tests.numeric {
             Assert.Equal(double.PositiveInfinity, RealBinaryCodec.Read(reader, policy));
             Assert.Equal(long.MinValue, BitConverter.DoubleToInt64Bits(RealBinaryCodec.Read(reader, policy)));
         }
+        /// <summary>Vector payloads opt into selected-width IO while legacy Float3 methods remain explicitly IEEE32.</summary>
+        [Theory]
+        [InlineData(32, EngineBinaryEndianness.LittleEndian)]
+        [InlineData(32, EngineBinaryEndianness.BigEndian)]
+        [InlineData(64, EngineBinaryEndianness.LittleEndian)]
+        [InlineData(64, EngineBinaryEndianness.BigEndian)]
+        public void RealVectorsRoundTripBothEndiannesses(int bits, EngineBinaryEndianness endianness) {
+            NumericPrecisionPolicy policy = new(bits, bits);
+            float3 source = new float3(1.25d, -2.5d, 3.75d);
+            float4 quaternion = new float4(0d, 0d, 0d, 1d);
+            using MemoryStream stream = new();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, endianness);
+            writer.NumericPolicy = policy;
+            writer.WriteReal3(source);
+            writer.WriteReal4(quaternion);
+            writer.WriteReal4x4(float4x4.Identity);
+            Assert.Equal((3 + 4 + 16) * bits / 8, stream.Length);
+            writer.WriteFloat3(source);
+            Assert.Equal((3 + 4 + 16) * bits / 8 + 12, stream.Length);
+            stream.Position = 0;
+            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, endianness);
+            reader.NumericPolicy = policy;
+            Assert.Equal(source, reader.ReadReal3());
+            Assert.Equal(quaternion, reader.ReadReal4());
+            Assert.Equal(float4x4.Identity, reader.ReadReal4x4());
+            Assert.Equal(source, reader.ReadFloat3());
+            Assert.Equal(stream.Length, stream.Position);
+        }
     }
 }

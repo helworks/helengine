@@ -7,7 +7,7 @@ namespace helengine {
         /// <summary>
         /// Current payload version used by packaged automatic scripted component records.
         /// </summary>
-        public const byte CurrentVersion = 1;
+        public const byte CurrentVersion = AutomaticScriptComponentPayloadFormat.CurrentVersion;
 
         /// <summary>
         /// Host-facing diagnostic scope reported when the shared reflected walk rejects one packaged member payload.
@@ -99,6 +99,7 @@ namespace helengine {
                         $"Unsupported automatic scripted component payload received version '{receivedVersion}'; current version '{CurrentVersion}' is required. Regenerate/rebuild the asset in the current format.");
                 }
 
+                reader.NumericPolicy = RealBinaryCodec.ReadAndValidatePolicy(reader, RealRepresentation.Policy);
                 int memberCount = reader.ReadInt32();
                 receivedMemberCount = memberCount;
                 if (memberCount != MemberCount) {

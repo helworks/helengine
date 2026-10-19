@@ -515,7 +515,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            double rayAxisDot = float3.Dot(rayDirection, axisDirection);
+            double rayAxisDot = (double)(float3.Dot(rayDirection, axisDirection));
             double denominator = 1.0 - (rayAxisDot * rayAxisDot);
             if (Math.Abs(denominator) <= MinimumClosestPointDenominator) {
                 axisParameter = 0.0;
@@ -523,8 +523,8 @@ namespace helengine.editor {
             }
 
             float3 cameraToAxis = rayOrigin - axisOrigin;
-            double rayCameraDot = float3.Dot(rayDirection, cameraToAxis);
-            double axisCameraDot = float3.Dot(axisDirection, cameraToAxis);
+            double rayCameraDot = (double)(float3.Dot(rayDirection, cameraToAxis));
+            double axisCameraDot = (double)(float3.Dot(axisDirection, cameraToAxis));
             axisParameter = (axisCameraDot - (rayAxisDot * rayCameraDot)) / denominator;
             return true;
         }
@@ -547,14 +547,14 @@ namespace helengine.editor {
                 return false;
             }
 
-            double denominator = float3.Dot(planeNormal, rayDirection);
+            double denominator = (double)(float3.Dot(planeNormal, rayDirection));
             if (Math.Abs(denominator) <= MinimumPlaneIntersectionDenominator) {
                 planePoint = float3.Zero;
                 return false;
             }
 
             float3 planeDelta = planeOrigin - rayOrigin;
-            double distanceAlongRay = float3.Dot(planeDelta, planeNormal) / denominator;
+            double distanceAlongRay = (double)(float3.Dot(planeDelta, planeNormal) / denominator);
             planePoint = rayOrigin + (rayDirection * (float)distanceAlongRay);
             return true;
         }
@@ -566,7 +566,7 @@ namespace helengine.editor {
         /// <param name="planeNormal">Normalized plane normal.</param>
         /// <returns>Projected vector that lies on the plane.</returns>
         float3 ProjectVectorOntoPlane(float3 value, float3 planeNormal) {
-            double normalDot = float3.Dot(value, planeNormal);
+            double normalDot = (double)(float3.Dot(value, planeNormal));
             return value - (planeNormal * (float)normalDot);
         }
 
@@ -623,9 +623,9 @@ namespace helengine.editor {
         /// <returns>Normalized vector when valid; otherwise the fallback value.</returns>
         float3 NormalizeSafe(float3 value, float3 fallback) {
             double lengthSquared =
-                (value.X * value.X) +
+                (double)((value.X * value.X) +
                 (value.Y * value.Y) +
-                (value.Z * value.Z);
+                (value.Z * value.Z));
             if (lengthSquared <= MinimumVectorLengthSquared) {
                 return fallback;
             }

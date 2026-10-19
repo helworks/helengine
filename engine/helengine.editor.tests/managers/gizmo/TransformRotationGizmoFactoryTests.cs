@@ -221,9 +221,9 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <returns>Normalized direction vector.</returns>
         float3 Normalize(float3 value) {
             double lengthSquared =
-                (value.X * value.X) +
+                (double)((value.X * value.X) +
                 (value.Y * value.Y) +
-                (value.Z * value.Z);
+                (value.Z * value.Z));
             if (lengthSquared <= 0.0) {
                 throw new InvalidOperationException("Direction vector must be non-zero.");
             }
@@ -241,9 +241,9 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="expected">Expected direction.</param>
         /// <param name="actual">Actual direction.</param>
         void AssertVectorClose(float3 expected, float3 actual) {
-            Assert.InRange(Math.Abs(expected.X - actual.X), 0.0, DirectionTolerance);
-            Assert.InRange(Math.Abs(expected.Y - actual.Y), 0.0, DirectionTolerance);
-            Assert.InRange(Math.Abs(expected.Z - actual.Z), 0.0, DirectionTolerance);
+            Assert.InRange(Math.Abs((double)(expected.X - actual.X)), 0.0, DirectionTolerance);
+            Assert.InRange(Math.Abs((double)(expected.Y - actual.Y)), 0.0, DirectionTolerance);
+            Assert.InRange(Math.Abs((double)(expected.Z - actual.Z)), 0.0, DirectionTolerance);
         }
     }
 }

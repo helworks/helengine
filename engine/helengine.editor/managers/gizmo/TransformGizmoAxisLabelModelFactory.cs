@@ -58,8 +58,8 @@ namespace helengine.editor {
                     throw new InvalidOperationException($"Font atlas does not contain the '{character}' glyph required for transform-gizmo axis labels.");
                 }
 
-                double glyphWidth = glyph.SourceRect.Z * font.AtlasWidth;
-                double glyphHeight = glyph.SourceRect.W * font.AtlasHeight;
+                double glyphWidth = (double)(glyph.SourceRect.Z * font.AtlasWidth);
+                double glyphHeight = (double)(glyph.SourceRect.W * font.AtlasHeight);
                 double left = cursorX - GlyphOutlinePaddingPixels;
                 double top = -glyph.OffsetY + GlyphOutlinePaddingPixels;
                 double right = cursorX + glyphWidth + GlyphOutlinePaddingPixels;
@@ -82,10 +82,10 @@ namespace helengine.editor {
 
                 double uPadding = GlyphOutlinePaddingPixels / font.AtlasWidth;
                 double vPadding = GlyphOutlinePaddingPixels / font.AtlasHeight;
-                float u0 = (float)Math.Max(0.0, glyph.SourceRect.X - uPadding);
-                float v0 = (float)Math.Max(0.0, glyph.SourceRect.Y - vPadding);
-                float u1 = (float)Math.Min(1.0, glyph.SourceRect.X + glyph.SourceRect.Z + uPadding);
-                float v1 = (float)Math.Min(1.0, glyph.SourceRect.Y + glyph.SourceRect.W + vPadding);
+                float u0 = (float)RealMath.Max(0.0, glyph.SourceRect.X - uPadding);
+                float v0 = (float)RealMath.Max(0.0, glyph.SourceRect.Y - vPadding);
+                float u1 = (float)RealMath.Min(1.0, glyph.SourceRect.X + glyph.SourceRect.Z + uPadding);
+                float v1 = (float)RealMath.Min(1.0, glyph.SourceRect.Y + glyph.SourceRect.W + vPadding);
                 texCoords.Add(new float2(u0, v0));
                 texCoords.Add(new float2(u1, v0));
                 texCoords.Add(new float2(u1, v1));

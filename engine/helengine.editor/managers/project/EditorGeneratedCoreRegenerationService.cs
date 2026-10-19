@@ -1373,7 +1373,7 @@ namespace helengine.editor {
         /// <returns>Distinct scene-referenced automatic scripted component runtime types.</returns>
         internal static IReadOnlyList<Type> DiscoverAutomaticRuntimeComponentTypesFromCookedScenes(
             IReadOnlyList<string> cookedSceneAssetPaths,
-            IScriptTypeResolver scriptTypeResolver) {
+            IScriptTypeResolver scriptTypeResolver, NumericPrecisionPolicy numericPolicy = null) {
             if (cookedSceneAssetPaths == null) {
                 throw new ArgumentNullException(nameof(cookedSceneAssetPaths));
             }
@@ -1395,7 +1395,19 @@ namespace helengine.editor {
                     // Cooked packaged scenes intentionally contain path-only asset references.
                     // Read them with the runtime packaged serializer rather than the strict
                     // editor serializer, which requires authoring asset identities.
-                    Asset asset = global::helengine.AssetSerializer.Deserialize(stream);
+                    NumericPrecisionPolicy expectedPolicy = numericPolicy;
+                    if (expectedPolicy == null) {
+                        // Inspection can examine any explicitly encoded build policy; execution still validates against compiled Real.
+                        EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+                        if (header.Version != PackagedAssetBinarySerializer.CurrentVersion) {
+                            throw new InvalidOperationException("Cooked scene inspection requires the current packaged asset version. Regenerate the package.");
+                        }
+                        using (EngineBinaryReader policyReader = EngineBinaryReader.Create(stream, header.Endianness)) {
+                            expectedPolicy = RealBinaryCodec.ReadPolicy(policyReader);
+                        }
+                        stream.Position = 0;
+                    }
+                    Asset asset = PackagedAssetBinarySerializer.Deserialize(stream, expectedPolicy);
                     if (asset is not SceneAsset sceneAsset) {
                         throw new InvalidOperationException($"Cooked scene '{cookedSceneAssetPath}' did not deserialize into a SceneAsset.");
                     }

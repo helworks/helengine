@@ -2597,6 +2597,9 @@ namespace helengine.editor {
             if (value is float floatValue) {
                 return PropertyFieldValueUtils.FormatDouble(floatValue);
             }
+            if (value is Real realValue) {
+                return PropertyFieldValueUtils.FormatDouble(realValue.ToDouble());
+            }
             if (value is double doubleValue) {
                 return PropertyFieldValueUtils.FormatDouble(doubleValue);
             }
@@ -2669,7 +2672,7 @@ namespace helengine.editor {
                 return;
             }
 
-            var value = new float3((float)x, (float)y, (float)z);
+            var value = new float3(x, y, z);
             if (GetRowValue(row) is float3 currentValue && currentValue == value) {
                 SetVectorFields(row, x, y, z);
                 return;
@@ -2700,7 +2703,7 @@ namespace helengine.editor {
                 return;
             }
 
-            var value = new float4((float)x, (float)y, (float)z, (float)w);
+            var value = new float4(x, y, z, w);
             if (GetRowValue(row) is float4 currentValue && AreFloat4ValuesEqual(currentValue, value)) {
                 SetVector4Fields(row, x, y, z, w);
                 return;
@@ -2978,6 +2981,10 @@ namespace helengine.editor {
 
             if (targetType == typeof(float)) {
                 value = (float)numeric;
+                return true;
+            }
+            if (targetType == typeof(Real)) {
+                value = Real.FromDouble(numeric);
                 return true;
             }
             if (targetType == typeof(double)) {
@@ -3640,7 +3647,7 @@ namespace helengine.editor {
                 visibleActionWidth = SectionRevertButtonWidth + SectionHeaderButtonSpacing;
             }
             int titleWidth = Math.Max(1, safeWidth - SectionHeaderPadding - visibleActionWidth - SectionHeaderPadding);
-            section.TitleText.Size = new int2(titleWidth, Math.Max(1, (int)Math.Ceiling(Math.Max(titleMetrics.Height, Font.LineHeight))));
+            section.TitleText.Size = new int2(titleWidth, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(titleMetrics.Height, Font.LineHeight))));
 
             if (section.RemoveButtonHost != null && section.RemoveButtonHost.Enabled) {
                 int removeButtonX = Math.Max(0, safeWidth - SectionRemoveButtonWidth);

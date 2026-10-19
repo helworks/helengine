@@ -107,7 +107,7 @@ namespace helengine.files {
         /// <param name="writer">Destination writer for the payload.</param>
         /// <param name="value">Vector value to serialize.</param>
         public static void WriteFloat2Value(EngineBinaryWriter writer, float2 value) {
-            writer.WriteFloat2(value);
+            writer.WriteReal2(value);
         }
 
         /// <summary>
@@ -116,7 +116,7 @@ namespace helengine.files {
         /// <param name="reader">Source reader positioned at the value.</param>
         /// <returns>Deserialized vector value.</returns>
         public static float2 ReadFloat2Value(EngineBinaryReader reader) {
-            return reader.ReadFloat2();
+            return reader.ReadReal2();
         }
 
         /// <summary>
@@ -125,7 +125,7 @@ namespace helengine.files {
         /// <param name="writer">Destination writer for the payload.</param>
         /// <param name="value">Vector value to serialize.</param>
         public static void WriteFloat3Value(EngineBinaryWriter writer, float3 value) {
-            writer.WriteFloat3(value);
+            writer.WriteReal3(value);
         }
 
         /// <summary>
@@ -134,7 +134,7 @@ namespace helengine.files {
         /// <param name="reader">Source reader positioned at the value.</param>
         /// <returns>Deserialized vector value.</returns>
         public static float3 ReadFloat3Value(EngineBinaryReader reader) {
-            return reader.ReadFloat3();
+            return reader.ReadReal3();
         }
 
         /// <summary>
@@ -143,7 +143,7 @@ namespace helengine.files {
         /// <param name="writer">Destination writer for the payload.</param>
         /// <param name="value">Vector value to serialize.</param>
         public static void WriteFloat4Value(EngineBinaryWriter writer, float4 value) {
-            writer.WriteFloat4(value);
+            writer.WriteReal4(value);
         }
 
         /// <summary>
@@ -152,7 +152,7 @@ namespace helengine.files {
         /// <param name="reader">Source reader positioned at the value.</param>
         /// <returns>Deserialized vector value.</returns>
         public static float4 ReadFloat4Value(EngineBinaryReader reader) {
-            return reader.ReadFloat4();
+            return reader.ReadReal4();
         }
     }
 }

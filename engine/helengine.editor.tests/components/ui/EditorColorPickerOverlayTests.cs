@@ -96,11 +96,11 @@ public sealed class EditorColorPickerOverlayTests {
 
         double wheelRadius = (overlay.HueWheelControl.Size.X - 1) / 2.0;
         double wheelInnerRadius = wheelRadius * 0.62;
-        double wheelCenterX = overlay.HueWheelControl.Position.X + wheelRadius;
-        double wheelCenterY = overlay.HueWheelControl.Position.Y + wheelRadius;
+        double wheelCenterX = (double)(overlay.HueWheelControl.Position.X + wheelRadius);
+        double wheelCenterY = (double)(overlay.HueWheelControl.Position.Y + wheelRadius);
 
-        double triangleLeft = overlay.SaturationValueTriangleControl.Position.X;
-        double triangleTop = overlay.SaturationValueTriangleControl.Position.Y;
+        double triangleLeft = (double)(overlay.SaturationValueTriangleControl.Position.X);
+        double triangleTop = (double)(overlay.SaturationValueTriangleControl.Position.Y);
         double triangleSize = overlay.SaturationValueTriangleControl.Size.X;
 
         double[,] vertices = new double[,] {

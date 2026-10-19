@@ -14,17 +14,17 @@ namespace helengine.vulkan {
         /// <summary>
         /// Position of the vertex in model space.
         /// </summary>
-        public float3 Position;
+        public GpuFloat3 Position;
 
         /// <summary>
         /// Normal vector at the vertex.
         /// </summary>
-        public float3 Normal;
+        public GpuFloat3 Normal;
 
         /// <summary>
         /// Texture coordinate for the vertex.
         /// </summary>
-        public float2 TexCoord;
+        public GpuFloat2 TexCoord;
 
         /// <summary>
         /// Initializes a vertex with position, normal, and texture coordinate.
@@ -33,9 +33,9 @@ namespace helengine.vulkan {
         /// <param name="normal">Normal vector.</param>
         /// <param name="texCoord">Texture coordinate.</param>
         public VulkanVertex3D(float3 position, float3 normal, float2 texCoord) {
-            Position = position;
-            Normal = normal;
-            TexCoord = texCoord;
+            Position = GpuFloat3.FromEngine(position);
+            Normal = GpuFloat3.FromEngine(normal);
+            TexCoord = GpuFloat2.FromEngine(texCoord);
         }
     }
 }

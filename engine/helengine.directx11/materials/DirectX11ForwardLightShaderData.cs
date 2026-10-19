@@ -9,12 +9,12 @@ namespace helengine.directx11 {
         /// <summary>
         /// Accumulated ambient-light radiance stacked from every selected ambient light.
         /// </summary>
-        public float4 AmbientLightColor;
+        public GpuFloat4 AmbientLightColor;
 
         /// <summary>
         /// Packed shader metadata where X stores the active light count.
         /// </summary>
-        public float4 LightMetadata;
+        public GpuFloat4 LightMetadata;
 
         /// <summary>
         /// First packed forward-light slot.

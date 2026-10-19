@@ -495,8 +495,8 @@ namespace helengine.editor.tests {
             List<EditorEntity> tabHosts = GetPrivateField<List<EditorEntity>>(tabStrip, "TabHosts");
             EditorEntity firstTabHost = Assert.IsType<EditorEntity>(tabHosts[0]);
             RenderCommandList2D commands = new RenderCommandListBuilder2D().Build(contentCamera.RenderQueue2D);
-            float expectedLeft = firstTabHost.Position.X;
-            float expectedTop = firstTabHost.Position.Y;
+            double expectedLeft = (double)(firstTabHost.Position.X);
+            double expectedTop = (double)(firstTabHost.Position.Y);
             bool foundRoundedRect = false;
             bool foundGlyph = false;
             bool foundPositiveClipForTab = false;
@@ -511,17 +511,17 @@ namespace helengine.editor.tests {
                 } else if (commands.GetCommandType(commandIndex) == RenderCommand2DType.RoundedRect) {
                     int payloadIndex = commands.GetRoundedRectPayloadIndex(commandIndex);
                     float4 bounds = commands.GetRoundedRectBounds(payloadIndex);
-                    if (Math.Abs(bounds.X - expectedLeft) < 0.5f
-                        && Math.Abs(bounds.Y - expectedTop) < 0.5f
-                        && Math.Abs(bounds.Z - 96f) < 0.5f
-                        && Math.Abs(bounds.W - 24f) < 0.5f) {
+                    if (Math.Abs((double)(bounds.X - expectedLeft)) < 0.5f
+                        && Math.Abs((double)(bounds.Y - expectedTop)) < 0.5f
+                        && Math.Abs((double)(bounds.Z - 96f)) < 0.5f
+                        && Math.Abs((double)(bounds.W - 24f)) < 0.5f) {
                         foundRoundedRect = true;
                         if (activeClipStack.Count > 0) {
                             float4 clipRect = activeClipStack.Peek();
-                            float clippedRight = Math.Min(bounds.X + bounds.Z, clipRect.X + clipRect.Z);
-                            float clippedBottom = Math.Min(bounds.Y + bounds.W, clipRect.Y + clipRect.W);
-                            float clippedLeft = Math.Max(bounds.X, clipRect.X);
-                            float clippedTop = Math.Max(bounds.Y, clipRect.Y);
+                            double clippedRight = (double)(Math.Min((double)(bounds.X + bounds.Z), (double)(clipRect.X + clipRect.Z)));
+                            double clippedBottom = (double)(Math.Min((double)(bounds.Y + bounds.W), (double)(clipRect.Y + clipRect.W)));
+                            double clippedLeft = (double)(Math.Max((double)(bounds.X), (double)(clipRect.X)));
+                            double clippedTop = (double)(Math.Max((double)(bounds.Y), (double)(clipRect.Y)));
                             foundPositiveClipForTab = clippedRight > clippedLeft && clippedBottom > clippedTop;
                         }
                     }
@@ -606,10 +606,10 @@ namespace helengine.editor.tests {
 
                 int payloadIndex = commands.GetRoundedRectPayloadIndex(commandIndex);
                 float4 bounds = commands.GetRoundedRectBounds(payloadIndex);
-                if (Math.Abs(bounds.X - secondFirstTabHost.Position.X) < 0.5f
-                    && Math.Abs(bounds.Y - secondFirstTabHost.Position.Y) < 0.5f
-                    && Math.Abs(bounds.Z - 96f) < 0.5f
-                    && Math.Abs(bounds.W - 24f) < 0.5f) {
+                if (Math.Abs((double)(bounds.X - secondFirstTabHost.Position.X)) < 0.5f
+                    && Math.Abs((double)(bounds.Y - secondFirstTabHost.Position.Y)) < 0.5f
+                    && Math.Abs((double)(bounds.Z - 96f)) < 0.5f
+                    && Math.Abs((double)(bounds.W - 24f)) < 0.5f) {
                     foundSiblingTabRoundedRect = true;
                     break;
                 }
@@ -775,8 +775,8 @@ namespace helengine.editor.tests {
             ComponentPropertiesView componentView = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
             List<ComponentSectionView> sections = GetPrivateField<List<ComponentSectionView>>(componentView, "ActiveSections");
             ComponentSectionView firstSection = Assert.Single(sections);
-            int pointerX = (int)Math.Round(firstSection.HeaderInteractable.Parent.Position.X + 8f);
-            int pointerY = (int)Math.Round(firstSection.HeaderInteractable.Parent.Position.Y + 8f);
+            int pointerX = (int)Math.Round((double)(firstSection.HeaderInteractable.Parent.Position.X + 8f));
+            int pointerY = (int)Math.Round((double)(firstSection.HeaderInteractable.Parent.Position.Y + 8f));
             ICamera topCamera = FindTopCameraAt(pointerX, pointerY);
             Assert.Null(topCamera);
 

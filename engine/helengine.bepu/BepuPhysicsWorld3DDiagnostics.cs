@@ -487,9 +487,9 @@ namespace helengine {
         /// <param name="expectedZ">Expected authored Z coordinate.</param>
         /// <returns>True when the position matches the expected authored coordinate.</returns>
         static bool IsApproximately(float3 position, float expectedX, float expectedY, float expectedZ) {
-            return Math.Abs(position.X - expectedX) <= PositionTolerance
-                && Math.Abs(position.Y - expectedY) <= PositionTolerance
-                && Math.Abs(position.Z - expectedZ) <= PositionTolerance;
+            return RealMath.Abs(position.X - expectedX) <= PositionTolerance
+                && RealMath.Abs(position.Y - expectedY) <= PositionTolerance
+                && RealMath.Abs(position.Z - expectedZ) <= PositionTolerance;
         }
 
         /// <summary>

@@ -21,7 +21,7 @@ namespace helengine {
             }
 
             float3 centerOffset = first.Position - second.Position;
-            float distanceSquared = float3.Dot(centerOffset, centerOffset);
+            float distanceSquared = (float)(float3.Dot(centerOffset, centerOffset));
             float combinedRadius = first.SphereRadius + second.SphereRadius;
             float combinedRadiusSquared = combinedRadius * combinedRadius;
             if (distanceSquared >= combinedRadiusSquared) {

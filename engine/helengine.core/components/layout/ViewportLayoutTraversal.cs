@@ -16,7 +16,7 @@ namespace helengine {
         }
 
         /// <summary>Applies loaded values directly; no original-value records are constructed.</summary>
-        public static void ApplyOnce(Entity entity, Entity owner, ViewportLayoutMetrics metrics) {
+        public static void ApplyOnce(Entity entity, Entity owner, in ViewportLayoutMetrics metrics) {
             ViewportLayoutMetrics local = metrics;
             if (!ReferenceEquals(entity, owner)) { local.Origin = new float2(0f, 0f); }
             if (entity.Components != null) {

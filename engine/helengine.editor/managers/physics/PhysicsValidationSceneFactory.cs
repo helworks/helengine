@@ -1181,10 +1181,10 @@ namespace helengine.editor {
         static string ConvertColorToHtml(float4 color) {
             return string.Concat(
                 "#",
-                ConvertColorChannelToByte(color.X).ToString("X2"),
-                ConvertColorChannelToByte(color.Y).ToString("X2"),
-                ConvertColorChannelToByte(color.Z).ToString("X2"),
-                ConvertColorChannelToByte(color.W).ToString("X2"));
+                ConvertColorChannelToByte((float)(color.X)).ToString("X2"),
+                ConvertColorChannelToByte((float)(color.Y)).ToString("X2"),
+                ConvertColorChannelToByte((float)(color.Z)).ToString("X2"),
+                ConvertColorChannelToByte((float)(color.W)).ToString("X2"));
         }
 
         /// <summary>
@@ -1431,10 +1431,10 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(writer));
             }
 
-            writer.WriteSingle(value.X);
-            writer.WriteSingle(value.Y);
-            writer.WriteSingle(value.Z);
-            writer.WriteSingle(value.W);
+            writer.WriteSingle((float)(value.X));
+            writer.WriteSingle((float)(value.Y));
+            writer.WriteSingle((float)(value.Z));
+            writer.WriteSingle((float)(value.W));
         }
 
         /// <summary>

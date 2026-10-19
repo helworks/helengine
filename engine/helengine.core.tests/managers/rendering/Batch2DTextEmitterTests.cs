@@ -50,56 +50,56 @@ namespace helengine.core.tests.managers.rendering {
             Assert.Equal(0.25f, sink.Vertices[0][2].TexLocal.X);
             Assert.Equal(0.5f, sink.Vertices[0][2].TexLocal.Y);
             Assert.Equal(0f, sink.Vertices[0][0].Position.Z);
-            Assert.Equal(15f, sink.Vertices[0][0].Position.X, 4);
-            Assert.Equal(26f, sink.Vertices[0][0].Position.Y, 4);
-            Assert.Equal(13f, sink.Vertices[0][4].Position.X, 4);
-            Assert.Equal(24f, sink.Vertices[0][4].Position.Y, 4);
-            Assert.Equal(15f, sink.Vertices[0][8].Position.X, 4);
-            Assert.Equal(24f, sink.Vertices[0][8].Position.Y, 4);
-            Assert.Equal(14f, sink.Vertices[0][12].Position.X, 4);
-            Assert.Equal(23f, sink.Vertices[0][12].Position.Y, 4);
-            Assert.Equal(14f, sink.Vertices[0][16].Position.X, 4);
-            Assert.Equal(25f, sink.Vertices[0][16].Position.Y, 4);
-            Assert.Equal(0f, sink.Vertices[0][4].Color.X, 5);
-            Assert.Equal(1f, sink.Vertices[0][4].Color.Y, 5);
-            Assert.Equal(0f, sink.Vertices[0][4].Color.Z, 5);
-            Assert.Equal(128f / 255f, sink.Vertices[0][4].Color.W, 5);
-            Assert.Equal(0f, sink.Vertices[0][8].Color.X, 5);
-            Assert.Equal(1f, sink.Vertices[0][8].Color.Y, 5);
-            Assert.Equal(0f, sink.Vertices[0][8].Color.Z, 5);
-            Assert.Equal(128f / 255f, sink.Vertices[0][8].Color.W, 5);
-            Assert.Equal(0f, sink.Vertices[0][12].Color.X, 5);
-            Assert.Equal(1f, sink.Vertices[0][12].Color.Y, 5);
-            Assert.Equal(0f, sink.Vertices[0][12].Color.Z, 5);
-            Assert.Equal(128f / 255f, sink.Vertices[0][12].Color.W, 5);
-            Assert.Equal(0f, sink.Vertices[0][16].Color.X, 5);
-            Assert.Equal(1f, sink.Vertices[0][16].Color.Y, 5);
-            Assert.Equal(0f, sink.Vertices[0][16].Color.Z, 5);
-            Assert.Equal(128f / 255f, sink.Vertices[0][16].Color.W, 5);
+            Assert.Equal((double)(15f),(double)(sink.Vertices[0][0].Position.X), 4);
+            Assert.Equal((double)(26f),(double)(sink.Vertices[0][0].Position.Y), 4);
+            Assert.Equal((double)(13f),(double)(sink.Vertices[0][4].Position.X), 4);
+            Assert.Equal((double)(24f),(double)(sink.Vertices[0][4].Position.Y), 4);
+            Assert.Equal((double)(15f),(double)(sink.Vertices[0][8].Position.X), 4);
+            Assert.Equal((double)(24f),(double)(sink.Vertices[0][8].Position.Y), 4);
+            Assert.Equal((double)(14f),(double)(sink.Vertices[0][12].Position.X), 4);
+            Assert.Equal((double)(23f),(double)(sink.Vertices[0][12].Position.Y), 4);
+            Assert.Equal((double)(14f),(double)(sink.Vertices[0][16].Position.X), 4);
+            Assert.Equal((double)(25f),(double)(sink.Vertices[0][16].Position.Y), 4);
+            Assert.Equal((double)(0f),(double)(sink.Vertices[0][4].Color.X), 5);
+            Assert.Equal((double)(1f),(double)(sink.Vertices[0][4].Color.Y), 5);
+            Assert.Equal((double)(0f),(double)(sink.Vertices[0][4].Color.Z), 5);
+            Assert.Equal((double)(128f / 255f),(double)(sink.Vertices[0][4].Color.W), 5);
+            Assert.Equal((double)(0f),(double)(sink.Vertices[0][8].Color.X), 5);
+            Assert.Equal((double)(1f),(double)(sink.Vertices[0][8].Color.Y), 5);
+            Assert.Equal((double)(0f),(double)(sink.Vertices[0][8].Color.Z), 5);
+            Assert.Equal((double)(128f / 255f),(double)(sink.Vertices[0][8].Color.W), 5);
+            Assert.Equal((double)(0f),(double)(sink.Vertices[0][12].Color.X), 5);
+            Assert.Equal((double)(1f),(double)(sink.Vertices[0][12].Color.Y), 5);
+            Assert.Equal((double)(0f),(double)(sink.Vertices[0][12].Color.Z), 5);
+            Assert.Equal((double)(128f / 255f),(double)(sink.Vertices[0][12].Color.W), 5);
+            Assert.Equal((double)(0f),(double)(sink.Vertices[0][16].Color.X), 5);
+            Assert.Equal((double)(1f),(double)(sink.Vertices[0][16].Color.Y), 5);
+            Assert.Equal((double)(0f),(double)(sink.Vertices[0][16].Color.Z), 5);
+            Assert.Equal((double)(128f / 255f),(double)(sink.Vertices[0][16].Color.W), 5);
             Assert.Equal(0f, sink.Vertices[0][0].Color.X);
-            Assert.Equal(128f / 255f, sink.Vertices[0][0].Color.W, 5);
-            Assert.Equal(14f, sink.Vertices[0][20].Position.X, 4);
-            Assert.Equal(24f, sink.Vertices[0][20].Position.Y, 4);
-            Assert.Equal(22f, sink.Vertices[0][21].Position.X, 4);
-            Assert.Equal(24f, sink.Vertices[0][21].Position.Y, 4);
-            Assert.Equal(22f, sink.Vertices[0][22].Position.X, 4);
-            Assert.Equal(40f, sink.Vertices[0][22].Position.Y, 4);
-            Assert.Equal(14f, sink.Vertices[0][23].Position.X, 4);
-            Assert.Equal(40f, sink.Vertices[0][23].Position.Y, 4);
-            Assert.Equal(255f / 255f, sink.Vertices[0][20].Color.X, 5);
-            Assert.Equal(64f / 255f, sink.Vertices[0][20].Color.W, 5);
-            Assert.Equal(15f, sink.Vertices[0][24].Position.X, 4);
-            Assert.Equal(46f, sink.Vertices[0][24].Position.Y, 4);
-            Assert.Equal(14f, sink.Vertices[0][44].Position.X, 4);
-            Assert.Equal(44f, sink.Vertices[0][44].Position.Y, 4);
-            Assert.Equal(15f, sink.Vertices[0][48].Position.X, 4);
-            Assert.Equal(66f, sink.Vertices[0][48].Position.Y, 4);
-            Assert.Equal(14f, sink.Vertices[0][68].Position.X, 4);
-            Assert.Equal(64f, sink.Vertices[0][68].Position.Y, 4);
-            Assert.Equal(15f, sink.Vertices[0][72].Position.X, 4);
-            Assert.Equal(84f, sink.Vertices[0][72].Position.Y, 4);
-            Assert.Equal(14f, sink.Vertices[0][92].Position.X, 4);
-            Assert.Equal(82f, sink.Vertices[0][92].Position.Y, 4);
+            Assert.Equal((double)(128f / 255f),(double)(sink.Vertices[0][0].Color.W), 5);
+            Assert.Equal((double)(14f),(double)(sink.Vertices[0][20].Position.X), 4);
+            Assert.Equal((double)(24f),(double)(sink.Vertices[0][20].Position.Y), 4);
+            Assert.Equal((double)(22f),(double)(sink.Vertices[0][21].Position.X), 4);
+            Assert.Equal((double)(24f),(double)(sink.Vertices[0][21].Position.Y), 4);
+            Assert.Equal((double)(22f),(double)(sink.Vertices[0][22].Position.X), 4);
+            Assert.Equal((double)(40f),(double)(sink.Vertices[0][22].Position.Y), 4);
+            Assert.Equal((double)(14f),(double)(sink.Vertices[0][23].Position.X), 4);
+            Assert.Equal((double)(40f),(double)(sink.Vertices[0][23].Position.Y), 4);
+            Assert.Equal((double)(255f / 255f),(double)(sink.Vertices[0][20].Color.X), 5);
+            Assert.Equal((double)(64f / 255f),(double)(sink.Vertices[0][20].Color.W), 5);
+            Assert.Equal((double)(15f),(double)(sink.Vertices[0][24].Position.X), 4);
+            Assert.Equal((double)(46f),(double)(sink.Vertices[0][24].Position.Y), 4);
+            Assert.Equal((double)(14f),(double)(sink.Vertices[0][44].Position.X), 4);
+            Assert.Equal((double)(44f),(double)(sink.Vertices[0][44].Position.Y), 4);
+            Assert.Equal((double)(15f),(double)(sink.Vertices[0][48].Position.X), 4);
+            Assert.Equal((double)(66f),(double)(sink.Vertices[0][48].Position.Y), 4);
+            Assert.Equal((double)(14f),(double)(sink.Vertices[0][68].Position.X), 4);
+            Assert.Equal((double)(64f),(double)(sink.Vertices[0][68].Position.Y), 4);
+            Assert.Equal((double)(15f),(double)(sink.Vertices[0][72].Position.X), 4);
+            Assert.Equal((double)(84f),(double)(sink.Vertices[0][72].Position.Y), 4);
+            Assert.Equal((double)(14f),(double)(sink.Vertices[0][92].Position.X), 4);
+            Assert.Equal((double)(82f),(double)(sink.Vertices[0][92].Position.Y), 4);
         }
 
         /// <summary>
@@ -135,10 +135,10 @@ namespace helengine.core.tests.managers.rendering {
 
             Assert.Equal(8, sink.Vertices.Sum(vertices => vertices.Length));
             Assert.Equal(12, sink.Indices.Sum(indices => indices.Length));
-            Assert.Equal(14f, sink.Vertices[0][0].Position.X, 4);
-            Assert.Equal(44f, sink.Vertices[0][0].Position.Y, 4);
-            Assert.Equal(14f, sink.Vertices[0][4].Position.X, 4);
-            Assert.Equal(84f, sink.Vertices[0][4].Position.Y, 4);
+            Assert.Equal((double)(14f),(double)(sink.Vertices[0][0].Position.X), 4);
+            Assert.Equal((double)(44f),(double)(sink.Vertices[0][0].Position.Y), 4);
+            Assert.Equal((double)(14f),(double)(sink.Vertices[0][4].Position.X), 4);
+            Assert.Equal((double)(84f),(double)(sink.Vertices[0][4].Position.Y), 4);
         }
 
         /// <summary>
@@ -174,7 +174,7 @@ namespace helengine.core.tests.managers.rendering {
                 new Batch2DRun(Batch2DVariant.Textured, atlas, 0, 0, 100, 100));
             writer.Flush();
 
-            Assert.Equal(expectedX, sink.Vertices[0][0].Position.X, 4);
+            Assert.Equal((double)(expectedX),(double)(sink.Vertices[0][0].Position.X), 4);
         }
 
         /// <summary>
@@ -208,10 +208,10 @@ namespace helengine.core.tests.managers.rendering {
                 new Batch2DRun(Batch2DVariant.Textured, atlas, 0, 0, 100, 100));
             writer.Flush();
 
-            Assert.Equal(8f, sink.Vertices[0][1].Position.X - sink.Vertices[0][0].Position.X, 4);
-            Assert.Equal(16f, sink.Vertices[0][2].Position.Y - sink.Vertices[0][1].Position.Y, 4);
+            Assert.Equal((double)(8f),(double)(sink.Vertices[0][1].Position.X - sink.Vertices[0][0].Position.X), 4);
+            Assert.Equal((double)(16f),(double)(sink.Vertices[0][2].Position.Y - sink.Vertices[0][1].Position.Y), 4);
             Assert.Equal(8, sink.Vertices.Sum(vertices => vertices.Length));
-            Assert.Equal(10f, sink.Vertices[0][4].Position.X - sink.Vertices[0][0].Position.X, 4);
+            Assert.Equal((double)(10f),(double)(sink.Vertices[0][4].Position.X - sink.Vertices[0][0].Position.X), 4);
             Assert.Equal(0.25f, sink.Vertices[0][4].TexLocal.X);
         }
 

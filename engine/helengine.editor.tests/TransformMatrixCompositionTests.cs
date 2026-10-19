@@ -56,9 +56,9 @@ public sealed class TransformMatrixCompositionTests {
     /// <param name="expected">Expected transformed position.</param>
     /// <param name="actual">Actual transformed position.</param>
     static void AssertApproximately(float3 expected, float3 actual) {
-        Assert.True(Math.Abs(expected.X - actual.X) < 0.0001f);
-        Assert.True(Math.Abs(expected.Y - actual.Y) < 0.0001f);
-        Assert.True(Math.Abs(expected.Z - actual.Z) < 0.0001f);
+        Assert.True(Math.Abs((double)(expected.X - actual.X)) < 0.0001f);
+        Assert.True(Math.Abs((double)(expected.Y - actual.Y)) < 0.0001f);
+        Assert.True(Math.Abs((double)(expected.Z - actual.Z)) < 0.0001f);
     }
 
     /// <summary>
@@ -67,9 +67,9 @@ public sealed class TransformMatrixCompositionTests {
     /// <param name="expected">Reference transformed position.</param>
     /// <param name="actual">Transformed position built with an incorrect matrix order.</param>
     static void AssertNotApproximately(float3 expected, float3 actual) {
-        bool xMatches = Math.Abs(expected.X - actual.X) < 0.0001f;
-        bool yMatches = Math.Abs(expected.Y - actual.Y) < 0.0001f;
-        bool zMatches = Math.Abs(expected.Z - actual.Z) < 0.0001f;
+        bool xMatches = Math.Abs((double)(expected.X - actual.X)) < 0.0001f;
+        bool yMatches = Math.Abs((double)(expected.Y - actual.Y)) < 0.0001f;
+        bool zMatches = Math.Abs((double)(expected.Z - actual.Z)) < 0.0001f;
 
         Assert.False(xMatches && yMatches && zMatches);
     }

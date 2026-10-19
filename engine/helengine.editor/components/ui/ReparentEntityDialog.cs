@@ -140,7 +140,7 @@ namespace helengine.editor {
                 Font = DialogFont,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
+                Size = new int2(1, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(DialogFont.LineHeight, 1f)))),
             };
             TargetHost.AddComponent(TargetText);
 
@@ -160,7 +160,7 @@ namespace helengine.editor {
                 Font = DialogFont,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.StateWarning,
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
+                Size = new int2(1, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(DialogFont.LineHeight, 1f)))),
             };
             StatusHost.AddComponent(StatusText);
 
@@ -315,7 +315,7 @@ namespace helengine.editor {
             FontTightMetrics metrics = DialogFont.MeasureTight(TargetText.Text);
             TargetText.Size = new int2(
                 Math.Max(1, DialogWidth - (GetPanelPaddingPixels() * 2)),
-                Math.Max(1, (int)Math.Ceiling(Math.Max(metrics.Height, DialogFont.LineHeight))));
+                Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(metrics.Height, DialogFont.LineHeight))));
         }
 
         /// <summary>
@@ -337,7 +337,7 @@ namespace helengine.editor {
             FontTightMetrics metrics = DialogFont.MeasureTight(StatusText.Text);
             StatusText.Size = new int2(
                 Math.Max(1, DialogWidth - (GetPanelPaddingPixels() * 2)),
-                Math.Max(1, (int)Math.Ceiling(Math.Max(metrics.Height, DialogFont.LineHeight))));
+                Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(metrics.Height, DialogFont.LineHeight))));
         }
 
         /// <summary>

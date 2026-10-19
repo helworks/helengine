@@ -65,7 +65,7 @@ namespace helengine.editor.tests.managers.workspace {
             ICameraProjectionSettings projection = Assert.IsAssignableFrom<ICameraProjectionSettings>(controller.ViewportState.SceneCamera);
             Assert.Equal(CameraProjectionMode.Perspective, projection.ProjectionMode);
             Assert.Equal(new float3(0f, 0f, 0f), controller.ViewportState.CameraController.GetOrbitTarget());
-            Assert.InRange(projection.OrthographicVerticalSpan, 8.284f, 8.285f);
+            Assert.InRange((double)(projection.OrthographicVerticalSpan), (double)(8.284f), (double)(8.285f));
         }
 
         /// <summary>

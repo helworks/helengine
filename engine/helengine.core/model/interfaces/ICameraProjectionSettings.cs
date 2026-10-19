@@ -11,6 +11,6 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the full vertical world-space extent used by orthographic projection.
         /// </summary>
-        float OrthographicVerticalSpan { get; set; }
+        Real OrthographicVerticalSpan { get; set; }
     }
 }

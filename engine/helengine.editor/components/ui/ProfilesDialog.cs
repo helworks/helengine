@@ -384,7 +384,7 @@ namespace helengine.editor {
                 Font = DialogFontValue,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.StateWarning,
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFontValue.LineHeight, 1f)))),
+                Size = new int2(1, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(DialogFontValue.LineHeight, 1f)))),
             };
             StatusHost.AddComponent(StatusText);
             RuntimeSettingsControls.ErrorReported += HandleRuntimeSettingsError;
@@ -853,7 +853,7 @@ namespace helengine.editor {
                 Font = DialogFontValue,
                 Text = text,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFontValue.LineHeight, 1f)))),
+                Size = new int2(1, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(DialogFontValue.LineHeight, 1f)))),
             };
         }
 

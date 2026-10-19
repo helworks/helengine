@@ -550,36 +550,36 @@ namespace helengine.editor {
             out double distanceAlongRay) {
             float3 planeNormal = float3.Cross(rectangleXAxis, rectangleYAxis);
             double normalLengthSquared =
-                (planeNormal.X * planeNormal.X) +
+                (double)((planeNormal.X * planeNormal.X) +
                 (planeNormal.Y * planeNormal.Y) +
-                (planeNormal.Z * planeNormal.Z);
+                (planeNormal.Z * planeNormal.Z));
             if (normalLengthSquared <= 0.000000000001) {
                 distanceAlongRay = 0.0;
                 return false;
             }
 
-            double denominator = float3.Dot(planeNormal, rayDirection);
+            double denominator = (double)(float3.Dot(planeNormal, rayDirection));
             if (Math.Abs(denominator) <= 0.000000000001) {
                 distanceAlongRay = 0.0;
                 return false;
             }
 
             float3 planeDelta = rectangleOrigin - rayOrigin;
-            distanceAlongRay = float3.Dot(planeDelta, planeNormal) / denominator;
+            distanceAlongRay = (double)(float3.Dot(planeDelta, planeNormal) / denominator);
             if (distanceAlongRay < 0.0) {
                 return false;
             }
 
             float3 hitPoint = rayOrigin + (rayDirection * (float)distanceAlongRay);
             float3 hitOffset = hitPoint - rectangleOrigin;
-            double xLengthSquared = float3.Dot(rectangleXAxis, rectangleXAxis);
-            double yLengthSquared = float3.Dot(rectangleYAxis, rectangleYAxis);
+            double xLengthSquared = (double)(float3.Dot(rectangleXAxis, rectangleXAxis));
+            double yLengthSquared = (double)(float3.Dot(rectangleYAxis, rectangleYAxis));
             if (xLengthSquared <= 0.000000000001 || yLengthSquared <= 0.000000000001) {
                 return false;
             }
 
-            double xParameter = float3.Dot(hitOffset, rectangleXAxis) / xLengthSquared;
-            double yParameter = float3.Dot(hitOffset, rectangleYAxis) / yLengthSquared;
+            double xParameter = (double)(float3.Dot(hitOffset, rectangleXAxis) / xLengthSquared);
+            double yParameter = (double)(float3.Dot(hitOffset, rectangleYAxis) / yLengthSquared);
             return xParameter >= 0.0 &&
                    xParameter <= 1.0 &&
                    yParameter >= 0.0 &&

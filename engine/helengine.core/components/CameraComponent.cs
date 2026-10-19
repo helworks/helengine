@@ -30,14 +30,14 @@ namespace helengine {
         /// <summary>
         /// Cached near clip-plane distance used for perspective projection creation.
         /// </summary>
-        float FieldOfViewValue;
+        Real FieldOfViewValue;
 
-        float NearPlaneDistanceValue;
+        Real NearPlaneDistanceValue;
 
         /// <summary>
         /// Cached far clip-plane distance used for perspective projection creation.
         /// </summary>
-        float FarPlaneDistanceValue;
+        Real FarPlaneDistanceValue;
 
         /// <summary>
         /// Gets or sets whether this camera excludes entities hidden by editor visibility controls.
@@ -136,7 +136,7 @@ namespace helengine {
         /// </summary>
         [EditorPropertyDisplayName("Field Of View")]
         [EditorPropertyOrder(2)]
-        public float FieldOfView {
+        public Real FieldOfView {
             get { return FieldOfViewValue; }
             set { FieldOfViewValue = CameraProjectionUtils.ClampFieldOfView(value); }
         }
@@ -146,7 +146,7 @@ namespace helengine {
         /// </summary>
         [EditorPropertyDisplayName("Near Plane Distance")]
         [EditorPropertyOrder(3)]
-        public float NearPlaneDistance {
+        public Real NearPlaneDistance {
             get { return NearPlaneDistanceValue; }
             set {
                 NearPlaneDistanceValue = CameraProjectionUtils.ClampNearPlaneDistance(value, FarPlaneDistanceValue);
@@ -159,7 +159,7 @@ namespace helengine {
         /// </summary>
         [EditorPropertyDisplayName("Far Plane Distance")]
         [EditorPropertyOrder(4)]
-        public float FarPlaneDistance {
+        public Real FarPlaneDistance {
             get { return FarPlaneDistanceValue; }
             set { FarPlaneDistanceValue = CameraProjectionUtils.ClampFarPlaneDistance(NearPlaneDistanceValue, value); }
         }

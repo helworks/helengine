@@ -7,6 +7,11 @@ namespace helengine.editor {
             global::helengine.files.AssetSerializer.Serialize(stream, asset);
         }
 
+        /// <summary>Forwards the captured build numeric policy to asset producers.</summary>
+        public static void Serialize(Stream stream, Asset asset, NumericPrecisionPolicy numericPolicy) {
+            global::helengine.files.AssetSerializer.Serialize(stream, asset, numericPolicy);
+        }
+
         public static Asset Deserialize(Stream stream) {
             return global::helengine.files.AssetSerializer.Deserialize(stream);
         }
@@ -55,6 +60,10 @@ namespace helengine.editor {
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
         public static byte CurrentVersion => global::helengine.files.EditorAssetBinarySerializer.CurrentVersion;
+
+        /// <summary>Reports explicitly supported authoring encodings, including their original numeric widths.</summary>
+        public static bool IsSupportedVersion(byte version) { return global::helengine.files.EditorAssetBinarySerializer.IsSupportedVersion(version); }
+
 
         /// <summary>
         /// Serializes an asset to the supplied stream using the editor asset format.

@@ -43,10 +43,10 @@ namespace helengine {
         public const byte DensityScalingMode = 3;
 
         /// <summary>Authored pixel density; the initial value corresponds to a 160 DPI reference canvas.</summary>
-        float PixelsPerCentimeterValue = (float)(160d / 2.54d);
+        Real PixelsPerCentimeterValue = (RealEvaluation)(160d / 2.54d);
 
         /// <summary>User-selected size multiplier applied after physical density conversion.</summary>
-        float UiScaleValue = 1f;
+        Real UiScaleValue = 1f;
 
         /// <summary>Originals exist only for Dynamic players and editor authoring previews.</summary>
         ViewportLayoutCache LayoutCache;
@@ -103,7 +103,7 @@ namespace helengine {
         /// <summary>
         /// Stores the display pixel aspect the last scale pass used, so the recorded glyph scale matches the one the snapshots applied.
         /// </summary>
-        double CurrentPixelAspectValue;
+        Real CurrentPixelAspectValue;
 
         /// <summary>
         /// Authored canvas size that the full-viewport anchor space resolves to while a layout owner re-anchors its subtree in
@@ -234,10 +234,10 @@ namespace helengine {
         }
 
         /// <summary>Gets or sets how many authored viewport pixels represent one centimeter in density mode; host DPI determines the approximate physical conversion.</summary>
-        public float PixelsPerCentimeter {
+        public Real PixelsPerCentimeter {
             get { return PixelsPerCentimeterValue; }
             set {
-                if (!(value > 0f) || float.IsInfinity(value)) {
+                if (!(value > 0f) || RealEvaluation.IsInfinity(value)) {
                     throw new ArgumentOutOfRangeException(nameof(value), "Pixels per centimeter must be finite and positive.");
                 }
                 if (PixelsPerCentimeterValue != value) {
@@ -249,10 +249,10 @@ namespace helengine {
         }
 
         /// <summary>Gets or sets an additional positive UI size multiplier for density scaling.</summary>
-        public float UiScale {
+        public Real UiScale {
             get { return UiScaleValue; }
             set {
-                if (!(value > 0f) || float.IsInfinity(value)) {
+                if (!(value > 0f) || RealEvaluation.IsInfinity(value)) {
                     throw new ArgumentOutOfRangeException(nameof(value), "UI scale must be finite and positive.");
                 }
                 if (UiScaleValue != value) {
@@ -265,12 +265,12 @@ namespace helengine {
 
         /// <summary>Gets physical pixels per authored pixel in density mode, using the screen or bound camera's named output view.</summary>
         [ScenePersistenceIgnore]
-        public float DensityScale {
+        public Real DensityScale {
             get {
-                if (UsesPreparedSinglePassBounds()) { return (float)CurrentMetrics.ScaleX; }
+                if (UsesPreparedSinglePassBounds()) { return (RealEvaluation)CurrentMetrics.ScaleX; }
                 string tag = ActiveCameraComponentValue == null || ActiveCameraComponentValue.OutputWindowTag.Length == 0
                     ? "main" : ActiveCameraComponentValue.OutputWindowTag;
-                return (float)(OwnerCore.RenderManager3D.GetWindowDensityDpi(tag) / (PixelsPerCentimeterValue * 2.54d) * UiScaleValue);
+                return (RealEvaluation)(OwnerCore.RenderManager3D.GetWindowDensityDpi(tag) / (PixelsPerCentimeterValue * 2.54d) * UiScaleValue);
             }
         }
 
@@ -365,8 +365,8 @@ namespace helengine {
             get {
                 float4 viewport = ResolvedViewportBounds;
                 return new int2(
-                    Math.Max(1, (int)Math.Round(viewport.Z)),
-                    Math.Max(1, (int)Math.Round(viewport.W)));
+                    RealMath.Max(1, (int)RealMath.Round(viewport.Z)),
+                    RealMath.Max(1, (int)RealMath.Round(viewport.W)));
             }
         }
 
@@ -375,7 +375,7 @@ namespace helengine {
         /// binding, the bound camera's output for camera binding, and square pixels for a fixed size or while the authored
         /// reference rect is active.
         /// </summary>
-        public double ResolvedPixelAspect {
+        public Real ResolvedPixelAspect {
             get {
                 return ResolvePixelAspect();
             }
@@ -474,7 +474,7 @@ namespace helengine {
                     throw new InvalidOperationException("Cook viewport requires compatible prepared layout metadata.");
                 }
                 int2 target = ResolveAnchorBounds();
-                if (target.X != CookedLayout.TargetWidth || target.Y != CookedLayout.TargetHeight || Math.Abs(ResolvePixelAspect() - CookedLayout.PixelAspect) > 0.000001d) {
+                if (target.X != CookedLayout.TargetWidth || target.Y != CookedLayout.TargetHeight || RealMath.Abs(ResolvePixelAspect() - CookedLayout.PixelAspect) > 0.000001d) {
                     throw new InvalidOperationException("Cooked viewport presentation target changed; load a scene cooked for this target.");
                 }
                 CurrentMetrics = new ViewportLayoutMetrics {
@@ -715,8 +715,8 @@ namespace helengine {
 
             float4 viewport = ResolveViewportBounds();
             return new int2(
-                Math.Max(1, (int)Math.Round(viewport.Z)),
-                Math.Max(1, (int)Math.Round(viewport.W)));
+                RealMath.Max(1, (int)RealMath.Round(viewport.Z)),
+                RealMath.Max(1, (int)RealMath.Round(viewport.W)));
         }
 
         /// <summary>
@@ -750,7 +750,7 @@ namespace helengine {
         /// Resolves the display pixel aspect of the active viewport surface without forcing another subscription refresh.
         /// </summary>
         /// <returns>Displayed width of one surface pixel divided by its displayed height.</returns>
-        double ResolvePixelAspect() {
+        RealEvaluation ResolvePixelAspect() {
             if (UsesPreparedSinglePassBounds()) { return CurrentMetrics.PixelAspect; }
             if (AuthoredViewportRectSizeValue.X > 0 && AuthoredViewportRectSizeValue.Y > 0) {
                 return RenderManager3D.SquarePixelAspect;
@@ -906,8 +906,8 @@ namespace helengine {
 
         void ApplyCurrentScale() {
             if (Parent == null) { return; }
-            double referenceDpi = PixelsPerCentimeterValue * 2.54d;
-            double dpi = ScalingModeValue == DensityScalingMode ? DensityScale / UiScaleValue * referenceDpi : 0d;
+            RealEvaluation referenceDpi = PixelsPerCentimeterValue * 2.54d;
+            RealEvaluation dpi = ScalingModeValue == DensityScalingMode ? DensityScale / UiScaleValue * referenceDpi : 0d;
             CurrentMetrics = ViewportLayoutMath.Resolve(ScalingModeValue, new int2(ReferenceWidthValue, ReferenceHeightValue),
                 ResolveAnchorBounds(), ResolvePixelAspect(), UiScaleValue, dpi, referenceDpi);
             PublishMetrics();
@@ -930,8 +930,8 @@ namespace helengine {
                 return viewportBounds;
             }
 
-            double liveWidth = viewportBounds.X > 0 ? viewportBounds.X : ReferenceWidthValue;
-            double liveHeight = viewportBounds.Y > 0 ? viewportBounds.Y : ReferenceHeightValue;
+            RealEvaluation liveWidth = viewportBounds.X > 0 ? viewportBounds.X : ReferenceWidthValue;
+            RealEvaluation liveHeight = viewportBounds.Y > 0 ? viewportBounds.Y : ReferenceHeightValue;
             return DisplayAspectFitUtils.ResolveFittedSize(liveWidth, liveHeight, ReferenceWidthValue, ReferenceHeightValue, ResolvePixelAspect());
         }
 
@@ -942,10 +942,10 @@ namespace helengine {
         /// <returns>Root-entity offset applied to the scaled subtree.</returns>
         float2 ResolveCurrentCanvasOrigin(int2 anchorSpaceSize) {
             int2 viewportBounds = ResolveAnchorBounds();
-            double liveWidth = viewportBounds.X > 0 ? viewportBounds.X : ReferenceWidthValue;
-            double liveHeight = viewportBounds.Y > 0 ? viewportBounds.Y : ReferenceHeightValue;
-            float originX = (float)((liveWidth - anchorSpaceSize.X) * 0.5d);
-            float originY = (float)((liveHeight - anchorSpaceSize.Y) * 0.5d);
+            RealEvaluation liveWidth = viewportBounds.X > 0 ? viewportBounds.X : ReferenceWidthValue;
+            RealEvaluation liveHeight = viewportBounds.Y > 0 ? viewportBounds.Y : ReferenceHeightValue;
+            RealEvaluation originX = (RealEvaluation)((liveWidth - anchorSpaceSize.X) * 0.5d);
+            RealEvaluation originY = (RealEvaluation)((liveHeight - anchorSpaceSize.Y) * 0.5d);
             return new float2(originX, originY);
         }
 

@@ -32,11 +32,11 @@ namespace helengine.core.tests {
             Entity child = CreateEntity(core, new float3(2f, 0f, 0f), float3.One, float4.Identity);
             root.AddChild(child);
 
-            Assert.Equal(3f, child.Position.X, 4);
+            Assert.Equal((double)(3f),(double)(child.Position.X), 4);
 
             root.Position = new float3(10f, 0f, 0f);
 
-            Assert.Equal(12f, child.Position.X, 4);
+            Assert.Equal((double)(12f),(double)(child.Position.X), 4);
             AssertWorldTransformMatchesUncachedComposition(child);
         }
 
@@ -78,7 +78,7 @@ namespace helengine.core.tests {
 
             secondParent.AddChild(child);
 
-            Assert.NotEqual(firstWorldPosition.X, grandChild.Position.X, 4);
+            Assert.NotEqual((double)firstWorldPosition.X, (double)grandChild.Position.X, 4);
             AssertWorldTransformMatchesUncachedComposition(child);
             AssertWorldTransformMatchesUncachedComposition(grandChild);
         }
@@ -108,13 +108,13 @@ namespace helengine.core.tests {
             Core core = CreateInitializedCore();
             Entity entity = CreateEntity(core, new float3(1f, 1f, 1f), float3.One, float4.Identity);
 
-            Assert.Equal(1f, entity.Position.X, 4);
+            Assert.Equal((double)(1f),(double)(entity.Position.X), 4);
 
             entity.Position = new float3(5f, 1f, 1f);
-            Assert.Equal(5f, entity.Position.X, 4);
+            Assert.Equal((double)(5f),(double)(entity.Position.X), 4);
 
             entity.LocalScale = new float3(3f, 3f, 3f);
-            Assert.Equal(3f, entity.Scale.X, 4);
+            Assert.Equal((double)(3f),(double)(entity.Scale.X), 4);
 
             entity.LocalOrientation = CreateRotation(float3.UnitY, 1f);
             AssertFloat4Equal(entity.LocalOrientation, entity.Orientation);
@@ -184,9 +184,9 @@ namespace helengine.core.tests {
         /// <param name="expected">Expected vector.</param>
         /// <param name="actual">Actual vector.</param>
         static void AssertFloat3Equal(float3 expected, float3 actual) {
-            Assert.Equal(expected.X, actual.X, 4);
-            Assert.Equal(expected.Y, actual.Y, 4);
-            Assert.Equal(expected.Z, actual.Z, 4);
+            Assert.Equal((double)(expected.X),(double)(actual.X), 4);
+            Assert.Equal((double)(expected.Y),(double)(actual.Y), 4);
+            Assert.Equal((double)(expected.Z),(double)(actual.Z), 4);
         }
 
         /// <summary>
@@ -195,10 +195,10 @@ namespace helengine.core.tests {
         /// <param name="expected">Expected quaternion.</param>
         /// <param name="actual">Actual quaternion.</param>
         static void AssertFloat4Equal(float4 expected, float4 actual) {
-            Assert.Equal(expected.X, actual.X, 4);
-            Assert.Equal(expected.Y, actual.Y, 4);
-            Assert.Equal(expected.Z, actual.Z, 4);
-            Assert.Equal(expected.W, actual.W, 4);
+            Assert.Equal((double)(expected.X),(double)(actual.X), 4);
+            Assert.Equal((double)(expected.Y),(double)(actual.Y), 4);
+            Assert.Equal((double)(expected.Z),(double)(actual.Z), 4);
+            Assert.Equal((double)(expected.W),(double)(actual.W), 4);
         }
 
         /// <summary>

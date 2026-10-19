@@ -495,9 +495,9 @@ namespace helengine.editor.tests {
             mesh.Normals.Add(new System.Numerics.Vector3(0f, 0f, 1f));
             mesh.Normals.Add(new System.Numerics.Vector3(0f, 0f, 1f));
             mesh.TextureCoordinateChannels[0] = new List<System.Numerics.Vector3> {
-                new System.Numerics.Vector3(texCoord0.X, texCoord0.Y, 0f),
-                new System.Numerics.Vector3(texCoord1.X, texCoord1.Y, 0f),
-                new System.Numerics.Vector3(texCoord2.X, texCoord2.Y, 0f)
+                new System.Numerics.Vector3((float)(texCoord0.X), (float)(texCoord0.Y), 0f),
+                new System.Numerics.Vector3((float)(texCoord1.X), (float)(texCoord1.Y), 0f),
+                new System.Numerics.Vector3((float)(texCoord2.X), (float)(texCoord2.Y), 0f)
             };
             mesh.UVComponentCount[0] = 2;
             mesh.Faces.Add(new Face(new[] { 0, 1, 2 }));

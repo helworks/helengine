@@ -234,7 +234,7 @@ namespace helengine.editor {
                 Font = SearchFont,
                 Text = "No components match the search.",
                 Color = ThemeManager.Colors.AccentQuaternary,
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(SearchFont.LineHeight, 1f)))),
+                Size = new int2(1, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(SearchFont.LineHeight, 1f)))),
             };
             EmptyStateHost.AddComponent(EmptyStateText);
             Enabled = false;
@@ -489,7 +489,7 @@ namespace helengine.editor {
                 row.Background.Size = new int2(contentWidth, RowHeight);
                 row.Interactable.Size = new int2(contentWidth, RowHeight);
                 row.Interactable.HoverCursor = PointerCursorKind.Hand;
-                row.LabelHost.Position = new float3(RowHorizontalPadding, (float)Math.Round((RowHeight - Math.Max(SearchFont.LineHeight, 1f)) * 0.5f), 0.2f);
+                row.LabelHost.Position = new float3(RowHorizontalPadding, (float)RealMath.Round((RowHeight - RealMath.Max(SearchFont.LineHeight, 1f)) * 0.5f), 0.2f);
                 row.Label.Text = descriptor.DisplayName;
                 row.Label.Size = new int2(Math.Max(0, contentWidth - (RowHorizontalPadding * 2)), RowHeight);
                 row.Label.Color = ThemeManager.Colors.InputForegroundPrimary;

@@ -206,8 +206,8 @@ namespace helengine {
         }
 
         /// <summary>Determines whether one component is neither NaN nor infinite.</summary>
-        static bool IsFinite(float value) {
-            return !float.IsNaN(value) && !float.IsInfinity(value);
+        static bool IsFinite(RealEvaluation value) {
+            return !RealEvaluation.IsNaN(value) && !RealEvaluation.IsInfinity(value);
         }
 
         /// <summary>Compares run keys using reference identity for their borrowed texture.</summary>

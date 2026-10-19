@@ -44,9 +44,9 @@ namespace helengine.physics3d.tests {
                 out float3 angularVelocity);
 
             Assert.Equal(float3.Zero, linearVelocity);
-            Assert.InRange(angularVelocity.X, -0.0001f, 0.0001f);
-            Assert.InRange(angularVelocity.Y, -0.0001f, 0.0001f);
-            Assert.InRange(angularVelocity.Z, 6.2830f, 6.2834f);
+            Assert.InRange((double)(angularVelocity.X), (double)(-0.0001f), (double)(0.0001f));
+            Assert.InRange((double)(angularVelocity.Y), (double)(-0.0001f), (double)(0.0001f));
+            Assert.InRange((double)(angularVelocity.Z), (double)(6.2830f), (double)(6.2834f));
         }
     }
 }

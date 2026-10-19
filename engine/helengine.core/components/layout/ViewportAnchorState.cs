@@ -15,8 +15,13 @@ namespace helengine {
             Component.AnchorDistances = AnchorDistances;
         }
         /// <summary>Maps only deliberate preview edits back into authored space.</summary>
-        public void RestoreEdited(ViewportAnchorState applied, ViewportLayoutMetrics metrics) {
-            Component.AnchorDistances = new float4(AuthoredLayoutScaleUtils.UnscaleFloat(Component.AnchorDistances.X, applied.AnchorDistances.X, AnchorDistances.X, metrics.ScaleX), AuthoredLayoutScaleUtils.UnscaleFloat(Component.AnchorDistances.Y, applied.AnchorDistances.Y, AnchorDistances.Y, metrics.ScaleX), AuthoredLayoutScaleUtils.UnscaleFloat(Component.AnchorDistances.Z, applied.AnchorDistances.Z, AnchorDistances.Z, metrics.ScaleY), AuthoredLayoutScaleUtils.UnscaleFloat(Component.AnchorDistances.W, applied.AnchorDistances.W, AnchorDistances.W, metrics.ScaleY));
+        public void RestoreEdited(ViewportAnchorState applied, in ViewportLayoutMetrics metrics) {
+            float4 restored = Component.AnchorDistances;
+            restored.X = AuthoredLayoutScaleUtils.UnscaleFloat(Component.AnchorDistances.X, applied.AnchorDistances.X, AnchorDistances.X, metrics.ScaleX);
+            restored.Y = AuthoredLayoutScaleUtils.UnscaleFloat(Component.AnchorDistances.Y, applied.AnchorDistances.Y, AnchorDistances.Y, metrics.ScaleX);
+            restored.Z = AuthoredLayoutScaleUtils.UnscaleFloat(Component.AnchorDistances.Z, applied.AnchorDistances.Z, AnchorDistances.Z, metrics.ScaleY);
+            restored.W = AuthoredLayoutScaleUtils.UnscaleFloat(Component.AnchorDistances.W, applied.AnchorDistances.W, AnchorDistances.W, metrics.ScaleY);
+            Component.AnchorDistances = restored;
         }
     }
 }

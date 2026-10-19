@@ -57,10 +57,10 @@ namespace helengine.editor {
             float thicknessU = (float)Math.Min(0.5d, BorderThicknessWorldUnits / width);
             float thicknessV = (float)Math.Min(0.5d, BorderThicknessWorldUnits / height);
             byte[] data = new byte[ConstantBufferSizeInBytes];
-            WriteFloat(data, 0, BorderColor.X);
-            WriteFloat(data, 4, BorderColor.Y);
-            WriteFloat(data, 8, BorderColor.Z);
-            WriteFloat(data, 12, BorderColor.W);
+            WriteFloat(data, 0, (float)(BorderColor.X));
+            WriteFloat(data, 4, (float)(BorderColor.Y));
+            WriteFloat(data, 8, (float)(BorderColor.Z));
+            WriteFloat(data, 12, (float)(BorderColor.W));
             WriteFloat(data, 16, thicknessU);
             WriteFloat(data, 20, thicknessV);
             WriteFloat(data, 24, 0f);

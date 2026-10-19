@@ -10,33 +10,12 @@ namespace helengine {
         /// <param name="localPosition">Input position, updated on anchored axes only.</param>
         /// <returns>Resolved participant dimensions.</returns>
         public static int2 Resolve(byte anchorFlags, float4 distances, int2 spaceSize, float2 spaceOrigin, int2 currentSize, ref float3 localPosition) {
-            int targetWidth = currentSize.X;
-            int targetHeight = currentSize.Y;
+            return LayoutNumericKernel<RealEvaluation, RuntimeNumericOperations>.Anchors(anchorFlags, distances, spaceSize, spaceOrigin, currentSize, ref localPosition, new RuntimeNumericOperations());
+        }
 
-            bool hasLeft = (anchorFlags & LayoutComponent.LeftAnchorFlag) != 0;
-            bool hasRight = (anchorFlags & LayoutComponent.RightAnchorFlag) != 0;
-            bool hasTop = (anchorFlags & LayoutComponent.TopAnchorFlag) != 0;
-            bool hasBottom = (anchorFlags & LayoutComponent.BottomAnchorFlag) != 0;
-
-            if (hasLeft && hasRight) {
-                targetWidth = Math.Max(0, (int)Math.Round(spaceSize.X - distances.X - distances.Y));
-                localPosition.X = spaceOrigin.X + distances.X;
-            } else if (hasLeft) {
-                localPosition.X = spaceOrigin.X + distances.X;
-            } else if (hasRight) {
-                localPosition.X = spaceOrigin.X + spaceSize.X - distances.Y - currentSize.X;
-            }
-
-            if (hasTop && hasBottom) {
-                targetHeight = Math.Max(0, (int)Math.Round(spaceSize.Y - distances.Z - distances.W));
-                localPosition.Y = spaceOrigin.Y + distances.Z;
-            } else if (hasTop) {
-                localPosition.Y = spaceOrigin.Y + distances.Z;
-            } else if (hasBottom) {
-                localPosition.Y = spaceOrigin.Y + spaceSize.Y - distances.W - currentSize.Y;
-            }
-
-            return new int2(targetWidth, targetHeight);
+        /// <summary>Resolves detached anchors under one explicit build numeric policy.</summary>
+        public static int2 Resolve(byte anchorFlags, float4 distances, int2 spaceSize, float2 spaceOrigin, int2 currentSize, ref float3 localPosition, NumericPrecisionPolicy policy) {
+            return LayoutNumericKernel<double, CookNumericOperations>.Anchors(anchorFlags, distances, spaceSize, spaceOrigin, currentSize, ref localPosition, new CookNumericOperations(policy));
         }
     }
 }

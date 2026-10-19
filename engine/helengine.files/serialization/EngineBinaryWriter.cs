@@ -11,6 +11,10 @@ namespace helengine.files {
         /// </summary>
         protected readonly Stream BaseStream;
 
+        /// <summary>Numeric policy used only by configurable engine values in this stream.</summary>
+        NumericPrecisionPolicy NumericPolicyValue = RealRepresentation.Policy;
+
+
         /// <summary>
         /// Indicates whether disposing the writer should leave the underlying stream open.
         /// </summary>
@@ -34,6 +38,39 @@ namespace helengine.files {
         /// Gets the payload endianness handled by this writer.
         /// </summary>
         public abstract EngineBinaryEndianness Endianness { get; }
+
+        /// <summary>Gets or sets the implemented numeric contract without changing fixed-width writes.</summary>
+        public NumericPrecisionPolicy NumericPolicy {
+            get { return NumericPolicyValue; }
+            set { RealBinaryCodec.ValidatePolicy(value); NumericPolicyValue = value; }
+        }
+
+        /// <summary>Writes fixed IEEE64 transport using the stream's byte order.</summary>
+        public void WriteDouble(double value) { WriteInt64(BitConverter.DoubleToInt64Bits(value)); }
+
+        /// <summary>Writes one configurable stored scalar under the selected stream policy.</summary>
+        public void WriteReal(Real value) {
+            if (NumericPolicy.StorageBits == 32) { WriteSingle(value.ToSingle()); }
+            else { WriteDouble(value.ToDouble()); }
+        }
+
+        /// <summary>Writes a configurable stored two-component vector.</summary>
+        public void WriteReal2(float2 value) { WriteReal(value.X); WriteReal(value.Y); }
+
+        /// <summary>Writes a configurable stored three-component vector.</summary>
+        public void WriteReal3(float3 value) { WriteReal(value.X); WriteReal(value.Y); WriteReal(value.Z); }
+
+        /// <summary>Writes a configurable stored four-component vector.</summary>
+        public void WriteReal4(float4 value) { WriteReal(value.X); WriteReal(value.Y); WriteReal(value.Z); WriteReal(value.W); }
+
+        /// <summary>Records the stream's explicit numeric representation before any configurable values.</summary>
+        public void WriteNumericPolicy() {
+            RealBinaryCodec.ValidatePolicy(NumericPolicy);
+            WriteByte((byte)NumericPolicy.RepresentationVersion);
+            WriteByte((byte)NumericPolicy.StorageBits);
+            WriteByte((byte)NumericPolicy.ArithmeticBits);
+        }
+
 
         /// <summary>
         /// Creates a writer for the requested payload endianness.
@@ -111,8 +148,8 @@ namespace helengine.files {
         /// </summary>
         /// <param name="value">Value to write.</param>
         public void WriteFloat2(float2 value) {
-            WriteSingle(value.X);
-            WriteSingle(value.Y);
+            WriteSingle((float)(value.X));
+            WriteSingle((float)(value.Y));
         }
 
         /// <summary>
@@ -120,9 +157,9 @@ namespace helengine.files {
         /// </summary>
         /// <param name="value">Value to write.</param>
         public void WriteFloat3(float3 value) {
-            WriteSingle(value.X);
-            WriteSingle(value.Y);
-            WriteSingle(value.Z);
+            WriteSingle((float)(value.X));
+            WriteSingle((float)(value.Y));
+            WriteSingle((float)(value.Z));
         }
 
         /// <summary>
@@ -130,10 +167,10 @@ namespace helengine.files {
         /// </summary>
         /// <param name="value">Value to write.</param>
         public void WriteFloat4(float4 value) {
-            WriteSingle(value.X);
-            WriteSingle(value.Y);
-            WriteSingle(value.Z);
-            WriteSingle(value.W);
+            WriteSingle((float)(value.X));
+            WriteSingle((float)(value.Y));
+            WriteSingle((float)(value.Z));
+            WriteSingle((float)(value.W));
         }
 
         /// <summary>

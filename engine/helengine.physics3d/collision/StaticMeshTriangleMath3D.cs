@@ -15,15 +15,15 @@ namespace helengine {
             float3 ab = b - a;
             float3 ac = c - a;
             float3 ap = point - a;
-            float d1 = float3.Dot(ab, ap);
-            float d2 = float3.Dot(ac, ap);
+            float d1 = (float)(float3.Dot(ab, ap));
+            float d2 = (float)(float3.Dot(ac, ap));
             if (d1 <= 0f && d2 <= 0f) {
                 return a;
             }
 
             float3 bp = point - b;
-            float d3 = float3.Dot(ab, bp);
-            float d4 = float3.Dot(ac, bp);
+            float d3 = (float)(float3.Dot(ab, bp));
+            float d4 = (float)(float3.Dot(ac, bp));
             if (d3 >= 0f && d4 <= d3) {
                 return b;
             }
@@ -35,8 +35,8 @@ namespace helengine {
             }
 
             float3 cp = point - c;
-            float d5 = float3.Dot(ab, cp);
-            float d6 = float3.Dot(ac, cp);
+            float d5 = (float)(float3.Dot(ab, cp));
+            float d6 = (float)(float3.Dot(ac, cp));
             if (d6 >= 0f && d5 <= d6) {
                 return c;
             }
@@ -71,7 +71,7 @@ namespace helengine {
             float3 edgeAB = b - a;
             float3 edgeAC = c - a;
             float3 normal = float3.Cross(edgeAB, edgeAC);
-            float normalLengthSquared = float3.Dot(normal, normal);
+            float normalLengthSquared = (float)(float3.Dot(normal, normal));
             if (normalLengthSquared <= 0.0000001f) {
                 return float3.Zero;
             }
@@ -138,7 +138,7 @@ namespace helengine {
         /// <param name="second">Second 2D vector.</param>
         /// <returns>Signed scalar cross product.</returns>
         public static float Cross2D(float2 first, float2 second) {
-            return (first.X * second.Y) - (first.Y * second.X);
+            return (float)((first.X * second.Y) - (first.Y * second.X));
         }
     }
 }

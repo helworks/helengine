@@ -46,7 +46,7 @@ namespace helengine.editor.tests {
             EditorEntity addButton = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
             int fileButtonWidth = GetPrivateField<int>(titleBar, "FileMenuButtonWidth");
 
-            Assert.Equal(fileButton.Position.X + fileButtonWidth, addButton.Position.X);
+            Assert.EqualEvaluation(fileButton.Position.X + fileButtonWidth, addButton.Position.X);
         }
 
         /// <summary>

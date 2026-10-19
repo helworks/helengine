@@ -90,9 +90,9 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="expected">Expected direction.</param>
         /// <param name="actual">Actual direction.</param>
         void AssertVectorClose(float3 expected, float3 actual) {
-            Assert.InRange(Math.Abs(expected.X - actual.X), 0f, FloatTolerance);
-            Assert.InRange(Math.Abs(expected.Y - actual.Y), 0f, FloatTolerance);
-            Assert.InRange(Math.Abs(expected.Z - actual.Z), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(expected.X - actual.X)), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(expected.Y - actual.Y)), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(expected.Z - actual.Z)), 0f, FloatTolerance);
         }
     }
 }

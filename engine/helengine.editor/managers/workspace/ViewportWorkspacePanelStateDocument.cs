@@ -6,31 +6,31 @@ namespace helengine.editor {
         /// <summary>
         /// Camera entity world position X component.
         /// </summary>
-        public float CameraPositionX { get; set; }
+        public double CameraPositionX { get; set; }
         /// <summary>
         /// Camera entity world position Y component.
         /// </summary>
-        public float CameraPositionY { get; set; }
+        public double CameraPositionY { get; set; }
         /// <summary>
         /// Camera entity world position Z component.
         /// </summary>
-        public float CameraPositionZ { get; set; }
+        public double CameraPositionZ { get; set; }
         /// <summary>
         /// Camera entity world orientation quaternion X component.
         /// </summary>
-        public float CameraOrientationX { get; set; }
+        public double CameraOrientationX { get; set; }
         /// <summary>
         /// Camera entity world orientation quaternion Y component.
         /// </summary>
-        public float CameraOrientationY { get; set; }
+        public double CameraOrientationY { get; set; }
         /// <summary>
         /// Camera entity world orientation quaternion Z component.
         /// </summary>
-        public float CameraOrientationZ { get; set; }
+        public double CameraOrientationZ { get; set; }
         /// <summary>
         /// Camera entity world orientation quaternion W component.
         /// </summary>
-        public float CameraOrientationW { get; set; }
+        public double CameraOrientationW { get; set; }
         /// <summary>
         /// Viewport-local active tool mode.
         /// </summary>
@@ -38,11 +38,11 @@ namespace helengine.editor {
         /// <summary>
         /// Viewport-local near clip plane distance.
         /// </summary>
-        public float NearPlaneDistance { get; set; }
+        public double NearPlaneDistance { get; set; }
         /// <summary>
         /// Viewport-local far clip plane distance.
         /// </summary>
-        public float FarPlaneDistance { get; set; }
+        public double FarPlaneDistance { get; set; }
         /// <summary>
         /// Viewport-local camera speed mode.
         /// </summary>
@@ -78,7 +78,7 @@ namespace helengine.editor {
         /// <summary>
         /// Preserved orthographic vertical span used by this viewport camera.
         /// </summary>
-        public float OrthographicVerticalSpan { get; set; }
+        public double OrthographicVerticalSpan { get; set; }
         /// <summary>
         /// Indicates whether the saved orbit pivot is valid, including when it is the world origin.
         /// </summary>
@@ -86,15 +86,15 @@ namespace helengine.editor {
         /// <summary>
         /// X coordinate of the viewport camera orbit pivot.
         /// </summary>
-        public float OrbitPivotX { get; set; }
+        public double OrbitPivotX { get; set; }
         /// <summary>
         /// Y coordinate of the viewport camera orbit pivot.
         /// </summary>
-        public float OrbitPivotY { get; set; }
+        public double OrbitPivotY { get; set; }
         /// <summary>
         /// Z coordinate of the viewport camera orbit pivot.
         /// </summary>
-        public float OrbitPivotZ { get; set; }
+        public double OrbitPivotZ { get; set; }
         /// <summary>
         /// Translation snap value used by the first viewport snap slot.
         /// </summary>

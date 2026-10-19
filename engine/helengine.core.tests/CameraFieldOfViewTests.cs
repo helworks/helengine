@@ -48,8 +48,7 @@ namespace helengine.core.tests {
 
             camera.FieldOfView = requested;
 
-            Assert.InRange(camera.FieldOfView, CameraProjectionUtils.MinimumFieldOfView,
-                CameraProjectionUtils.MaximumFieldOfView);
+            Assert.InRange((double)(camera.FieldOfView),(double)(CameraProjectionUtils.MinimumFieldOfView),(double)(CameraProjectionUtils.MaximumFieldOfView));
         }
 
         /// <summary>
@@ -63,8 +62,8 @@ namespace helengine.core.tests {
             float4x4 fromCamera = CameraProjectionUtils.CreatePerspectiveProjection(camera, 16f / 9f);
             float4x4 fromExplicitValue = CameraProjectionUtils.CreatePerspectiveProjection(camera, 1.0f, 16f / 9f);
 
-            Assert.Equal(fromExplicitValue.M11, fromCamera.M11, 5);
-            Assert.Equal(fromExplicitValue.M22, fromCamera.M22, 5);
+            Assert.Equal((double)(fromExplicitValue.M11),(double)(fromCamera.M11), 5);
+            Assert.Equal((double)(fromExplicitValue.M22),(double)(fromCamera.M22), 5);
         }
 
         /// <summary>

@@ -114,7 +114,7 @@ namespace helengine.editor.tests.serialization.scene {
             List<float> savedFooterY = new List<float>();
             for (int cycle = 0; cycle < 3; cycle++) {
                 saveService.Save(scenePath);
-                savedFooterY.Add(ReadSavedChildPosition(scenePath, "Footer").Y);
+                savedFooterY.Add((float)(ReadSavedChildPosition(scenePath, "Footer").Y));
                 AssertScaledPreview(root);
                 root.Dispose();
 
@@ -125,7 +125,7 @@ namespace helengine.editor.tests.serialization.scene {
             }
 
             saveService.Save(scenePath);
-            savedFooterY.Add(ReadSavedChildPosition(scenePath, "Footer").Y);
+            savedFooterY.Add((float)(ReadSavedChildPosition(scenePath, "Footer").Y));
             root.Dispose();
             AssertAuthoredLayout(LoadSingleRoot(scenePath));
             Assert.All(savedFooterY, footerY => Assert.Equal(678f, footerY));
@@ -176,7 +176,7 @@ namespace helengine.editor.tests.serialization.scene {
             List<float> savedFooterY = new List<float>();
             for (int cycle = 0; cycle < 3; cycle++) {
                 saveService.Save(scenePath);
-                savedFooterY.Add(ReadSavedChildPosition(scenePath, "Footer").Y);
+                savedFooterY.Add((float)(ReadSavedChildPosition(scenePath, "Footer").Y));
                 Assert.Equal(new int2(740, 139), GetComponent<RoundedRectComponent>(FindChild(root, "Panel")).Size);
                 root.Dispose();
 
@@ -187,7 +187,7 @@ namespace helengine.editor.tests.serialization.scene {
             }
 
             saveService.Save(scenePath);
-            savedFooterY.Add(ReadSavedChildPosition(scenePath, "Footer").Y);
+            savedFooterY.Add((float)(ReadSavedChildPosition(scenePath, "Footer").Y));
             root.Dispose();
             AssertAuthoredLayout(LoadSingleRoot(scenePath));
             Assert.All(savedFooterY, footerY => Assert.Equal(678f, footerY));
@@ -250,7 +250,7 @@ namespace helengine.editor.tests.serialization.scene {
             ComponentPropertyEditController controller = new ComponentPropertyEditController(platformEditing, () => null, () => { }, (_) => { });
             ViewportComponent editable = Assert.IsType<ViewportComponent>(platformEditing.EnsureScopeOverrideComponent(viewport, save, android));
             ApplyViewportEdit(controller, root, viewport, editable, save, android, nameof(ViewportComponent.ScalingMode), ViewportComponent.DensityScalingMode);
-            ApplyViewportEdit(controller, root, viewport, editable, save, android, nameof(ViewportComponent.UiScale), 0.5625f);
+            ApplyViewportEdit(controller, root, viewport, editable, save, android, nameof(ViewportComponent.UiScale), Real.FromDouble(0.5625d));
             viewport.Update();
             Assert.Equal(previewPanelSize, panelRect.Size);
 
@@ -276,6 +276,22 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(720, payload.ReferenceHeight);
             root.Dispose();
             AssertAuthoredLayout(LoadSingleRoot(scenePath));
+        }
+
+        /// <summary>
+        /// Anchor edits use their axis scale while untouched preview values retain the original authored distances.
+        /// </summary>
+        [Fact]
+        public void RestoreEditedAnchors_WhenOnlySomeEdgesChange_PreservesUntouchedAuthoredEdges() {
+            LayoutComponent layout = new LayoutComponent { AnchorDistances = new float4(10f, 20f, 30f, 40f) };
+            ViewportAnchorState authored = new ViewportAnchorState(layout);
+            layout.AnchorDistances = new float4(20f, 40f, 90f, 120f);
+            ViewportAnchorState applied = new ViewportAnchorState(layout);
+            layout.AnchorDistances = new float4(30f, 40f, 150f, 120f);
+
+            authored.RestoreEdited(applied, new ViewportLayoutMetrics { ScaleX = 2d, ScaleY = 3d });
+
+            Assert.Equal(new float4(15f, 20f, 50f, 40f), layout.AnchorDistances);
         }
 
         /// <summary>

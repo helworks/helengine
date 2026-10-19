@@ -191,7 +191,7 @@ namespace helengine.editor {
                 stream.Position = 0;
                 AssetIdentityMetadataDocument document;
                 if (header.RecordKind == (ushort)EditorBinaryRecordKind.Asset) {
-                    if (header.Version != EditorAssetBinarySerializer.CurrentVersion) {
+                    if (!EditorAssetBinarySerializer.IsSupportedVersion(header.Version)) {
                         throw new InvalidOperationException($"Engine-native asset '{assetPath}' uses unsupported version '{header.Version}'. Regenerate it in the current format.");
                     }
                     Asset asset = AssetSerializer.Deserialize(stream);
@@ -236,7 +236,7 @@ namespace helengine.editor {
                 EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(input);
                 input.Position = 0;
                 if (header.RecordKind == (ushort)EditorBinaryRecordKind.Asset) {
-                    if (header.Version != EditorAssetBinarySerializer.CurrentVersion) {
+                    if (!EditorAssetBinarySerializer.IsSupportedVersion(header.Version)) {
                         throw new InvalidOperationException($"Engine-native asset '{assetPath}' uses unsupported version '{header.Version}'. Regenerate it in the current format.");
                     }
                     asset = AssetSerializer.Deserialize(input);

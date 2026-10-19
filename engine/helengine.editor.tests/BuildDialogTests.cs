@@ -1938,8 +1938,8 @@ namespace helengine.editor.tests {
             int2 panelPosition = GetPrivateField<int2>(dialog, "PanelPosition");
             EditorEntity closeButtonHost = GetPrivateField<EditorEntity>(dialog, "CloseButtonHost");
             ButtonComponent closeButton = GetPrivateField<ButtonComponent>(dialog, "CloseButton");
-            int pointerX = panelPosition.X + (int)Math.Round(closeButtonHost.LocalPosition.X) + (closeButton.Size.X / 2);
-            int pointerY = panelPosition.Y + (int)Math.Round(closeButtonHost.LocalPosition.Y) + (closeButton.Size.Y / 2);
+            int pointerX = panelPosition.X + (int)Math.Round((double)(closeButtonHost.LocalPosition.X)) + (closeButton.Size.X / 2);
+            int pointerY = panelPosition.Y + (int)Math.Round((double)(closeButtonHost.LocalPosition.Y)) + (closeButton.Size.Y / 2);
 
             AdvanceInput(new MouseState(0, 0, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
             AdvanceInput(new MouseState(pointerX, pointerY, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
@@ -1995,16 +1995,16 @@ namespace helengine.editor.tests {
             EditorEntity removeButtonHost = Assert.Single(GetPrivateField<List<EditorEntity>>(dialog, "QueueItemRemoveButtonHosts"));
             ButtonComponent removeButton = Assert.Single(GetPrivateField<List<ButtonComponent>>(dialog, "QueueItemRemoveButtons"));
             int pointerX = panelPosition.X +
-                           (int)Math.Round(queueColumnRoot.LocalPosition.X) +
-                           (int)Math.Round(queueItemsRoot.LocalPosition.X) +
-                           (int)Math.Round(queueItemHost.LocalPosition.X) +
-                           (int)Math.Round(removeButtonHost.LocalPosition.X) +
+                           (int)Math.Round((double)(queueColumnRoot.LocalPosition.X)) +
+                           (int)Math.Round((double)(queueItemsRoot.LocalPosition.X)) +
+                           (int)Math.Round((double)(queueItemHost.LocalPosition.X)) +
+                           (int)Math.Round((double)(removeButtonHost.LocalPosition.X)) +
                            (removeButton.Size.X / 2);
             int pointerY = panelPosition.Y +
-                           (int)Math.Round(queueColumnRoot.LocalPosition.Y) +
-                           (int)Math.Round(queueItemsRoot.LocalPosition.Y) +
-                           (int)Math.Round(queueItemHost.LocalPosition.Y) +
-                           (int)Math.Round(removeButtonHost.LocalPosition.Y) +
+                           (int)Math.Round((double)(queueColumnRoot.LocalPosition.Y)) +
+                           (int)Math.Round((double)(queueItemsRoot.LocalPosition.Y)) +
+                           (int)Math.Round((double)(queueItemHost.LocalPosition.Y)) +
+                           (int)Math.Round((double)(removeButtonHost.LocalPosition.Y)) +
                            (removeButton.Size.Y / 2);
 
             AdvanceInput(new MouseState(0, 0, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
@@ -2051,16 +2051,16 @@ namespace helengine.editor.tests {
                 .First();
             InteractableComponent checkboxInteractable = FindComponent<InteractableComponent>(firstRow.CheckBoxHost);
             int pointerX = panelPosition.X +
-                           (int)Math.Round(buildColumnRoot.LocalPosition.X) +
-                           (int)Math.Round(sceneListRoot.LocalPosition.X) +
-                           (int)Math.Round(firstRow.Root.LocalPosition.X) +
-                           (int)Math.Round(firstRow.CheckBoxHost.LocalPosition.X) +
+                           (int)Math.Round((double)(buildColumnRoot.LocalPosition.X)) +
+                           (int)Math.Round((double)(sceneListRoot.LocalPosition.X)) +
+                           (int)Math.Round((double)(firstRow.Root.LocalPosition.X)) +
+                           (int)Math.Round((double)(firstRow.CheckBoxHost.LocalPosition.X)) +
                            (firstRow.CheckBox.Size.X / 2);
             int pointerY = panelPosition.Y +
-                           (int)Math.Round(buildColumnRoot.LocalPosition.Y) +
-                           (int)Math.Round(sceneListRoot.LocalPosition.Y) +
-                           (int)Math.Round(firstRow.Root.LocalPosition.Y) +
-                           (int)Math.Round(firstRow.CheckBoxHost.LocalPosition.Y) +
+                           (int)Math.Round((double)(buildColumnRoot.LocalPosition.Y)) +
+                           (int)Math.Round((double)(sceneListRoot.LocalPosition.Y)) +
+                           (int)Math.Round((double)(firstRow.Root.LocalPosition.Y)) +
+                           (int)Math.Round((double)(firstRow.CheckBoxHost.LocalPosition.Y)) +
                            (firstRow.CheckBox.Size.Y / 2);
 
             Assert.True(contentCamera.Viewport.Contains(pointerX, pointerY));
@@ -2151,7 +2151,7 @@ namespace helengine.editor.tests {
             EditorEntity sceneListItemsRoot = GetPrivateField<EditorEntity>(dialog, "SceneListItemsRoot");
             List<BuildDialogSceneRow> sceneRows = GetPrivateField<List<BuildDialogSceneRow>>(dialog, "SceneRows");
             int2 panelPosition = GetPrivateField<int2>(dialog, "PanelPosition");
-            int borderInset = (int)Math.Ceiling(sceneListBackground.BorderThickness);
+            int borderInset = (int)Math.Ceiling((double)(sceneListBackground.BorderThickness));
 
             Assert.True(sceneRows.Count > 0);
             Assert.Equal(0b0000000100000000, sceneListItemsRoot.LayerMask);
@@ -2159,8 +2159,8 @@ namespace helengine.editor.tests {
             Assert.Equal(0b0000000100000000, sceneRows[0].OrderHost.LayerMask);
             Assert.Equal(0b0000000100000000, sceneRows[0].LabelHost.LayerMask);
             Assert.Equal(0b0000000100000000, sceneRows[0].CheckBoxHost.LayerMask);
-            Assert.Equal(panelPosition.X + buildColumnRoot.LocalPosition.X + sceneListRoot.LocalPosition.X + borderInset, contentCamera.Viewport.X);
-            Assert.Equal(panelPosition.Y + buildColumnRoot.LocalPosition.Y + sceneListRoot.LocalPosition.Y + borderInset, contentCamera.Viewport.Y);
+            Assert.EqualEvaluation(panelPosition.X + buildColumnRoot.LocalPosition.X + sceneListRoot.LocalPosition.X + borderInset, contentCamera.Viewport.X);
+            Assert.EqualEvaluation(panelPosition.Y + buildColumnRoot.LocalPosition.Y + sceneListRoot.LocalPosition.Y + borderInset, contentCamera.Viewport.Y);
             Assert.Equal(sceneListBackground.Size.X - (borderInset * 2), contentCamera.Viewport.Z);
             Assert.Equal(sceneListBackground.Size.Y - (borderInset * 2), contentCamera.Viewport.W);
         }
@@ -2191,9 +2191,9 @@ namespace helengine.editor.tests {
             RoundedRectComponent sceneListBackground = GetPrivateField<RoundedRectComponent>(dialog, "SceneListBackground");
             EditorEntity buildColumnRoot = GetPrivateField<EditorEntity>(dialog, "BuildColumnRoot");
             EditorEntity sceneListRoot = GetPrivateField<EditorEntity>(dialog, "SceneListRoot");
-            int borderInset = (int)Math.Ceiling(sceneListBackground.BorderThickness);
-            float initialViewportX = contentCamera.Viewport.X;
-            float initialViewportY = contentCamera.Viewport.Y;
+            int borderInset = (int)Math.Ceiling((double)(sceneListBackground.BorderThickness));
+            float initialViewportX = (float)(contentCamera.Viewport.X);
+            float initialViewportY = (float)(contentCamera.Viewport.Y);
 
             InvokePrivate(dialog, "HandleHeaderCursor", new int2(12, 12), new int2(0, 0), PointerInteraction.Press);
             InvokePrivate(dialog, "HandleHeaderCursor", new int2(12, 12), new int2(32, 24), PointerInteraction.Hover);
@@ -2201,8 +2201,8 @@ namespace helengine.editor.tests {
 
             Assert.Equal(initialViewportX + 32f, contentCamera.Viewport.X);
             Assert.Equal(initialViewportY + 24f, contentCamera.Viewport.Y);
-            Assert.Equal(contentCamera.Viewport.X, sceneListRoot.Position.X + borderInset);
-            Assert.Equal(contentCamera.Viewport.Y, sceneListRoot.Position.Y + borderInset);
+            Assert.EqualEvaluation(contentCamera.Viewport.X, sceneListRoot.Position.X + borderInset);
+            Assert.EqualEvaluation(contentCamera.Viewport.Y, sceneListRoot.Position.Y + borderInset);
         }
 
         /// <summary>
@@ -2238,7 +2238,7 @@ namespace helengine.editor.tests {
             TextBoxComponent outputDirectoryField = GetPrivateField<TextBoxComponent>(dialog, "OutputDirectoryField");
             EditorEntity addToBuildButtonHost = GetPrivateField<EditorEntity>(dialog, "AddToBuildButtonHost");
 
-            Assert.InRange(copySettingsButtonHost.LocalPosition.Y, 0f, BuildDialog.PanelHeight - BuildDialog.HeaderHeight - BuildDialog.PanelPadding);
+            Assert.InRange((double)(copySettingsButtonHost.LocalPosition.Y), (double)(0f), (double)(BuildDialog.PanelHeight - BuildDialog.HeaderHeight - BuildDialog.PanelPadding));
             Assert.True(copySettingsButtonHost.LocalPosition.Y + copySettingsButton.Size.Y <= BuildDialog.PanelHeight - BuildDialog.HeaderHeight);
             Assert.Equal("Copy settings from...", GetPrivateField<string>(copySettingsButton, "Text"));
             Assert.Equal(BuildDialog.FooterButtonHeight, copySettingsButton.Size.Y);

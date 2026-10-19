@@ -107,7 +107,7 @@ namespace helengine.editor {
 
             if (!EditorSessionInteractionServices.From(Parent).GizmoDrag.IsDragging(SceneCamera)) {
                 float4 viewport = SceneCamera.Viewport;
-                double viewportHeight = viewport.W;
+                double viewportHeight = (double)(viewport.W);
                 if (viewportHeight <= 0.0) {
                     throw new InvalidOperationException("Scene camera viewport height must be greater than zero.");
                 }
@@ -348,14 +348,14 @@ namespace helengine.editor {
 
             float3 offset = origin - cameraPosition;
             double distance = Math.Sqrt(
-                offset.X * offset.X +
+                (double)(offset.X * offset.X +
                 offset.Y * offset.Y +
-                offset.Z * offset.Z);
+                offset.Z * offset.Z));
             if (distance < MinimumDistance) {
                 distance = MinimumDistance;
             }
 
-            double worldUnitsPerPixel = CameraProjectionUtils.GetWorldUnitsPerPixel(SceneCamera, distance, viewportHeight);
+            double worldUnitsPerPixel = (double)(CameraProjectionUtils.GetWorldUnitsPerPixel(SceneCamera, distance, viewportHeight));
             double targetWorldAxisLength = targetAxisPixels * worldUnitsPerPixel;
             return targetWorldAxisLength / TransformScaleGizmoFactory.AxisLength;
         }
@@ -474,9 +474,9 @@ namespace helengine.editor {
         /// <returns>Normalized vector, or zero when input magnitude is too small.</returns>
         float3 NormalizeDirection(float3 value) {
             double lengthSquared =
-                (value.X * value.X) +
+                (double)((value.X * value.X) +
                 (value.Y * value.Y) +
-                (value.Z * value.Z);
+                (value.Z * value.Z));
             if (lengthSquared <= MinimumDirectionLengthSquared) {
                 return float3.Zero;
             }

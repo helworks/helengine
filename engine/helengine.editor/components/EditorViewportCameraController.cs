@@ -199,10 +199,10 @@ namespace helengine.editor {
         /// <param name="orientation">Camera orientation to apply.</param>
         /// <param name="distance">Positive distance from the camera to the pivot.</param>
         public void SetViewPose(float3 pivot, float4 orientation, double distance) {
-            if (!float.IsFinite(pivot.X) || !float.IsFinite(pivot.Y) || !float.IsFinite(pivot.Z)) {
+            if (!float.IsFinite((float)(pivot.X)) || !float.IsFinite((float)(pivot.Y)) || !float.IsFinite((float)(pivot.Z))) {
                 throw new ArgumentOutOfRangeException(nameof(pivot), "The orbit pivot must contain only finite values.");
             }
-            if (!float.IsFinite(orientation.X) || !float.IsFinite(orientation.Y) || !float.IsFinite(orientation.Z) || !float.IsFinite(orientation.W)) {
+            if (!float.IsFinite((float)(orientation.X)) || !float.IsFinite((float)(orientation.Y)) || !float.IsFinite((float)(orientation.Z)) || !float.IsFinite((float)(orientation.W))) {
                 throw new ArgumentOutOfRangeException(nameof(orientation), "The camera orientation must contain only finite values.");
             }
             if (!double.IsFinite(distance) || distance < MinOrbitDistance) {
@@ -213,10 +213,10 @@ namespace helengine.editor {
             }
 
             double orientationLengthSquared =
-                (orientation.X * orientation.X) +
+                (double)((orientation.X * orientation.X) +
                 (orientation.Y * orientation.Y) +
                 (orientation.Z * orientation.Z) +
-                (orientation.W * orientation.W);
+                (orientation.W * orientation.W));
             if (!double.IsFinite(orientationLengthSquared) || orientationLengthSquared <= MinLengthSquared) {
                 throw new ArgumentOutOfRangeException(nameof(orientation), "The camera orientation must have non-zero magnitude.");
             }
@@ -225,9 +225,9 @@ namespace helengine.editor {
             normalizedOrientation.Normalize();
 
             float3 forward = GetForward(normalizedOrientation);
-            double positionX = pivot.X - (forward.X * distance);
-            double positionY = pivot.Y - (forward.Y * distance);
-            double positionZ = pivot.Z - (forward.Z * distance);
+            double positionX = (double)(pivot.X - (forward.X * distance));
+            double positionY = (double)(pivot.Y - (forward.Y * distance));
+            double positionZ = (double)(pivot.Z - (forward.Z * distance));
             if (!double.IsFinite(positionX) || Math.Abs(positionX) > float.MaxValue ||
                 !double.IsFinite(positionY) || Math.Abs(positionY) > float.MaxValue ||
                 !double.IsFinite(positionZ) || Math.Abs(positionZ) > float.MaxValue) {
@@ -239,8 +239,8 @@ namespace helengine.editor {
             virtualTarget = pivot;
             orbitDistance = distance;
             hasVirtualTargetState = true;
-            yaw = Math.Atan2(-forward.X, -forward.Z);
-            pitch = Math.Clamp(Math.Asin(forward.Y), -MaxPitch, MaxPitch);
+            yaw = Math.Atan2((double)(-forward.X), (double)(-forward.Z));
+            pitch = Math.Clamp(Math.Asin((double)(forward.Y)), -MaxPitch, MaxPitch);
             hasOrientationState = true;
 
             Entity selectedEntity = EditorSessionInteractionServices.From(Parent).Selection.SelectedEntity;
@@ -271,15 +271,15 @@ namespace helengine.editor {
             }
 
             float4 viewport = camera.Viewport;
-            if (!float.IsFinite(viewport.Z) || !float.IsFinite(viewport.W) || viewport.Z <= 1f || viewport.W <= 1f) {
+            if (!float.IsFinite((float)(viewport.Z)) || !float.IsFinite((float)(viewport.W)) || viewport.Z <= 1f || viewport.W <= 1f) {
                 throw new InvalidOperationException("Viewport dimensions must be positive before changing camera projection.");
             }
 
-            float fieldOfView = camera.FieldOfView;
+            float fieldOfView = (float)(camera.FieldOfView);
             if (!float.IsFinite(fieldOfView) || fieldOfView <= 0f) {
                 throw new InvalidOperationException("Camera field of view must be finite and positive before changing projection.");
             }
-            double tangent = Math.Tan(CameraProjectionUtils.ClampFieldOfView(fieldOfView) * 0.5);
+            double tangent = Math.Tan((double)(CameraProjectionUtils.ClampFieldOfView(fieldOfView) * 0.5));
             if (!double.IsFinite(tangent) || tangent <= 0.0) {
                 throw new InvalidOperationException("Camera field of view cannot be converted to a finite projection scale.");
             }
@@ -299,7 +299,7 @@ namespace helengine.editor {
                 projectionSettings.OrthographicVerticalSpan = (float)span;
                 projectionSettings.ProjectionMode = CameraProjectionMode.Orthographic;
             } else {
-                double span = projectionSettings.OrthographicVerticalSpan;
+                double span = (double)(projectionSettings.OrthographicVerticalSpan);
                 if (!double.IsFinite(span) || span < CameraProjectionUtils.MinimumOrthographicVerticalSpan) {
                     throw new InvalidOperationException("The current orthographic span is not valid.");
                 }
@@ -357,7 +357,7 @@ namespace helengine.editor {
         /// <param name="orbitTarget">Restored world-space orbit pivot.</param>
         /// <param name="distance">Restored camera-to-pivot distance.</param>
         public void SetOrbitState(float3 orbitTarget, double distance) {
-            if (!float.IsFinite(orbitTarget.X) || !float.IsFinite(orbitTarget.Y) || !float.IsFinite(orbitTarget.Z)) {
+            if (!float.IsFinite((float)(orbitTarget.X)) || !float.IsFinite((float)(orbitTarget.Y)) || !float.IsFinite((float)(orbitTarget.Z))) {
                 throw new ArgumentOutOfRangeException(nameof(orbitTarget), "The orbit pivot must contain only finite values.");
             }
             if (!double.IsFinite(distance) || distance < MinOrbitDistance) {
@@ -546,9 +546,9 @@ namespace helengine.editor {
                             return;
                         }
                         float3 referenceOffset = PanReferencePoint - Parent.Position;
-                        double referenceDepth = Math.Max(MinOrbitDistance,
-                            (double)referenceOffset.X * forward.X + (double)referenceOffset.Y * forward.Y + (double)referenceOffset.Z * forward.Z);
-                        double worldUnitsPerPixel = CameraProjectionUtils.GetWorldUnitsPerPixel(camera, referenceDepth, viewport.W);
+                        double referenceDepth = RealMath.Max(MinOrbitDistance,
+                            (double)referenceOffset.X * forward.X + (double)referenceOffset.Y * forward.Y + (double)referenceOffset.Z * forward.Z).ToDouble();
+                        double worldUnitsPerPixel = (double)(CameraProjectionUtils.GetWorldUnitsPerPixel(camera, referenceDepth, viewport.W));
                         // Projection and reference depth already set the screen scale; fly speed must not multiply pointer movement.
                         double panSpeedRatio = configuredPanSpeed / DefaultPanSpeed;
                         float3 panRight = float4.RotateVector(new float3(1, 0, 0), Parent.Orientation);
@@ -564,7 +564,7 @@ namespace helengine.editor {
             }
 
             float3 move = BuildMovement(input, forward, right);
-            double lengthSquared = (move.X * move.X) + (move.Y * move.Y) + (move.Z * move.Z);
+            double lengthSquared = (double)((move.X * move.X) + (move.Y * move.Y) + (move.Z * move.Z));
             if (lengthSquared <= MinLengthSquared) {
                 return;
             }
@@ -597,7 +597,7 @@ namespace helengine.editor {
             double notchDelta = wheelDelta / WheelDeltaPerNotch;
             double zoomDistance = notchDelta * wheelZoomSpeed;
             if (camera is ICameraProjectionSettings projectionSettings && projectionSettings.ProjectionMode == CameraProjectionMode.Orthographic) {
-                double span = projectionSettings.OrthographicVerticalSpan;
+                double span = (double)(projectionSettings.OrthographicVerticalSpan);
                 if (!double.IsFinite(span) || span < CameraProjectionUtils.MinimumOrthographicVerticalSpan) {
                     return;
                 }
@@ -606,7 +606,7 @@ namespace helengine.editor {
                 if (!double.IsFinite(zoomFactor) || zoomFactor <= 0.0) {
                     return;
                 }
-                double updatedSpan = Math.Clamp(span * zoomFactor, CameraProjectionUtils.MinimumOrthographicVerticalSpan, float.MaxValue);
+                double updatedSpan = RealMath.Clamp(span * zoomFactor, CameraProjectionUtils.MinimumOrthographicVerticalSpan, float.MaxValue).ToDouble();
                 projectionSettings.OrthographicVerticalSpan = (float)updatedSpan;
                 return;
             }
@@ -725,8 +725,8 @@ namespace helengine.editor {
         /// </summary>
         void InitializeYawPitchFromOrientation() {
             float3 forward = GetForward(Parent.Orientation);
-            yaw = Math.Atan2(-forward.X, -forward.Z);
-            pitch = Math.Asin(forward.Y);
+            yaw = Math.Atan2((double)(-forward.X), (double)(-forward.Z));
+            pitch = Math.Asin((double)(forward.Y));
             pitch = Math.Clamp(pitch, -MaxPitch, MaxPitch);
         }
 
@@ -818,7 +818,7 @@ namespace helengine.editor {
         /// <param name="right">Second world position.</param>
         /// <returns>Distance between the supplied positions.</returns>
         double GetDistance(float3 left, float3 right) {
-            return float3.Distance(left, right);
+            return (double)(float3.Distance(left, right));
         }
 
         /// <summary>
@@ -858,7 +858,7 @@ namespace helengine.editor {
         /// <param name="fallback">Fallback direction.</param>
         /// <returns>Normalized vector or fallback.</returns>
         float3 NormalizeSafe(float3 value, float3 fallback) {
-            double lengthSquared = (value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z);
+            double lengthSquared = (double)((value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z));
             if (lengthSquared <= MinLengthSquared) {
                 return fallback;
             }

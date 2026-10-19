@@ -20,9 +20,9 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(sphereBody));
             }
 
-            float3 closestCapsulePoint = PrimitiveContactMath3D.GetClosestPointOnVerticalCapsuleSegment(capsuleBody, sphereBody.Position.Y);
+            float3 closestCapsulePoint = PrimitiveContactMath3D.GetClosestPointOnVerticalCapsuleSegment(capsuleBody, (float)(sphereBody.Position.Y));
             float3 delta = closestCapsulePoint - sphereBody.Position;
-            float distanceSquared = float3.Dot(delta, delta);
+            float distanceSquared = (float)(float3.Dot(delta, delta));
             float combinedRadius = capsuleBody.SphereRadius + sphereBody.SphereRadius;
             float combinedRadiusSquared = combinedRadius * combinedRadius;
             if (distanceSquared > combinedRadiusSquared) {

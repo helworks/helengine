@@ -730,7 +730,8 @@ namespace helengine.editor {
                 scenePathOverrides,
                 queueItem.SelectedEnvironmentId,
                 queueItem.SelectedGraphicsOptionValues,
-                queueItem.PlayVideoMode);
+                queueItem.PlayVideoMode,
+                queueItem.NumericPolicy);
         }
 
         /// <summary>

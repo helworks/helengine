@@ -6,17 +6,17 @@ namespace helengine {
         /// <summary>
         /// Minimum legal near clip-plane distance used by validated perspective projections.
         /// </summary>
-        public const float MinimumNearPlaneDistance = 0.01f;
+        public static readonly Real MinimumNearPlaneDistance = 0.01f;
 
         /// <summary>
         /// Minimum legal separation preserved between the near and far clip planes.
         /// </summary>
-        public const float MinimumPlaneSeparation = 0.01f;
+        public static readonly Real MinimumPlaneSeparation = 0.01f;
 
         /// <summary>
         /// Minimum legal full vertical span for an orthographic camera projection.
         /// </summary>
-        public const float MinimumOrthographicVerticalSpan = 0.001f;
+        public static readonly Real MinimumOrthographicVerticalSpan = 0.001f;
 
         /// <summary>
         /// Default vertical field of view in radians, 45 degrees. Platform renderers used to
@@ -26,26 +26,26 @@ namespace helengine {
         /// reframe when it adopted the authored value, which is the divergence this removes
         /// rather than a regression.
         /// </summary>
-        public const float DefaultFieldOfView = 0.7853982f;
+        public static readonly Real DefaultFieldOfView = 0.7853982f;
 
         /// <summary>
         /// Minimum legal vertical field of view in radians, one degree.
         /// </summary>
-        public const float MinimumFieldOfView = 0.0174533f;
+        public static readonly Real MinimumFieldOfView = 0.0174533f;
 
         /// <summary>
         /// Maximum legal vertical field of view in radians, 175 degrees. The projection
         /// builder rejects a field of view of pi or wider.
         /// </summary>
-        public const float MaximumFieldOfView = 3.0543262f;
+        public static readonly Real MaximumFieldOfView = 3.0543262f;
 
         /// <summary>
         /// Clamps one vertical field of view into the range the projection builder accepts.
         /// </summary>
         /// <param name="fieldOfView">Requested vertical field of view in radians.</param>
         /// <returns>Legal vertical field of view in radians.</returns>
-        public static float ClampFieldOfView(float fieldOfView) {
-            return Math.Min(Math.Max(MinimumFieldOfView, fieldOfView), MaximumFieldOfView);
+        public static RealEvaluation ClampFieldOfView(RealEvaluation fieldOfView) {
+            return RealMath.Min(RealMath.Max(MinimumFieldOfView, fieldOfView), MaximumFieldOfView);
         }
 
         /// <summary>
@@ -54,9 +54,9 @@ namespace helengine {
         /// <param name="nearPlaneDistance">Requested near clip-plane distance.</param>
         /// <param name="farPlaneDistance">Current far clip-plane distance.</param>
         /// <returns>Legal near clip-plane distance for the provided projection state.</returns>
-        public static float ClampNearPlaneDistance(float nearPlaneDistance, float farPlaneDistance) {
-            float minimumFarPlaneDistance = ClampFarPlaneDistance(MinimumNearPlaneDistance, farPlaneDistance);
-            return Math.Min(Math.Max(MinimumNearPlaneDistance, nearPlaneDistance), minimumFarPlaneDistance - MinimumPlaneSeparation);
+        public static RealEvaluation ClampNearPlaneDistance(RealEvaluation nearPlaneDistance, RealEvaluation farPlaneDistance) {
+            RealEvaluation minimumFarPlaneDistance = ClampFarPlaneDistance(MinimumNearPlaneDistance, farPlaneDistance);
+            return RealMath.Min(RealMath.Max(MinimumNearPlaneDistance, nearPlaneDistance), minimumFarPlaneDistance - MinimumPlaneSeparation);
         }
 
         /// <summary>
@@ -65,9 +65,9 @@ namespace helengine {
         /// <param name="nearPlaneDistance">Current near clip-plane distance.</param>
         /// <param name="farPlaneDistance">Requested far clip-plane distance.</param>
         /// <returns>Legal far clip-plane distance for the provided projection state.</returns>
-        public static float ClampFarPlaneDistance(float nearPlaneDistance, float farPlaneDistance) {
-            float minimumNearPlaneDistance = Math.Max(MinimumNearPlaneDistance, nearPlaneDistance);
-            return Math.Max(minimumNearPlaneDistance + MinimumPlaneSeparation, farPlaneDistance);
+        public static RealEvaluation ClampFarPlaneDistance(RealEvaluation nearPlaneDistance, RealEvaluation farPlaneDistance) {
+            RealEvaluation minimumNearPlaneDistance = RealMath.Max(MinimumNearPlaneDistance, nearPlaneDistance);
+            return RealMath.Max(minimumNearPlaneDistance + MinimumPlaneSeparation, farPlaneDistance);
         }
 
         /// <summary>
@@ -78,7 +78,7 @@ namespace helengine {
         /// <param name="camera">Camera providing projection and clip-plane state.</param>
         /// <param name="aspectRatio">Viewport width divided by viewport height.</param>
         /// <returns>Projection matrix matching the camera's selected projection mode.</returns>
-        public static float4x4 CreateProjection(ICamera camera, float aspectRatio) {
+        public static float4x4 CreateProjection(ICamera camera, RealEvaluation aspectRatio) {
             if (camera == null) {
                 throw new ArgumentNullException(nameof(camera));
             }
@@ -90,16 +90,16 @@ namespace helengine {
                 ValidateProjectionMatrix(perspectiveProjection, nameof(aspectRatio));
                 return perspectiveProjection;
             } else if (settings.ProjectionMode == CameraProjectionMode.Orthographic) {
-                float span = ValidateOrthographicVerticalSpan(settings.OrthographicVerticalSpan);
-                float nearPlaneDistance = ClampNearPlaneDistance(camera.NearPlaneDistance, camera.FarPlaneDistance);
-                float farPlaneDistance = ClampFarPlaneDistance(nearPlaneDistance, camera.FarPlaneDistance);
-                double width = (double)span * aspectRatio;
-                if (!double.IsFinite(width) || width <= 0.0 || width > float.MaxValue) {
+                RealEvaluation span = ValidateOrthographicVerticalSpan(settings.OrthographicVerticalSpan);
+                RealEvaluation nearPlaneDistance = ClampNearPlaneDistance(camera.NearPlaneDistance, camera.FarPlaneDistance);
+                RealEvaluation farPlaneDistance = ClampFarPlaneDistance(nearPlaneDistance, camera.FarPlaneDistance);
+                RealEvaluation width = (RealEvaluation)span * aspectRatio;
+                if (!RealEvaluation.IsFinite(width) || width <= 0.0 || width > RealEvaluation.MaxValue) {
                     throw new ArgumentOutOfRangeException(nameof(aspectRatio), "The viewport aspect ratio produces an invalid orthographic width.");
                 }
 
-                float halfWidth = (float)(width * 0.5);
-                float halfHeight = span * 0.5f;
+                RealEvaluation halfWidth = (RealEvaluation)(width * 0.5);
+                RealEvaluation halfHeight = span * 0.5f;
                 float4x4.CreateOrthographicOffCenter(-halfWidth, halfWidth, -halfHeight, halfHeight, nearPlaneDistance, farPlaneDistance, out float4x4 orthographicProjection);
                 ValidateProjectionMatrix(orthographicProjection, nameof(aspectRatio));
                 return orthographicProjection;
@@ -119,22 +119,22 @@ namespace helengine {
         /// <param name="pixelAspect">Displayed width of one framebuffer pixel divided by its displayed height.</param>
         /// <returns>The aspect ratio to build the projection with.</returns>
         /// <exception cref="ArgumentOutOfRangeException">Thrown for a non-finite or non-positive input, or an aspect outside single precision.</exception>
-        public static float ResolveProjectionAspect(float viewportWidth, float viewportHeight, double pixelAspect) {
-            if (!float.IsFinite(viewportWidth) || viewportWidth <= 0f) {
+        public static RealEvaluation ResolveProjectionAspect(RealEvaluation viewportWidth, RealEvaluation viewportHeight, RealEvaluation pixelAspect) {
+            if (!RealEvaluation.IsFinite(viewportWidth) || viewportWidth <= 0f) {
                 throw new ArgumentOutOfRangeException(nameof(viewportWidth), "The viewport width must be finite and positive.");
-            } else if (!float.IsFinite(viewportHeight) || viewportHeight <= 0f) {
+            } else if (!RealEvaluation.IsFinite(viewportHeight) || viewportHeight <= 0f) {
                 throw new ArgumentOutOfRangeException(nameof(viewportHeight), "The viewport height must be finite and positive.");
-            } else if (!double.IsFinite(pixelAspect) || pixelAspect <= 0d) {
+            } else if (!RealEvaluation.IsFinite(pixelAspect) || pixelAspect <= 0d) {
                 throw new ArgumentOutOfRangeException(nameof(pixelAspect), "The pixel aspect must be finite and positive.");
             } else if (pixelAspect == RenderManager3D.SquarePixelAspect) {
                 return viewportWidth / viewportHeight;
             }
 
-            double aspect = viewportWidth * pixelAspect / viewportHeight;
-            if (!double.IsFinite(aspect) || aspect > float.MaxValue) {
+            RealEvaluation aspect = viewportWidth * pixelAspect / viewportHeight;
+            if (!RealEvaluation.IsFinite(aspect) || aspect > RealEvaluation.MaxValue) {
                 throw new ArgumentOutOfRangeException(nameof(pixelAspect), "The viewport and pixel aspect produce an aspect ratio outside single precision.");
             }
-            return (float)aspect;
+            return (RealEvaluation)aspect;
         }
 
         /// <summary>
@@ -144,7 +144,7 @@ namespace helengine {
         /// <param name="distance">Positive distance from the camera to the projected point.</param>
         /// <param name="viewportHeight">Positive viewport height measured in pixels.</param>
         /// <returns>Vertical world-space units represented by one pixel.</returns>
-        public static double GetWorldUnitsPerPixel(ICamera camera, double distance, double viewportHeight) {
+        public static RealEvaluation GetWorldUnitsPerPixel(ICamera camera, RealEvaluation distance, RealEvaluation viewportHeight) {
             if (camera == null) {
                 throw new ArgumentNullException(nameof(camera));
             }
@@ -159,14 +159,14 @@ namespace helengine {
                 throw new ArgumentOutOfRangeException(nameof(settings.ProjectionMode), "The camera projection mode is not supported.");
             }
 
-            float fieldOfView = camera.FieldOfView;
-            if (!float.IsFinite(fieldOfView) || fieldOfView <= 0f) {
+            RealEvaluation fieldOfView = camera.FieldOfView;
+            if (!RealEvaluation.IsFinite(fieldOfView) || fieldOfView <= 0f) {
                 throw new ArgumentOutOfRangeException(nameof(camera), "The camera field of view must be finite and positive.");
             }
-            double clampedFieldOfView = ClampFieldOfView(fieldOfView);
-            double worldHeight = 2.0 * distance * Math.Tan(clampedFieldOfView * 0.5);
-            double worldUnitsPerPixel = worldHeight / viewportHeight;
-            if (!double.IsFinite(worldUnitsPerPixel) || worldUnitsPerPixel <= 0.0) {
+            RealEvaluation clampedFieldOfView = ClampFieldOfView(fieldOfView);
+            RealEvaluation worldHeight = 2.0 * distance * RealMath.Tan(clampedFieldOfView * 0.5);
+            RealEvaluation worldUnitsPerPixel = worldHeight / viewportHeight;
+            if (!RealEvaluation.IsFinite(worldUnitsPerPixel) || worldUnitsPerPixel <= 0.0) {
                 throw new ArgumentOutOfRangeException(nameof(distance), "The requested camera scale is outside the supported numeric range.");
             }
             return worldUnitsPerPixel;
@@ -176,8 +176,8 @@ namespace helengine {
         /// Validates a viewport aspect ratio before it is used to create a projection matrix.
         /// </summary>
         /// <param name="aspectRatio">Viewport width divided by viewport height.</param>
-        static void ValidateAspectRatio(float aspectRatio) {
-            if (!float.IsFinite(aspectRatio) || aspectRatio <= 0f) {
+        static void ValidateAspectRatio(RealEvaluation aspectRatio) {
+            if (!RealEvaluation.IsFinite(aspectRatio) || aspectRatio <= 0f) {
                 throw new ArgumentOutOfRangeException(nameof(aspectRatio), "The viewport aspect ratio must be finite and positive.");
             }
         }
@@ -187,8 +187,8 @@ namespace helengine {
         /// </summary>
         /// <param name="span">Requested orthographic vertical span.</param>
         /// <returns>The validated vertical span.</returns>
-        static float ValidateOrthographicVerticalSpan(float span) {
-            if (!float.IsFinite(span) || span < MinimumOrthographicVerticalSpan) {
+        static RealEvaluation ValidateOrthographicVerticalSpan(RealEvaluation span) {
+            if (!RealEvaluation.IsFinite(span) || span < MinimumOrthographicVerticalSpan) {
                 throw new ArgumentOutOfRangeException(nameof(span), "Orthographic vertical span must be finite and at least the configured minimum.");
             }
             return span;
@@ -199,8 +199,8 @@ namespace helengine {
         /// </summary>
         /// <param name="value">Value to validate.</param>
         /// <param name="parameterName">Public parameter name used in validation errors.</param>
-        static void ValidatePositiveFinite(double value, string parameterName) {
-            if (!double.IsFinite(value) || value <= 0.0) {
+        static void ValidatePositiveFinite(RealEvaluation value, string parameterName) {
+            if (!RealEvaluation.IsFinite(value) || value <= 0.0) {
                 throw new ArgumentOutOfRangeException(parameterName, "The value must be finite and positive.");
             }
         }
@@ -211,10 +211,10 @@ namespace helengine {
         /// <param name="projection">Matrix to validate.</param>
         /// <param name="parameterName">Input name associated with projection overflow.</param>
         static void ValidateProjectionMatrix(float4x4 projection, string parameterName) {
-            if (!float.IsFinite(projection.M11) || !float.IsFinite(projection.M12) || !float.IsFinite(projection.M13) || !float.IsFinite(projection.M14) ||
-                !float.IsFinite(projection.M21) || !float.IsFinite(projection.M22) || !float.IsFinite(projection.M23) || !float.IsFinite(projection.M24) ||
-                !float.IsFinite(projection.M31) || !float.IsFinite(projection.M32) || !float.IsFinite(projection.M33) || !float.IsFinite(projection.M34) ||
-                !float.IsFinite(projection.M41) || !float.IsFinite(projection.M42) || !float.IsFinite(projection.M43) || !float.IsFinite(projection.M44)) {
+            if (!RealEvaluation.IsFinite(projection.M11) || !RealEvaluation.IsFinite(projection.M12) || !RealEvaluation.IsFinite(projection.M13) || !RealEvaluation.IsFinite(projection.M14) ||
+                !RealEvaluation.IsFinite(projection.M21) || !RealEvaluation.IsFinite(projection.M22) || !RealEvaluation.IsFinite(projection.M23) || !RealEvaluation.IsFinite(projection.M24) ||
+                !RealEvaluation.IsFinite(projection.M31) || !RealEvaluation.IsFinite(projection.M32) || !RealEvaluation.IsFinite(projection.M33) || !RealEvaluation.IsFinite(projection.M34) ||
+                !RealEvaluation.IsFinite(projection.M41) || !RealEvaluation.IsFinite(projection.M42) || !RealEvaluation.IsFinite(projection.M43) || !RealEvaluation.IsFinite(projection.M44)) {
                 throw new ArgumentOutOfRangeException(parameterName, "The projection inputs produce a non-finite matrix.");
             }
         }
@@ -232,7 +232,7 @@ namespace helengine {
         /// <param name="camera">Camera providing the field of view and clip-plane distances.</param>
         /// <param name="aspectRatio">Viewport aspect ratio.</param>
         /// <returns>Perspective projection matrix built from validated camera state.</returns>
-        public static float4x4 CreatePerspectiveProjection(ICamera camera, float aspectRatio) {
+        public static float4x4 CreatePerspectiveProjection(ICamera camera, RealEvaluation aspectRatio) {
             if (camera == null) {
                 throw new ArgumentNullException(nameof(camera));
             }
@@ -240,13 +240,13 @@ namespace helengine {
             return CreatePerspectiveProjection(camera, camera.FieldOfView, aspectRatio);
         }
 
-        public static float4x4 CreatePerspectiveProjection(ICamera camera, float fieldOfView, float aspectRatio) {
+        public static float4x4 CreatePerspectiveProjection(ICamera camera, RealEvaluation fieldOfView, RealEvaluation aspectRatio) {
             if (camera == null) {
                 throw new ArgumentNullException(nameof(camera));
             }
 
-            float nearPlaneDistance = ClampNearPlaneDistance(camera.NearPlaneDistance, camera.FarPlaneDistance);
-            float farPlaneDistance = ClampFarPlaneDistance(nearPlaneDistance, camera.FarPlaneDistance);
+            RealEvaluation nearPlaneDistance = ClampNearPlaneDistance(camera.NearPlaneDistance, camera.FarPlaneDistance);
+            RealEvaluation farPlaneDistance = ClampFarPlaneDistance(nearPlaneDistance, camera.FarPlaneDistance);
             float4x4.CreatePerspectiveFieldOfView(ClampFieldOfView(fieldOfView), aspectRatio, nearPlaneDistance, farPlaneDistance, out float4x4 projection);
             return projection;
         }

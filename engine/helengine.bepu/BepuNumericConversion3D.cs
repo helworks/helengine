@@ -11,7 +11,7 @@ namespace helengine {
         /// <param name="value">Helengine vector to convert.</param>
         /// <returns>Equivalent system vector.</returns>
         public static Vector3 ToSystemVector(float3 value) {
-            return new Vector3(value.X, value.Y, value.Z);
+            return new Vector3((float)(value.X), (float)(value.Y), (float)(value.Z));
         }
 
         /// <summary>
@@ -29,7 +29,7 @@ namespace helengine {
         /// <param name="value">Helengine quaternion to convert.</param>
         /// <returns>Equivalent system quaternion.</returns>
         public static Quaternion ToSystemQuaternion(float4 value) {
-            return new Quaternion(value.X, value.Y, value.Z, value.W);
+            return new Quaternion((float)(value.X), (float)(value.Y), (float)(value.Z), (float)(value.W));
         }
 
         /// <summary>

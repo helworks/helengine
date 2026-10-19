@@ -156,7 +156,7 @@ namespace helengine {
             }
 
             int w = (int)Math.Ceiling(maxW) + Padding.X * 2;
-            int h = (int)Math.Ceiling(lineCount * Font.LineHeight) + Padding.Y * 2;
+            int h = (int)RealMath.Ceiling(lineCount * Font.LineHeight) + Padding.Y * 2;
 
             Bg.Size = new int2(w, h);
             TextEntity.LocalPosition = new float3(Padding.X, Padding.Y, OverlayDepth + 0.1f);

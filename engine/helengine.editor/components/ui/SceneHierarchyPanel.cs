@@ -374,8 +374,8 @@ namespace helengine.editor {
             ActivateRow(row);
 
             int2 localPosition = new int2(
-                pointer.X - (int)Math.Round(Position.X),
-                pointer.Y - (int)Math.Round(Position.Y));
+                pointer.X - (int)RealMath.Round(Position.X),
+                pointer.Y - (int)RealMath.Round(Position.Y));
             hierarchyContextMenu.Show(rowContextMenuItems, localPosition, GetContextMenuHostSize());
         }
 
@@ -462,7 +462,7 @@ namespace helengine.editor {
 
             EnsureRowCount(visibleRowCount);
 
-            float lineHeight = MathF.Max(font.LineHeight, 1f);
+            float lineHeight = MathF.Max((float)(font.LineHeight), 1f);
 
             for (int i = 0; i < rows.Count; i++) {
                 SceneHierarchyRow row = rows[i];
@@ -1284,8 +1284,8 @@ namespace helengine.editor {
         /// <param name="pointer">Pointer position in screen coordinates.</param>
         /// <returns>True when the pointer lies inside the hierarchy content region.</returns>
         bool IsPointerInsideContent(int2 pointer) {
-            int panelX = (int)Math.Round(Position.X);
-            int panelY = (int)Math.Round(Position.Y);
+            int panelX = (int)RealMath.Round(Position.X);
+            int panelY = (int)RealMath.Round(Position.Y);
             int panelWidth = Math.Max(Size.X, MinSize.X);
             int panelHeight = Math.Max(Size.Y, MinSize.Y);
 
@@ -1382,8 +1382,8 @@ namespace helengine.editor {
         /// Updates the content camera viewport to match the current panel body rectangle.
         /// </summary>
         void UpdateContentViewport() {
-            float viewportX = Position.X;
-            float viewportY = Position.Y + TitleBarHeightPixels;
+            float viewportX = (float)(Position.X);
+            float viewportY = (float)(Position.Y + TitleBarHeightPixels);
             float viewportWidth = Math.Max(1, Size.X);
             float viewportHeight = Math.Max(1, Size.Y);
             contentCameraComponent.Viewport = new float4(viewportX, viewportY, viewportWidth, viewportHeight);

@@ -399,8 +399,8 @@ namespace helengine.editor.tests {
             int2 panelPosition = GetPrivateField<int2>(dialog, "PanelPosition");
             EditorEntity closeButtonHost = GetPrivateField<EditorEntity>(dialog, "CloseButtonHost");
             ButtonComponent closeButton = GetPrivateField<ButtonComponent>(dialog, "CloseButton");
-            int pointerX = panelPosition.X + (int)Math.Round(closeButtonHost.LocalPosition.X) + (closeButton.Size.X / 2);
-            int pointerY = panelPosition.Y + (int)Math.Round(closeButtonHost.LocalPosition.Y) + (closeButton.Size.Y / 2);
+            int pointerX = panelPosition.X + (int)Math.Round((double)(closeButtonHost.LocalPosition.X)) + (closeButton.Size.X / 2);
+            int pointerY = panelPosition.Y + (int)Math.Round((double)(closeButtonHost.LocalPosition.Y)) + (closeButton.Size.Y / 2);
 
             AdvanceInput(new MouseState(0, 0, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
             AdvanceInput(new MouseState(pointerX, pointerY, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));

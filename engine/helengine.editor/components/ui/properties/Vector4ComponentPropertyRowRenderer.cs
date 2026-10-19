@@ -69,7 +69,7 @@ namespace helengine.editor {
                 return;
             }
 
-            View.SetVector4Fields(row, value.X, value.Y, value.Z, value.W);
+            View.SetVector4Fields(row, (double)(value.X), (double)(value.Y), (double)(value.Z), (double)(value.W));
         }
 
         /// <summary>

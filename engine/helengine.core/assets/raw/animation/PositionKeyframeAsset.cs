@@ -11,7 +11,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the keyframe time in seconds.
         /// </summary>
-        public float Time { get; set; }
+        public Real Time { get; set; }
 
         /// <summary>
         /// Gets or sets the transform value evaluated at <see cref="Time"/>.
@@ -34,7 +34,7 @@ namespace helengine {
         /// <param name="time">Keyframe time in seconds.</param>
         /// <param name="value">Transform value stored by the keyframe.</param>
         /// <param name="interpolationMode">Interpolation used to reach the next keyframe.</param>
-        public PositionKeyframeAsset(float time, float3 value, AnimationInterpolationMode interpolationMode) {
+        public PositionKeyframeAsset(Real time, float3 value, AnimationInterpolationMode interpolationMode) {
             Time = time;
             Value = value;
             InterpolationMode = interpolationMode;

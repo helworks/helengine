@@ -39,7 +39,7 @@ namespace helengine.editor {
             int[] canonicalVertices = new int[asset.Positions.Length];
             for (int index = 0; index < asset.Positions.Length; index++) {
                 float3 position = asset.Positions[index];
-                if (!float.IsFinite(position.X) || !float.IsFinite(position.Y) || !float.IsFinite(position.Z)) throw new InvalidOperationException("GPU reduction positions must be finite.");
+                if (!float.IsFinite((float)(position.X)) || !float.IsFinite((float)(position.Y)) || !float.IsFinite((float)(position.Z))) throw new InvalidOperationException("GPU reduction positions must be finite.");
                 if (!positions.TryGetValue(position, out int group)) {
                     group = Groups.Count;
                     positions.Add(position, group);
@@ -78,16 +78,16 @@ namespace helengine.editor {
             List<int> values = new List<int> { group };
             if (Asset.Normals != null && Asset.Normals.Length > 0) {
                 float3 normal = Asset.Normals[vertex];
-                if (!float.IsFinite(normal.X) || !float.IsFinite(normal.Y) || !float.IsFinite(normal.Z)) throw new InvalidOperationException("GPU reduction normals must be finite.");
-                values.Add(BitConverter.SingleToInt32Bits(normal.X));
-                values.Add(BitConverter.SingleToInt32Bits(normal.Y));
-                values.Add(BitConverter.SingleToInt32Bits(normal.Z));
+                if (!float.IsFinite((float)(normal.X)) || !float.IsFinite((float)(normal.Y)) || !float.IsFinite((float)(normal.Z))) throw new InvalidOperationException("GPU reduction normals must be finite.");
+                values.Add(BitConverter.SingleToInt32Bits((float)(normal.X)));
+                values.Add(BitConverter.SingleToInt32Bits((float)(normal.Y)));
+                values.Add(BitConverter.SingleToInt32Bits((float)(normal.Z)));
             }
             if (Asset.TexCoords != null && Asset.TexCoords.Length > 0) {
                 float2 uv = Asset.TexCoords[vertex];
-                if (!float.IsFinite(uv.X) || !float.IsFinite(uv.Y)) throw new InvalidOperationException("GPU reduction UVs must be finite.");
-                values.Add(BitConverter.SingleToInt32Bits(uv.X));
-                values.Add(BitConverter.SingleToInt32Bits(uv.Y));
+                if (!float.IsFinite((float)(uv.X)) || !float.IsFinite((float)(uv.Y))) throw new InvalidOperationException("GPU reduction UVs must be finite.");
+                values.Add(BitConverter.SingleToInt32Bits((float)(uv.X)));
+                values.Add(BitConverter.SingleToInt32Bits((float)(uv.Y)));
             }
             return string.Join(",", values);
         }
@@ -134,8 +134,8 @@ namespace helengine.editor {
         /// <summary>Computes double-precision unnormalized triangle normal.</summary>
         double[] Normal(int[] vertices) {
             float3 a = Asset.Positions[vertices[0]], b = Asset.Positions[vertices[1]], c = Asset.Positions[vertices[2]];
-            double x1 = (double)b.X - a.X, y1 = (double)b.Y - a.Y, z1 = (double)b.Z - a.Z;
-            double x2 = (double)c.X - a.X, y2 = (double)c.Y - a.Y, z2 = (double)c.Z - a.Z;
+            double x1 = (double)((double)b.X - a.X), y1 = (double)((double)b.Y - a.Y), z1 = (double)((double)b.Z - a.Z);
+            double x2 = (double)((double)c.X - a.X), y2 = (double)((double)c.Y - a.Y), z2 = (double)((double)c.Z - a.Z);
             return new[] { y1 * z2 - z1 * y2, z1 * x2 - x1 * z2, x1 * y2 - y1 * x2 };
         }
 
@@ -151,15 +151,15 @@ namespace helengine.editor {
             double length = Math.Sqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]);
             float3 position = Asset.Positions[triangle.Vertices[0]];
             double x = normal[0] / length, y = normal[1] / length, z = normal[2] / length;
-            double distance = -(x * position.X + y * position.Y + z * position.Z);
+            double distance = (double)(-(x * position.X + y * position.Y + z * position.Z));
             foreach (int vertex in triangle.Vertices) Groups[VertexGroups[vertex]].Quadric.AddPlane(x, y, z, distance, length);
         }
 
         /// <summary>Reads one axis from a geometric position.</summary>
         static double Coordinate(float3 position, int axis) {
-            if (axis == 0) return position.X;
-            if (axis == 1) return position.Y;
-            return position.Z;
+            if (axis == 0) return (double)(position.X);
+            if (axis == 1) return (double)(position.Y);
+            return (double)(position.Z);
         }
 
         /// <summary>Counts source bounds witnesses so planar surfaces remain reducible without losing extrema.</summary>
@@ -276,7 +276,7 @@ namespace helengine.editor {
         /// <summary>Computes oriented texture area so a geometric collapse cannot invert its texture chart.</summary>
         double UvArea(int[] vertices) {
             float2 a = Asset.TexCoords[vertices[0]], b = Asset.TexCoords[vertices[1]], c = Asset.TexCoords[vertices[2]];
-            return ((double)b.X - a.X) * ((double)c.Y - a.Y) - ((double)b.Y - a.Y) * ((double)c.X - a.X);
+            return (double)(((double)b.X - a.X) * ((double)c.Y - a.Y) - ((double)b.Y - a.Y) * ((double)c.X - a.X));
         }
 
         /// <summary>Finds the exact material set of one attribute wedge without merging hard seams.</summary>

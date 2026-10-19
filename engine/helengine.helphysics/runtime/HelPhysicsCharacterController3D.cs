@@ -79,15 +79,15 @@ namespace helengine {
 
             float step = (float)stepSeconds;
             float3 moveDirection = ControllerValue.DesiredMoveDirection;
-            if (!float.IsFinite(moveDirection.X) || !float.IsFinite(moveDirection.Y) || !float.IsFinite(moveDirection.Z)) {
+            if (!float.IsFinite((float)(moveDirection.X)) || !float.IsFinite((float)(moveDirection.Y)) || !float.IsFinite((float)(moveDirection.Z))) {
                 throw new InvalidOperationException("Character controller desired movement must be finite.");
             }
 
-            float halfHeight = Math.Abs(BoxColliderValue.Size.Y * EntityValue.Scale.Y) * 0.5f;
+            float halfHeight = (float)(RealMath.Abs(BoxColliderValue.Size.Y * EntityValue.Scale.Y) * 0.5f);
             if (!float.IsFinite(halfHeight) || halfHeight <= 0f) {
                 throw new InvalidOperationException("Character controller effective box height must be finite and positive.");
             }
-            double moveLengthSquared = ((double)moveDirection.X * moveDirection.X) + ((double)moveDirection.Z * moveDirection.Z);
+            double moveLengthSquared = (double)(((double)moveDirection.X * moveDirection.X) + ((double)moveDirection.Z * moveDirection.Z));
             float3 planarVelocity = float3.Zero;
             if (moveLengthSquared > 0.0000001d && ControllerValue.MoveSpeed > 0d) {
                 double inverseLength = 1d / Math.Sqrt(moveLengthSquared);
@@ -100,7 +100,7 @@ namespace helengine {
             float3 supportDisplacement = currentSupport.IsValid
                 ? currentSupport.Velocity * step
                 : float3.Zero;
-            float verticalVelocity = currentVerticalVelocity + (gravityAcceleration.Y * (float)ControllerValue.GravityScale * step);
+            float verticalVelocity = (float)(currentVerticalVelocity + (gravityAcceleration.Y * (float)ControllerValue.GravityScale * step));
             float3 targetPosition = new float3(
                 currentPosition.X + supportDisplacement.X + (planarVelocity.X * step),
                 currentPosition.Y + supportDisplacement.Y + (verticalVelocity * step),
@@ -108,7 +108,7 @@ namespace helengine {
             bool grounded = false;
             float3 resolvedSupportVelocity = float3.Zero;
             if (targetSupport.IsValid && IsWalkableSupport(targetSupport)) {
-                double supportDelta = targetSupport.Height - (targetPosition.Y - halfHeight);
+                double supportDelta = (double)(targetSupport.Height - (targetPosition.Y - halfHeight));
                 if (supportDelta <= ControllerValue.StepHeight && supportDelta >= -ControllerValue.GroundSnapDistance) {
                     targetPosition = new float3(targetPosition.X, targetSupport.Height + halfHeight, targetPosition.Z);
                     verticalVelocity = 0f;
@@ -129,14 +129,14 @@ namespace helengine {
         bool IsWalkableSupport(HelPhysicsCharacterControllerSupport3D support) {
             float3 normal = support.Normal;
             double lengthSquared =
-                ((double)normal.X * normal.X) +
+                (double)(((double)normal.X * normal.X) +
                 ((double)normal.Y * normal.Y) +
-                ((double)normal.Z * normal.Z);
+                ((double)normal.Z * normal.Z));
             if (!double.IsFinite(lengthSquared) || lengthSquared <= 0d) {
                 return false;
             }
 
-            double cosine = normal.Y / Math.Sqrt(lengthSquared);
+            double cosine = (double)(normal.Y / Math.Sqrt(lengthSquared));
             double minimumCosine = Math.Cos(ControllerValue.MaximumSlopeDegrees * Math.PI / 180d);
             return cosine >= minimumCosine;
         }

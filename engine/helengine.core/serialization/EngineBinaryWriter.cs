@@ -5,6 +5,9 @@ namespace helengine {
     /// Provides endianness-specific binary writes over a stream after the writer has been selected once.
     /// </summary>
     public abstract class EngineBinaryWriter : IDisposable {
+        /// <summary>Immutable numeric contract selected explicitly for this stream's configurable values.</summary>
+        NumericPrecisionPolicy NumericPolicyValue = RealRepresentation.Policy;
+
         /// <summary>
         /// Underlying stream receiving the payload bytes.
         /// </summary>
@@ -27,6 +30,15 @@ namespace helengine {
 
             BaseStream = stream;
             LeaveOpen = leaveOpen;
+        }
+
+        /// <summary>Gets or sets this stream's validated numeric context without changing fixed-width IO methods.</summary>
+        public NumericPrecisionPolicy NumericPolicy {
+            get { return NumericPolicyValue; }
+            set {
+                if (value == null) { throw new ArgumentNullException(nameof(value)); }
+                NumericPolicyValue = value;
+            }
         }
 
         /// <summary>
@@ -110,8 +122,8 @@ namespace helengine {
         /// </summary>
         /// <param name="value">Value to write.</param>
         public void WriteFloat2(float2 value) {
-            WriteSingle(value.X);
-            WriteSingle(value.Y);
+            WriteSingle((float)(value.X));
+            WriteSingle((float)(value.Y));
         }
 
         /// <summary>
@@ -119,9 +131,9 @@ namespace helengine {
         /// </summary>
         /// <param name="value">Value to write.</param>
         public void WriteFloat3(float3 value) {
-            WriteSingle(value.X);
-            WriteSingle(value.Y);
-            WriteSingle(value.Z);
+            WriteSingle((float)(value.X));
+            WriteSingle((float)(value.Y));
+            WriteSingle((float)(value.Z));
         }
 
         /// <summary>
@@ -129,10 +141,10 @@ namespace helengine {
         /// </summary>
         /// <param name="value">Value to write.</param>
         public void WriteFloat4(float4 value) {
-            WriteSingle(value.X);
-            WriteSingle(value.Y);
-            WriteSingle(value.Z);
-            WriteSingle(value.W);
+            WriteSingle((float)(value.X));
+            WriteSingle((float)(value.Y));
+            WriteSingle((float)(value.Z));
+            WriteSingle((float)(value.W));
         }
 
         /// <summary>
@@ -232,5 +244,74 @@ namespace helengine {
                 BaseStream.Dispose();
             }
         }
+        /// <summary>Writes a configurable scalar using the contract selected for this stream.</summary>
+        /// <param name="value">Engine scalar to commit to serialized storage.</param>
+        public void WriteReal(Real value) { WriteReal(value, NumericPolicy); }
+
+        /// <summary>Writes configurable 2-component storage using this stream's declared contract.</summary>
+        /// <param name="value">Engine aggregate to encode.</param>
+        public void WriteReal2(float2 value) { WriteReal2(value, NumericPolicy); }
+
+        /// <summary>Writes configurable 2-component storage under an explicit numeric contract.</summary>
+        /// <param name="value">Engine aggregate to encode.</param>
+        /// <param name="policy">Declared storage and arithmetic policy for the payload.</param>
+        public void WriteReal2(float2 value, NumericPrecisionPolicy policy) {
+            WriteReal(value.X, policy);
+            WriteReal(value.Y, policy);
+        }
+
+        /// <summary>Writes configurable 3-component storage using this stream's declared contract.</summary>
+        /// <param name="value">Engine aggregate to encode.</param>
+        public void WriteReal3(float3 value) { WriteReal3(value, NumericPolicy); }
+
+        /// <summary>Writes configurable 3-component storage under an explicit numeric contract.</summary>
+        /// <param name="value">Engine aggregate to encode.</param>
+        /// <param name="policy">Declared storage and arithmetic policy for the payload.</param>
+        public void WriteReal3(float3 value, NumericPrecisionPolicy policy) {
+            WriteReal(value.X, policy);
+            WriteReal(value.Y, policy);
+            WriteReal(value.Z, policy);
+        }
+
+        /// <summary>Writes configurable 4-component storage using this stream's declared contract.</summary>
+        /// <param name="value">Engine aggregate to encode.</param>
+        public void WriteReal4(float4 value) { WriteReal4(value, NumericPolicy); }
+
+        /// <summary>Writes configurable 4-component storage under an explicit numeric contract.</summary>
+        /// <param name="value">Engine aggregate to encode.</param>
+        /// <param name="policy">Declared storage and arithmetic policy for the payload.</param>
+        public void WriteReal4(float4 value, NumericPrecisionPolicy policy) {
+            WriteReal(value.X, policy);
+            WriteReal(value.Y, policy);
+            WriteReal(value.Z, policy);
+            WriteReal(value.W, policy);
+        }
+
+        /// <summary>Writes configurable 4x4-component storage using this stream's declared contract.</summary>
+        /// <param name="value">Engine aggregate to encode.</param>
+        public void WriteReal4x4(float4x4 value) { WriteReal4x4(value, NumericPolicy); }
+
+        /// <summary>Writes configurable 4x4-component storage under an explicit numeric contract.</summary>
+        /// <param name="value">Engine aggregate to encode.</param>
+        /// <param name="policy">Declared storage and arithmetic policy for the payload.</param>
+        public void WriteReal4x4(float4x4 value, NumericPrecisionPolicy policy) {
+            WriteReal(value.M11, policy);
+            WriteReal(value.M12, policy);
+            WriteReal(value.M13, policy);
+            WriteReal(value.M14, policy);
+            WriteReal(value.M21, policy);
+            WriteReal(value.M22, policy);
+            WriteReal(value.M23, policy);
+            WriteReal(value.M24, policy);
+            WriteReal(value.M31, policy);
+            WriteReal(value.M32, policy);
+            WriteReal(value.M33, policy);
+            WriteReal(value.M34, policy);
+            WriteReal(value.M41, policy);
+            WriteReal(value.M42, policy);
+            WriteReal(value.M43, policy);
+            WriteReal(value.M44, policy);
+        }
+
     }
 }

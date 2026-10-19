@@ -18,7 +18,14 @@ namespace helengine.files {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 25;
+        public const byte CurrentVersion = 26;
+
+        /// <summary>Last authoring format with implicit IEEE32 numeric values.</summary>
+        const byte LegacyVersion = 25;
+
+        /// <summary>Recognizes explicit authoring encodings that can be read without assuming the current host width.</summary>
+        public static bool IsSupportedVersion(byte version) { return version == CurrentVersion || version == LegacyVersion; }
+
 
         /// <summary>
         /// Payload description used when a stored header carries a foreign format id.
@@ -50,7 +57,11 @@ namespace helengine.files {
         /// </summary>
         /// <param name="stream">Destination stream for the asset payload.</param>
         /// <param name="asset">Asset instance to serialize.</param>
-        public static void Serialize(Stream stream, Asset asset) {
+        public static void Serialize(Stream stream, Asset asset) { Serialize(stream, asset, RealRepresentation.Policy); }
+
+        /// <summary>Serializes authoring or cooked values under an explicitly selected immutable numeric policy.</summary>
+        public static void Serialize(Stream stream, Asset asset, NumericPrecisionPolicy numericPolicy) {
+            RealBinaryCodec.ValidatePolicy(numericPolicy);
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             } else if (asset == null) {
@@ -68,6 +79,8 @@ namespace helengine.files {
 
             EngineBinaryHeaderSerializer.Write(stream, header);
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, PayloadEndianness);
+            writer.NumericPolicy = numericPolicy;
+            writer.WriteNumericPolicy();
             payloadSerializer.Write(writer, asset);
         }
 
@@ -77,20 +90,9 @@ namespace helengine.files {
         /// <param name="stream">Source stream containing the asset payload.</param>
         /// <returns>Deserialized asset instance.</returns>
         public static Asset Deserialize(Stream stream) {
-            EngineBinaryHeader header;
-            using EngineBinaryReader reader = VersionedBinaryPayload.ReadHeaderWithDispatchedValueKind(
-                stream,
-                FormatId,
-                (ushort)RecordKind,
-                CurrentVersion,
-                FormatIdMismatchSubject,
-                RecordMismatchSubject,
-                VersionMismatchSubject,
-                VersionedBinaryVersionMismatchStyle.RequiredVersionSubjectFirst,
-                RegenerateInstruction,
-                out header);
-
-            return ReadAssetPayload(reader, (EditorAssetBinaryValueKind)header.ValueKind);
+            if (stream == null) { throw new ArgumentNullException(nameof(stream)); }
+            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+            return Deserialize(stream, header);
         }
 
         /// <summary>
@@ -105,13 +107,14 @@ namespace helengine.files {
                 header,
                 FormatId,
                 (ushort)RecordKind,
-                CurrentVersion,
+                header.Version == LegacyVersion ? LegacyVersion : CurrentVersion,
                 FormatIdMismatchSubject,
                 RecordMismatchSubject,
                 VersionMismatchSubject,
                 VersionedBinaryVersionMismatchStyle.RequiredVersionSubjectFirst,
                 RegenerateInstruction);
 
+            reader.NumericPolicy = header.Version == LegacyVersion ? NumericPrecisionPolicy.Default : RealBinaryCodec.ReadPolicy(reader);
             return ReadAssetPayload(reader, (EditorAssetBinaryValueKind)header.ValueKind);
         }
 

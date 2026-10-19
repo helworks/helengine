@@ -19,6 +19,7 @@ namespace helengine.editor.tests.serialization.scene {
             using MemoryStream stream = new MemoryStream();
             using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian)) {
                 writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+                RealBinaryCodec.WritePolicy(writer, RealRepresentation.Policy);
                 writer.WriteInt32(schema.Members.Count - 2);
                 for (int index = 0; index < schema.Members.Count - 2; index++) {
                     Assert.True(tagged.TryGetFieldPayloadLength(schema.Members[index].Name, out int length));

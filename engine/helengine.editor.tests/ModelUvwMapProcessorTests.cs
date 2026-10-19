@@ -30,7 +30,7 @@ namespace helengine.editor.tests {
             ModelUvwMapProcessor.ApplyWorldMap(model, ModelUvwMapProcessor.AxisY, ModelUvwMapProcessor.AxisY, 1d, 2d, 0d, 0d, new float3(0f, 3f, 0f), float4.Identity);
 
             for (int index = 0; index < model.Positions.Length; index++) {
-                float worldY = 3f + model.Positions[index].Y;
+                double worldY = (double)(3f + model.Positions[index].Y);
                 Assert.Equal(worldY, model.TexCoords[index].X, 3);
                 Assert.Equal(worldY * 2f, model.TexCoords[index].Y, 3);
             }
@@ -79,8 +79,8 @@ namespace helengine.editor.tests {
                 float2 uvB = model.TexCoords[model.Indices16[index + 1]];
                 float2 uvC = model.TexCoords[model.Indices16[index + 2]];
                 float2 span = new float2(
-                    Math.Max(Math.Max(uvA.X, uvB.X), uvC.X) - Math.Min(Math.Min(uvA.X, uvB.X), uvC.X),
-                    Math.Max(Math.Max(uvA.Y, uvB.Y), uvC.Y) - Math.Min(Math.Min(uvA.Y, uvB.Y), uvC.Y));
+                    Math.Max(Math.Max((double)(uvA.X), (double)(uvB.X)), (double)(uvC.X)) - Math.Min(Math.Min((double)(uvA.X), (double)(uvB.X)), (double)(uvC.X)),
+                    Math.Max(Math.Max((double)(uvA.Y), (double)(uvB.Y)), (double)(uvC.Y)) - Math.Min(Math.Min((double)(uvA.Y), (double)(uvB.Y)), (double)(uvC.Y)));
                 Assert.True(normal.LengthSquared() > 0.000001f);
                 Assert.True(span.X > 0.0001f || span.Y > 0.0001f, $"Triangle at index {index} projected to a degenerate UV span.");
             }
@@ -95,11 +95,11 @@ namespace helengine.editor.tests {
 
             ModelUvwMapProcessor.ApplyBoxMap(model, 0.5d, 1d, 0.5d, 2d, 1d, 2d, 0.25d, 0d);
 
-            float maxU = float.MinValue;
-            float minU = float.MaxValue;
+            double maxU = float.MinValue;
+            double minU = float.MaxValue;
             for (int index = 0; index < model.TexCoords.Length; index++) {
-                maxU = Math.Max(maxU, model.TexCoords[index].X);
-                minU = Math.Min(minU, model.TexCoords[index].X);
+                maxU = (double)(Math.Max(maxU, (double)(model.TexCoords[index].X)));
+                minU = (double)(Math.Min(minU, (double)(model.TexCoords[index].X)));
             }
 
             // A unit cube half-extent of 0.5 over a 0.5-unit box tiled 2x spans +/-2 repeats, shifted by the 0.25 U offset.

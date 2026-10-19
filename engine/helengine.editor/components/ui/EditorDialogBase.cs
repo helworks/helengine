@@ -442,7 +442,7 @@ namespace helengine.editor {
                 Font = font,
                 Text = dialogTitle,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f))))
+                Size = new int2(1, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(font.LineHeight, 1f))))
             };
             TitleHost.AddComponent(TitleText);
 
@@ -604,7 +604,7 @@ namespace helengine.editor {
             DialogHeight = Metrics.ScalePixels(BaseDialogHeight);
             DialogHeaderHeight = Metrics.ScalePixels(BaseDialogHeaderHeight);
             TitleText.Font = font;
-            TitleText.Size = new int2(TitleText.Size.X, Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f))));
+            TitleText.Size = new int2(TitleText.Size.X, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(font.LineHeight, 1f))));
             SetDialogMinimumSize(240, 160);
             UpdateDialogChromeLayout();
         }
@@ -986,7 +986,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Rounded positive line height for layout calculations.</returns>
         protected int GetDialogLineHeight() {
-            return Math.Max(1, (int)Math.Ceiling(Math.Max(Font.LineHeight, 1f)));
+            return Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(Font.LineHeight, 1f)));
         }
 
         /// <summary>

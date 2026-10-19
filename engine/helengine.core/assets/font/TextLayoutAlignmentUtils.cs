@@ -11,7 +11,7 @@ namespace helengine {
         /// <param name="fontScale">Uniform scale applied to glyph metrics.</param>
         /// <param name="textureWidth">Atlas texture width used to resolve normalized glyph widths into pixels.</param>
         /// <returns>Visible line width in pixels.</returns>
-        public static double MeasureVisibleLineWidth(string line, FontAsset font, double fontScale, double textureWidth) {
+        public static RealEvaluation MeasureVisibleLineWidth(string line, FontAsset font, RealEvaluation fontScale, RealEvaluation textureWidth) {
             if (string.IsNullOrEmpty(line)) {
                 return 0d;
             } else if (font == null) {
@@ -22,17 +22,17 @@ namespace helengine {
                 throw new ArgumentOutOfRangeException(nameof(textureWidth), "Texture width must be greater than zero.");
             }
 
-            double visibleWidth = 0d;
-            double offsetX = 0d;
-            double spaceWidth = font.FontInfo != null
-                ? Math.Max(font.FontInfo.SpaceWidth * fontScale, 1d)
-                : Math.Max(font.LineHeight * fontScale * 0.25d, 1d);
+            RealEvaluation visibleWidth = 0d;
+            RealEvaluation offsetX = 0d;
+            RealEvaluation spaceWidth = font.FontInfo != null
+                ? RealMath.Max(font.FontInfo.SpaceWidth * fontScale, 1d)
+                : RealMath.Max(font.LineHeight * fontScale * 0.25d, 1d);
 
             for (int index = 0; index < line.Length; index++) {
                 char character = line[index];
                 if (character == ' ') {
                     offsetX += spaceWidth;
-                    visibleWidth = Math.Max(visibleWidth, offsetX);
+                    visibleWidth = RealMath.Max(visibleWidth, offsetX);
                     continue;
                 }
 
@@ -40,8 +40,8 @@ namespace helengine {
                     continue;
                 }
 
-                double glyphWidth = Math.Max(1d, glyph.SourceRect.Z * textureWidth * fontScale);
-                visibleWidth = Math.Max(visibleWidth, offsetX + glyph.BearingX * fontScale + glyphWidth);
+                RealEvaluation glyphWidth = RealMath.Max(1d, glyph.SourceRect.Z * textureWidth * fontScale);
+                visibleWidth = RealMath.Max(visibleWidth, offsetX + glyph.BearingX * fontScale + glyphWidth);
                 offsetX += glyph.AdvanceWidth > 0f
                     ? glyph.AdvanceWidth * fontScale
                     : glyphWidth;
@@ -57,12 +57,12 @@ namespace helengine {
         /// <param name="boxWidth">Authored layout width available to the line.</param>
         /// <param name="visibleWidth">Measured visible glyph width for the line.</param>
         /// <returns>Horizontal offset that should be added before drawing the line.</returns>
-        public static double ResolveHorizontalOffset(TextAlignment alignment, int boxWidth, double visibleWidth) {
+        public static RealEvaluation ResolveHorizontalOffset(TextAlignment alignment, int boxWidth, RealEvaluation visibleWidth) {
             if (boxWidth <= 0 || visibleWidth <= 0d) {
                 return 0d;
             }
 
-            double availableWidth = boxWidth - visibleWidth;
+            RealEvaluation availableWidth = boxWidth - visibleWidth;
             if (availableWidth <= 0d) {
                 return 0d;
             }

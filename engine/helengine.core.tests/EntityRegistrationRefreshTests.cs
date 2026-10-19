@@ -143,14 +143,14 @@ namespace helengine.core.tests {
             /// <summary>
             /// Gets or sets the near clip-plane distance of this camera.
             /// </summary>
-            public float FieldOfView { get; set; } = CameraProjectionUtils.DefaultFieldOfView;
+            public Real FieldOfView { get; set; } = CameraProjectionUtils.DefaultFieldOfView;
 
-            public float NearPlaneDistance { get; set; } = 0.1f;
+            public Real NearPlaneDistance { get; set; } = 0.1f;
 
             /// <summary>
             /// Gets or sets the far clip-plane distance of this camera.
             /// </summary>
-            public float FarPlaneDistance { get; set; } = 100f;
+            public Real FarPlaneDistance { get; set; } = 100f;
 
             /// <summary>
             /// Gets or sets the render target receiving this camera's output.

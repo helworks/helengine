@@ -74,7 +74,7 @@ namespace helengine.editor.tests {
                 Assert.True(sceneHierarchyPanel.Position.Y < propertiesPanel.Position.Y);
                 Assert.InRange(Math.Abs(sceneHierarchyPanel.Size.Y - propertiesPanel.Size.Y), 0, 1);
                 Assert.InRange(
-                    Math.Abs((sceneHierarchyPanel.Position.Y + sceneHierarchyPanel.Size.Y + DockableEntity.TitleBarHeight) - propertiesPanel.Position.Y),
+                    Math.Abs((double)((sceneHierarchyPanel.Position.Y + sceneHierarchyPanel.Size.Y + DockableEntity.TitleBarHeight) - propertiesPanel.Position.Y)),
                     0,
                     1);
                 int rightSideDockCount = 0;
@@ -87,7 +87,7 @@ namespace helengine.editor.tests {
                 Assert.Contains(sceneHierarchyPanel, dockOrder);
                 Assert.Contains(propertiesPanel, dockOrder);
                 Assert.Equal(sceneHierarchyPanel.Position.X, hierarchyContentCamera.Viewport.X);
-                Assert.Equal(sceneHierarchyPanel.Position.Y + sceneHierarchyPanel.TitleBarHeightPixels, hierarchyContentCamera.Viewport.Y);
+                Assert.EqualEvaluation(sceneHierarchyPanel.Position.Y + sceneHierarchyPanel.TitleBarHeightPixels, hierarchyContentCamera.Viewport.Y);
                 Assert.Equal(sceneHierarchyPanel.Size.X, hierarchyContentCamera.Viewport.Z);
                 Assert.Equal(sceneHierarchyPanel.Size.Y, hierarchyContentCamera.Viewport.W);
             } finally {

@@ -11,7 +11,7 @@ namespace helengine {
         /// <summary>
         /// Current automatic component payload version accepted during serialized scene analysis.
         /// </summary>
-        const byte CurrentPhysicsComponentPayloadVersion = 1;
+        const byte CurrentPhysicsComponentPayloadVersion = AutomaticScriptComponentPayloadFormat.CurrentVersion;
 
         /// <summary>
         /// Current automatic reflected rigid-body payload member count.
@@ -627,7 +627,7 @@ namespace helengine {
                 }
 
                 RequireCurrentAutomaticMemberCount(reader, AutomaticRigidBodyMemberCount, "rigid body");
-                reader.ReadFloat3();
+                reader.ReadReal3();
                 int serializedBodyKind = reader.ReadInt32();
                 if (!Enum.IsDefined(typeof(BodyKind3D), serializedBodyKind)) {
                     throw new InvalidOperationException(
@@ -636,7 +636,7 @@ namespace helengine {
 
                 bodyKind = (BodyKind3D)serializedBodyKind;
                 reader.ReadDouble();
-                reader.ReadFloat3();
+                reader.ReadReal3();
                 reader.ReadDouble();
                 reader.ReadByte();
                 reader.ReadDouble();
@@ -693,7 +693,7 @@ namespace helengine {
                 reader.ReadDouble();
                 bool isTrigger = reader.ReadByte() != 0;
                 reader.ReadDouble();
-                reader.ReadFloat3();
+                reader.ReadReal3();
                 reader.ReadDouble();
                 RequireCurrentPayloadEnd(stream, "box collider");
                 return isTrigger;
@@ -779,6 +779,7 @@ namespace helengine {
                 throw new ArgumentException("Component label must be provided.", nameof(componentLabel));
             }
 
+            reader.NumericPolicy = RealBinaryCodec.ReadAndValidatePolicy(reader, RealRepresentation.Policy);
             int memberCount = reader.ReadInt32();
             if (memberCount != expectedMemberCount) {
                 throw new InvalidOperationException(
@@ -967,7 +968,7 @@ namespace helengine {
             }
 
             for (int index = 0; index < length; index++) {
-                reader.ReadFloat3();
+                reader.ReadReal3();
             }
         }
 

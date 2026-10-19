@@ -331,8 +331,8 @@ namespace helengine.editor.tests.components.ui {
         /// <returns>Rounded window-space pointer coordinate.</returns>
         static int2 GetScreenPointer(EditorViewportNavigationCube cube, float2 logicalPoint, float uiScale) {
             return new int2(
-                cube.InteractionController.CubeScreenPosition.X + (int)Math.Round(logicalPoint.X * uiScale),
-                cube.InteractionController.CubeScreenPosition.Y + (int)Math.Round(logicalPoint.Y * uiScale));
+                cube.InteractionController.CubeScreenPosition.X + (int)Math.Round((double)(logicalPoint.X * uiScale)),
+                cube.InteractionController.CubeScreenPosition.Y + (int)Math.Round((double)(logicalPoint.Y * uiScale)));
         }
 
         /// <summary>Finds a visible projected corner outside the center-toggle hit radius.</summary>
@@ -351,8 +351,8 @@ namespace helengine.editor.tests.components.ui {
             double minimumDistanceSquared = minimumDistance * minimumDistance;
             for (int visibleIndex = 0; visibleIndex < visibleVertices.Count; visibleIndex++) {
                 int vertexIndex = visibleVertices[visibleIndex];
-                double deltaX = vertices[vertexIndex].X - 48.0;
-                double deltaY = vertices[vertexIndex].Y - 48.0;
+                double deltaX = (double)(vertices[vertexIndex].X - 48.0);
+                double deltaY = (double)(vertices[vertexIndex].Y - 48.0);
                 if ((deltaX * deltaX) + (deltaY * deltaY) > minimumDistanceSquared) {
                     return vertexIndex;
                 }
@@ -410,8 +410,8 @@ namespace helengine.editor.tests.components.ui {
         void AssertPreviewBlocksScene(EditorEntity previewRoot) {
             RoundedRectComponent background = Assert.Single(previewRoot.Components.OfType<RoundedRectComponent>());
             int2 center = new int2(
-                (int)Math.Round(previewRoot.Position.X + (background.Size.X * 0.5)),
-                (int)Math.Round(previewRoot.Position.Y + (background.Size.Y * 0.5)));
+                (int)Math.Round((double)(previewRoot.Position.X + (background.Size.X * 0.5))),
+                (int)Math.Round((double)(previewRoot.Position.Y + (background.Size.Y * 0.5))));
             Assert.True(InteractionServicesValue.InputCapture.IsPointerBlocked(center));
         }
 

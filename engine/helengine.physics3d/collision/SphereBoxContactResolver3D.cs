@@ -20,18 +20,18 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(boxBody));
             }
 
-            float minX = boxBody.Position.X - boxBody.HalfExtents.X;
-            float maxX = boxBody.Position.X + boxBody.HalfExtents.X;
-            float minY = boxBody.Position.Y - boxBody.HalfExtents.Y;
-            float maxY = boxBody.Position.Y + boxBody.HalfExtents.Y;
-            float minZ = boxBody.Position.Z - boxBody.HalfExtents.Z;
-            float maxZ = boxBody.Position.Z + boxBody.HalfExtents.Z;
+            float minX = (float)(boxBody.Position.X - boxBody.HalfExtents.X);
+            float maxX = (float)(boxBody.Position.X + boxBody.HalfExtents.X);
+            float minY = (float)(boxBody.Position.Y - boxBody.HalfExtents.Y);
+            float maxY = (float)(boxBody.Position.Y + boxBody.HalfExtents.Y);
+            float minZ = (float)(boxBody.Position.Z - boxBody.HalfExtents.Z);
+            float maxZ = (float)(boxBody.Position.Z + boxBody.HalfExtents.Z);
             float3 closestPoint = new float3(
-                PrimitiveContactMath3D.Clamp(sphereBody.Position.X, minX, maxX),
-                PrimitiveContactMath3D.Clamp(sphereBody.Position.Y, minY, maxY),
-                PrimitiveContactMath3D.Clamp(sphereBody.Position.Z, minZ, maxZ));
+                PrimitiveContactMath3D.Clamp((float)(sphereBody.Position.X), minX, maxX),
+                PrimitiveContactMath3D.Clamp((float)(sphereBody.Position.Y), minY, maxY),
+                PrimitiveContactMath3D.Clamp((float)(sphereBody.Position.Z), minZ, maxZ));
             float3 delta = sphereBody.Position - closestPoint;
-            float distanceSquared = float3.Dot(delta, delta);
+            float distanceSquared = (float)(float3.Dot(delta, delta));
             float radiusSquared = sphereBody.SphereRadius * sphereBody.SphereRadius;
             if (distanceSquared > radiusSquared) {
                 collisionNormal = float3.Zero;
@@ -46,12 +46,12 @@ namespace helengine {
                 return true;
             }
 
-            float localX = sphereBody.Position.X - boxBody.Position.X;
-            float localY = sphereBody.Position.Y - boxBody.Position.Y;
-            float localZ = sphereBody.Position.Z - boxBody.Position.Z;
-            float distanceToFaceX = boxBody.HalfExtents.X - Math.Abs(localX);
-            float distanceToFaceY = boxBody.HalfExtents.Y - Math.Abs(localY);
-            float distanceToFaceZ = boxBody.HalfExtents.Z - Math.Abs(localZ);
+            float localX = (float)(sphereBody.Position.X - boxBody.Position.X);
+            float localY = (float)(sphereBody.Position.Y - boxBody.Position.Y);
+            float localZ = (float)(sphereBody.Position.Z - boxBody.Position.Z);
+            float distanceToFaceX = (float)(boxBody.HalfExtents.X - Math.Abs(localX));
+            float distanceToFaceY = (float)(boxBody.HalfExtents.Y - Math.Abs(localY));
+            float distanceToFaceZ = (float)(boxBody.HalfExtents.Z - Math.Abs(localZ));
             if (distanceToFaceX <= distanceToFaceY && distanceToFaceX <= distanceToFaceZ) {
                 collisionNormal = new float3(localX >= 0f ? 1f : -1f, 0f, 0f);
                 penetration = sphereBody.SphereRadius + distanceToFaceX;

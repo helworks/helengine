@@ -37,6 +37,7 @@ namespace helengine.editor {
 
             using MemoryStream fieldStream = new MemoryStream();
             using (EngineBinaryWriter fieldWriter = EngineBinaryWriter.Create(fieldStream, EngineBinaryEndianness.LittleEndian)) {
+                fieldWriter.NumericPolicy = EditorTaggedSceneComponentPayloadFormat.AuthoringNumericPolicy;
                 writeFieldPayload(fieldWriter);
             }
 
@@ -52,6 +53,7 @@ namespace helengine.editor {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(EditorTaggedSceneComponentPayloadFormat.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, EditorTaggedSceneComponentPayloadFormat.AuthoringNumericPolicy);
             writer.WriteInt32(FieldNames.Count);
 
             for (int index = 0; index < FieldNames.Count; index++) {

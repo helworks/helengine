@@ -5,13 +5,13 @@ namespace helengine {
     public class AnimationPlayerComponent : UpdateComponent {
         AnimationClipAsset ClipValue;
         AnimationClipAsset CurrentClipValue;
-        float CurrentTimeValue;
+        Real CurrentTimeValue;
         bool IsPlayingValue;
         bool IsPausedValue;
         bool Loop;
         bool PlayAutomaticallyValue;
         bool ShouldLoopValue;
-        float FrameDeltaTimeValue;
+        Real FrameDeltaTimeValue;
         float3 BaseLocalPosition;
         /// <summary>Borrowed viewport resolved on attachment/preparation, never searched on animation frames.</summary>
         ViewportComponent LayoutViewport;
@@ -65,7 +65,7 @@ namespace helengine {
         /// <summary>
         /// Gets the current playback time in seconds.
         /// </summary>
-        public float CurrentTime {
+        public Real CurrentTime {
             get { return CurrentTimeValue; }
         }
 
@@ -86,7 +86,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the fallback delta time applied only when the component updates without one active core timing source.
         /// </summary>
-        public float FrameDeltaTime {
+        public Real FrameDeltaTime {
             get { return FrameDeltaTimeValue; }
             set { FrameDeltaTimeValue = value; }
         }
@@ -204,7 +204,7 @@ namespace helengine {
         /// Seeks to a specific playback time and applies the resulting pose immediately.
         /// </summary>
         /// <param name="time">Target playback time in seconds.</param>
-        public void Seek(float time) {
+        public void Seek(Real time) {
             if (CurrentClipValue == null) {
                 throw new InvalidOperationException("Cannot seek animation playback when no clip is active.");
             }
@@ -249,12 +249,12 @@ namespace helengine {
         /// Advances playback time by the supplied delta and applies the resulting pose.
         /// </summary>
         /// <param name="deltaTime">Time step in seconds.</param>
-        public void Advance(float deltaTime) {
+        public void Advance(Real deltaTime) {
             if (!IsPlayingValue || IsPausedValue || CurrentClipValue == null) {
                 return;
             }
 
-            float nextTime = CurrentTimeValue + deltaTime;
+            RealEvaluation nextTime = CurrentTimeValue + deltaTime;
             if (!Loop && nextTime >= CurrentClipValue.Duration) {
                 CurrentTimeValue = CurrentClipValue.Duration;
                 ApplyCurrentPose();
@@ -285,17 +285,17 @@ namespace helengine {
         /// </summary>
         /// <param name="time">Requested playback time in seconds.</param>
         /// <returns>Clamped or wrapped playback time.</returns>
-        float ResolvePlaybackTime(float time) {
+        Real ResolvePlaybackTime(RealEvaluation time) {
             if (CurrentClipValue == null || CurrentClipValue.Duration <= 0f) {
                 return 0f;
             } else if (Loop) {
-                double duration = CurrentClipValue.Duration;
-                double wrapped = time % duration;
+                RealEvaluation duration = CurrentClipValue.Duration;
+                RealEvaluation wrapped = RealMath.Remainder(time, duration);
                 if (wrapped < 0d) {
                     wrapped += duration;
                 }
 
-                return (float)wrapped;
+                return (Real)wrapped;
             } else if (time <= 0f) {
                 return 0f;
             } else if (time >= CurrentClipValue.Duration) {
@@ -421,7 +421,7 @@ namespace helengine {
         /// <summary>Recovers an authored playback base when a dynamic animation starts on an already laid-out entity.</summary>
         float3 InverseLayoutPosition(float3 position) {
             ViewportLayoutMetrics metrics = GetLayoutMetrics();
-            return new float3((float)((position.X - metrics.Origin.X) / metrics.ScaleX), (float)((position.Y - metrics.Origin.Y) / metrics.ScaleY), position.Z);
+            return new float3((position.X - metrics.Origin.X) / metrics.ScaleX, (position.Y - metrics.Origin.Y) / metrics.ScaleY, position.Z);
         }
 
         /// <summary>

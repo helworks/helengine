@@ -100,7 +100,7 @@ namespace helengine.editor.tests.components.ui {
             float3 origin = new float3(coordinate, coordinate, coordinate);
             float3 cameraPosition = new float3(-coordinate, -coordinate, -coordinate);
             double distance = 2.0 * coordinate * Math.Sqrt(3.0);
-            double expectedUnits = CameraProjectionUtils.GetWorldUnitsPerPixel(camera, distance, 720.0);
+            double expectedUnits = (double)(CameraProjectionUtils.GetWorldUnitsPerPixel(camera, distance, 720.0));
 
             double units = InvokeComputeWorldUnitsPerPixel(overlay, origin, cameraPosition);
             double scale = InvokeComputeGizmoScale(overlay, origin, cameraPosition);
@@ -223,9 +223,9 @@ namespace helengine.editor.tests.components.ui {
         /// <param name="expected">Expected vector value.</param>
         /// <param name="actual">Actual vector value.</param>
         static void AssertVectorEquals(float3 expected, float3 actual) {
-            Assert.InRange(Math.Abs(expected.X - actual.X), 0f, FloatTolerance);
-            Assert.InRange(Math.Abs(expected.Y - actual.Y), 0f, FloatTolerance);
-            Assert.InRange(Math.Abs(expected.Z - actual.Z), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(expected.X - actual.X)), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(expected.Y - actual.Y)), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs((double)(expected.Z - actual.Z)), 0f, FloatTolerance);
         }
     }
 }

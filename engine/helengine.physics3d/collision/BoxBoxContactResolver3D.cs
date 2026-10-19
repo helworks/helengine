@@ -66,9 +66,9 @@ namespace helengine {
                 throw new ArgumentOutOfRangeException(nameof(speculativeContactMargin), "Speculative contact margin must be finite and nonnegative.");
             }
 
-            float xPenetration = PrimitiveContactMath3D.CalculateAxisPenetration(first.Position.X, first.AxisAlignedHalfExtents.X, second.Position.X, second.AxisAlignedHalfExtents.X);
-            float yPenetration = PrimitiveContactMath3D.CalculateAxisPenetration(first.Position.Y, first.AxisAlignedHalfExtents.Y, second.Position.Y, second.AxisAlignedHalfExtents.Y);
-            float zPenetration = PrimitiveContactMath3D.CalculateAxisPenetration(first.Position.Z, first.AxisAlignedHalfExtents.Z, second.Position.Z, second.AxisAlignedHalfExtents.Z);
+            float xPenetration = PrimitiveContactMath3D.CalculateAxisPenetration((float)(first.Position.X), (float)(first.AxisAlignedHalfExtents.X), (float)(second.Position.X), (float)(second.AxisAlignedHalfExtents.X));
+            float yPenetration = PrimitiveContactMath3D.CalculateAxisPenetration((float)(first.Position.Y), (float)(first.AxisAlignedHalfExtents.Y), (float)(second.Position.Y), (float)(second.AxisAlignedHalfExtents.Y));
+            float zPenetration = PrimitiveContactMath3D.CalculateAxisPenetration((float)(first.Position.Z), (float)(first.AxisAlignedHalfExtents.Z), (float)(second.Position.Z), (float)(second.AxisAlignedHalfExtents.Z));
             if (xPenetration < -speculativeContactMargin || yPenetration < -speculativeContactMargin || zPenetration < -speculativeContactMargin) {
                 penetration = 0f;
                 axisIndex = -1;
@@ -113,8 +113,8 @@ namespace helengine {
                 return false;
             }
 
-            float verticalCenterDistance = Math.Abs(first.Position.Y - second.Position.Y);
-            float supportThreshold = Math.Min(first.AxisAlignedHalfExtents.Y, second.AxisAlignedHalfExtents.Y) * 0.5f;
+            float verticalCenterDistance = (float)(RealMath.Abs(first.Position.Y - second.Position.Y));
+            float supportThreshold = (float)(RealMath.Min(first.AxisAlignedHalfExtents.Y, second.AxisAlignedHalfExtents.Y) * 0.5f);
             return verticalCenterDistance > supportThreshold;
         }
 
@@ -325,7 +325,7 @@ namespace helengine {
             ref int bestAxisIndex) {
             float firstRadius = ResolveProjectionRadius(first, axis);
             float secondRadius = ResolveProjectionRadius(second, axis);
-            float centerDistance = float3.Dot(centerOffset, axis);
+            float centerDistance = (float)(float3.Dot(centerOffset, axis));
             float penetration = firstRadius + secondRadius - Math.Abs(centerDistance);
             if (penetration < -speculativeContactMargin) {
                 return false;
@@ -366,7 +366,7 @@ namespace helengine {
             ref int bestAxisKind,
             ref int bestAxisIndex) {
             float3 axis = float3.Cross(firstAxis, secondAxis);
-            float axisLengthSquared = float3.Dot(axis, axis);
+            float axisLengthSquared = (float)(float3.Dot(axis, axis));
             if (axisLengthSquared <= MinimumSatAxisLengthSquared) {
                 return true;
             }
@@ -575,11 +575,11 @@ namespace helengine {
             float[] pointDepths) {
             for (int index = 0; index < incidentVertices.Length; index++) {
                 float3 vertex = incidentVertices[index];
-                float distance = float3.Dot(vertex - planePoint, normal);
+                float distance = (float)(float3.Dot(vertex - planePoint, normal));
                 float3 projected = vertex - (normal * distance);
                 float3 offset = projected - planePoint;
-                pointsX[index] = float3.Dot(offset, tangentX);
-                pointsY[index] = float3.Dot(offset, tangentY);
+                pointsX[index] = (float)(float3.Dot(offset, tangentX));
+                pointsY[index] = (float)(float3.Dot(offset, tangentY));
                 pointDepths[index] = referenceIsFirst ? distance : -distance;
             }
 
@@ -616,9 +616,9 @@ namespace helengine {
         /// <param name="direction">World-space face selection direction.</param>
         /// <returns>Local axis index with the largest absolute dot product.</returns>
         static int ResolveMostAlignedAxisIndex(BodyState3D bodyState, float3 direction) {
-            float x = Math.Abs(float3.Dot(direction, ResolveBoxAxis(bodyState, 0)));
-            float y = Math.Abs(float3.Dot(direction, ResolveBoxAxis(bodyState, 1)));
-            float z = Math.Abs(float3.Dot(direction, ResolveBoxAxis(bodyState, 2)));
+            float x = (float)(RealMath.Abs(float3.Dot(direction, ResolveBoxAxis(bodyState, 0))));
+            float y = (float)(RealMath.Abs(float3.Dot(direction, ResolveBoxAxis(bodyState, 1))));
+            float z = (float)(RealMath.Abs(float3.Dot(direction, ResolveBoxAxis(bodyState, 2))));
             if (x >= y && x >= z) {
                 return 0;
             }
@@ -816,9 +816,9 @@ namespace helengine {
             float3 boxAxisX = ResolveBoxAxis(bodyState, 0);
             float3 boxAxisY = ResolveBoxAxis(bodyState, 1);
             float3 boxAxisZ = ResolveBoxAxis(bodyState, 2);
-            return (Math.Abs(float3.Dot(axis, boxAxisX)) * bodyState.HalfExtents.X) +
-                (Math.Abs(float3.Dot(axis, boxAxisY)) * bodyState.HalfExtents.Y) +
-                (Math.Abs(float3.Dot(axis, boxAxisZ)) * bodyState.HalfExtents.Z);
+            return (float)((RealMath.Abs(float3.Dot(axis, boxAxisX)) * bodyState.HalfExtents.X) +
+                (RealMath.Abs(float3.Dot(axis, boxAxisY)) * bodyState.HalfExtents.Y) +
+                (RealMath.Abs(float3.Dot(axis, boxAxisZ)) * bodyState.HalfExtents.Z));
         }
 
         /// <summary>
@@ -1011,13 +1011,13 @@ namespace helengine {
         /// <returns>Selected vector component.</returns>
         static float GetComponent(float3 value, int axisIndex) {
             if (axisIndex == 0) {
-                return value.X;
+                return (float)(value.X);
             }
             if (axisIndex == 1) {
-                return value.Y;
+                return (float)(value.Y);
             }
             if (axisIndex == 2) {
-                return value.Z;
+                return (float)(value.Z);
             }
 
             throw new ArgumentOutOfRangeException(nameof(axisIndex), "Axis index must be between zero and two.");

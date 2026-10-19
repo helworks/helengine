@@ -10,6 +10,14 @@
     <NuGetAudit>false</NuGetAudit>
   </PropertyGroup>
 
+  <!-- Authoring hosts and their in-process dependencies share one 64/64 ABI.
+       Runtime validation/builds override these properties on the whole graph. Native build
+       precision is resolved independently from PlatformBuildRequest, never this host default. -->
+  <PropertyGroup>
+    <HelengineRealStorageBits Condition="'$(HelengineRealStorageBits)' == ''">64</HelengineRealStorageBits>
+    <HelengineRealArithmeticBits Condition="'$(HelengineRealArithmeticBits)' == ''">64</HelengineRealArithmeticBits>
+  </PropertyGroup>
+
   <PropertyGroup Condition="
     $([System.String]::Copy('$(MSBuildProjectFullPath)').Contains('\engine\'))
     Or $([System.String]::Copy('$(MSBuildProjectFullPath)').Contains('/engine/'))">

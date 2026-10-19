@@ -18,9 +18,9 @@ namespace helengine {
             }
 
             return new Box(
-                Math.Abs(collider.Size.X * worldScale.X),
-                Math.Abs(collider.Size.Y * worldScale.Y),
-                Math.Abs(collider.Size.Z * worldScale.Z));
+                (float)(RealMath.Abs(collider.Size.X * worldScale.X)),
+                (float)(RealMath.Abs(collider.Size.Y * worldScale.Y)),
+                (float)(RealMath.Abs(collider.Size.Z * worldScale.Z)));
         }
 
         /// <summary>
@@ -34,7 +34,7 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(collider));
             }
 
-            float scaleFactor = Math.Max(Math.Abs(worldScale.X), Math.Max(Math.Abs(worldScale.Y), Math.Abs(worldScale.Z)));
+            float scaleFactor = (float)(RealMath.Max(RealMath.Abs(worldScale.X), RealMath.Max(RealMath.Abs(worldScale.Y), RealMath.Abs(worldScale.Z))));
             return new Sphere(collider.Radius * scaleFactor);
         }
 

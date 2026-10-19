@@ -1399,8 +1399,8 @@ namespace helengine.editor {
                 return;
             }
 
-            float viewportX = Position.X;
-            float viewportY = Position.Y + TitleBarHeightPixels;
+            float viewportX = (float)(Position.X);
+            float viewportY = (float)(Position.Y + TitleBarHeightPixels);
             float viewportWidth = Math.Max(1, GetContentViewportWidthPixels());
             float viewportHeight = Math.Max(1, GetContentViewportHeightPixels());
             if (LastContentViewportX == viewportX &&
@@ -1906,9 +1906,9 @@ namespace helengine.editor {
                 double roll;
                 entity.Orientation.ToEulerDegrees(out pitch, out yaw, out roll);
 
-                SetVectorFields(PositionFields, PositionTextCache, position.X, position.Y, position.Z);
+                SetVectorFields(PositionFields, PositionTextCache, (double)(position.X), (double)(position.Y), (double)(position.Z));
                 SetVectorFields(RotationFields, RotationTextCache, pitch, yaw, roll);
-                SetVectorFields(ScaleFields, ScaleTextCache, scale.X, scale.Y, scale.Z);
+                SetVectorFields(ScaleFields, ScaleTextCache, (double)(scale.X), (double)(scale.Y), (double)(scale.Z));
             } finally {
                 IsSynchronizingInputs = false;
             }
@@ -2070,7 +2070,7 @@ namespace helengine.editor {
                 double y;
                 double z;
                 if (TryReadVector(PositionFields, out x, out y, out z)) {
-                    float3 newPosition = new float3((float)x, (float)y, (float)z);
+                    float3 newPosition = new float3(x, y, z);
                     if (SelectedEntity.Position != newPosition) {
                         SelectedEntity.Position = newPosition;
                         sceneMutated = true;
@@ -2088,7 +2088,7 @@ namespace helengine.editor {
                     double yawRad = yaw * (Math.PI / 180.0);
                     double pitchRad = pitch * (Math.PI / 180.0);
                     double rollRad = roll * (Math.PI / 180.0);
-                    float4.CreateFromYawPitchRoll((float)yawRad, (float)pitchRad, (float)rollRad, out rotation);
+                    float4.CreateFromYawPitchRoll(yawRad, pitchRad, rollRad, out rotation);
                     if (!SelectedEntity.Orientation.Equals(rotation)) {
                         SelectedEntity.Orientation = rotation;
                         sceneMutated = true;
@@ -2102,7 +2102,7 @@ namespace helengine.editor {
                 double y;
                 double z;
                 if (TryReadVector(ScaleFields, out x, out y, out z)) {
-                    float3 newScale = new float3((float)x, (float)y, (float)z);
+                    float3 newScale = new float3(x, y, z);
                     if (SelectedEntity.Scale != newScale) {
                         SelectedEntity.Scale = newScale;
                         sceneMutated = true;

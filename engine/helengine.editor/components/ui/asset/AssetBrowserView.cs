@@ -292,7 +292,7 @@ namespace helengine.editor {
                 EditorSessionInteractionServices.From(Root).KeyboardFocus.RegisterTarget(UpButton);
             }
 
-            float lineHeight = MathF.Max(font.LineHeight, 1f);
+            float lineHeight = MathF.Max((float)(font.LineHeight), 1f);
 
             TopLabelHost = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,

@@ -68,7 +68,7 @@ namespace helengine.core.tests {
             snapshot.Apply(ViewportLayoutMath.Resolve(2, new int2(1280, 720), new int2(640, 448), 1, 1, 0, 0));
             snapshot.Release();
 
-            Assert.Equal(expectedOutline, text.OutlineScale, 5);
+            Assert.Equal((double)(expectedOutline),(double)(text.OutlineScale), 5);
         }
 
         /// <summary>

@@ -68,6 +68,7 @@ namespace helengine.physics3d.tests {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, writer.NumericPolicy);
             writer.WriteInt32(3);
             writer.WriteInt32(11);
             writer.WriteInt32(22);

@@ -659,10 +659,10 @@ namespace helengine {
                 float3 parentScale = Parent.Scale;
                 float4 parentOrientation = Parent.Orientation;
                 float3 parentPosition = Parent.Position;
-                float3 scaledLocal = PositionValue * parentScale;
+                float3 scaledLocal = TransformNumericKernel<RealEvaluation, RuntimeNumericOperations>.Multiply(PositionValue, parentScale, new RuntimeNumericOperations());
                 float3 rotatedLocal = float4.RotateVector(scaledLocal, parentOrientation);
-                CachedWorldPosition = rotatedLocal + parentPosition;
-                CachedWorldScale = ScaleValue * parentScale;
+                CachedWorldPosition = TransformNumericKernel<RealEvaluation, RuntimeNumericOperations>.Add(rotatedLocal, parentPosition, new RuntimeNumericOperations());
+                CachedWorldScale = TransformNumericKernel<RealEvaluation, RuntimeNumericOperations>.Multiply(ScaleValue, parentScale, new RuntimeNumericOperations());
                 float4 worldOrientation = OrientationValue;
                 float4.Concatenate(ref worldOrientation, ref parentOrientation, out worldOrientation);
                 CachedWorldOrientation = worldOrientation;

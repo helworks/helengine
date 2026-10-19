@@ -24,7 +24,7 @@ namespace helengine.core.tests.assets {
             byte[] palette = { 0x19, 0xB2, 0x73, 0xF4 };
             byte[] pixels = { 0x81, 0x02, 0xA3, 0x14, 0xC5, 0x36, 0xE7, 0x58 };
             using MemoryStream stream = CreateTextureRecord(format, endianness, palette, pixels);
-            Assert.Equal((byte)25, PackagedAssetBinarySerializer.CurrentVersion);
+            Assert.Equal((byte)26, PackagedAssetBinarySerializer.CurrentVersion);
             using TextureAsset asset = Assert.IsType<TextureAsset>(PackagedAssetBinarySerializer.Deserialize(stream));
 
             Assert.Equal(format, (byte)asset.ColorFormat);
@@ -53,7 +53,7 @@ namespace helengine.core.tests.assets {
             Assert.Contains($"Unsupported texture color format '{format}'", error.Message, StringComparison.Ordinal);
         }
 
-        /// <summary>Writes the unchanged version-25 texture layout using the actual endian-specific writer and appends a position sentinel.</summary>
+        /// <summary>Writes the fixed-width texture layout under the version-26 numeric envelope using the actual endian-specific writer and appends a position sentinel.</summary>
         /// <param name="format">Serialized format byte to exercise.</param>
         /// <param name="endianness">Metadata byte order.</param>
         /// <param name="palette">Opaque palette bytes, independent of the record's metadata order.</param>
@@ -61,10 +61,11 @@ namespace helengine.core.tests.assets {
         /// <returns>Record stream positioned at its header.</returns>
         static MemoryStream CreateTextureRecord(byte format, EngineBinaryEndianness endianness, byte[] palette, byte[] pixels) {
             MemoryStream stream = new();
-            EngineBinaryHeaderSerializer.Write(stream, new EngineBinaryHeader(endianness, 25,
+            EngineBinaryHeaderSerializer.Write(stream, new EngineBinaryHeader(endianness, PackagedAssetBinarySerializer.CurrentVersion,
                 PackagedAssetBinarySerializer.FormatId, (ushort)PackagedAssetBinarySerializer.RecordKind,
                 (ushort)EditorAssetBinaryValueKind.TextureAsset));
             using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, endianness)) {
+                RealBinaryCodec.WritePolicy(writer, RealRepresentation.Policy);
                 writer.WriteString("texture-format-test");
                 writer.WriteInt64(0x0102030405060708L);
                 writer.WriteString("authored-texture");

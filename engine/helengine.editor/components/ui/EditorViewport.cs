@@ -1029,8 +1029,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            int left = (int)Math.Round(StatsButtonRoot.Position.X);
-            int top = (int)Math.Round(StatsButtonRoot.Position.Y);
+            int left = (int)RealMath.Round(StatsButtonRoot.Position.X);
+            int top = (int)RealMath.Round(StatsButtonRoot.Position.Y);
             int width = StatsButtonInteractable.Size.X;
             int height = StatsButtonInteractable.Size.Y;
             return point.X >= left &&
@@ -1491,8 +1491,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            int left = (int)Math.Round(buttonRoot.Position.X);
-            int top = (int)Math.Round(buttonRoot.Position.Y);
+            int left = (int)RealMath.Round(buttonRoot.Position.X);
+            int top = (int)RealMath.Round(buttonRoot.Position.Y);
             return point.X >= left &&
                    point.X < left + buttonInteractable.Size.X &&
                    point.Y >= top &&
@@ -2214,10 +2214,10 @@ namespace helengine.editor {
             }
 
             float4 viewport = Camera.Viewport;
-            int left = (int)Math.Round(viewport.X);
-            int top = (int)Math.Round(viewport.Y);
-            int width = Math.Max(1, (int)Math.Round(viewport.Z));
-            int height = Math.Max(1, (int)Math.Round(viewport.W));
+            int left = (int)RealMath.Round(viewport.X);
+            int top = (int)RealMath.Round(viewport.Y);
+            int width = Math.Max(1, (int)RealMath.Round(viewport.Z));
+            int height = Math.Max(1, (int)RealMath.Round(viewport.W));
             return point.X >= left &&
                    point.X < left + width &&
                    point.Y >= top &&
@@ -2230,8 +2230,8 @@ namespace helengine.editor {
         /// <param name="point">Screen point to evaluate.</param>
         /// <returns>True when the point lies inside the toolbar bounds.</returns>
         bool ContainsToolbarPoint(int2 point) {
-            int left = (int)Math.Round(ToolbarRoot.Position.X);
-            int top = (int)Math.Round(ToolbarRoot.Position.Y);
+            int left = (int)RealMath.Round(ToolbarRoot.Position.X);
+            int top = (int)RealMath.Round(ToolbarRoot.Position.Y);
             int width = ToolbarBackground.Size.X;
             int height = ToolbarBackground.Size.Y;
             return point.X >= left &&
@@ -2257,8 +2257,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            int left = (int)Math.Round(buttonRoot.Position.X);
-            int top = (int)Math.Round(buttonRoot.Position.Y);
+            int left = (int)RealMath.Round(buttonRoot.Position.X);
+            int top = (int)RealMath.Round(buttonRoot.Position.Y);
             int width = buttonInteractable.Size.X;
             int height = buttonInteractable.Size.Y;
             return point.X >= left &&
@@ -2277,8 +2277,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            int left = (int)Math.Round(SettingsButtonRoot.Position.X);
-            int top = (int)Math.Round(SettingsButtonRoot.Position.Y);
+            int left = (int)RealMath.Round(SettingsButtonRoot.Position.X);
+            int top = (int)RealMath.Round(SettingsButtonRoot.Position.Y);
             int width = SettingsButtonInteractable.Size.X;
             int height = SettingsButtonInteractable.Size.Y;
             return point.X >= left &&
@@ -2309,8 +2309,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            int left = (int)Math.Round(buttonRoot.Position.X);
-            int top = (int)Math.Round(buttonRoot.Position.Y);
+            int left = (int)RealMath.Round(buttonRoot.Position.X);
+            int top = (int)RealMath.Round(buttonRoot.Position.Y);
             int width = buttonInteractable.Size.X;
             int height = buttonInteractable.Size.Y;
             return point.X >= left &&
@@ -2334,7 +2334,7 @@ namespace helengine.editor {
 
             float viewportWidth = Math.Max(1f, Size.X);
             float viewportHeight = Math.Max(1f, Size.Y - ToolbarHeight);
-            float viewportTop = Position.Y + TitleBarHeightPixels + ToolbarHeight;
+            float viewportTop = (float)(Position.Y + TitleBarHeightPixels + ToolbarHeight);
             Camera.Viewport = new float4(Position.X, viewportTop, viewportWidth, viewportHeight);
             LayoutToolbar();
             RefreshInputBlockers();
@@ -2380,8 +2380,8 @@ namespace helengine.editor {
                 LayoutToolButtonIcon(SettingsButtonIcon, ToolButtonWidth, ToolButtonHeight, ToolButtonIconSize, ToolButtonIconSize);
                 if (SettingsOverlayComponent != null) {
                     SettingsOverlayComponent.SetAnchorPosition(
-                        ToolbarRoot.LocalPosition.X + settingsButtonX,
-                        ToolbarRoot.LocalPosition.Y + buttonY + ToolButtonHeight,
+                        (float)(ToolbarRoot.LocalPosition.X + settingsButtonX),
+                        (float)(ToolbarRoot.LocalPosition.Y + buttonY + ToolButtonHeight),
                         ToolButtonWidth);
                 }
 
@@ -2778,8 +2778,8 @@ namespace helengine.editor {
                 return;
             }
 
-            int blockerX = (int)Math.Round(ToolbarRoot.Position.X);
-            int blockerY = (int)Math.Round(ToolbarRoot.Position.Y);
+            int blockerX = (int)RealMath.Round(ToolbarRoot.Position.X);
+            int blockerY = (int)RealMath.Round(ToolbarRoot.Position.Y);
             EditorSessionInteractionServices.From(this).InputCapture.SetBlocker(ToolbarInputBlockerOwner, new int2(blockerX, blockerY), blockerSize);
         }
 

@@ -420,7 +420,7 @@ namespace helengine.editor {
             };
             RootEntity.AddChild(TitleEntity);
 
-            int titleHeight = (int)Math.Ceiling(Math.Max(Font.LineHeight, 1f));
+            int titleHeight = (int)RealMath.Ceiling(RealMath.Max(Font.LineHeight, 1f));
             TitleTextComponent = new TextComponent {
                 Font = Font,
                 Text = TitleValue,
@@ -1708,7 +1708,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Menu position relative to the title bar root.</returns>
         int2 GetFileMenuPosition() {
-            int x = (int)Math.Round(FileMenuButtonEntity.Position.X);
+            int x = (int)RealMath.Round(FileMenuButtonEntity.Position.X);
             return new int2(x, Height);
         }
 
@@ -1717,7 +1717,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Menu position relative to the title bar root.</returns>
         int2 GetAddMenuPosition() {
-            int x = (int)Math.Round(AddMenuButtonEntity.Position.X);
+            int x = (int)RealMath.Round(AddMenuButtonEntity.Position.X);
             return new int2(x, Height);
         }
 
@@ -1736,7 +1736,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Menu position relative to the title bar root.</returns>
         int2 GetBuildMenuPosition() {
-            int x = (int)Math.Round(BuildMenuButtonEntity.Position.X);
+            int x = (int)RealMath.Round(BuildMenuButtonEntity.Position.X);
             return new int2(x, Height);
         }
 
@@ -1745,7 +1745,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Menu position relative to the title bar root.</returns>
         int2 GetToolsMenuPosition() {
-            int x = (int)Math.Round(ToolsMenuButtonEntity.Position.X);
+            int x = (int)RealMath.Round(ToolsMenuButtonEntity.Position.X);
             return new int2(x, Height);
         }
 
@@ -1754,7 +1754,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Menu position relative to the title bar root.</returns>
         int2 GetUiMenuPosition() {
-            int x = (int)Math.Round(UiMenuButtonEntity.Position.X);
+            int x = (int)RealMath.Round(UiMenuButtonEntity.Position.X);
             return new int2(x, Height);
         }
 
@@ -1798,7 +1798,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(projectMenuState));
             }
 
-            int x = (int)Math.Round(projectMenuState.ButtonEntity.Position.X);
+            int x = (int)RealMath.Round(projectMenuState.ButtonEntity.Position.X);
             return new int2(x, Height);
         }
 
@@ -2209,10 +2209,10 @@ namespace helengine.editor {
         float GetMenuStripRightEdge() {
             if (ProjectMenuStates.Count > 0) {
                 EditorTitleBarProjectMenuState lastProjectMenuState = ProjectMenuStates[ProjectMenuStates.Count - 1];
-                return lastProjectMenuState.ButtonEntity.Position.X + lastProjectMenuState.ButtonWidth;
+                return (float)(lastProjectMenuState.ButtonEntity.Position.X + lastProjectMenuState.ButtonWidth);
             }
 
-            return UiMenuButtonEntity.Position.X + UiMenuButtonWidth;
+            return (float)(UiMenuButtonEntity.Position.X + UiMenuButtonWidth);
         }
 
         /// <summary>
@@ -2477,7 +2477,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Top offset for the title label.</returns>
         float GetTitleVerticalOffset() {
-            float lineHeight = Math.Max(Font.LineHeight, 1f);
+            float lineHeight = (float)RealMath.Max(Font.LineHeight, 1f);
             return GetContentTopOffset() + ((GetButtonHeight() - lineHeight) * 0.5f);
         }
 

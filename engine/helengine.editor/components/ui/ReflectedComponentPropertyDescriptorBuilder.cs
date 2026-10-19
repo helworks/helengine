@@ -159,6 +159,7 @@ namespace helengine.editor {
             if (propertyType == typeof(int)
                 || propertyType == typeof(float)
                 || propertyType == typeof(double)
+                || propertyType == typeof(Real)
                 || propertyType == typeof(byte)
                 || propertyType == typeof(short)
                 || propertyType == typeof(long)

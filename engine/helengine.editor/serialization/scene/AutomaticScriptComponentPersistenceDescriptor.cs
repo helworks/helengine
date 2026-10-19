@@ -298,6 +298,7 @@ namespace helengine.editor {
                         $"Unsupported automatic scripted component payload received version '{receivedVersion}'; current version '{AutomaticScriptComponentRuntimeDeserializer.CurrentVersion}' is required. Regenerate/rebuild the asset in the current format.");
                 }
 
+                reader.NumericPolicy = RealBinaryCodec.ReadPolicy(reader);
                 int memberCount = reader.ReadInt32();
                 receivedMemberCount = memberCount;
                 if (memberCount != schema.Members.Count) {
@@ -818,6 +819,10 @@ namespace helengine.editor {
                 writer.WriteSingle((float)value);
                 return true;
             }
+            if (valueType == typeof(Real)) {
+                writer.WriteReal((Real)value);
+                return true;
+            }
             if (valueType == typeof(double)) {
                 writer.WriteDouble((double)value);
                 return true;
@@ -831,15 +836,15 @@ namespace helengine.editor {
                 return true;
             }
             if (valueType == typeof(float2)) {
-                writer.WriteFloat2((float2)value);
+                writer.WriteReal2((float2)value);
                 return true;
             }
             if (valueType == typeof(float3)) {
-                writer.WriteFloat3((float3)value);
+                writer.WriteReal3((float3)value);
                 return true;
             }
             if (valueType == typeof(float4)) {
-                writer.WriteFloat4((float4)value);
+                writer.WriteReal4((float4)value);
                 return true;
             }
             if (valueType == typeof(byte4)) {

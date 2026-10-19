@@ -12,10 +12,10 @@ namespace helengine.core.tests.managers.rendering {
         public void CreateProjection_WhenViewportHasOffset_MapsItsCornersToClipSpace() {
             float4x4 projection = Batch2DCameraProjection.Create(new float4(10f, 20f, 30f, 40f));
 
-            Assert.Equal(-1f, projection.M41 + 10f * projection.M11, 5);
-            Assert.Equal(1f, projection.M42 + 20f * projection.M22, 5);
-            Assert.Equal(1f, projection.M41 + 40f * projection.M11, 5);
-            Assert.Equal(-1f, projection.M42 + 60f * projection.M22, 5);
+            Assert.Equal((double)(-1f),(double)(projection.M41 + 10f * projection.M11), 5);
+            Assert.Equal((double)(1f),(double)(projection.M42 + 20f * projection.M22), 5);
+            Assert.Equal((double)(1f),(double)(projection.M41 + 40f * projection.M11), 5);
+            Assert.Equal((double)(-1f),(double)(projection.M42 + 60f * projection.M22), 5);
         }
 
         /// <summary>
@@ -24,7 +24,7 @@ namespace helengine.core.tests.managers.rendering {
         [Fact]
         public void CreateProjection_WhenViewportProducesInfiniteCoefficients_ThrowsArgumentException() {
             Assert.Throws<ArgumentException>(() => Batch2DCameraProjection.Create(
-                new float4(float.MaxValue, 0f, float.Epsilon, 1f)));
+                new float4(float.MaxValue, 0f, RealRepresentation.ArithmeticBits == 64 && RealRepresentation.StorageBits == 64 ? double.Epsilon : float.Epsilon, 1f)));
         }
 
         /// <summary>
@@ -37,10 +37,10 @@ namespace helengine.core.tests.managers.rendering {
                 out Batch2DVertex topLeft, out Batch2DVertex topRight,
                 out Batch2DVertex bottomRight, out Batch2DVertex bottomLeft);
 
-            Assert.Equal(5f, topLeft.Position.X, 4);
-            Assert.Equal(55f, topLeft.Position.Y, 4);
-            Assert.Equal(5f, topRight.Position.X, 4);
-            Assert.Equal(25f, topRight.Position.Y, 4);
+            Assert.Equal((double)(5f),(double)(topLeft.Position.X), 4);
+            Assert.Equal((double)(55f),(double)(topLeft.Position.Y), 4);
+            Assert.Equal((double)(5f),(double)(topRight.Position.X), 4);
+            Assert.Equal((double)(25f),(double)(topRight.Position.Y), 4);
             Assert.Equal(0f, topLeft.TexLocal.Z);
             Assert.Equal(0f, bottomRight.TexLocal.W);
             Assert.Equal(0f, bottomLeft.Shape.X);

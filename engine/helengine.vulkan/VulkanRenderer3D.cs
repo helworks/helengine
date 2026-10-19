@@ -19,7 +19,7 @@ namespace helengine.vulkan {
         /// <summary>
         /// Size in bytes of the single-matrix transform payload used by gizmo shaders and other non-standard materials.
         /// </summary>
-        static readonly uint SingleMatrixTransformBufferSizeBytes = (uint)Marshal.SizeOf<float4x4>();
+        static readonly uint SingleMatrixTransformBufferSizeBytes = (uint)Marshal.SizeOf<GpuFloat4x4>();
         /// <summary>
         /// Maximum number of textured 3D materials that can allocate descriptor sets.
         /// </summary>
@@ -198,13 +198,13 @@ namespace helengine.vulkan {
             for (int i = 1; i < data.Positions.Length; i++) {
                 float3 position = data.Positions[i];
                 boundsMin = new float3(
-                    Math.Min(boundsMin.X, position.X),
-                    Math.Min(boundsMin.Y, position.Y),
-                    Math.Min(boundsMin.Z, position.Z));
+                    RealMath.Min(boundsMin.X, position.X),
+                    RealMath.Min(boundsMin.Y, position.Y),
+                    RealMath.Min(boundsMin.Z, position.Z));
                 boundsMax = new float3(
-                    Math.Max(boundsMax.X, position.X),
-                    Math.Max(boundsMax.Y, position.Y),
-                    Math.Max(boundsMax.Z, position.Z));
+                    RealMath.Max(boundsMax.X, position.X),
+                    RealMath.Max(boundsMax.Y, position.Y),
+                    RealMath.Max(boundsMax.Z, position.Z));
             }
 
             ModelAssetIndexData indexData = ModelAssetIndexData.Resolve(data);
@@ -601,7 +601,7 @@ namespace helengine.vulkan {
             }
 
             float4 clearColor = ResolveSurfaceClearColor(cameras);
-            surface.BeginRenderPass(commandBuffer, imageIndex, clearColor.X, clearColor.Y, clearColor.Z, clearColor.W);
+            surface.BeginRenderPass(commandBuffer, imageIndex, (float)(clearColor.X), (float)(clearColor.Y), (float)(clearColor.Z), (float)(clearColor.W));
 
             Renderer2D.BeginFrame(surface, commandBuffer);
             ExecuteSurfaceFrame(() => {
@@ -709,10 +709,10 @@ namespace helengine.vulkan {
         /// <returns>Aspect ratio used for projection matrix creation.</returns>
         unsafe double SetViewportAndScissor(ICamera camera, VulkanSwapchainSurface surface) {
             float4 viewport = CameraViewportResolver.ResolveViewport(camera.Viewport, surface.LogicalWidth, surface.LogicalHeight);
-            double offsetX = viewport.X;
-            double offsetY = viewport.Y;
-            double width = viewport.Z;
-            double height = viewport.W;
+            double offsetX = (double)(viewport.X);
+            double offsetY = (double)(viewport.Y);
+            double width = (double)(viewport.Z);
+            double height = (double)(viewport.W);
             double logicalSurfaceWidth = surface.LogicalWidth;
             double logicalSurfaceHeight = surface.LogicalHeight;
 
@@ -797,11 +797,11 @@ namespace helengine.vulkan {
             float4x4.TryInverseTranspose(ref world, out normalMatrix);
             float4x4.Transpose(ref normalMatrix, out float4x4 normalMatrixTransposed);
             return new StandardMeshShaderData {
-                World = worldTransposed,
-                WorldViewProj = transposed,
-                NormalMatrix = normalMatrixTransposed,
-                CameraPosition = new float4(CurrentCameraPosition.X, CurrentCameraPosition.Y, CurrentCameraPosition.Z, 0f),
-                MaterialFlags = new float4(runtimeMaterial.ReceivesShadows ? 1f : 0f, 0f, 0f, 0f)
+                World = GpuFloat4x4.FromEngine(worldTransposed),
+                WorldViewProj = GpuFloat4x4.FromEngine(transposed),
+                NormalMatrix = GpuFloat4x4.FromEngine(normalMatrixTransposed),
+                CameraPosition = GpuFloat4.FromEngine(new float4(CurrentCameraPosition.X, CurrentCameraPosition.Y, CurrentCameraPosition.Z, 0f)),
+                MaterialFlags = GpuFloat4.FromEngine(new float4(runtimeMaterial.ReceivesShadows ? 1f : 0f, 0f, 0f, 0f))
             };
         }
 
@@ -880,7 +880,8 @@ namespace helengine.vulkan {
             }
 
             try {
-                float4x4* source = &transformData;
+                GpuFloat4x4 packet = GpuFloat4x4.FromEngine(transformData);
+                GpuFloat4x4* source = &packet;
                 System.Buffer.MemoryCopy(source, mapped, SingleMatrixTransformBufferSizeBytes, SingleMatrixTransformBufferSizeBytes);
             } finally {
                 Context.Api.UnmapMemory(Context.Device, TransformUniformBuffer.Memory);

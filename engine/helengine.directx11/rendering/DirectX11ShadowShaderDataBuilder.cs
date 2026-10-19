@@ -46,11 +46,11 @@ namespace helengine.directx11 {
             }
 
             DirectX11ShadowShaderData data = new DirectX11ShadowShaderData {
-                ShadowMetadata = new float4(
+                ShadowMetadata = GpuFloat4.FromEngine(new float4(
                     shadowResourceSet.AtlasWidth > 0 && shadowResourceSet.AtlasHeight > 0 ? 1f : 0f,
                     shadowResourceSet.AtlasWidth > 0 ? 1f / shadowResourceSet.AtlasWidth : 0f,
                     shadowResourceSet.AtlasHeight > 0 ? 1f / shadowResourceSet.AtlasHeight : 0f,
-                    shadowResourceSet.AtlasAllocations.Count)
+                    shadowResourceSet.AtlasAllocations.Count))
             };
 
             for (int lightIndex = 0; lightIndex < selectedLights.Count && lightIndex < 4; lightIndex++) {
@@ -145,20 +145,20 @@ namespace helengine.directx11 {
 
             if (allocation == null) {
                 return new DirectX11ShadowLightSlotShaderData {
-                    Metadata = new float4(1f, selectedLight.Light.ShadowStrength, 2f, pointShadowResourceIndex)
+                    Metadata = GpuFloat4.FromEngine(new float4(1f, selectedLight.Light.ShadowStrength, 2f, pointShadowResourceIndex))
                 };
             }
 
             LightComponent light = allocation.Light.Light;
             float4x4 worldToShadowClip = BuildWorldToShadowClipMatrix(camera, allocation);
             return new DirectX11ShadowLightSlotShaderData {
-                AtlasRect = new float4(
+                AtlasRect = GpuFloat4.FromEngine(new float4(
                     atlasWidth > 0 ? allocation.X / (float)atlasWidth : 0f,
                     atlasHeight > 0 ? allocation.Y / (float)atlasHeight : 0f,
                     atlasWidth > 0 ? allocation.Width / (float)atlasWidth : 0f,
-                    atlasHeight > 0 ? allocation.Height / (float)atlasHeight : 0f),
-                Metadata = new float4(1f, light.ShadowStrength, 1f, 0f),
-                WorldToShadowClip = worldToShadowClip
+                    atlasHeight > 0 ? allocation.Height / (float)atlasHeight : 0f)),
+                Metadata = GpuFloat4.FromEngine(new float4(1f, light.ShadowStrength, 1f, 0f)),
+                WorldToShadowClip = GpuFloat4x4.FromEngine(worldToShadowClip)
             };
         }
 
@@ -213,7 +213,7 @@ namespace helengine.directx11 {
                 float3 target = BuildDirectionalShadowTarget(camera.Parent, shadowDistance);
                 float depthRange = shadowDistance * 2f;
                 float3 lightPosition = target + (lightDirection * shadowDistance);
-                float3 up = Math.Abs(float3.Dot(lightDirection, DefaultUp)) > 0.99f ? new float3(0f, 0f, 1f) : DefaultUp;
+                float3 up = RealMath.Abs(float3.Dot(lightDirection, DefaultUp)) > 0.99f ? new float3(0f, 0f, 1f) : DefaultUp;
                 float4x4.CreateLookAt(ref lightPosition, ref target, ref up, out view);
                 float halfDistance = (float)(shadowDistance * 0.5);
                 float4x4.CreateOrthographicOffCenter(-halfDistance, halfDistance, -halfDistance, halfDistance, 0.1f, depthRange, out projection);
@@ -222,7 +222,7 @@ namespace helengine.directx11 {
                 float3 lightDirection = Normalize(LightDirectionUtility.GetEntityForwardDirection(entity));
                 float3 lightPosition = entity.Position;
                 float3 target = lightPosition + lightDirection;
-                float3 up = Math.Abs(float3.Dot(lightDirection, DefaultUp)) > 0.99f ? new float3(0f, 0f, 1f) : DefaultUp;
+                float3 up = RealMath.Abs(float3.Dot(lightDirection, DefaultUp)) > 0.99f ? new float3(0f, 0f, 1f) : DefaultUp;
                 float4x4.CreateLookAt(ref lightPosition, ref target, ref up, out view);
                 double authoredHalfAngleRadians = spotLight.OuterConeAngleDegrees * (Math.PI / 180.0);
                 double fullFieldOfViewRadians = authoredHalfAngleRadians * 2.0;
@@ -347,7 +347,7 @@ namespace helengine.directx11 {
         /// <param name="value">Vector to normalize.</param>
         /// <returns>Normalized vector, or the authored forward axis when the length is too small.</returns>
         float3 Normalize(float3 value) {
-            double lengthSquared = (value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z);
+            double lengthSquared = (double)((value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z));
             if (lengthSquared <= 0.0000001) {
                 return LightDirectionUtility.AuthoredForwardAxis;
             }

@@ -41,7 +41,7 @@ namespace helengine.core.tests.components {
 
             viewport.Update();
             Assert.Equal(new int2(762, 139), rect.Size);
-            Assert.Equal(571.2f, panel.LocalPosition.X, 0.01f);
+            Assert.Equal((double)(571.2f),(double)(panel.LocalPosition.X), 0.01f);
 
             rect.Size = new int2(900, 139);
             panel.LocalPosition = new float3(10f, 10f, 0f);

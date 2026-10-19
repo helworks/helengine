@@ -6,7 +6,7 @@
 
 namespace helengine {
     /// <summary>
-    /// Represents a 3D vector of single-precision floating point components.
+    /// Represents a 3D vector of build-configurable Real components.
     /// </summary>
     public struct float3 : IEquatable<float3> {
         /// <summary>
@@ -33,17 +33,17 @@ namespace helengine {
         /// <summary>
         /// X component of the vector.
         /// </summary>
-        public float X;
+        public Real X;
 
         /// <summary>
         /// Y component of the vector.
         /// </summary>
-        public float Y;
+        public Real Y;
 
         /// <summary>
         /// Z component of the vector.
         /// </summary>
-        public float Z;
+        public Real Z;
 
         /// <summary>
         /// Initializes a vector with the specified components.
@@ -51,7 +51,7 @@ namespace helengine {
         /// <param name="x">Value for the X component.</param>
         /// <param name="y">Value for the Y component.</param>
         /// <param name="z">Value for the Z component.</param>
-        public float3(float x, float y, float z) {
+        public float3(Real x, Real y, Real z) {
             X = x;
             Y = y;
             Z = z;
@@ -61,7 +61,7 @@ namespace helengine {
         /// Initializes a vector with all components set to the same value.
         /// </summary>
         /// <param name="value">Value applied to X, Y, and Z.</param>
-        public float3(float value) {
+        public float3(Real value) {
             X = value;
             Y = value;
             Z = value;
@@ -72,7 +72,7 @@ namespace helengine {
         /// </summary>
         /// <param name="value">Vector providing X and Y values.</param>
         /// <param name="z">Value for the Z component.</param>
-        public float3(float2 value, float z) {
+        public float3(float2 value, Real z) {
             X = value.X;
             Y = value.Y;
             Z = z;
@@ -120,16 +120,16 @@ namespace helengine {
         /// <returns>Vector composed of the square roots of each component.</returns>
         public static float3 SquareRoot(float3 value) {
             return new float3(
-                (float)Math.Sqrt(value.X),
-                (float)Math.Sqrt(value.Y),
-                (float)Math.Sqrt(value.Z));
+                RealMath.Sqrt(value.X),
+                RealMath.Sqrt(value.Y),
+                RealMath.Sqrt(value.Z));
         }
 
         /// <summary>
         /// Computes the squared Euclidean length of this vector.
         /// </summary>
         /// <returns>Squared magnitude.</returns>
-        public float LengthSquared() {
+        public RealEvaluation LengthSquared() {
             return X * X + Y * Y + Z * Z;
         }
 
@@ -137,21 +137,21 @@ namespace helengine {
         /// Computes the Euclidean length of this vector.
         /// </summary>
         /// <returns>Vector magnitude.</returns>
-        public float Length() {
-            return (float)Math.Sqrt(LengthSquared());
+        public RealEvaluation Length() {
+            return RealMath.Sqrt(LengthSquared());
         }
 
         /// <summary>
-        /// Computes the distance between two vectors in double precision, preserving finite distances for large coordinates.
+        /// Computes the distance between two vectors using the configured arithmetic precision.
         /// </summary>
         /// <param name="left">First position.</param>
         /// <param name="right">Second position.</param>
-        /// <returns>Euclidean distance, with subtraction and squared components evaluated in double precision.</returns>
-        public static double Distance(float3 left, float3 right) {
-            double deltaX = (double)left.X - right.X;
-            double deltaY = (double)left.Y - right.Y;
-            double deltaZ = (double)left.Z - right.Z;
-            return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
+        /// <returns>Euclidean distance retained at the selected evaluation width.</returns>
+        public static RealEvaluation Distance(float3 left, float3 right) {
+            RealEvaluation deltaX = (RealEvaluation)left.X - right.X;
+            RealEvaluation deltaY = (RealEvaluation)left.Y - right.Y;
+            RealEvaluation deltaZ = (RealEvaluation)left.Z - right.Z;
+            return RealMath.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
         }
 
         /// <summary>
@@ -168,7 +168,7 @@ namespace helengine {
         /// <param name="value">Vector to normalize.</param>
         /// <returns>Normalized vector.</returns>
         public static float3 Normalize(float3 value) {
-            float factor = (float)Math.Sqrt((value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z));
+            RealEvaluation factor = RealMath.Sqrt((value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z));
             factor = 1f / factor;
             return new float3(value.X * factor, value.Y * factor, value.Z * factor);
         }
@@ -180,12 +180,12 @@ namespace helengine {
         /// <param name="end">End vector.</param>
         /// <param name="amount">Interpolation amount where 0 returns <paramref name="start"/> and 1 returns <paramref name="end"/>.</param>
         /// <returns>Interpolated vector.</returns>
-        public static float3 Lerp(float3 start, float3 end, float amount) {
-            double normalizedAmount = amount;
+        public static float3 Lerp(float3 start, float3 end, RealEvaluation amount) {
+            RealEvaluation normalizedAmount = amount;
             return new float3(
-                (float)(start.X + ((end.X - start.X) * normalizedAmount)),
-                (float)(start.Y + ((end.Y - start.Y) * normalizedAmount)),
-                (float)(start.Z + ((end.Z - start.Z) * normalizedAmount)));
+                (start.X + ((end.X - start.X) * normalizedAmount)),
+                (start.Y + ((end.Y - start.Y) * normalizedAmount)),
+                (start.Z + ((end.Z - start.Z) * normalizedAmount)));
         }
 
         /// <summary>
@@ -221,9 +221,9 @@ namespace helengine {
         /// <returns>Vector composed of the absolute component values.</returns>
         public static float3 Abs(float3 value) {
             return new float3(
-                Math.Abs(value.X),
-                Math.Abs(value.Y),
-                Math.Abs(value.Z));
+                RealMath.Abs(value.X),
+                RealMath.Abs(value.Y),
+                RealMath.Abs(value.Z));
         }
 
         /// <summary>
@@ -258,7 +258,7 @@ namespace helengine {
         /// <param name="value1">First vector.</param>
         /// <param name="value2">Second vector.</param>
         /// <returns>Dot product value.</returns>
-        public static float Dot(float3 value1, float3 value2) {
+        public static RealEvaluation Dot(float3 value1, float3 value2) {
             return value1.X * value2.X + value1.Y * value2.Y + value1.Z * value2.Z;
         }
 
@@ -268,7 +268,7 @@ namespace helengine {
         /// <param name="value1">First vector.</param>
         /// <param name="value2">Second vector.</param>
         /// <param name="result">Output dot product.</param>
-        public static void Dot(ref float3 value1, ref float3 value2, out float result) {
+        public static void Dot(ref float3 value1, ref float3 value2, out RealEvaluation result) {
             result = value1.X * value2.X + value1.Y * value2.Y + value1.Z * value2.Z;
         }
 
@@ -366,7 +366,7 @@ namespace helengine {
         /// <param name="a">Vector to scale.</param>
         /// <param name="scalar">Scalar multiplier.</param>
         /// <returns>Scaled vector.</returns>
-        public static float3 operator *(float3 a, float scalar) {
+        public static float3 operator *(float3 a, RealEvaluation scalar) {
             return new float3(a.X * scalar, a.Y * scalar, a.Z * scalar);
         }
 
@@ -386,7 +386,7 @@ namespace helengine {
         /// <param name="a">Vector to scale.</param>
         /// <param name="scalar">Scalar divisor.</param>
         /// <returns>Resulting vector.</returns>
-        public static float3 operator /(float3 a, float scalar) {
+        public static float3 operator /(float3 a, RealEvaluation scalar) {
             return new float3(a.X / scalar, a.Y / scalar, a.Z / scalar);
         }
 

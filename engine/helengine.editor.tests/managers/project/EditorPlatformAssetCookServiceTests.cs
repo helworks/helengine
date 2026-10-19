@@ -1140,9 +1140,9 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             "ResolveArtifactKind",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static,
             null,
-            [typeof(string), typeof(string)],
-            null) ?? throw new InvalidOperationException("EditorPlatformAssetCookService.ResolveArtifactKind(string, string) was not found.");
-        object result = method.Invoke(null, [fullPath, relativePath]) ?? throw new InvalidOperationException("Artifact kind resolver returned null.");
+            [typeof(string), typeof(string), typeof(NumericPrecisionPolicy)],
+            null) ?? throw new InvalidOperationException("EditorPlatformAssetCookService.ResolveArtifactKind(string, string, NumericPrecisionPolicy) was not found.");
+        object result = method.Invoke(null, [fullPath, relativePath, RealRepresentation.Policy]) ?? throw new InvalidOperationException("Artifact kind resolver returned null.");
         return Assert.IsType<string>(result);
     }
 

@@ -6,7 +6,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the authored clip duration in seconds.
         /// </summary>
-        public float Duration { get; set; }
+        public Real Duration { get; set; }
 
         /// <summary>
         /// Gets or sets the absolute position tracks stored by this clip.

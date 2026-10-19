@@ -187,12 +187,12 @@ namespace helengine.core.tests.managers.rendering {
                     int payload = commands.GetTexturedQuadPayloadIndex(index);
                     writer.Write(commands.GetTexturedQuadTexture(payload).GetHashCode());
                     WriteRect(writer, commands.GetTexturedQuadBounds(payload)); WriteRect(writer, commands.GetTexturedQuadSourceRect(payload));
-                    WriteColor(writer, commands.GetTexturedQuadColor(payload)); writer.Write(commands.GetTexturedQuadRotation(payload));
+                    WriteColor(writer, commands.GetTexturedQuadColor(payload)); writer.Write((double)(commands.GetTexturedQuadRotation(payload)));
                     SpriteQuad2D quad = commands.GetTexturedQuadGeometry(payload);
-                    writer.Write(quad.TopLeft.X); writer.Write(quad.TopLeft.Y);
-                    writer.Write(quad.TopRight.X); writer.Write(quad.TopRight.Y);
-                    writer.Write(quad.BottomRight.X); writer.Write(quad.BottomRight.Y);
-                    writer.Write(quad.BottomLeft.X); writer.Write(quad.BottomLeft.Y);
+                    writer.Write((double)(quad.TopLeft.X)); writer.Write((double)(quad.TopLeft.Y));
+                    writer.Write((double)(quad.TopRight.X)); writer.Write((double)(quad.TopRight.Y));
+                    writer.Write((double)(quad.BottomRight.X)); writer.Write((double)(quad.BottomRight.Y));
+                    writer.Write((double)(quad.BottomLeft.X)); writer.Write((double)(quad.BottomLeft.Y));
                 } else if (type == RenderCommand2DType.GlyphQuad) {
                     int payload = commands.GetGlyphQuadPayloadIndex(index);
                     writer.Write(commands.GetGlyphQuadTexture(payload).GetHashCode());
@@ -200,8 +200,8 @@ namespace helengine.core.tests.managers.rendering {
                     WriteColor(writer, commands.GetGlyphQuadColor(payload));
                 } else if (type == RenderCommand2DType.RoundedRect) {
                     int payload = commands.GetRoundedRectPayloadIndex(index);
-                    WriteRect(writer, commands.GetRoundedRectBounds(payload)); writer.Write(commands.GetRoundedRectRadius(payload));
-                    writer.Write(commands.GetRoundedRectBorderThickness(payload)); writer.Write((byte)commands.GetRoundedRectCorners(payload));
+                    WriteRect(writer, commands.GetRoundedRectBounds(payload)); writer.Write((double)(commands.GetRoundedRectRadius(payload)));
+                    writer.Write((double)(commands.GetRoundedRectBorderThickness(payload))); writer.Write((byte)commands.GetRoundedRectCorners(payload));
                     WriteColor(writer, commands.GetRoundedRectFillColor(payload)); WriteColor(writer, commands.GetRoundedRectBorderColor(payload));
                 }
             }
@@ -210,7 +210,7 @@ namespace helengine.core.tests.managers.rendering {
         /// <summary>Writes the four exact float bit patterns stored in one real rectangle payload.</summary>
         /// <param name="writer">Payload capture stream.</param>
         /// <param name="rect">Actual backend-visible rectangle.</param>
-        static void WriteRect(BinaryWriter writer, float4 rect) { writer.Write(rect.X); writer.Write(rect.Y); writer.Write(rect.Z); writer.Write(rect.W); }
+        static void WriteRect(BinaryWriter writer, float4 rect) { writer.Write((double)(rect.X)); writer.Write((double)(rect.Y)); writer.Write((double)(rect.Z)); writer.Write((double)(rect.W)); }
         /// <summary>Writes the four exact tint bytes stored in one real command payload.</summary>
         /// <param name="writer">Payload capture stream.</param>
         /// <param name="color">Actual backend-visible tint.</param>

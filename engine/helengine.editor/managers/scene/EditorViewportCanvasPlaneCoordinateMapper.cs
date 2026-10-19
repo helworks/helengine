@@ -19,8 +19,8 @@ namespace helengine.editor {
             }
 
             int canvasHeight = Math.Max(1, sceneCanvasProfileState.CanvasHeight);
-            int canvasX = (int)Math.Round(worldPoint.X * settings.PixelsPerWorldUnit);
-            int canvasY = canvasHeight - (int)Math.Round(worldPoint.Y * settings.PixelsPerWorldUnit);
+            int canvasX = (int)RealMath.Round(worldPoint.X * settings.PixelsPerWorldUnit);
+            int canvasY = canvasHeight - (int)RealMath.Round(worldPoint.Y * settings.PixelsPerWorldUnit);
             return new int2(
                 canvasX,
                 canvasY);

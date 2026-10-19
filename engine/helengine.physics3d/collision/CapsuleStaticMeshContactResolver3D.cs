@@ -58,7 +58,7 @@ namespace helengine {
             float3 trianglePoint;
             GetClosestPointsBetweenVerticalCapsuleSegmentAndTriangle(capsuleBody, a, b, c, out capsulePoint, out trianglePoint);
             float3 delta = capsulePoint - trianglePoint;
-            float distanceSquared = float3.Dot(delta, delta);
+            float distanceSquared = (float)(float3.Dot(delta, delta));
             float radiusSquared = capsuleBody.SphereRadius * capsuleBody.SphereRadius;
             if (distanceSquared > radiusSquared) {
                 collisionNormal = float3.Zero;
@@ -97,16 +97,16 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(capsuleBody));
             }
 
-            float segmentMinimumY = capsuleBody.Position.Y - capsuleBody.CapsuleSegmentHalfLength;
-            float segmentMaximumY = capsuleBody.Position.Y + capsuleBody.CapsuleSegmentHalfLength;
+            float segmentMinimumY = (float)(capsuleBody.Position.Y - capsuleBody.CapsuleSegmentHalfLength);
+            float segmentMaximumY = (float)(capsuleBody.Position.Y + capsuleBody.CapsuleSegmentHalfLength);
             float bestDistanceSquared = float.MaxValue;
             capsulePoint = new float3(capsuleBody.Position.X, segmentMinimumY, capsuleBody.Position.Z);
             trianglePoint = StaticMeshTriangleMath3D.GetClosestPointOnTriangle(capsulePoint, a, b, c);
             UpdateClosestSegmentTriangleCandidate(capsuleBody, segmentMinimumY, a, b, c, ref bestDistanceSquared, ref capsulePoint, ref trianglePoint);
             UpdateClosestSegmentTriangleCandidate(capsuleBody, segmentMaximumY, a, b, c, ref bestDistanceSquared, ref capsulePoint, ref trianglePoint);
-            UpdateClosestSegmentTriangleCandidate(capsuleBody, StaticMeshTriangleMath3D.Clamp(a.Y, segmentMinimumY, segmentMaximumY), a, b, c, ref bestDistanceSquared, ref capsulePoint, ref trianglePoint);
-            UpdateClosestSegmentTriangleCandidate(capsuleBody, StaticMeshTriangleMath3D.Clamp(b.Y, segmentMinimumY, segmentMaximumY), a, b, c, ref bestDistanceSquared, ref capsulePoint, ref trianglePoint);
-            UpdateClosestSegmentTriangleCandidate(capsuleBody, StaticMeshTriangleMath3D.Clamp(c.Y, segmentMinimumY, segmentMaximumY), a, b, c, ref bestDistanceSquared, ref capsulePoint, ref trianglePoint);
+            UpdateClosestSegmentTriangleCandidate(capsuleBody, StaticMeshTriangleMath3D.Clamp((float)(a.Y), segmentMinimumY, segmentMaximumY), a, b, c, ref bestDistanceSquared, ref capsulePoint, ref trianglePoint);
+            UpdateClosestSegmentTriangleCandidate(capsuleBody, StaticMeshTriangleMath3D.Clamp((float)(b.Y), segmentMinimumY, segmentMaximumY), a, b, c, ref bestDistanceSquared, ref capsulePoint, ref trianglePoint);
+            UpdateClosestSegmentTriangleCandidate(capsuleBody, StaticMeshTriangleMath3D.Clamp((float)(c.Y), segmentMinimumY, segmentMaximumY), a, b, c, ref bestDistanceSquared, ref capsulePoint, ref trianglePoint);
 
             if (TryGetVerticalSegmentTriangleProjectionCandidate(capsuleBody, segmentMinimumY, segmentMaximumY, a, b, c, out float projectedY)) {
                 UpdateClosestSegmentTriangleCandidate(capsuleBody, projectedY, a, b, c, ref bestDistanceSquared, ref capsulePoint, ref trianglePoint);
@@ -136,7 +136,7 @@ namespace helengine {
             float3 candidateCapsulePoint = new float3(capsuleBody.Position.X, segmentY, capsuleBody.Position.Z);
             float3 candidateTrianglePoint = StaticMeshTriangleMath3D.GetClosestPointOnTriangle(candidateCapsulePoint, a, b, c);
             float3 delta = candidateCapsulePoint - candidateTrianglePoint;
-            float distanceSquared = float3.Dot(delta, delta);
+            float distanceSquared = (float)(float3.Dot(delta, delta));
             if (distanceSquared < bestDistanceSquared) {
                 bestDistanceSquared = distanceSquared;
                 bestCapsulePoint = candidateCapsulePoint;
@@ -158,7 +158,7 @@ namespace helengine {
         static bool TryGetVerticalSegmentTriangleProjectionCandidate(BodyState3D capsuleBody, float segmentMinimumY, float segmentMaximumY, float3 a, float3 b, float3 c, out float projectedY) {
             projectedY = 0f;
             float3 normal = StaticMeshTriangleMath3D.GetTriangleUnitNormal(a, b, c);
-            if (normal == float3.Zero || Math.Abs(normal.Y) <= 0.0001f) {
+            if (normal == float3.Zero || RealMath.Abs(normal.Y) <= 0.0001f) {
                 return false;
             }
 
@@ -170,8 +170,8 @@ namespace helengine {
                 return false;
             }
 
-            float planeNumerator = (normal.X * (capsuleBody.Position.X - a.X)) + (normal.Z * (capsuleBody.Position.Z - a.Z));
-            projectedY = a.Y - (planeNumerator / normal.Y);
+            float planeNumerator = (float)((normal.X * (capsuleBody.Position.X - a.X)) + (normal.Z * (capsuleBody.Position.Z - a.Z)));
+            projectedY = (float)(a.Y - (planeNumerator / normal.Y));
             projectedY = StaticMeshTriangleMath3D.Clamp(projectedY, segmentMinimumY, segmentMaximumY);
             return true;
         }

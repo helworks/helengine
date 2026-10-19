@@ -49,7 +49,7 @@ namespace helengine.editor.tests {
                 expected = helengine.editor.EditorViewportDirect2DPresentationService.TransformPresentedWorldPoint(source, expected);
                 float3 actual = mesh.Positions[index] * proxy.Scale;
                 actual = proxy.Position + float4.RotateVector(actual, proxy.Orientation);
-                Assert.InRange((actual - expected).Length(), 0f, 0.001f);
+                Assert.InRange((double)((actual - expected).Length()), (double)(0f), (double)(0.001f));
             }
             int buildCount = renderer.BuiltModelAssets.Count;
             preview.SynchronizeFromSource();

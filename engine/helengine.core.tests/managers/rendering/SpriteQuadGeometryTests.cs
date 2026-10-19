@@ -27,8 +27,8 @@ namespace helengine.core.tests.managers.rendering {
                 out Batch2DVertex bottomRight, out Batch2DVertex bottomLeft);
             Assert.Equal(.2f, topLeft.TexLocal.X);
             Assert.Equal(.3f, topRight.TexLocal.Y);
-            Assert.Equal(.6f, bottomRight.TexLocal.X, 5);
-            Assert.Equal(.8f, bottomLeft.TexLocal.Y, 5);
+            Assert.Equal((double)(.6f),(double)(bottomRight.TexLocal.X), 5);
+            Assert.Equal((double)(.8f),(double)(bottomLeft.TexLocal.Y), 5);
         }
 
         /// <summary>Ensures nonuniform mirrored ancestor scale is applied after local sprite rotation, retaining shear.</summary>
@@ -76,8 +76,8 @@ namespace helengine.core.tests.managers.rendering {
         /// <param name="y">Expected vertical pixel position.</param>
         /// <param name="point">Resolved sprite corner.</param>
         static void AssertPoint(float x, float y, float2 point) {
-            Assert.Equal(x, point.X, 4);
-            Assert.Equal(y, point.Y, 4);
+            Assert.Equal((double)(x),(double)(point.X), 4);
+            Assert.Equal((double)(y),(double)(point.Y), 4);
         }
 
         /// <summary>Creates a headless core for entity lifecycle and texture ownership.</summary>

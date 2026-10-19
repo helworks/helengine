@@ -13,7 +13,7 @@ namespace helengine {
         /// </summary>
         /// <param name="asset">Imported model asset to transform.</param>
         /// <param name="maximumEdgeLength">Largest permitted output edge length.</param>
-        public static void Apply([NativeNoEscape] ModelAsset asset, double maximumEdgeLength) {
+        public static void Apply([NativeNoEscape] ModelAsset asset, RealEvaluation maximumEdgeLength) {
             Apply(asset, maximumEdgeLength, float3.One);
         }
 
@@ -177,20 +177,20 @@ namespace helengine {
                 float3 position = asset.Positions[vertexIndex];
                 float3 normal = asset.Normals[vertexIndex];
                 asset.Positions[vertexIndex] = new float3(position.X * scale.X, position.Y * scale.Y, position.Z * scale.Z);
-                double normalX = normal.X / scale.X;
-                double normalY = normal.Y / scale.Y;
-                double normalZ = normal.Z / scale.Z;
-                double lengthSquared = (normalX * normalX) + (normalY * normalY) + (normalZ * normalZ);
+                RealEvaluation normalX = normal.X / scale.X;
+                RealEvaluation normalY = normal.Y / scale.Y;
+                RealEvaluation normalZ = normal.Z / scale.Z;
+                RealEvaluation lengthSquared = (normalX * normalX) + (normalY * normalY) + (normalZ * normalZ);
                 if (lengthSquared == 0d) {
                     asset.Normals[vertexIndex] = new float3(0f, 0f, 0f);
                     continue;
                 }
 
-                double inverseLength = 1d / Math.Sqrt(lengthSquared);
+                RealEvaluation inverseLength = 1d / RealMath.Sqrt(lengthSquared);
                 asset.Normals[vertexIndex] = new float3(
-                    (float)(normalX * inverseLength),
-                    (float)(normalY * inverseLength),
-                    (float)(normalZ * inverseLength));
+                    (RealEvaluation)(normalX * inverseLength),
+                    (RealEvaluation)(normalY * inverseLength),
+                    (RealEvaluation)(normalZ * inverseLength));
             }
         }
 
@@ -200,7 +200,7 @@ namespace helengine {
         /// <param name="asset">Imported model asset to transform.</param>
         /// <param name="maximumEdgeLength">Largest permitted output edge length measured after applying <paramref name="measurementScale"/>.</param>
         /// <param name="measurementScale">Static accumulated world scale used to measure local model edges.</param>
-        public static void Apply([NativeNoEscape] ModelAsset asset, double maximumEdgeLength, float3 measurementScale) {
+        public static void Apply([NativeNoEscape] ModelAsset asset, RealEvaluation maximumEdgeLength, float3 measurementScale) {
             if (asset == null) {
                 throw new ArgumentNullException(nameof(asset));
             }
@@ -235,8 +235,8 @@ namespace helengine {
         /// Validates the requested tessellation threshold.
         /// </summary>
         /// <param name="maximumEdgeLength">Largest permitted output edge length.</param>
-        static void ValidateMaximumEdgeLength(double maximumEdgeLength) {
-            if (double.IsNaN(maximumEdgeLength) || double.IsInfinity(maximumEdgeLength) || maximumEdgeLength <= 0d) {
+        static void ValidateMaximumEdgeLength(RealEvaluation maximumEdgeLength) {
+            if (RealEvaluation.IsNaN(maximumEdgeLength) || RealEvaluation.IsInfinity(maximumEdgeLength) || maximumEdgeLength <= 0d) {
                 throw new InvalidOperationException("Model tessellation maximum edge length must be finite and greater than zero.");
             }
         }
@@ -246,11 +246,11 @@ namespace helengine {
         /// </summary>
         /// <param name="measurementScale">Static accumulated world scale used to measure local model edges.</param>
         static void ValidateMeasurementScale(float3 measurementScale) {
-            if (!float.IsFinite(measurementScale.X) || measurementScale.X == 0f) {
+            if (!RealEvaluation.IsFinite(measurementScale.X) || measurementScale.X == 0f) {
                 throw new ArgumentException("Tessellation measurement scale X must be finite and non-zero.", nameof(measurementScale));
-            } else if (!float.IsFinite(measurementScale.Y) || measurementScale.Y == 0f) {
+            } else if (!RealEvaluation.IsFinite(measurementScale.Y) || measurementScale.Y == 0f) {
                 throw new ArgumentException("Tessellation measurement scale Y must be finite and non-zero.", nameof(measurementScale));
-            } else if (!float.IsFinite(measurementScale.Z) || measurementScale.Z == 0f) {
+            } else if (!RealEvaluation.IsFinite(measurementScale.Z) || measurementScale.Z == 0f) {
                 throw new ArgumentException("Tessellation measurement scale Z must be finite and non-zero.", nameof(measurementScale));
             }
         }
@@ -292,7 +292,7 @@ namespace helengine {
         /// <param name="streamName">Name of the source stream.</param>
         /// <param name="vertexIndex">Vertex index owning the vector.</param>
         static void ValidateFiniteVector(float3 value, string streamName, int vertexIndex) {
-            if (!float.IsFinite(value.X) || !float.IsFinite(value.Y) || !float.IsFinite(value.Z)) {
+            if (!RealEvaluation.IsFinite(value.X) || !RealEvaluation.IsFinite(value.Y) || !RealEvaluation.IsFinite(value.Z)) {
                 throw new InvalidOperationException($"Model tessellation {streamName} at vertex {vertexIndex} must be finite.");
             }
         }
@@ -304,7 +304,7 @@ namespace helengine {
         /// <param name="streamName">Name of the source stream.</param>
         /// <param name="vertexIndex">Vertex index owning the vector.</param>
         static void ValidateFiniteVector(float2 value, string streamName, int vertexIndex) {
-            if (!float.IsFinite(value.X) || !float.IsFinite(value.Y)) {
+            if (!RealEvaluation.IsFinite(value.X) || !RealEvaluation.IsFinite(value.Y)) {
                 throw new InvalidOperationException($"Model tessellation {streamName} at vertex {vertexIndex} must be finite.");
             }
         }
@@ -393,25 +393,25 @@ namespace helengine {
         /// <param name="measurementScale">Static scale used only to measure output edge lengths.</param>
         /// <returns>A newly allocated oversized geometric edge owned by the caller, or null when every edge fits.</returns>
         [NativeOwnedReturn]
-        static ModelTessellationGeometricEdgeKey FindOversizedEdge(List<ModelTessellationTriangle> triangles, List<float3> positions, double maximumEdgeLength, float3 measurementScale) {
-            double maximumEdgeLengthSquared = maximumEdgeLength * maximumEdgeLength;
-            double longestOversizedEdgeLengthSquared = maximumEdgeLengthSquared;
+        static ModelTessellationGeometricEdgeKey FindOversizedEdge(List<ModelTessellationTriangle> triangles, List<float3> positions, RealEvaluation maximumEdgeLength, float3 measurementScale) {
+            RealEvaluation maximumEdgeLengthSquared = maximumEdgeLength * maximumEdgeLength;
+            RealEvaluation longestOversizedEdgeLengthSquared = maximumEdgeLengthSquared;
             ModelTessellationGeometricEdgeKey longestOversizedEdge = null;
             for (int triangleIndex = 0; triangleIndex < triangles.Count; triangleIndex++) {
                 ModelTessellationTriangle triangle = triangles[triangleIndex];
-                double firstEdgeLengthSquared = GetDistanceSquared(positions[triangle.FirstIndex], positions[triangle.SecondIndex], measurementScale);
+                RealEvaluation firstEdgeLengthSquared = GetDistanceSquared(positions[triangle.FirstIndex], positions[triangle.SecondIndex], measurementScale);
                 if (firstEdgeLengthSquared > longestOversizedEdgeLengthSquared) {
                     longestOversizedEdgeLengthSquared = firstEdgeLengthSquared;
                     longestOversizedEdge = new ModelTessellationGeometricEdgeKey(positions[triangle.FirstIndex], positions[triangle.SecondIndex]);
                 }
 
-                double secondEdgeLengthSquared = GetDistanceSquared(positions[triangle.SecondIndex], positions[triangle.ThirdIndex], measurementScale);
+                RealEvaluation secondEdgeLengthSquared = GetDistanceSquared(positions[triangle.SecondIndex], positions[triangle.ThirdIndex], measurementScale);
                 if (secondEdgeLengthSquared > longestOversizedEdgeLengthSquared) {
                     longestOversizedEdgeLengthSquared = secondEdgeLengthSquared;
                     longestOversizedEdge = new ModelTessellationGeometricEdgeKey(positions[triangle.SecondIndex], positions[triangle.ThirdIndex]);
                 }
 
-                double thirdEdgeLengthSquared = GetDistanceSquared(positions[triangle.ThirdIndex], positions[triangle.FirstIndex], measurementScale);
+                RealEvaluation thirdEdgeLengthSquared = GetDistanceSquared(positions[triangle.ThirdIndex], positions[triangle.FirstIndex], measurementScale);
                 if (thirdEdgeLengthSquared > longestOversizedEdgeLengthSquared) {
                     longestOversizedEdgeLengthSquared = thirdEdgeLengthSquared;
                     longestOversizedEdge = new ModelTessellationGeometricEdgeKey(positions[triangle.ThirdIndex], positions[triangle.FirstIndex]);
@@ -516,16 +516,16 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Interpolates two positions at the exact edge midpoint using double arithmetic.
+        /// Interpolates two positions at the exact edge midpoint using RealEvaluation arithmetic.
         /// </summary>
         /// <param name="first">First endpoint.</param>
         /// <param name="second">Second endpoint.</param>
         /// <returns>Midpoint position.</returns>
         static float3 InterpolatePosition(float3 first, float3 second) {
             return new float3(
-                (float)(((double)first.X + second.X) * 0.5d),
-                (float)(((double)first.Y + second.Y) * 0.5d),
-                (float)(((double)first.Z + second.Z) * 0.5d));
+                (RealEvaluation)(((RealEvaluation)first.X + second.X) * 0.5d),
+                (RealEvaluation)(((RealEvaluation)first.Y + second.Y) * 0.5d),
+                (RealEvaluation)(((RealEvaluation)first.Z + second.Z) * 0.5d));
         }
 
         /// <summary>
@@ -535,41 +535,41 @@ namespace helengine {
         /// <param name="second">Second endpoint normal.</param>
         /// <returns>Normalized midpoint normal, or zero when both inputs cancel.</returns>
         static float3 InterpolateNormal(float3 first, float3 second) {
-            double x = ((double)first.X + second.X) * 0.5d;
-            double y = ((double)first.Y + second.Y) * 0.5d;
-            double z = ((double)first.Z + second.Z) * 0.5d;
-            double lengthSquared = (x * x) + (y * y) + (z * z);
+            RealEvaluation x = ((RealEvaluation)first.X + second.X) * 0.5d;
+            RealEvaluation y = ((RealEvaluation)first.Y + second.Y) * 0.5d;
+            RealEvaluation z = ((RealEvaluation)first.Z + second.Z) * 0.5d;
+            RealEvaluation lengthSquared = (x * x) + (y * y) + (z * z);
             if (lengthSquared == 0d) {
                 return new float3(0f, 0f, 0f);
             }
 
-            double inverseLength = 1d / Math.Sqrt(lengthSquared);
-            return new float3((float)(x * inverseLength), (float)(y * inverseLength), (float)(z * inverseLength));
+            RealEvaluation inverseLength = 1d / RealMath.Sqrt(lengthSquared);
+            return new float3((RealEvaluation)(x * inverseLength), (RealEvaluation)(y * inverseLength), (RealEvaluation)(z * inverseLength));
         }
 
         /// <summary>
-        /// Interpolates two texture coordinates at the edge midpoint using double arithmetic.
+        /// Interpolates two texture coordinates at the edge midpoint using RealEvaluation arithmetic.
         /// </summary>
         /// <param name="first">First endpoint coordinate.</param>
         /// <param name="second">Second endpoint coordinate.</param>
         /// <returns>Midpoint texture coordinate.</returns>
         static float2 InterpolateTexCoord(float2 first, float2 second) {
             return new float2(
-                (float)(((double)first.X + second.X) * 0.5d),
-                (float)(((double)first.Y + second.Y) * 0.5d));
+                (RealEvaluation)(((RealEvaluation)first.X + second.X) * 0.5d),
+                (RealEvaluation)(((RealEvaluation)first.Y + second.Y) * 0.5d));
         }
 
         /// <summary>
-        /// Computes one squared position-space distance using double arithmetic.
+        /// Computes one squared position-space distance using RealEvaluation arithmetic.
         /// </summary>
         /// <param name="first">First endpoint.</param>
         /// <param name="second">Second endpoint.</param>
         /// <param name="measurementScale">Static scale used only to measure the edge length.</param>
         /// <returns>Squared Euclidean distance.</returns>
-        static double GetDistanceSquared(float3 first, float3 second, float3 measurementScale) {
-            double deltaX = ((double)second.X - first.X) * measurementScale.X;
-            double deltaY = ((double)second.Y - first.Y) * measurementScale.Y;
-            double deltaZ = ((double)second.Z - first.Z) * measurementScale.Z;
+        static RealEvaluation GetDistanceSquared(float3 first, float3 second, float3 measurementScale) {
+            RealEvaluation deltaX = ((RealEvaluation)second.X - first.X) * measurementScale.X;
+            RealEvaluation deltaY = ((RealEvaluation)second.Y - first.Y) * measurementScale.Y;
+            RealEvaluation deltaZ = ((RealEvaluation)second.Z - first.Z) * measurementScale.Z;
             return (deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ);
         }
 

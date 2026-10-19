@@ -53,10 +53,10 @@ namespace helengine.editor.tests {
 
             float4 value = AnimationClipEvaluator.EvaluateRotationTrack(track, 0.5f);
             double length = Math.Sqrt(
-                (value.X * value.X) +
+                (double)((value.X * value.X) +
                 (value.Y * value.Y) +
                 (value.Z * value.Z) +
-                (value.W * value.W));
+                (value.W * value.W)));
 
             Assert.Equal(0d, value.X, 3);
             Assert.Equal(0.707d, value.Y, 3);

@@ -10,38 +10,14 @@ namespace helengine {
         /// <param name="dpi">Known output density, required only for Density.</param>
         /// <param name="referenceDpi">Authored physical density.</param>
         /// <returns>Resolved factors without capturing participant values.</returns>
-        public static ViewportLayoutMetrics Resolve(int scalingMode, int2 referenceSize, int2 targetSize, double pixelAspect, double uiScale, double dpi, double referenceDpi) {
-            if (targetSize.X <= 0 || targetSize.Y <= 0 || referenceSize.X <= 0 || referenceSize.Y <= 0) {
-                throw new InvalidOperationException("Viewport layout requires positive reference and target dimensions.");
-            }
-            if (!(pixelAspect > 0d) || double.IsInfinity(pixelAspect)) {
-                throw new InvalidOperationException("Viewport layout requires a finite positive pixel aspect.");
-            }
-            ViewportLayoutMetrics result = new ViewportLayoutMetrics {
-                ScaleX = 1d, ScaleY = 1d, GlyphScale = 1d,
-                Origin = new float2(0f, 0f), AnchorSize = targetSize, PixelAspect = pixelAspect
-            };
-            if (scalingMode == ViewportComponent.NoScalingMode) {
-                return result;
-            } else if (scalingMode == ViewportComponent.DensityScalingMode) {
-                if (!(dpi > 0d) || double.IsInfinity(dpi) || !(referenceDpi > 0d) || double.IsInfinity(referenceDpi) || !(uiScale > 0d) || double.IsInfinity(uiScale)) {
-                    throw new InvalidOperationException("Density layout requires finite positive output DPI, reference DPI and UI scale.");
-                }
-                result.ScaleX = dpi / referenceDpi * uiScale;
-                result.ScaleY = result.ScaleX;
-                result.GlyphScale = result.ScaleX;
-                return result;
-            } else if (scalingMode == ViewportComponent.ReferenceCanvasScalingMode) {
-                result.AnchorSize = DisplayAspectFitUtils.ResolveFittedSize(targetSize.X, targetSize.Y, referenceSize.X, referenceSize.Y, pixelAspect);
-                result.Origin = new float2((float)((targetSize.X - result.AnchorSize.X) * 0.5d), (float)((targetSize.Y - result.AnchorSize.Y) * 0.5d));
-            } else if (scalingMode != ViewportComponent.ReferenceCanvasStretchScalingMode) {
-                throw new InvalidOperationException("Unknown viewport scaling mode.");
-            }
-            result.ScaleX = (double)result.AnchorSize.X / referenceSize.X;
-            result.ScaleY = (double)result.AnchorSize.Y / referenceSize.Y;
-            result.GlyphScale = scalingMode == ViewportComponent.ReferenceCanvasStretchScalingMode
-                ? result.ScaleY : DisplayAspectFitUtils.ResolveGlyphScale(result.ScaleX, result.ScaleY, pixelAspect);
-            return result;
+        public static ViewportLayoutMetrics Resolve(int scalingMode, int2 referenceSize, int2 targetSize, RealEvaluation pixelAspect, RealEvaluation uiScale, RealEvaluation dpi, RealEvaluation referenceDpi) {
+            return LayoutNumericKernel<RealEvaluation, RuntimeNumericOperations>.Resolve(scalingMode, referenceSize, targetSize, pixelAspect, uiScale, dpi, referenceDpi, new RuntimeNumericOperations());
+        }
+
+        /// <summary>Resolves the same formulas under an explicit cook policy without changing host precision.</summary>
+        public static ViewportLayoutMetrics Resolve(int scalingMode, int2 referenceSize, int2 targetSize, double pixelAspect, double uiScale, double dpi, double referenceDpi, NumericPrecisionPolicy policy) {
+            CookNumericOperations math = new CookNumericOperations(policy);
+            return LayoutNumericKernel<double, CookNumericOperations>.Resolve(scalingMode, referenceSize, targetSize, math.Number(pixelAspect), math.Number(uiScale), math.Number(dpi), math.Number(referenceDpi), math);
         }
     }
 }

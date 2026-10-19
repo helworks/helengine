@@ -55,8 +55,8 @@ namespace helengine.physics3d.tests {
             }
 
             Assert.True(dynamicEntity.LocalPosition.Y < 2f);
-            Assert.InRange(dynamicEntity.LocalPosition.Y, 0.49f, 0.51f);
-            Assert.InRange(dynamicBody.LinearVelocity.Y, -0.0001f, 0.0001f);
+            Assert.InRange((double)(dynamicEntity.LocalPosition.Y), (double)(0.49f), (double)(0.51f));
+            Assert.InRange((double)(dynamicBody.LinearVelocity.Y), (double)(-0.0001f), (double)(0.0001f));
         }
 
         /// <summary>
@@ -92,8 +92,8 @@ namespace helengine.physics3d.tests {
             }
 
             Assert.True(dynamicEntity.LocalPosition.Y < 2f);
-            Assert.InRange(dynamicEntity.LocalPosition.Y, 0.49f, 0.51f);
-            Assert.InRange(dynamicBody.LinearVelocity.Y, -0.0001f, 0.0001f);
+            Assert.InRange((double)(dynamicEntity.LocalPosition.Y), (double)(0.49f), (double)(0.51f));
+            Assert.InRange((double)(dynamicBody.LinearVelocity.Y), (double)(-0.0001f), (double)(0.0001f));
         }
 
         /// <summary>
@@ -129,8 +129,8 @@ namespace helengine.physics3d.tests {
             }
 
             Assert.True(dynamicEntity.LocalPosition.Y < 2f);
-            Assert.InRange(dynamicEntity.LocalPosition.Y, 0.49f, 0.51f);
-            Assert.InRange(dynamicBody.LinearVelocity.Y, -0.0001f, 0.0001f);
+            Assert.InRange((double)(dynamicEntity.LocalPosition.Y), (double)(0.49f), (double)(0.51f));
+            Assert.InRange((double)(dynamicBody.LinearVelocity.Y), (double)(-0.0001f), (double)(0.0001f));
         }
 
         /// <summary>
@@ -281,10 +281,10 @@ namespace helengine.physics3d.tests {
             }
 
             double angularSpeedSquared =
-                (dynamicBody.AngularVelocity.X * dynamicBody.AngularVelocity.X) +
+                (double)((dynamicBody.AngularVelocity.X * dynamicBody.AngularVelocity.X) +
                 (dynamicBody.AngularVelocity.Y * dynamicBody.AngularVelocity.Y) +
-                (dynamicBody.AngularVelocity.Z * dynamicBody.AngularVelocity.Z);
-            Assert.InRange(dynamicBody.LinearVelocity.Y, -0.05f, 0.05f);
+                (dynamicBody.AngularVelocity.Z * dynamicBody.AngularVelocity.Z));
+            Assert.InRange((double)(dynamicBody.LinearVelocity.Y), (double)(-0.05f), (double)(0.05f));
             Assert.True(angularSpeedSquared < 0.01d, $"Expected angular motion to damp below 0.1 rad/s, but angular velocity was {dynamicBody.AngularVelocity}.");
         }
 
@@ -321,8 +321,8 @@ namespace helengine.physics3d.tests {
             }
 
             Assert.True(dynamicEntity.LocalPosition.Y < 2f);
-            Assert.InRange(dynamicEntity.LocalPosition.Y, 0.49f, 0.51f);
-            Assert.InRange(dynamicBody.LinearVelocity.Y, -0.0001f, 0.0001f);
+            Assert.InRange((double)(dynamicEntity.LocalPosition.Y), (double)(0.49f), (double)(0.51f));
+            Assert.InRange((double)(dynamicBody.LinearVelocity.Y), (double)(-0.0001f), (double)(0.0001f));
         }
 
         /// <summary>
@@ -355,7 +355,7 @@ namespace helengine.physics3d.tests {
 
             world.Step(1.0 / 60.0);
 
-            float centerDistance = Math.Abs(secondSphereEntity.LocalPosition.X - firstSphereEntity.LocalPosition.X);
+            double centerDistance = Math.Abs((double)(secondSphereEntity.LocalPosition.X - firstSphereEntity.LocalPosition.X));
             Assert.True(centerDistance >= 0.999f, $"Expected the overlapping spheres to separate to at least one diameter, but their center distance was {centerDistance}.");
         }
 
@@ -433,7 +433,7 @@ namespace helengine.physics3d.tests {
 
             world.Step(1.0 / 60.0);
 
-            Assert.InRange(dynamicBody.LinearVelocity.X, -0.0001f, 0.0001f);
+            Assert.InRange((double)(dynamicBody.LinearVelocity.X), (double)(-0.0001f), (double)(0.0001f));
             Assert.NotEqual(float3.Zero, dynamicBody.AngularVelocity);
         }
 
@@ -471,7 +471,7 @@ namespace helengine.physics3d.tests {
 
             world.Step(1.0 / 60.0);
 
-            float centerDistance = Math.Abs(secondSphereEntity.LocalPosition.X - firstSphereEntity.LocalPosition.X);
+            double centerDistance = Math.Abs((double)(secondSphereEntity.LocalPosition.X - firstSphereEntity.LocalPosition.X));
             Assert.True(centerDistance < 0.5f, $"Expected collision filtering to keep the non-matching pair unresolved, but their center distance was {centerDistance}.");
         }
 
@@ -509,8 +509,8 @@ namespace helengine.physics3d.tests {
             }
 
             Assert.True(dynamicEntity.LocalPosition.Y < 2.5f);
-            Assert.InRange(dynamicEntity.LocalPosition.Y, 0.99f, 1.01f);
-            Assert.InRange(dynamicBody.LinearVelocity.Y, -0.0001f, 0.0001f);
+            Assert.InRange((double)(dynamicEntity.LocalPosition.Y), (double)(0.99f), (double)(1.01f));
+            Assert.InRange((double)(dynamicBody.LinearVelocity.Y), (double)(-0.0001f), (double)(0.0001f));
         }
 
         /// <summary>
@@ -547,8 +547,8 @@ namespace helengine.physics3d.tests {
             }
 
             Assert.True(dynamicEntity.LocalPosition.Y < 2.5f);
-            Assert.InRange(dynamicEntity.LocalPosition.Y, 0.99f, 1.01f);
-            Assert.InRange(dynamicBody.LinearVelocity.Y, -0.0001f, 0.0001f);
+            Assert.InRange((double)(dynamicEntity.LocalPosition.Y), (double)(0.99f), (double)(1.01f));
+            Assert.InRange((double)(dynamicBody.LinearVelocity.Y), (double)(-0.0001f), (double)(0.0001f));
         }
 
         /// <summary>
@@ -583,7 +583,7 @@ namespace helengine.physics3d.tests {
 
             world.Step(1.0 / 60.0);
 
-            float centerDistance = Math.Abs(secondCapsuleEntity.LocalPosition.X - firstCapsuleEntity.LocalPosition.X);
+            double centerDistance = Math.Abs((double)(secondCapsuleEntity.LocalPosition.X - firstCapsuleEntity.LocalPosition.X));
             Assert.True(centerDistance >= 0.999f, $"Expected the overlapping capsules to separate to at least one diameter, but their center distance was {centerDistance}.");
         }
 
@@ -762,7 +762,7 @@ namespace helengine.physics3d.tests {
                 world.Step(1.0 / 60.0);
             }
 
-            Assert.InRange(upperBoxEntity.LocalPosition.Y, 0.45f, 2.1f);
+            Assert.InRange((double)(upperBoxEntity.LocalPosition.Y), (double)(0.45f), (double)(2.1f));
             Assert.True(ResolveAngularSpeedSquared(upperBody) < 100d, $"Expected the offset upper cube to avoid runaway rotation after settling, but angular velocity was {upperBody.AngularVelocity}, position was {upperBoxEntity.LocalPosition}, and orientation was {upperBoxEntity.LocalOrientation}.");
         }
 
@@ -799,8 +799,8 @@ namespace helengine.physics3d.tests {
                 world.Step(1.0 / 60.0);
             }
 
-            Assert.InRange(upperBody.LinearVelocity.X, 0f, 0.5f);
-            Assert.InRange(upperBoxEntity.LocalPosition.Y, 1.45f, 1.52f);
+            Assert.InRange((double)(upperBody.LinearVelocity.X), (double)(0f), (double)(0.5f));
+            Assert.InRange((double)(upperBoxEntity.LocalPosition.Y), (double)(1.45f), (double)(1.52f));
         }
 
         /// <summary>
@@ -897,9 +897,9 @@ namespace helengine.physics3d.tests {
                 for (int boxIndex = 0; boxIndex < boxes.Length; boxIndex++) {
                     float3 currentPosition = boxes[boxIndex].LocalPosition;
                     float3 previousPosition = previousPositions[boxIndex];
-                    double deltaX = currentPosition.X - previousPosition.X;
-                    double deltaY = currentPosition.Y - previousPosition.Y;
-                    double deltaZ = currentPosition.Z - previousPosition.Z;
+                    double deltaX = (double)(currentPosition.X - previousPosition.X);
+                    double deltaY = (double)(currentPosition.Y - previousPosition.Y);
+                    double deltaZ = (double)(currentPosition.Z - previousPosition.Z);
                     double stepDistance = Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
                     largestStepDistance = Math.Max(largestStepDistance, stepDistance);
                     previousPositions[boxIndex] = currentPosition;
@@ -1192,9 +1192,9 @@ namespace helengine.physics3d.tests {
             int overDampedStep = -1;
             double previousAngularSpeedSquared = ResolveAngularSpeedSquared(topBody);
             double previousLinearSpeedSquared =
-                (topState.Velocity.X * topState.Velocity.X) +
+                (double)((topState.Velocity.X * topState.Velocity.X) +
                 (topState.Velocity.Y * topState.Velocity.Y) +
-                (topState.Velocity.Z * topState.Velocity.Z);
+                (topState.Velocity.Z * topState.Velocity.Z));
             double overDampedPreviousAngularSpeedSquared = 0d;
             double overDampedCurrentAngularSpeedSquared = 0d;
             double overDampedCurrentLinearSpeedSquared = 0d;
@@ -1204,9 +1204,9 @@ namespace helengine.physics3d.tests {
                 world.Step(1.0d / 60.0d);
 
                 double currentLinearSpeedSquared =
-                    (topState.Velocity.X * topState.Velocity.X) +
+                    (double)((topState.Velocity.X * topState.Velocity.X) +
                     (topState.Velocity.Y * topState.Velocity.Y) +
-                    (topState.Velocity.Z * topState.Velocity.Z);
+                    (topState.Velocity.Z * topState.Velocity.Z));
                 double currentAngularSpeedSquared = ResolveAngularSpeedSquared(topState.RigidBody);
                 double uprightAlignment = ResolveUprightAlignment(topEntity);
                 bool isUncenteredTiltedSupport =
@@ -1270,8 +1270,8 @@ namespace helengine.physics3d.tests {
             }
 
             Assert.True(boxes[3].LocalPosition.Y > 3.2f, $"Expected the top showcase box to remain near the stable stack height, but it ended at {boxes[3].LocalPosition}.");
-            Assert.True(Math.Abs(boxes[3].LocalPosition.X) < 0.25f, $"Expected the top showcase box to avoid large lateral drift in X, but it ended at {boxes[3].LocalPosition}.");
-            Assert.True(Math.Abs(boxes[3].LocalPosition.Z) < 0.25f, $"Expected the top showcase box to avoid large lateral drift in Z, but it ended at {boxes[3].LocalPosition}.");
+            Assert.True(Math.Abs((double)(boxes[3].LocalPosition.X)) < 0.25f, $"Expected the top showcase box to avoid large lateral drift in X, but it ended at {boxes[3].LocalPosition}.");
+            Assert.True(Math.Abs((double)(boxes[3].LocalPosition.Z)) < 0.25f, $"Expected the top showcase box to avoid large lateral drift in Z, but it ended at {boxes[3].LocalPosition}.");
         }
 
         /// <summary>
@@ -1304,9 +1304,9 @@ namespace helengine.physics3d.tests {
                 for (int boxIndex = 0; boxIndex < boxes.Length; boxIndex++) {
                     float3 currentPosition = boxes[boxIndex].LocalPosition;
                     float3 previousPosition = previousPositions[boxIndex];
-                    double deltaX = currentPosition.X - previousPosition.X;
-                    double deltaY = currentPosition.Y - previousPosition.Y;
-                    double deltaZ = currentPosition.Z - previousPosition.Z;
+                    double deltaX = (double)(currentPosition.X - previousPosition.X);
+                    double deltaY = (double)(currentPosition.Y - previousPosition.Y);
+                    double deltaZ = (double)(currentPosition.Z - previousPosition.Z);
                     double stepDistance = Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
                     largestStepDistance = Math.Max(largestStepDistance, stepDistance);
                     previousPositions[boxIndex] = currentPosition;
@@ -1433,7 +1433,7 @@ namespace helengine.physics3d.tests {
             Assert.Equal(TriggerEventKind3D.Enter, world.TriggerEvents[0].Kind);
             Assert.Same(triggerEntity, world.TriggerEvents[0].TriggerEntity);
             Assert.Same(sphereEntity, world.TriggerEvents[0].OtherEntity);
-            Assert.InRange(sphereEntity.LocalPosition.X, -0.0001f, 0.0001f);
+            Assert.InRange((double)(sphereEntity.LocalPosition.X), (double)(-0.0001f), (double)(0.0001f));
 
             world.Step(1.0 / 60.0);
 
@@ -1481,7 +1481,7 @@ namespace helengine.physics3d.tests {
             Assert.Equal(TriggerEventKind3D.Enter, world.TriggerEvents[0].Kind);
             Assert.Same(triggerMeshEntity, world.TriggerEvents[0].TriggerEntity);
             Assert.Same(sphereEntity, world.TriggerEvents[0].OtherEntity);
-            Assert.InRange(sphereEntity.LocalPosition.Y, 0.24f, 0.26f);
+            Assert.InRange((double)(sphereEntity.LocalPosition.Y), (double)(0.24f), (double)(0.26f));
         }
 
         /// <summary>
@@ -1655,9 +1655,9 @@ namespace helengine.physics3d.tests {
                 throw new ArgumentNullException(nameof(body));
             }
 
-            return (body.AngularVelocity.X * body.AngularVelocity.X) +
+            return (double)((body.AngularVelocity.X * body.AngularVelocity.X) +
                 (body.AngularVelocity.Y * body.AngularVelocity.Y) +
-                (body.AngularVelocity.Z * body.AngularVelocity.Z);
+                (body.AngularVelocity.Z * body.AngularVelocity.Z));
         }
 
         /// <summary>
@@ -1671,7 +1671,7 @@ namespace helengine.physics3d.tests {
             }
 
             float3 up = float4.RotateVector(new float3(0f, 1f, 0f), entity.LocalOrientation);
-            return up.Y;
+            return (double)(up.Y);
         }
 
         /// <summary>
@@ -1688,9 +1688,9 @@ namespace helengine.physics3d.tests {
                     float3 firstPosition = boxes[firstIndex].LocalPosition;
                     float3 secondPosition = boxes[secondIndex].LocalPosition;
                     bool separated =
-                        Math.Abs(firstPosition.X - secondPosition.X) >= 0.999f ||
-                        Math.Abs(firstPosition.Y - secondPosition.Y) >= 0.999f ||
-                        Math.Abs(firstPosition.Z - secondPosition.Z) >= 0.999f;
+                        Math.Abs((double)(firstPosition.X - secondPosition.X)) >= 0.999f ||
+                        Math.Abs((double)(firstPosition.Y - secondPosition.Y)) >= 0.999f ||
+                        Math.Abs((double)(firstPosition.Z - secondPosition.Z)) >= 0.999f;
                     Assert.True(
                         separated,
                         $"Expected boxes {firstIndex + 1} and {secondIndex + 1} to be separated, but their centers were {firstPosition} and {secondPosition}.");

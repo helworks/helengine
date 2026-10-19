@@ -14,6 +14,9 @@ namespace helengine.editor {
     /// Rewrites shared scene component payloads into packaged runtime forms.
     /// </summary>
     public sealed class SceneComponentPackagingTransformService {
+        /// <summary>Immutable policy captured for this cook instance; tooling defaults to the managed host.</summary>
+        public NumericPrecisionPolicy NumericPolicy { get; set; } = RealRepresentation.Policy;
+
         /// <summary>Prepared detached UI participants keyed by the unchanged source records that carry reference provenance.</summary>
         readonly Dictionary<SceneComponentAssetRecord, ViewportPreparedCookComponent> PreparedLayoutComponents = new Dictionary<SceneComponentAssetRecord, ViewportPreparedCookComponent>();
 
@@ -596,14 +599,14 @@ namespace helengine.editor {
                     .Append(',').Append(modifier.UvwOffsetY.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
                 if (string.Equals(modifier.UvwMode, ModelUvwMapProcessor.WorldMode, StringComparison.Ordinal)) {
                     builder.Append(":P")
-                        .Append(context.WorldPosition.X.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
-                        .Append(context.WorldPosition.Y.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
-                        .Append(context.WorldPosition.Z.ToString("R", System.Globalization.CultureInfo.InvariantCulture))
+                        .Append(context.WorldPosition.X.ToDouble().ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
+                        .Append(context.WorldPosition.Y.ToDouble().ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
+                        .Append(context.WorldPosition.Z.ToDouble().ToString("R", System.Globalization.CultureInfo.InvariantCulture))
                         .Append(":O")
-                        .Append(context.WorldOrientation.X.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
-                        .Append(context.WorldOrientation.Y.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
-                        .Append(context.WorldOrientation.Z.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
-                        .Append(context.WorldOrientation.W.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+                        .Append(context.WorldOrientation.X.ToDouble().ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
+                        .Append(context.WorldOrientation.Y.ToDouble().ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
+                        .Append(context.WorldOrientation.Z.ToDouble().ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
+                        .Append(context.WorldOrientation.W.ToDouble().ToString("R", System.Globalization.CultureInfo.InvariantCulture));
                 }
             }
 
@@ -940,7 +943,9 @@ namespace helengine.editor {
             }
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.NumericPolicy = NumericPolicy;
             writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+            RealBinaryCodec.WritePolicy(writer, NumericPolicy);
             writer.WriteInt32(schema.Members.Count);
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
@@ -1015,6 +1020,7 @@ namespace helengine.editor {
             if (version != AutomaticScriptComponentRuntimeDeserializer.CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported automatic scripted component payload received version '{version}'; current version '{AutomaticScriptComponentRuntimeDeserializer.CurrentVersion}' is required. Regenerate/rebuild the asset in the current format.");
             }
+            reader.NumericPolicy = RealBinaryCodec.ReadPolicy(reader);
             int count = reader.ReadInt32();
             if (count != schema.Members.Count) {
                 throw new InvalidOperationException("Component dependency selection requires the current authored component schema. Regenerate/rebuild the asset.");
@@ -1277,9 +1283,9 @@ namespace helengine.editor {
             if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             }
-            if (!float.IsFinite(worldScale.X) || worldScale.X == 0f
-                || !float.IsFinite(worldScale.Y) || worldScale.Y == 0f
-                || !float.IsFinite(worldScale.Z) || worldScale.Z == 0f) {
+            if (!float.IsFinite((float)(worldScale.X)) || worldScale.X == 0f
+                || !float.IsFinite((float)(worldScale.Y)) || worldScale.Y == 0f
+                || !float.IsFinite((float)(worldScale.Z)) || worldScale.Z == 0f) {
                 throw new ArgumentException("World scale must be finite and non-zero on every axis.", nameof(worldScale));
             }
 
@@ -1292,9 +1298,9 @@ namespace helengine.editor {
                 "BakeScale=" + settings.BakeScale.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 "TessellateAtCookTime=" + settings.TessellateAtCookTime.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 "BakeScaleAtCookTime=" + settings.BakeScaleAtCookTime.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                "WorldScaleX=" + worldScale.X.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
-                "WorldScaleY=" + worldScale.Y.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
-                "WorldScaleZ=" + worldScale.Z.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+                "WorldScaleX=" + worldScale.X.ToDouble().ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+                "WorldScaleY=" + worldScale.Y.ToDouble().ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+                "WorldScaleZ=" + worldScale.Z.ToDouble().ToString("R", System.Globalization.CultureInfo.InvariantCulture));
         }
 
         /// <summary>
@@ -3286,10 +3292,10 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(writer));
             }
 
-            writer.WriteSingle(value.X);
-            writer.WriteSingle(value.Y);
-            writer.WriteSingle(value.Z);
-            writer.WriteSingle(value.W);
+            writer.WriteSingle((float)(value.X));
+            writer.WriteSingle((float)(value.Y));
+            writer.WriteSingle((float)(value.Z));
+            writer.WriteSingle((float)(value.W));
         }
 
         CameraClearSettings ReadClearSettings(EngineBinaryReader reader) {
@@ -3358,7 +3364,7 @@ namespace helengine.editor {
 
             Directory.CreateDirectory(directoryPath);
             using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            AssetSerializer.Serialize(stream, asset);
+            AssetSerializer.Serialize(stream, asset, NumericPolicy);
         }
 
         /// <summary>

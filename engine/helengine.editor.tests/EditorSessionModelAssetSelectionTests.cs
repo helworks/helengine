@@ -513,8 +513,8 @@ namespace helengine.editor.tests {
 
             float3 position = row.Entity.Position;
             return new int2(
-                (int)MathF.Round(position.X + 12f),
-                (int)MathF.Round(position.Y + AssetBrowserView.RowHeight * 0.5f));
+                (int)MathF.Round((float)(position.X + 12f)),
+                (int)MathF.Round((float)(position.Y + AssetBrowserView.RowHeight * 0.5f)));
         }
 
         /// <summary>

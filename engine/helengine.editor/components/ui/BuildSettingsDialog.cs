@@ -207,7 +207,7 @@ namespace helengine.editor {
                 Font = DialogFont,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.StateWarning,
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
+                Size = new int2(1, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(DialogFont.LineHeight, 1f)))),
             };
             StatusHost.AddComponent(StatusText);
 
@@ -378,7 +378,7 @@ namespace helengine.editor {
                 Font = DialogFont,
                 Text = BuildPlatformLabelText(platform),
                 Color = GetPlatformLabelColor(platform),
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
+                Size = new int2(1, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(DialogFont.LineHeight, 1f)))),
             };
             labelHost.AddComponent(labelText);
             PlatformLabelTexts.Add(labelText);
@@ -395,7 +395,7 @@ namespace helengine.editor {
                 Font = DialogFont,
                 Text = BuildPlatformStatusText(platform),
                 Color = GetPlatformStatusColor(platform),
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
+                Size = new int2(1, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(DialogFont.LineHeight, 1f)))),
             };
             statusHost.AddComponent(statusText);
             PlatformStatusTexts.Add(statusText);
@@ -536,7 +536,7 @@ namespace helengine.editor {
             int nameColumnX = GetPanelPadding();
             int statusColumnX = nameColumnX + GetPlatformNameColumnWidth() + GetTableColumnSpacing();
             int enabledColumnX = statusColumnX + GetPlatformStatusColumnWidth() + GetTableColumnSpacing();
-            int headerTextHeight = Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)));
+            int headerTextHeight = Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(DialogFont.LineHeight, 1f)));
 
             PlatformHeaderHosts[0].Position = new float3(nameColumnX, headerTop, 0f);
             PlatformHeaderTexts[0].Size = new int2(GetPlatformNameColumnWidth(), headerTextHeight);
@@ -580,7 +580,7 @@ namespace helengine.editor {
                 Font = DialogFont,
                 Text = text,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
+                Size = new int2(1, Math.Max(1, (int)RealMath.Ceiling(RealMath.Max(DialogFont.LineHeight, 1f)))),
             };
             headerHost.AddComponent(headerText);
             PlatformHeaderTexts.Add(headerText);
