@@ -149,6 +149,13 @@ namespace helengine {
         /// <param name="value">Value to write.</param>
         public abstract void WriteDouble(double value);
 
+        /// <summary>Writes configurable scalar storage without changing fixed single/double IO contracts.</summary>
+        /// <param name="value">Stored engine value to encode.</param>
+        /// <param name="policy">Numeric contract declared by the payload.</param>
+        public void WriteReal(Real value, NumericPrecisionPolicy policy) {
+            RealBinaryCodec.Write(this, value.ToDouble(), policy);
+        }
+
         /// <summary>
         /// Writes a UTF-8 string prefixed by a 32-bit length.
         /// </summary>

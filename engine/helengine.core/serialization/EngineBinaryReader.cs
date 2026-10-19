@@ -197,6 +197,13 @@ namespace helengine {
         /// <returns>Decoded floating point value.</returns>
         public abstract double ReadDouble();
 
+        /// <summary>Reads configurable scalar storage under an explicitly validated payload contract.</summary>
+        /// <param name="policy">Numeric policy declared by the payload.</param>
+        /// <returns>Decoded value committed to this runtime's scalar storage.</returns>
+        public Real ReadReal(NumericPrecisionPolicy policy) {
+            return Real.FromDouble(RealBinaryCodec.Read(this, policy));
+        }
+
         /// <summary>
         /// Reads a UTF-8 string prefixed by a 32-bit length.
         /// </summary>

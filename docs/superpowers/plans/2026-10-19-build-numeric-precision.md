@@ -89,6 +89,8 @@ Before invoking any test/build command, create its fixed scratch directory, set 
 
 ## Task 4: Precision-aware authored/cooked serialization and math migration
 
+Progress: standalone scalar codec and explicit ReadReal/WriteReal implemented; 11 codec cases pass, 29 numeric cases pass under managed 64/64, and all 1319 Core tests pass under 32/32. Full field/vector/cook migration remains pending; existing dirty Viewport paths are untouched while ownership approval is pending.
+
 **Files:**
 - Modify C:\dev\helworks\helengine\engine\helengine.core\model\float2.cs, float3.cs, float4.cs and float4x4.cs; C:\dev\helworks\helengine\engine\helengine.core\Entity.cs; C:\dev\helworks\helengine\engine\helengine.core\components\AnimationPlayerComponent.cs; C:\dev\helworks\helengine\engine\helengine.core\animation\AnimationClipEvaluator.cs and stored numeric fields in C:\dev\helworks\helengine\engine\helengine.core\assets\raw\animation\PositionKeyframeAsset.cs, C:\dev\helworks\helengine\engine\helengine.core\assets\raw\animation\RotationKeyframeAsset.cs and C:\dev\helworks\helengine\engine\helengine.core\assets\raw\animation\AnimationClipAsset.cs.
 - Create C:\dev\helworks\helengine\engine\helengine.core\numeric\RealBinaryCodec.cs; modify C:\dev\helworks\helengine\engine\helengine.core\serialization\EngineBinaryReader.cs, EngineBinaryWriter.cs and C:\dev\helworks\helengine\engine\helengine.core\assets\PackagedAssetBinarySerializer.cs.
