@@ -3,6 +3,12 @@ namespace helengine.baseplatform.Definitions {
     /// Defines stable setting identifiers used by platform codegen profiles.
     /// </summary>
     public static class PlatformCodegenSettingIds {
+        /// <summary>IEEE width retained by configurable engine numeric fields in this build.</summary>
+        public const string RealStorageBits = "real-storage-bits";
+
+        /// <summary>IEEE width used for configurable engine arithmetic in this build.</summary>
+        public const string RealArithmeticBits = "real-arithmetic-bits";
+
         /// <summary>
         /// Stable setting identifier for the named csharpcodegen conversion preset.
         /// </summary>

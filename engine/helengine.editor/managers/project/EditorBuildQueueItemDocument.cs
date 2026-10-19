@@ -9,6 +9,10 @@ namespace helengine.editor {
         [System.Text.Json.Serialization.JsonIgnore]
         public string RuntimeSettingsFingerprint { get; set; } = string.Empty;
 
+        /// <summary>Gets or sets this queued build's immutable numeric snapshot; older queue documents resolve it before execution.</summary>
+        public NumericPrecisionPolicy NumericPolicy { get; set; }
+
+
         /// <summary>Captures an explicit Play presentation target before cook without persisting it as project configuration.</summary>
         [System.Text.Json.Serialization.JsonIgnore]
         public PlatformVideoMode PlayVideoMode { get; set; }
@@ -139,6 +143,8 @@ namespace helengine.editor {
             }
 
             return new EditorBuildQueueItemDocument {
+                NumericPolicy = EditorBuildNumericPolicyResolver.Capture(platformConfig.SelectedCodegenOptionValues,
+                    selectionModel.ResolveCodegenProfile(platformConfig.SelectedCodegenProfileId)),
                 QueueItemId = Guid.NewGuid().ToString("N"),
                 PlatformId = platformConfig.PlatformId,
                 SelectedSceneIds = orderedSceneIds,

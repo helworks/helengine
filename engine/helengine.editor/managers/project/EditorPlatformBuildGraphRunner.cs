@@ -182,6 +182,7 @@ namespace helengine.editor {
                 selectedCodegenProfile,
                 previousBuildProfile,
                 selectedBuildProfile);
+            EditorBuildNumericPolicyResolver.Apply(queueItem, selectedCodegenProfile, effectiveCodegenOptionValues);
             EditorPlatformBuildGraphWorkspace workspace = WorkspaceFactory.Create(
                 PlatformDescriptor.Id,
                 selectedBuildProfileId,
@@ -317,6 +318,7 @@ namespace helengine.editor {
                 selectedCodegenProfile,
                 previousBuildProfile,
                 selectedBuildProfile);
+            EditorBuildNumericPolicyResolver.Apply(queueItem, selectedCodegenProfile, effectiveCodegenOptionValues);
             EditorPlatformBuildGraphWorkspace workspace = WorkspaceFactory.Create(
                 PlatformDescriptor.Id,
                 selectedBuildProfileId,

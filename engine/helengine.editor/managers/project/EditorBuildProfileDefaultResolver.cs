@@ -82,6 +82,9 @@ namespace helengine.editor {
             PlatformCodegenProfileDefinition codegenProfile,
             PlatformBuildProfileDefinition previousBuildProfile,
             PlatformBuildProfileDefinition currentBuildProfile) {
+            if (selectedCodegenOptionValues != null) {
+                PlatformNumericPolicyResolver.Read(selectedCodegenOptionValues, NumericPrecisionPolicy.Default);
+            }
             Dictionary<string, string> effectiveValues = selectedCodegenOptionValues == null
                 ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, string>(selectedCodegenOptionValues, StringComparer.OrdinalIgnoreCase);

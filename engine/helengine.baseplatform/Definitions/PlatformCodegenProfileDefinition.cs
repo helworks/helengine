@@ -40,7 +40,32 @@ namespace helengine.baseplatform.Definitions {
             OutputLanguage = outputLanguage;
             Endianness = endianness;
             Settings = [.. settings];
+            NumericCapabilities = PlatformNumericCapabilities.SinglePrecision;
         }
+
+        /// <summary>Creates a profile with explicit numeric capabilities and corresponding selectable widths.</summary>
+        /// <param name="profileId">Stable codegen profile identifier.</param>
+        /// <param name="displayName">Human-readable profile name.</param>
+        /// <param name="description">Purpose of the profile.</param>
+        /// <param name="outputLanguage">Native output language.</param>
+        /// <param name="endianness">Cooked payload byte order.</param>
+        /// <param name="settings">Existing nonnumeric codegen setting definitions.</param>
+        /// <param name="numericCapabilities">Implemented numeric combinations and their explicit default.</param>
+        public PlatformCodegenProfileDefinition(string profileId, string displayName, string description,
+            PlatformCodegenLanguage outputLanguage, PlatformSerializationEndianness endianness,
+            PlatformSettingDefinition[] settings, PlatformNumericCapabilities numericCapabilities)
+            : this(profileId, displayName, description, outputLanguage, endianness, settings) {
+            if (numericCapabilities == null) { throw new ArgumentNullException(nameof(numericCapabilities)); }
+            else if (settings.Any(setting => string.Equals(setting.SettingId, PlatformCodegenSettingIds.RealStorageBits, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(setting.SettingId, PlatformCodegenSettingIds.RealArithmeticBits, StringComparison.OrdinalIgnoreCase))) {
+                throw new ArgumentException("Numeric setting definitions are owned by the explicit numeric capabilities.", nameof(settings));
+            }
+            NumericCapabilities = numericCapabilities;
+            Settings = [.. settings, .. numericCapabilities.CreateSettings()];
+        }
+
+        /// <summary>Gets the implemented numeric policies; existing profile constructors retain their single-precision contract.</summary>
+        public PlatformNumericCapabilities NumericCapabilities { get; }
 
         /// <summary>
         /// Gets the stable codegen profile identifier.

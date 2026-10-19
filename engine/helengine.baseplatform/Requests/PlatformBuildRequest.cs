@@ -138,6 +138,7 @@ namespace helengine.baseplatform.Requests {
             SelectedCodegenOptionValues = selectedCodegenOptionValues != null
                 ? new Dictionary<string, string>(selectedCodegenOptionValues)
                 : [];
+            NumericPolicy = PlatformNumericPolicyResolver.Read(SelectedCodegenOptionValues, NumericPrecisionPolicy.Default);
             GeneratedCoreCppRootPath = generatedCoreCppRootPath ?? string.Empty;
             SelectedMediaProfileId = selectedMediaProfileId ?? string.Empty;
             SelectedStorageProfileId = selectedStorageProfileId ?? string.Empty;
@@ -200,6 +201,9 @@ namespace helengine.baseplatform.Requests {
         /// Gets the selected builder-provided codegen option values.
         /// </summary>
         public IReadOnlyDictionary<string, string> SelectedCodegenOptionValues { get; }
+
+        /// <summary>Gets the immutable numeric policy captured from this request's copied options.</summary>
+        public NumericPrecisionPolicy NumericPolicy { get; }
 
         /// <summary>
         /// Gets the generated core C++ root path supplied by the platform installation.
