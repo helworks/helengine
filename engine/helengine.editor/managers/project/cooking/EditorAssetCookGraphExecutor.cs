@@ -30,7 +30,10 @@ namespace helengine.editor {
         /// <param name="profileId">Target profile.</param>
         /// <param name="cancellationToken">Operation cancellation.</param>
         /// <returns>Published artifacts.</returns>
-        public IReadOnlyList<CookedAssetArtifact> Execute(EditorAssetCookGraph graph, string engineVersion, string platformId, string profileId, CancellationToken cancellationToken) {
+        public IReadOnlyList<CookedAssetArtifact> Execute(EditorAssetCookGraph graph, string engineVersion, string platformId, string profileId, CancellationToken cancellationToken) => Execute(graph, engineVersion, platformId, profileId, cancellationToken, NumericPrecisionPolicy.Default);
+
+        /// <summary>Executes the graph under the request-owned numeric identity.</summary>
+        public IReadOnlyList<CookedAssetArtifact> Execute(EditorAssetCookGraph graph, string engineVersion, string platformId, string profileId, CancellationToken cancellationToken, NumericPrecisionPolicy numericPolicy) {
             if (graph == null) {
                 throw new ArgumentNullException(nameof(graph));
             }
@@ -39,7 +42,7 @@ namespace helengine.editor {
             Dictionary<string, CookedAssetArtifact> completedArtifacts = new(StringComparer.Ordinal);
             HashSet<string> visitingKeys = new(StringComparer.Ordinal);
             foreach (EditorAssetCookNode rootNode in graph.Nodes) {
-                ExecuteNode(rootNode, nodesBySourceKey, completedArtifacts, visitingKeys, engineVersion, platformId, profileId, cancellationToken);
+                ExecuteNode(rootNode, nodesBySourceKey, completedArtifacts, visitingKeys, engineVersion, platformId, profileId, cancellationToken, numericPolicy);
             }
 
             return completedArtifacts.Values.OrderBy(artifact => artifact.CookKey.Value, StringComparer.Ordinal).ToArray();
@@ -53,7 +56,7 @@ namespace helengine.editor {
             string engineVersion,
             string platformId,
             string profileId,
-            CancellationToken cancellationToken) {
+            CancellationToken cancellationToken, NumericPrecisionPolicy numericPolicy) {
             if (completedArtifacts.TryGetValue(node.Key.Value, out CookedAssetArtifact existing)) {
                 return existing;
             }
@@ -66,11 +69,11 @@ namespace helengine.editor {
                 if (!nodesBySourceKey.TryGetValue(dependency.Key.Value, out EditorAssetCookNode dependencyNode)) {
                     throw new InvalidOperationException("Cook graph dependency '" + dependency.Key.Value + "' was not declared.");
                 }
-                dependencies.Add(ExecuteNode(dependencyNode, nodesBySourceKey, completedArtifacts, visitingKeys, engineVersion, platformId, profileId, cancellationToken));
+                dependencies.Add(ExecuteNode(dependencyNode, nodesBySourceKey, completedArtifacts, visitingKeys, engineVersion, platformId, profileId, cancellationToken, numericPolicy));
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            EditorAssetCookNodeKey cookKey = EditorAssetCookKeyBuilder.Build(node, engineVersion, platformId, profileId, null, dependencies.Select(dependency => dependency.CookKey));
+            EditorAssetCookNodeKey cookKey = EditorAssetCookKeyBuilder.Build(node, engineVersion, platformId, profileId, null, dependencies.Select(dependency => dependency.CookKey), numericPolicy);
             if (ArtifactStore.TryRead(cookKey, out byte[] cachedPayload, out EditorCookArtifactReceipt cachedReceipt)) {
                 existing = new CookedAssetArtifact(cookKey, node.SourceKind, "current", cachedReceipt.ContentHash, cachedReceipt.ByteLength, cachedReceipt.StorePath, dependencies.Select(dependency => dependency.CookKey), platformId, profileId);
                 completedArtifacts[node.Key.Value] = existing;

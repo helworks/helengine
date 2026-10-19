@@ -19,7 +19,16 @@ namespace helengine.editor {
             string platformId,
             string profileId,
             string engineVersion,
-            string sourceRootPath) {
+            string sourceRootPath) : this(rootReferences, platformId, profileId, engineVersion, sourceRootPath, NumericPrecisionPolicy.Default) { }
+
+        /// <summary>Captures the exact immutable numeric contract for this build artifact.</summary>
+        public EditorAssetCookGraphRequest(
+            IEnumerable<SceneAssetReference> rootReferences,
+            string platformId,
+            string profileId,
+            string engineVersion,
+            string sourceRootPath, NumericPrecisionPolicy numericPolicy) {
+            NumericPolicy = numericPolicy ?? throw new ArgumentNullException(nameof(numericPolicy));
             if (rootReferences == null) {
                 throw new ArgumentNullException(nameof(rootReferences));
             }
@@ -45,6 +54,9 @@ namespace helengine.editor {
             EngineVersion = engineVersion;
             SourceRootPath = Path.GetFullPath(sourceRootPath);
         }
+
+        /// <summary>Gets the exact numeric ABI and cooked-storage identity captured by the build.</summary>
+        public NumericPrecisionPolicy NumericPolicy { get; }
 
         /// <summary>Gets root references in caller-provided build order.</summary>
         public IReadOnlyList<SceneAssetReference> RootReferences { get; }

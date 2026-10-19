@@ -1206,7 +1206,7 @@ namespace helengine.editor {
             IScriptTypeResolver scriptTypeResolver,
             PlatformDefinition platformDefinition = null,
             bool useCompactNativeExceptionMessages = false,
-            bool useNativeExceptions = true) {
+            bool useNativeExceptions = true, NumericPrecisionPolicy numericPolicy = null) {
             if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
                 throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
             }
@@ -1216,7 +1216,7 @@ namespace helengine.editor {
 
             EmitGeneratedAutomaticRuntimeComponentDeserializers(
                 generatedCoreRootPath,
-                DiscoverAutomaticRuntimeComponentTypesFromCookedScenes(cookedSceneAssetPaths, scriptTypeResolver),
+                DiscoverAutomaticRuntimeComponentTypesFromCookedScenes(cookedSceneAssetPaths, scriptTypeResolver, numericPolicy),
                 platformDefinition,
                 useCompactNativeExceptionMessages,
                 useNativeExceptions);
@@ -1433,10 +1433,10 @@ namespace helengine.editor {
         /// <returns>Distinct scene-referenced runtime module ids.</returns>
         internal static IReadOnlyList<string> DiscoverReferencedRuntimeModuleIdsFromCookedScenes(
             IReadOnlyList<string> cookedSceneAssetPaths,
-            IScriptTypeResolver scriptTypeResolver) {
+            IScriptTypeResolver scriptTypeResolver, NumericPrecisionPolicy numericPolicy = null) {
             IReadOnlyList<Type> componentTypes = DiscoverAutomaticRuntimeComponentTypesFromCookedScenes(
                 cookedSceneAssetPaths,
-                scriptTypeResolver);
+                scriptTypeResolver, numericPolicy);
             SortedSet<string> moduleIds = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
 
             for (int index = 0; index < componentTypes.Count; index++) {

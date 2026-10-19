@@ -121,9 +121,9 @@ Validation boundary: full Physics3D suite currently has seven dynamics/stack fai
 
 **Interfaces:** Every generated/native/cooked identity includes the same `NumericPrecisionPolicy.Identity`; generated Core and authored modules receive the identical normalized CLI values. Manifest/module numeric identity is checked alongside existing content and resident build IDs before materialization or module execution.
 
-- [ ] Write tests CookKeyChangesWithNumericPolicy, NativeKeyChangesWithNumericPolicy, EquivalentPolicyOptionsHaveSameKey and RejectsModulePolicyBeforeLoad where 32/32 and 64/64 share source hashes/profile labels but must produce different cook, generation, native and module keys. Repeat with reordered equivalent settings to prove determinism. Forge only the policy identity in real test packages and require early rejection.
-- [ ] Run NumericPrecisionCacheTests and the module-host fixture; expect invalidation/mismatch failures before implementation.
-- [ ] Propagate one resolved immutable policy through every graph phase; extend existing locks/fingerprints rather than introducing timestamp folders or deleting shared cache roots. Preserve the existing profiler-forwarding edits in the PS1 Python runner.
+- [x] Write tests CookKeyChangesWithNumericPolicy, NativeKeyChangesWithNumericPolicy, EquivalentPolicyOptionsHaveSameKey and RejectsModulePolicyBeforeLoad where 32/32 and 64/64 share source hashes/profile labels but must produce different cook, generation, native and module keys. Repeat with reordered equivalent settings to prove determinism. Forge only the policy identity in real test packages and require early rejection.
+- [x] Run NumericPrecisionCacheTests and the module-host fixture; expect invalidation/mismatch failures before implementation.
+- [x] Propagate one resolved immutable policy through every graph phase; extend existing locks/fingerprints rather than introducing timestamp folders or deleting shared cache roots. Preserve the existing profiler-forwarding edits in the PS1 Python runner.
 - [ ] Re-run tests and build 32 -> 64 -> 32 using the same fixed output. Prove the final package's content/Core/modules all match its selected policy, and a concurrent queue snapshot remains unchanged.
 - [ ] Commit engine and PS1 changes separately with explicit matching contract revisions: `feat: bind numeric policy to build and module identities`.
 

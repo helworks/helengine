@@ -23,7 +23,16 @@ namespace helengine.editor {
             string platformId,
             string profileId,
             IReadOnlyDictionary<string, string> settings,
-            IEnumerable<EditorAssetCookNodeKey> dependencyKeys) {
+            IEnumerable<EditorAssetCookNodeKey> dependencyKeys) => Build(node, engineVersion, platformId, profileId, settings, dependencyKeys, NumericPrecisionPolicy.Default);
+
+        /// <summary>Hashes target policy together with source, normalized options and dependencies.</summary>
+        public static EditorAssetCookNodeKey Build(
+            EditorAssetCookNode node,
+            string engineVersion,
+            string platformId,
+            string profileId,
+            IReadOnlyDictionary<string, string> settings,
+            IEnumerable<EditorAssetCookNodeKey> dependencyKeys, NumericPrecisionPolicy numericPolicy) {
             if (node == null) {
                 throw new ArgumentNullException(nameof(node));
             }
@@ -41,7 +50,8 @@ namespace helengine.editor {
             }
 
             StringBuilder material = new();
-            material.AppendLine("helengine-cook-key-v1");
+            material.AppendLine("helengine-cook-key-v2");
+            material.AppendLine((numericPolicy ?? throw new ArgumentNullException(nameof(numericPolicy))).Identity);
             material.AppendLine(engineVersion);
             material.AppendLine(platformId);
             material.AppendLine(profileId);
@@ -53,8 +63,10 @@ namespace helengine.editor {
             material.AppendLine(node.SourceReference.AssetId);
             material.AppendLine(node.SourceReference.ContentHash);
 
-            if (settings != null) {
-                foreach (KeyValuePair<string, string> setting in settings.OrderBy(pair => pair.Key, StringComparer.Ordinal)) {
+            Dictionary<string, string> canonicalSettings = settings == null ? new() : new(settings);
+            helengine.baseplatform.Definitions.PlatformNumericPolicyResolver.ApplyToOptions(numericPolicy, canonicalSettings);
+            if (canonicalSettings.Count > 0) {
+                foreach (KeyValuePair<string, string> setting in canonicalSettings.OrderBy(pair => pair.Key, StringComparer.Ordinal)) {
                     material.Append("setting:").Append(setting.Key).Append('=').AppendLine(setting.Value ?? string.Empty);
                 }
             }

@@ -38,7 +38,7 @@ namespace helengine.editor {
             foreach (PlatformBuildScene scene in manifest.Scenes) {
                 string path = scene.ResolvedMetadata.Single(pair => pair.Key == PlatformBuildSceneMetadataKeys.CookedRelativePath).Value;
                 string fullPath = ResolveContentPath(contentRoot, path);
-                sceneTypes.Add(scene.SceneId, EditorGeneratedCoreRegenerationService.DiscoverAutomaticRuntimeComponentTypesFromCookedScenes([fullPath], resolver).ToArray());
+                sceneTypes.Add(scene.SceneId, EditorGeneratedCoreRegenerationService.DiscoverAutomaticRuntimeComponentTypesFromCookedScenes([fullPath], resolver, manifest.NumericPolicy).ToArray());
             }
             HashSet<string> bootstrapIds = new(StringComparer.Ordinal) { manifest.StartupSceneId };
             if (!string.IsNullOrEmpty(manifest.LoadingScreenSceneId)) bootstrapIds.Add(manifest.LoadingScreenSceneId);
@@ -125,6 +125,7 @@ namespace helengine.editor {
                 });
             }
             JsonObject document = new() {
+                ["numericPolicy"] = manifest.NumericPolicy.Identity,
                 ["schemaVersion"] = 1, ["generatedCoreRoot"] = Path.GetFullPath(coreRoot),
                 ["candidates"] = candidates, ["residentRoots"] = residentRoots,
                 ["scenes"] = scenes, ["componentFactories"] = factories,

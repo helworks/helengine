@@ -237,7 +237,7 @@ namespace helengine.editor {
                 Array.Empty<PlatformArtifactPlacement>(),
                 new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
                 platformCookWorkItems,
-                PlatformBuildRuntimeFeatureManifest.Empty);
+                PlatformBuildRuntimeFeatureManifest.Empty, numericPolicy);
             manifest.StandardPlatformInputConfiguration = standardInputConfiguration;
             return manifest;
         }

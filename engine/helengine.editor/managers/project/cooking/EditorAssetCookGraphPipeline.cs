@@ -43,7 +43,7 @@ namespace helengine.editor {
                 request.EngineVersion,
                 request.PlatformId,
                 request.ProfileId,
-                cancellationToken);
+                cancellationToken, request.NumericPolicy);
         }
     }
 }

@@ -442,7 +442,7 @@ namespace helengine.editor {
                 manifest.ArtifactPlacements,
                 manifest.ContainerWritePlan,
                 manifest.PlatformCookWorkItems,
-                runtimeFeatureManifest);
+                runtimeFeatureManifest, manifest.NumericPolicy);
             updatedManifest.StandardPlatformInputConfiguration = manifest.StandardPlatformInputConfiguration;
             return updatedManifest;
         }
@@ -886,7 +886,7 @@ namespace helengine.editor {
 
             return EditorGeneratedCoreRegenerationService.DiscoverReferencedRuntimeModuleIdsFromCookedScenes(
                 cookedSceneAssetPaths,
-                ScriptTypeResolver);
+                ScriptTypeResolver, cookedManifest.NumericPolicy);
         }
 
         /// <summary>
@@ -937,7 +937,7 @@ namespace helengine.editor {
 
             IReadOnlyList<Type> sceneReferencedComponentTypes = EditorGeneratedCoreRegenerationService.DiscoverAutomaticRuntimeComponentTypesFromCookedScenes(
                 cookedSceneAssetPaths,
-                ScriptTypeResolver);
+                ScriptTypeResolver, cookedManifest.NumericPolicy);
             for (int typeIndex = 0; typeIndex < sceneReferencedComponentTypes.Count; typeIndex++) {
                 Type componentType = sceneReferencedComponentTypes[typeIndex];
                 string moduleId = componentType.Assembly.GetName().Name ?? string.Empty;
@@ -1001,7 +1001,7 @@ namespace helengine.editor {
 
             IReadOnlyList<Type> sceneReferencedComponentTypes = EditorGeneratedCoreRegenerationService.DiscoverAutomaticRuntimeComponentTypesFromCookedScenes(
                 cookedSceneAssetPaths,
-                ScriptTypeResolver);
+                ScriptTypeResolver, cookedManifest.NumericPolicy);
             EditorGeneratedCoreRegenerationService.EmitGeneratedRuntimeModuleRegistration(
                 generatedCoreRootPath,
                 sceneReferencedComponentTypes);
@@ -1017,7 +1017,7 @@ namespace helengine.editor {
                 EditorGeneratedCoreRegenerationService.UsesNativeExceptions(
                     selectedBuildProfile,
                     selectedCodegenProfile,
-                    selectedCodegenOptionValues));
+                    selectedCodegenOptionValues), cookedManifest.NumericPolicy);
             EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(generatedCoreRootPath);
         }
 
@@ -1303,7 +1303,7 @@ namespace helengine.editor {
                 cookedManifest.ArtifactPlacements,
                 cookedManifest.ContainerWritePlan,
                 cookedManifest.PlatformCookWorkItems,
-                cookedManifest.RuntimeFeatureManifest);
+                cookedManifest.RuntimeFeatureManifest, cookedManifest.NumericPolicy);
             manifest.StandardPlatformInputConfiguration = cookedManifest.StandardPlatformInputConfiguration;
             return manifest;
         }
@@ -1543,7 +1543,7 @@ namespace helengine.editor {
                 ResolveBuilderOwnedGeneratedCorePaths(workspace.GeneratedCoreRootPath, generatedCoreRootPath),
                 Path.Combine(nativeCacheSliceRootPath, "generated-core-editor"));
             string nativeCacheFingerprint = ComputeNativeCacheFingerprint(
-                queueItem,
+                PlatformDescriptor.Id, queueItem,
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
                 selectedCodegenProfileId,
@@ -1774,7 +1774,7 @@ namespace helengine.editor {
                 cookedManifest.ArtifactPlacements,
                 cookedManifest.ContainerWritePlan,
                 cookedManifest.PlatformCookWorkItems,
-                cookedManifest.RuntimeFeatureManifest);
+                cookedManifest.RuntimeFeatureManifest, cookedManifest.NumericPolicy);
 
             manifest.SceneLoadingBudgetMilliseconds = cookedManifest.SceneLoadingBudgetMilliseconds;
             manifest.Render2DTextCommandReuseMemoryBudgetBytes = cookedManifest.Render2DTextCommandReuseMemoryBudgetBytes;
@@ -1833,8 +1833,8 @@ namespace helengine.editor {
         /// <param name="builderDescriptor">Selected builder identity and version separating native toolchains.</param>
         /// <param name="codegenOptions">Effective code-generation option values.</param>
         /// <returns>Lowercase SHA-256 fingerprint separating native build inputs.</returns>
-        string ComputeNativeCacheFingerprint(
-            EditorBuildQueueItemDocument queueItem,
+        internal static string ComputeNativeCacheFingerprint(
+            string platformId, EditorBuildQueueItemDocument queueItem,
             string buildProfileId,
             string graphicsProfileId,
             string codegenProfileId,
@@ -1842,7 +1842,7 @@ namespace helengine.editor {
             PlatformBuilderDescriptor builderDescriptor,
             IReadOnlyDictionary<string, string> codegenOptions) {
             StringBuilder fingerprintInput = new();
-            fingerprintInput.Append(PlatformDescriptor.Id).Append('\n')
+            fingerprintInput.Append(platformId).Append('\n')
                 .Append(buildProfileId).Append('\n')
                 .Append(graphicsProfileId).Append('\n')
                 .Append(codegenProfileId).Append('\n')
@@ -1851,7 +1851,11 @@ namespace helengine.editor {
             AppendFingerprintOptions(fingerprintInput, "build", queueItem.SelectedBuildOptionValues);
             AppendFingerprintOptions(fingerprintInput, "graphics", queueItem.SelectedGraphicsOptionValues);
             fingerprintInput.AppendLine("runtime-settings=" + queueItem.RuntimeSettingsFingerprint);
-            AppendFingerprintOptions(fingerprintInput, "codegen", codegenOptions);
+            NumericPrecisionPolicy policy = queueItem.NumericPolicy ?? throw new InvalidOperationException("Native generation requires a captured numeric policy.");
+            fingerprintInput.AppendLine(policy.Identity);
+            Dictionary<string, string> canonicalOptions = codegenOptions == null ? new() : new(codegenOptions);
+            PlatformNumericPolicyResolver.ApplyToOptions(policy, canonicalOptions);
+            AppendFingerprintOptions(fingerprintInput, "codegen", canonicalOptions);
             return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(fingerprintInput.ToString()))).ToLowerInvariant();
         }
 
@@ -2190,7 +2194,7 @@ namespace helengine.editor {
                 manifest.ArtifactPlacements,
                 manifest.ContainerWritePlan,
                 manifest.PlatformCookWorkItems,
-                manifest.RuntimeFeatureManifest);
+                manifest.RuntimeFeatureManifest, manifest.NumericPolicy);
             updatedManifest.StandardPlatformInputConfiguration = manifest.StandardPlatformInputConfiguration;
             return updatedManifest;
         }

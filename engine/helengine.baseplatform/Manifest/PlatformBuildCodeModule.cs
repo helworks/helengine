@@ -12,7 +12,17 @@ namespace helengine.baseplatform.Manifest {
             string artifactId,
             string runtimeSpecializationId,
             string[] loadScopes,
-            string[] dependencyModuleIds) {
+            string[] dependencyModuleIds) : this(moduleId, artifactId, runtimeSpecializationId, loadScopes, dependencyModuleIds, NumericPrecisionPolicy.Default) { }
+
+        /// <summary>Captures the exact immutable numeric contract for this build artifact.</summary>
+        [System.Text.Json.Serialization.JsonConstructor]
+        public PlatformBuildCodeModule(
+            string moduleId,
+            string artifactId,
+            string runtimeSpecializationId,
+            string[] loadScopes,
+            string[] dependencyModuleIds, NumericPrecisionPolicy numericPolicy) {
+            NumericPolicy = numericPolicy ?? throw new ArgumentNullException(nameof(numericPolicy));
             if (string.IsNullOrWhiteSpace(moduleId)) {
                 throw new ArgumentException("Code module id is required.", nameof(moduleId));
             } else if (string.IsNullOrWhiteSpace(artifactId)) {
@@ -35,6 +45,9 @@ namespace helengine.baseplatform.Manifest {
             LoadScopes = [.. loadScopes];
             DependencyModuleIds = [.. dependencyModuleIds];
         }
+
+        /// <summary>Gets the exact numeric ABI and cooked-storage identity captured by the build.</summary>
+        public NumericPrecisionPolicy NumericPolicy { get; }
 
         /// <summary>
         /// Gets the stable module identifier.
@@ -60,5 +73,12 @@ namespace helengine.baseplatform.Manifest {
         /// Gets the referenced module dependencies.
         /// </summary>
         public string[] DependencyModuleIds { get; }
+        /// <summary>Rejects a module whose numeric ABI differs before backend materialization or execution.</summary>
+        public void RequireNumericPolicy(NumericPrecisionPolicy expectedPolicy) {
+            if (expectedPolicy == null) { throw new ArgumentNullException(nameof(expectedPolicy)); }
+            if (!string.Equals(NumericPolicy.Identity, expectedPolicy.Identity, StringComparison.Ordinal)) {
+                throw new InvalidOperationException($"Module '{ModuleId}' numeric policy '{NumericPolicy.Identity}' differs from '{expectedPolicy.Identity}'.");
+            }
+        }
     }
 }

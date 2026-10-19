@@ -79,7 +79,7 @@ namespace helengine.editor {
                 [.. placements],
                 containerWritePlan,
                 cookedManifest.PlatformCookWorkItems,
-                cookedManifest.RuntimeFeatureManifest);
+                cookedManifest.RuntimeFeatureManifest, cookedManifest.NumericPolicy);
             manifest.StandardPlatformInputConfiguration = cookedManifest.StandardPlatformInputConfiguration;
             return manifest;
         }

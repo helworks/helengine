@@ -57,6 +57,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Output root path must be provided.", nameof(outputRootPath));
             }
 
+            NumericPrecisionPolicy numericPolicy = PlatformNumericPolicyResolver.Read(selectedOptionValues ?? new Dictionary<string, string>(), NumericPrecisionPolicy.Default);
             Directory.CreateDirectory(outputRootPath);
             List<PlatformBuildCodeModule> compiledModules = [];
             EditorCodeModuleManifestEntry[] modulesToCompile = ResolveModulesToCompile(manifestDocument, inferredRootModuleIds);
@@ -147,7 +148,7 @@ namespace helengine.editor {
                     NormalizeRelativePath(Path.Combine("code", moduleEntry.ModuleId)),
                     runtimeSpecializationId,
                     moduleEntry.LoadScopes,
-                    moduleEntry.DependencyModuleIds));
+                    moduleEntry.DependencyModuleIds, numericPolicy));
             }
 
             return [.. compiledModules];

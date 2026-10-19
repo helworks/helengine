@@ -37,7 +37,27 @@ namespace helengine.baseplatform.Manifest {
             PlatformArtifactPlacement[] artifactPlacements,
             PlatformContainerWritePlan containerWritePlan,
             PlatformCookWorkItem[] platformCookWorkItems,
-            PlatformBuildRuntimeFeatureManifest runtimeFeatureManifest) {
+            PlatformBuildRuntimeFeatureManifest runtimeFeatureManifest) : this(manifestVersion, projectId, projectVersion, requiredEngineVersion, platformName, platformVersion, startupSceneId, scenes, looseAssets, cookedArtifacts, codeModules, artifactPlacements, containerWritePlan, platformCookWorkItems, runtimeFeatureManifest, NumericPrecisionPolicy.Default) { }
+
+        /// <summary>Captures the exact immutable numeric contract for this build artifact.</summary>
+        [System.Text.Json.Serialization.JsonConstructor]
+        public PlatformBuildManifest(
+            int manifestVersion,
+            string projectId,
+            string projectVersion,
+            string requiredEngineVersion,
+            string platformName,
+            string platformVersion,
+            string startupSceneId,
+            PlatformBuildScene[] scenes,
+            PlatformBuildAsset[] looseAssets,
+            PlatformBuildArtifact[] cookedArtifacts,
+            PlatformBuildCodeModule[] codeModules,
+            PlatformArtifactPlacement[] artifactPlacements,
+            PlatformContainerWritePlan containerWritePlan,
+            PlatformCookWorkItem[] platformCookWorkItems,
+            PlatformBuildRuntimeFeatureManifest runtimeFeatureManifest, NumericPrecisionPolicy numericPolicy) {
+            NumericPolicy = numericPolicy ?? throw new ArgumentNullException(nameof(numericPolicy));
             if (manifestVersion < 1) {
                 throw new ArgumentOutOfRangeException(nameof(manifestVersion), "Manifest version must be at least 1.");
             } else if (string.IsNullOrWhiteSpace(projectId)) {
@@ -82,6 +102,7 @@ namespace helengine.baseplatform.Manifest {
                 throw new ArgumentNullException(nameof(runtimeFeatureManifest), "Runtime feature manifest is required.");
             }
 
+            foreach (PlatformBuildCodeModule module in codeModules) { module.RequireNumericPolicy(NumericPolicy); }
             ManifestVersion = manifestVersion;
             ProjectId = projectId;
             ProjectVersion = projectVersion;
@@ -98,6 +119,9 @@ namespace helengine.baseplatform.Manifest {
             PlatformCookWorkItems = [.. platformCookWorkItems];
             RuntimeFeatureManifest = runtimeFeatureManifest;
         }
+
+        /// <summary>Gets the exact numeric ABI and cooked-storage identity captured by the build.</summary>
+        public NumericPrecisionPolicy NumericPolicy { get; }
 
         /// <summary>
         /// Gets or sets the engine-owned standard platform action bindings that packaged runtimes should register during startup.
