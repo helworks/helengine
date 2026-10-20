@@ -10,7 +10,7 @@ sealed class TestRecordingFrame : IRecordingFrame {
     /// <summary>Source height used to exercise resize handling.</summary>
     public int Height { get; }
     /// <summary>Sentinel accepted only by test encoders, never passed to native code.</summary>
-    public IntPtr TextureHandle => (IntPtr)1;
+    public IntPtr TextureHandle => (IntPtr)(Timestamp.Ticks + 1);
     /// <summary>Number of releases, allowing double-release detection.</summary>
     internal int DisposeCount { get; private set; }
     /// <summary>Records each transfer of ownership back to the source.</summary>
