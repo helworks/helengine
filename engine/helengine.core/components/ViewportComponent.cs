@@ -470,7 +470,7 @@ namespace helengine {
             RefreshSubscriptions();
             if (editor) { RestoreAuthoredLayout(); }
             if (!editor && LayoutProcessingModeValue == ViewportLayoutProcessingMode.Cook) {
-                if (CookedLayout == null || CookedLayout.AlgorithmVersion != 1) {
+                if (CookedLayout == null || CookedLayout.AlgorithmVersion != ViewportCookedLayout.CurrentAlgorithmVersion) {
                     throw new InvalidOperationException("Cook viewport requires compatible prepared layout metadata.");
                 }
                 int2 target = ResolveAnchorBounds();

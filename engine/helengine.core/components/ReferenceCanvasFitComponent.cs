@@ -227,7 +227,7 @@ namespace helengine {
             }
             if (editor) { RestoreAuthoredLayout(); }
             if (!editor && mode == ViewportLayoutProcessingMode.Cook) {
-                if (CookedLayout == null || CookedLayout.AlgorithmVersion != 1) { throw new InvalidOperationException("Cook legacy fit requires compatible prepared metadata."); }
+                if (CookedLayout == null || CookedLayout.AlgorithmVersion != ViewportCookedLayout.CurrentAlgorithmVersion) { throw new InvalidOperationException("Cook legacy fit requires compatible prepared metadata."); }
                 CurrentMetrics = new ViewportLayoutMetrics {
                     ScaleX = CookedLayout.ScaleX, ScaleY = CookedLayout.ScaleY, GlyphScale = CookedLayout.GlyphScale,
                     Origin = CookedLayout.Origin, AnchorSize = CookedLayout.AnchorSize, PixelAspect = CookedLayout.PixelAspect

@@ -4,7 +4,7 @@ namespace helengine.editor {
     /// <summary>Resolves packaged UI with detached participants, sharing runtime math without running scene callbacks.</summary>
     internal sealed class ViewportLayoutCookProcessor {
         /// <summary>Version included in cook identity and checked by the player.</summary>
-        public const int AlgorithmVersion = 2;
+        public const int AlgorithmVersion = ViewportCookedLayout.CurrentAlgorithmVersion;
         /// <summary>Uses the existing packaging resolver for effective overrides and saved references.</summary>
         readonly Func<SceneComponentAssetRecord, IReadOnlyList<SceneOverrideScopeStepKind>, Component> ComponentResolver;
         /// <summary>Captures the immutable target contract for all detached computations.</summary>

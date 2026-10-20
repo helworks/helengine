@@ -54,7 +54,7 @@ namespace helengine.core.tests.components {
             Entity root = scene.CreateEntity();
             ViewportComponent viewport = scene.AddViewport(root, mode);
             if (mode == ViewportLayoutProcessingMode.Cook) {
-                viewport.CookedLayout = new ViewportCookedLayout { AlgorithmVersion = 1, TargetWidth = 320, TargetHeight = 240,
+                viewport.CookedLayout = new ViewportCookedLayout { AlgorithmVersion = ViewportCookedLayout.CurrentAlgorithmVersion, TargetWidth = 320, TargetHeight = 240,
                     PixelAspect = 1, ScaleX = 0.5, ScaleY = 0.5, GlyphScale = 0.5, AnchorSize = new int2(320, 240) };
             }
             Entity child = scene.CreateEntity();

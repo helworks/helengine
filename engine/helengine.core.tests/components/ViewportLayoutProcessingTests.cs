@@ -1,6 +1,37 @@
 namespace helengine.core.tests.components {
     /// <summary>Exercises layout policy paths and cold hierarchy mutation against the real runtime.</summary>
     public sealed class ViewportLayoutProcessingTests {
+        /// <summary>The player's two scaling owners accept the layout algorithm emitted by the current cooker.</summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Cook_CurrentAlgorithmMetadataIsAccepted(bool legacyFit) {
+            using ViewportLayoutTestScene scene = new ViewportLayoutTestScene();
+            Entity root = scene.CreateEntity();
+            ViewportComponent viewport = scene.AddViewport(root, ViewportLayoutProcessingMode.Cook);
+            ViewportCookedLayout metadata = new ViewportCookedLayout {
+                AlgorithmVersion = 2, TargetWidth = 320, TargetHeight = 240, PixelAspect = 1,
+                ScaleX = 0.5, ScaleY = 0.5, GlyphScale = 0.5, AnchorSize = new int2(320, 240)
+            };
+            if (legacyFit) {
+                viewport.ScalingMode = ViewportComponent.NoScalingMode;
+                Entity child = scene.CreateEntity();
+                ReferenceCanvasFitComponent fit = new ReferenceCanvasFitComponent {
+                    ReferenceWidth = 640, ReferenceHeight = 480, CookedLayout = metadata
+                };
+                child.AddComponent(fit);
+                root.AddChild(child);
+                viewport.CookedLayout = metadata;
+                viewport.Update();
+                fit.Update();
+                Assert.Equal(new float2(0.5, 0.5), fit.CalculateScale());
+            } else {
+                viewport.CookedLayout = metadata;
+                viewport.Update();
+                Assert.Equal(0.5, viewport.PreparedLayoutMetrics.ScaleX.ToDouble());
+            }
+        }
+
         /// <summary>Generated scrollbars use resolved scroll bounds and never add original-value records.</summary>
         [Theory]
         [InlineData(ViewportLayoutProcessingMode.Dynamic)]
@@ -17,7 +48,7 @@ namespace helengine.core.tests.components {
             ViewportComponent viewport = scene.AddViewport(root, mode);
             if (mode == ViewportLayoutProcessingMode.Cook) {
                 viewport.CookedLayout = new ViewportCookedLayout {
-                    AlgorithmVersion = 1, TargetWidth = 320, TargetHeight = 240, PixelAspect = 1,
+                    AlgorithmVersion = ViewportCookedLayout.CurrentAlgorithmVersion, TargetWidth = 320, TargetHeight = 240, PixelAspect = 1,
                     ScaleX = 0.5, ScaleY = 0.5, GlyphScale = 0.5, AnchorSize = new int2(320, 240)
                 };
             }
@@ -45,7 +76,7 @@ namespace helengine.core.tests.components {
             ViewportComponent viewport = scene.AddViewport(root, mode);
             if (mode == ViewportLayoutProcessingMode.Cook) {
                 viewport.CookedLayout = new ViewportCookedLayout {
-                    AlgorithmVersion = 1, TargetWidth = 320, TargetHeight = 240, PixelAspect = 1,
+                    AlgorithmVersion = ViewportCookedLayout.CurrentAlgorithmVersion, TargetWidth = 320, TargetHeight = 240, PixelAspect = 1,
                     ScaleX = 0.5, ScaleY = 0.5, GlyphScale = 0.5, AnchorSize = new int2(320, 240)
                 };
             }
@@ -173,7 +204,7 @@ namespace helengine.core.tests.components {
             root.AddComponent(rectangle);
             ViewportComponent viewport = scene.AddViewport(root, ViewportLayoutProcessingMode.Cook);
             viewport.CookedLayout = new ViewportCookedLayout {
-                AlgorithmVersion = 1, TargetWidth = 320, TargetHeight = 240, PixelAspect = 1,
+                AlgorithmVersion = ViewportCookedLayout.CurrentAlgorithmVersion, TargetWidth = 320, TargetHeight = 240, PixelAspect = 1,
                 ScaleX = 0.5, ScaleY = 0.5, GlyphScale = 0.5, AnchorSize = new int2(320, 240)
             };
             viewport.Update();

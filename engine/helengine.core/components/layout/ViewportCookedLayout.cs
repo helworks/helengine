@@ -1,6 +1,8 @@
 namespace helengine {
     /// <summary>Describes one prepared viewport without retaining any participant's original values.</summary>
     public sealed class ViewportCookedLayout {
+        /// <summary>Version shared by cook identity and both runtime layout owners.</summary>
+        public const int CurrentAlgorithmVersion = 2;
         /// <summary>Identifies the layout algorithm that prepared the packaged scene.</summary>
         public int AlgorithmVersion { get; set; }
         /// <summary>Gets or sets the effective target width in framebuffer pixels.</summary>

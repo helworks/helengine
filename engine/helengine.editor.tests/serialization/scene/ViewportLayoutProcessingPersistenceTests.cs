@@ -97,7 +97,7 @@ namespace helengine.editor.tests.serialization.scene {
             Entity root = new Entity(core);
             root.InitComponents();
             root.InitChildren();
-            ViewportComponent viewport = new ViewportComponent { CookedLayout = new ViewportCookedLayout { AlgorithmVersion = 1 } };
+            ViewportComponent viewport = new ViewportComponent { CookedLayout = new ViewportCookedLayout { AlgorithmVersion = ViewportCookedLayout.CurrentAlgorithmVersion } };
             root.AddComponent(viewport);
             ViewportCookedLayout metadata = viewport.CookedLayout;
             IComponentPersistenceDescriptor descriptor = new ComponentPersistenceRegistry().GetDescriptor(viewport);
