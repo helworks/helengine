@@ -1,4 +1,4 @@
-using helengine.baseplatform.Definitions;
+﻿using helengine.baseplatform.Definitions;
 using helengine.editor.tests.testing;
 using Xunit;
 
@@ -7,6 +7,19 @@ namespace helengine.editor.tests.managers.project {
     /// Verifies ordinal runtime deserializer source generation for reflected scripted component schemas.
     /// </summary>
     public sealed class ScriptComponentPlayerDeserializerGeneratorTests {
+        /// <summary>Native factories must accept the same cooked envelope version as the managed cook/runtime contract.</summary>
+        [Fact]
+        public void NativeFactoryVersionMatchesCurrentCookedComponentEnvelope() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(AmbientLightComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+            string className = generator.BuildNativeDeserializerClassName(schema);
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains($"uint8_t {className}::CurrentVersion = {AutomaticScriptComponentPayloadFormat.CurrentVersion};", source, StringComparison.Ordinal);
+            Assert.True(source.IndexOf("RealBinaryCodec::ReadAndValidatePolicy", StringComparison.Ordinal)
+                < source.IndexOf("const int32_t memberCount = reader->ReadInt32()", StringComparison.Ordinal));
+        }
+
         /// <summary>
         /// Checks the AmbientLight factory against the native interface's string value getter and preserves its official output for standalone compilation.
         /// </summary>

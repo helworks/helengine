@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Reflection;
 
 namespace helengine.editor {
@@ -331,7 +331,7 @@ namespace helengine.editor {
             builder.AppendLine();
             builder.AppendLine($"HeCppString {className}::ComponentType = \"{EscapeForCppString(componentTypeId)}\";");
             builder.AppendLine();
-            builder.AppendLine($"uint8_t {className}::CurrentVersion = 1;");
+            builder.AppendLine($"uint8_t {className}::CurrentVersion = {AutomaticScriptComponentPayloadFormat.CurrentVersion};");
             builder.AppendLine();
             builder.AppendLine($"int32_t {className}::MemberCount = {schema.Members.Count};");
             return builder.ToString();
