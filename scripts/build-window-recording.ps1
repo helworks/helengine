@@ -46,6 +46,7 @@ try {
     $RecordingManagedArgs = @('-c', 'Release', '--artifacts-path', (Join-Path $RecordingOutput 'managed'), '-p:UseCommonOutputDirectory=false', "-p:RecordingNativeRoot=$RecordingOutput")
     $RecordingManagedProject = Join-Path $RecordingRepo 'engine\helengine.directx11.video\helengine.directx11.video.csproj'
     $RecordingTestProjects = @('engine\helengine.directx11.video.tests\helengine.directx11.video.tests.csproj')
+    if (Test-Path -LiteralPath (Join-Path $RecordingRepo 'engine\helengine.recording.windows.tests\helengine.recording.windows.tests.csproj')) { $RecordingTestProjects += 'engine\helengine.recording.windows.tests\helengine.recording.windows.tests.csproj' }
     if ($Action -eq 'Build') {
         $ErrorActionPreference = 'Continue'
         & dotnet build $RecordingManagedProject @RecordingManagedArgs *> $RecordingLog
