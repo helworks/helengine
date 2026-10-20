@@ -26,13 +26,44 @@ $CaptureExit = $LASTEXITCODE
 Get-Content -LiteralPath $CaptureLog -Tail 45
 if ($CaptureExit -ne 0) { exit $CaptureExit }
 
-if ($Action -eq 'NativeTests') {
+if ($Action -in @('NativeTests', 'All')) {
     & $CaptureMsBuild $CaptureNativeTestProject /nologo /v:minimal /p:Configuration=Release /p:Platform=x64 "/p:NativeOutputRoot=$CaptureOutputRoot" *> $CaptureLog
     $CaptureExit = $LASTEXITCODE
     Get-Content -LiteralPath $CaptureLog -Tail 45
     if ($CaptureExit -ne 0) { exit $CaptureExit }
     & (Join-Path $CaptureOutputRoot 'helengine.capture.native.tests.exe')
-    exit $LASTEXITCODE
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    if ($Action -eq 'NativeTests') { exit 0 }
 }
-if ($Action -eq 'Build') { exit 0 }
-throw "Action $Action is not implemented yet; the native resource task currently provides NativeTests."
+$CaptureOldCliHome = $env:DOTNET_CLI_HOME
+Push-Location $CaptureRepoRoot
+try {
+    $env:DOTNET_CLI_HOME = Join-Path $CaptureScratchRoot 'dotnet-home'
+    $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
+    $env:DOTNET_GENERATE_ASPNET_CERTIFICATE = 'false'
+    $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
+    $env:DOTNET_NOLOGO = '1'
+    $CaptureSdkVersion = & dotnet --version
+    if ($LASTEXITCODE -ne 0 -or $CaptureSdkVersion -ne '9.0.308') { throw 'The repository requires .NET SDK 9.0.308.' }
+    $CaptureManagedArguments = @('-c', 'Release', '--artifacts-path', (Join-Path $CaptureOutputRoot 'managed'), '-p:UseCommonOutputDirectory=false')
+    if ($Action -eq 'Build') {
+        & dotnet build $CaptureManagedProject @CaptureManagedArguments *> $CaptureLog
+    } else {
+        $CaptureCategory = ''
+        if ($Action -eq 'ManagedTests') { $CaptureCategory = 'Category=Contract' }
+        if ($Action -eq 'IntegrationTests') { $CaptureCategory = 'Category=Integration' }
+        if ($TestFilter) {
+            if ($CaptureCategory) { $CaptureCategory = "($CaptureCategory)&($TestFilter)" }
+            else { $CaptureCategory = $TestFilter }
+        }
+        $CaptureTestArguments = @('--results-directory', $CaptureScratchRoot)
+        if ($CaptureCategory) { $CaptureTestArguments += @('--filter', $CaptureCategory) }
+        & dotnet test $CaptureManagedTestProject @CaptureManagedArguments @CaptureTestArguments *> $CaptureLog
+    }
+    $CaptureExit = $LASTEXITCODE
+    Get-Content -LiteralPath $CaptureLog -Tail 55
+    exit $CaptureExit
+} finally {
+    Pop-Location
+    $env:DOTNET_CLI_HOME = $CaptureOldCliHome
+}

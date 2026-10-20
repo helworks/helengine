@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable>
+    <PlatformTarget>x64</PlatformTarget><UseCommonOutputDirectory>false</UseCommonOutputDirectory><GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <CaptureNativeOutputPath Condition="'$(CaptureNativeOutputPath)' == ''">$(MSBuildThisFileDirectory)..\..\..\builds\helengine-capture\windows\helengine.capture.windows.native.dll</CaptureNativeOutputPath>
+  </PropertyGroup>
+  <ItemGroup><Using Include="System.Runtime.InteropServices"/><Using Include="helengine.capture.windows.Interop"/></ItemGroup>
+  <ItemGroup><None Include="$(CaptureNativeOutputPath)" Link="helengine.capture.windows.native.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/></ItemGroup>
+  <Target Name="RequireCaptureNativeLibrary" BeforeTargets="PrepareForBuild"><Error Condition="!Exists('$(CaptureNativeOutputPath)')" Text="Build the Windows capture native library with scripts/build-window-capture.ps1 before building the managed library."/></Target>
+</Project>
