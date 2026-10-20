@@ -5,17 +5,23 @@
   </PropertyGroup>
 
   <Target Name="GenerateHelengineNumericRepresentation" BeforeTargets="CoreCompile">
-    <Error Condition="'$(HelengineRealStorageBits)' != '32' And '$(HelengineRealStorageBits)' != '64'"
-           Text="Managed engine numeric storage currently supports only 32 or 64 bits; requested $(HelengineRealStorageBits)." />
-    <Error Condition="'$(HelengineRealArithmeticBits)' != '32' And '$(HelengineRealArithmeticBits)' != '64'"
-           Text="Managed engine numeric arithmetic currently supports only 32 or 64 bits; requested $(HelengineRealArithmeticBits)." />
+    <Error Condition="'$(HelengineRealStorageBits)' != '16' And '$(HelengineRealStorageBits)' != '32' And '$(HelengineRealStorageBits)' != '64'"
+           Text="Managed engine numeric storage supports only 16, 32 or 64 bits; requested $(HelengineRealStorageBits)." />
+    <Error Condition="'$(HelengineRealArithmeticBits)' != '16' And '$(HelengineRealArithmeticBits)' != '32' And '$(HelengineRealArithmeticBits)' != '64'"
+           Text="Managed engine numeric arithmetic supports only 16, 32 or 64 bits; requested $(HelengineRealArithmeticBits)." />
+    <Error Condition="('$(HelengineRealStorageBits)' == '16' And '$(HelengineRealArithmeticBits)' == '64') Or ('$(HelengineRealArithmeticBits)' == '16' And '$(HelengineRealStorageBits)' != '16')"
+           Text="Managed binary16 supports only 16/16 and 16/32." />
     <PropertyGroup>
+      <_HelengineStorageType Condition="'$(HelengineRealStorageBits)' == '16'">System.Half</_HelengineStorageType>
       <_HelengineStorageType Condition="'$(HelengineRealStorageBits)' == '32'">System.Single</_HelengineStorageType>
       <_HelengineStorageType Condition="'$(HelengineRealStorageBits)' == '64'">System.Double</_HelengineStorageType>
+      <_HelengineArithmeticType Condition="'$(HelengineRealArithmeticBits)' == '16'">System.Half</_HelengineArithmeticType>
       <_HelengineArithmeticType Condition="'$(HelengineRealArithmeticBits)' == '32'">System.Single</_HelengineArithmeticType>
       <_HelengineArithmeticType Condition="'$(HelengineRealArithmeticBits)' == '64'">System.Double</_HelengineArithmeticType>
-      <_HelengineArithmeticMath Condition="'$(HelengineRealArithmeticBits)' == '32'">System.MathF</_HelengineArithmeticMath>
+      <_HelengineArithmeticMath Condition="'$(HelengineRealArithmeticBits)' == '16' Or '$(HelengineRealArithmeticBits)' == '32'">System.MathF</_HelengineArithmeticMath>
       <_HelengineArithmeticMath Condition="'$(HelengineRealArithmeticBits)' == '64'">System.Math</_HelengineArithmeticMath>
+      <_HelengineMathType Condition="'$(HelengineRealArithmeticBits)' != '64'">System.Single</_HelengineMathType>
+      <_HelengineMathType Condition="'$(HelengineRealArithmeticBits)' == '64'">System.Double</_HelengineMathType>
       <_HelengineNumericSource>$(IntermediateOutputPath)NumericPrecision.g.cs</_HelengineNumericSource>
     </PropertyGroup>
     <ItemGroup>
@@ -23,6 +29,7 @@
       <_HelengineNumericSourceLine Include="global using RealStorageScalar = $(_HelengineStorageType)%3B" />
       <_HelengineNumericSourceLine Include="global using RealArithmeticScalar = $(_HelengineArithmeticType)%3B" />
       <_HelengineNumericSourceLine Include="global using RealArithmeticMath = $(_HelengineArithmeticMath)%3B" />
+      <_HelengineNumericSourceLine Include="global using RealMathScalar = $(_HelengineMathType)%3B" />
       <_HelengineNumericSourceLine Include="namespace helengine {" />
       <_HelengineNumericSourceLine Include="/// &lt;summary&gt;Numeric representation compiled for this managed runtime build.&lt;/summary&gt;" />
       <_HelengineNumericSourceLine Include="public static class RealRepresentation {" />

@@ -12,7 +12,12 @@ namespace helengine {
         /// <summary>Rounds an explicit fixed double input to the selected storage format.</summary>
         /// <param name="value">Fixed-width input crossing into configurable engine storage.</param>
         /// <returns>The value rounded at this stored destination.</returns>
-        public static Real FromDouble(double value) { return new Real((RealStorageScalar)value); }
+        public static Real FromDouble(double value) {
+            if (RealRepresentation.StorageBits == 16) {
+                return new Real((RealStorageScalar)BitConverter.UInt16BitsToHalf(Binary16Codec.Encode(value)));
+            }
+            return new Real((RealStorageScalar)value);
+        }
 
         /// <summary>Expands the stored value to an explicitly fixed double transport value.</summary>
         public double ToDouble() { return (double)Value; }
@@ -30,7 +35,7 @@ namespace helengine {
 
         /// <summary>Converts fixed primitive input at this Real boundary using the selected width.</summary>
         /// <param name="value">Fixed-width input from an authoring literal or external API.</param>
-        public static implicit operator Real(double value) { return new Real((RealStorageScalar)value); }
+        public static implicit operator Real(double value) { return FromDouble(value); }
 
         /// <summary>Converts explicitly to fixed single-precision interop storage.</summary>
         /// <param name="value">Engine numeric value crossing a fixed-width boundary.</param>

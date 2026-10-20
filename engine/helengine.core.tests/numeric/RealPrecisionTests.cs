@@ -27,17 +27,17 @@ namespace helengine.core.tests.numeric {
         /// <summary>Precision beyond binary32 survives only when selected storage can represent it.</summary>
         [Fact]
         public void StorageRetainsSelectedPrecision() {
-            double expected = RealRepresentation.StorageBits == 64 ? 16777217d : 16777216d;
+            double expected = RealRepresentation.StorageBits == 16 ? double.PositiveInfinity : RealRepresentation.StorageBits == 64 ? 16777217d : 16777216d;
             Assert.Equal(expected, Real.FromDouble(16777217d).ToDouble());
         }
 
         /// <summary>Halfway conversion rounds to an even binary32 significand rather than away from zero.</summary>
         [Fact]
         public void ConversionRoundsToNearestEven() {
-            double lowerTie = 1d + Math.ScaleB(1d, -24);
-            double upperTie = 1d + 3d * Math.ScaleB(1d, -24);
-            Assert.Equal(RealRepresentation.StorageBits == 32 ? 1d : lowerTie, Real.FromDouble(lowerTie).ToDouble());
-            Assert.Equal(RealRepresentation.StorageBits == 32 ? 1d + Math.ScaleB(1d, -22) : upperTie, Real.FromDouble(upperTie).ToDouble());
+            double lowerTie = 1d + Math.ScaleB(1d, RealRepresentation.StorageBits == 16 ? -11 : -24);
+            double upperTie = 1d + 3d * Math.ScaleB(1d, RealRepresentation.StorageBits == 16 ? -11 : -24);
+            Assert.Equal(RealRepresentation.StorageBits != 64 ? 1d : lowerTie, Real.FromDouble(lowerTie).ToDouble());
+            Assert.Equal(RealRepresentation.StorageBits == 16 ? 1d + Math.ScaleB(1d, -9) : RealRepresentation.StorageBits == 32 ? 1d + Math.ScaleB(1d, -22) : upperTie, Real.FromDouble(upperTie).ToDouble());
         }
 
         /// <summary>Non-finite values and negative zero preserve their IEEE classification and sign.</summary>
@@ -53,23 +53,23 @@ namespace helengine.core.tests.numeric {
         /// <summary>Representable subnormal values do not become zero during storage conversion.</summary>
         [Fact]
         public void SubnormalValueSurvivesConversion() {
-            double minimum = RealRepresentation.StorageBits == 32 ? Math.ScaleB(1d, -149) : double.Epsilon;
+            double minimum = RealRepresentation.StorageBits == 16 ? Math.ScaleB(1d, -24) : RealRepresentation.StorageBits == 32 ? Math.ScaleB(1d, -149) : double.Epsilon;
             Assert.Equal(minimum, Real.FromDouble(minimum).ToDouble());
         }
 
         /// <summary>Overflow and underflow follow the selected storage format, including halfway-to-zero rounding.</summary>
         [Fact]
         public void OverflowAndUnderflowFollowStorageWidth() {
-            Assert.Equal(RealRepresentation.StorageBits == 32 ? double.PositiveInfinity : double.MaxValue,
+            Assert.Equal(RealRepresentation.StorageBits != 64 ? double.PositiveInfinity : double.MaxValue,
                 Real.FromDouble(double.MaxValue).ToDouble());
-            double halfway = Math.ScaleB(1d, -150);
-            Assert.Equal(RealRepresentation.StorageBits == 32 ? 0d : halfway, Real.FromDouble(halfway).ToDouble());
+            double halfway = Math.ScaleB(1d, RealRepresentation.StorageBits == 16 ? -25 : -150);
+            Assert.Equal(RealRepresentation.StorageBits != 64 ? 0d : halfway, Real.FromDouble(halfway).ToDouble());
         }
 
         /// <summary>Fixed single-precision output remains an explicit conversion even in a double build.</summary>
         [Fact]
         public void ExplicitSingleConversionKeepsExternalWidth() {
-            Assert.Equal(0.1f, Real.FromDouble(0.1d).ToSingle());
+            Assert.Equal(RealRepresentation.StorageBits == 16 ? 0.0999755859375f : 0.1f, Real.FromDouble(0.1d).ToSingle());
         }
     }
 }

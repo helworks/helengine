@@ -8,7 +8,8 @@ namespace helengine {
         public static void Write(EngineBinaryWriter writer, double value, NumericPrecisionPolicy policy) {
             ValidatePolicy(policy);
             if (writer == null) { throw new ArgumentNullException(nameof(writer)); }
-            if (policy.StorageBits == 32) { writer.WriteSingle((float)value); }
+            if (policy.StorageBits == 16) { writer.WriteUInt16(Binary16Codec.Encode(value)); }
+            else if (policy.StorageBits == 32) { writer.WriteSingle((float)value); }
             else { writer.WriteDouble(value); }
         }
 
@@ -19,7 +20,7 @@ namespace helengine {
         public static double Read(EngineBinaryReader reader, NumericPrecisionPolicy policy) {
             ValidatePolicy(policy);
             if (reader == null) { throw new ArgumentNullException(nameof(reader)); }
-            return policy.StorageBits == 32 ? reader.ReadSingle() : reader.ReadDouble();
+            return policy.StorageBits == 16 ? Binary16Codec.Decode(reader.ReadUInt16()) : policy.StorageBits == 32 ? reader.ReadSingle() : reader.ReadDouble();
         }
 
         /// <summary>Writes the version and both widths before any precision-dependent payload bytes.</summary>
@@ -72,7 +73,7 @@ namespace helengine {
         /// <param name="policy">Contract whose storage and arithmetic have to be implemented.</param>
         public static void ValidatePolicy(NumericPrecisionPolicy policy) {
             if (policy == null) { throw new ArgumentNullException(nameof(policy)); }
-            else if (policy.StorageBits == 16 || policy.ArithmeticBits == 16) {
+            else if (policy.ArithmeticBits == 16 && policy.StorageBits != 16 || policy.StorageBits == 16 && policy.ArithmeticBits == 64) {
                 throw new NotSupportedException($"Numeric codec '{policy.Identity}' has no implemented half-precision backend.");
             }
         }

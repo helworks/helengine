@@ -4,17 +4,17 @@ namespace helengine.core.tests.numeric {
         /// <summary>A cancellation expression reveals accidental promotion of single arithmetic to double.</summary>
         [Fact]
         public void EvaluationDoesNotPromoteToDouble() {
-            Real large = Real.FromDouble(16777216d);
+            Real large = Real.FromDouble(RealRepresentation.StorageBits == 16 ? 2048d : 16777216d);
             Real one = Real.FromDouble(1d);
             RealEvaluation result = (large + one) - large;
-            Assert.Equal(RealRepresentation.ArithmeticBits == 32 ? 0d : 1d, result.ToDouble());
+            Assert.Equal(RealRepresentation.ArithmeticBits == 64 || RealRepresentation.StorageBits == 16 && RealRepresentation.ArithmeticBits == 32 ? 1d : 0d, result.ToDouble());
         }
 
         /// <summary>Division rounds to the evaluation format before conversion to assertion transport.</summary>
         [Fact]
         public void DivisionUsesEvaluationWidth() {
             RealEvaluation result = Real.FromDouble(1d) / Real.FromDouble(10d);
-            Assert.Equal(RealRepresentation.ArithmeticBits == 32 ? (double)(1f / 10f) : 0.1d, result.ToDouble());
+            Assert.Equal(RealRepresentation.ArithmeticBits == 16 ? 0.0999755859375d : RealRepresentation.ArithmeticBits == 32 ? (double)(1f / 10f) : 0.1d, result.ToDouble());
         }
 
         /// <summary>An expression result becomes a stored scalar only at its destination conversion.</summary>
@@ -22,17 +22,17 @@ namespace helengine.core.tests.numeric {
         public void ExplicitStoreIsTheNarrowingBoundary() {
             RealEvaluation result = Real.FromDouble(1d) / Real.FromDouble(10d);
             Real stored = result;
-            double expected = RealRepresentation.StorageBits == 32 ? (double)(float)result.ToDouble() : result.ToDouble();
+            double expected = RealRepresentation.StorageBits == 16 ? (double)(Half)result.ToDouble() : RealRepresentation.StorageBits == 32 ? (double)(float)result.ToDouble() : result.ToDouble();
             Assert.Equal(expected, stored.ToDouble());
         }
 
         /// <summary>Interpolation and square root follow selected arithmetic rather than host double defaults.</summary>
         [Fact]
         public void MathHelpersUseEvaluationWidth() {
-            RealEvaluation lerped = RealMath.Lerp(Real.FromDouble(16777216d), Real.FromDouble(16777218d), Real.FromDouble(0.5d));
-            Assert.Equal(RealRepresentation.ArithmeticBits == 32 ? 16777216d : 16777217d, lerped.ToDouble());
+            RealEvaluation lerped = RealMath.Lerp(Real.FromDouble(RealRepresentation.StorageBits == 16 ? 2048d : 16777216d), Real.FromDouble(RealRepresentation.StorageBits == 16 ? 2050d : 16777218d), Real.FromDouble(0.5d));
+            Assert.Equal(RealRepresentation.StorageBits == 16 ? (RealRepresentation.ArithmeticBits == 16 ? 2048d : 2049d) : RealRepresentation.ArithmeticBits == 32 ? 16777216d : 16777217d, lerped.ToDouble());
             RealEvaluation root = RealMath.Sqrt(Real.FromDouble(2d));
-            Assert.Equal(RealRepresentation.ArithmeticBits == 32 ? (double)MathF.Sqrt(2f) : Math.Sqrt(2d), root.ToDouble());
+            Assert.Equal(RealRepresentation.ArithmeticBits == 16 ? (double)Half.Sqrt((Half)2) : RealRepresentation.ArithmeticBits == 32 ? (double)MathF.Sqrt(2f) : Math.Sqrt(2d), root.ToDouble());
         }
 
         /// <summary>Both operand orders keep mixed stored/evaluation expressions unambiguous and unnarrowed.</summary>
@@ -53,12 +53,12 @@ namespace helengine.core.tests.numeric {
         /// <summary>A stored intermediate narrows separately from the surrounding arithmetic expression.</summary>
         [Fact]
         public void IntermediateStoreCanChangeMixedPrecisionResult() {
-            Real large = Real.FromDouble(16777216d);
+            Real large = Real.FromDouble(RealRepresentation.StorageBits == 16 ? 2048d : 16777216d);
             Real one = Real.FromDouble(1d);
             RealEvaluation transient = large + one;
             Real stored = transient;
-            double expectedTransient = RealRepresentation.ArithmeticBits == 64 ? 16777217d : 16777216d;
-            double expectedStored = RealRepresentation.StorageBits == 32 ? (double)(float)expectedTransient : expectedTransient;
+            double expectedTransient = RealRepresentation.StorageBits == 16 ? (RealRepresentation.ArithmeticBits == 16 ? 2048d : 2049d) : RealRepresentation.ArithmeticBits == 64 ? 16777217d : 16777216d;
+            double expectedStored = RealRepresentation.StorageBits == 16 ? (double)(Half)expectedTransient : RealRepresentation.StorageBits == 32 ? (double)(float)expectedTransient : expectedTransient;
             Assert.Equal(expectedTransient, transient.ToDouble());
             Assert.Equal(expectedStored, stored.ToDouble());
         }
@@ -87,7 +87,7 @@ namespace helengine.core.tests.numeric {
 
         /// <summary>Unimplemented half policies cannot silently evaluate with a wider backend.</summary>
         [Theory]
-        [InlineData(16, 32)] [InlineData(16, 16)] [InlineData(32, 16)]
+        [InlineData(16, 64)] [InlineData(64, 16)] [InlineData(32, 16)]
         public void UnsupportedHalfPolicyFailsExplicitly(int storageBits, int arithmeticBits) {
             Assert.Throws<NotSupportedException>(() => new NumericArithmetic(new NumericPrecisionPolicy(storageBits, arithmeticBits)));
         }
