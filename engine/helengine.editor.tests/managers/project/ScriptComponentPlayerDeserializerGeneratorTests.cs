@@ -52,13 +52,29 @@ namespace helengine.editor.tests.managers.project {
         /// </summary>
         [Fact]
         public void GenerateNativeDeserializerHeader_WhenSchemaNeedsNestedReaderHelper_DeclaresEngineBinaryReader() {
-            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(AmbientLightComponent));
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(SceneReferenceGeneratorTestComponent));
             ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
 
             string header = generator.GenerateNativeDeserializerHeader(schema);
 
             Assert.Contains("::EngineBinaryReader* reader", header, StringComparison.Ordinal);
             Assert.Contains("class EngineBinaryReader;", header, StringComparison.Ordinal);
+        }
+
+        /// <summary>Built-in vector readers must not also emit unreachable nested-object readers into native modules.</summary>
+        [Theory]
+        [InlineData(typeof(AmbientLightComponent))]
+        [InlineData(typeof(SpotLightComponent))]
+        public void GenerateNativeDeserializer_WhenColorUsesBuiltinReader_OmitsUnusedNestedVectorHelper(Type componentType) {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(componentType);
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string source = generator.GenerateNativeDeserializerSource(schema);
+            string header = generator.GenerateNativeDeserializerHeader(schema);
+
+            Assert.Contains("component->set_Color(reader->ReadReal4());", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("Readfloat4(", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("Readfloat4(", header, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -174,7 +190,7 @@ namespace helengine.editor.tests.managers.project {
         /// </summary>
         [Fact]
         public void GenerateNativeDeserializerSource_WhenSchemaNeedsNestedHelper_ClosesDeserializeBeforeHelperDefinition() {
-            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(AmbientLightComponent));
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(SceneReferenceGeneratorTestComponent));
             ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
 
             string source = generator.GenerateNativeDeserializerSource(schema);
@@ -184,7 +200,7 @@ namespace helengine.editor.tests.managers.project {
                 "}",
                 "}",
                 string.Empty,
-                "::float4 GeneratedRuntimeAmbientLightComponentDeserializer::Readfloat4(::EngineBinaryReader* reader)"
+                "::SceneReferenceGeneratorTestContainer* GeneratedRuntimeSceneReferenceGeneratorTestComponentDeserializer::ReadSceneReferenceGeneratorTestContainer(::EngineBinaryReader* reader)"
             ]);
 
             Assert.Contains(expectedBoundary, source, StringComparison.Ordinal);

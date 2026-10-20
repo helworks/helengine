@@ -840,7 +840,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="rootType">Root reflected type whose member graph should be inspected.</param>
         /// <param name="helperNames">Accumulated helper method names keyed by nested authored object type.</param>
-        void CollectNativeNestedHelperTypes(Type rootType, IDictionary<Type, string> helperNames) {
+        void CollectNativeNestedHelperTypes(Type rootType, Dictionary<Type, string> helperNames) {
             IReadOnlyList<MemberInfo> members = GetSerializableMembers(rootType);
             for (int index = 0; index < members.Count; index++) {
                 Type memberType = GetSerializableMemberType(members[index]);
@@ -853,7 +853,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="valueType">Reflected member value type to inspect.</param>
         /// <param name="helperNames">Accumulated helper method names keyed by nested authored object type.</param>
-        void CollectNativeNestedHelperTypesForValue(Type valueType, IDictionary<Type, string> helperNames) {
+        void CollectNativeNestedHelperTypesForValue(Type valueType, Dictionary<Type, string> helperNames) {
             if (valueType == null) {
                 return;
             }
@@ -865,10 +865,12 @@ namespace helengine.editor {
                 CollectNativeNestedHelperTypesForValue(valueType.GetElementType(), helperNames);
                 return;
             }
-            if (!IsSupportedNestedObjectType(valueType)) {
+            // The expression dispatcher already handles built-in values and references.
+            // An existing nested helper also needs no second definition during recursion.
+            if (TryBuildNativeReadExpression(valueType, BuildNativeReaderVariableName(), helperNames, out _)) {
                 return;
             }
-            if (helperNames.ContainsKey(valueType)) {
+            if (!IsSupportedNestedObjectType(valueType)) {
                 return;
             }
 
