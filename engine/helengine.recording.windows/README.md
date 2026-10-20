@@ -75,6 +75,6 @@ Esta entrega captura janelas Windows, incluindo janelas de emuladores. Não inic
 navega menus ou anuncia captura nativa em outros sistemas operacionais.
 
 Validação nesta máquina (RTX 4090): 1920x1080 por dez segundos, 600 frames codificados,
-atraso máximo de 17,6 ms na execução final. A fixture gerou 220 repetições; isso não promete
-60 atualizações distintas da aplicação. All passou em 92/92 testes sem skips. Outras resoluções
+atraso máximo de 18,2 ms na execução final. A fixture gerou 217 repetições; isso não promete
+60 atualizações distintas da aplicação. All passou em 95/95 testes sem skips. Outras resoluções
 e combinações de driver/GPU não foram medidas nesta entrega.

@@ -3,6 +3,8 @@ namespace helengine.recording.windows;
 interface IRecordingFileSystem {
     /// <summary>Checks whether a destination is already occupied.</summary>
     bool Exists(string path);
+    /// <summary>Checks that the output parent is an existing directory before recording starts.</summary>
+    bool DirectoryExists(string path);
     /// <summary>Identifies whether a rename can stay within one volume.</summary>
     bool IsSameVolume(string source, string destination);
     /// <summary>Moves without replacing any destination created by a competing process.</summary>

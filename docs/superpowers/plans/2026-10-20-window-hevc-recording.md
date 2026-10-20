@@ -158,7 +158,7 @@ Após as tarefas, usar verification-before-completion e o fluxo de revisão fina
 
 ## Autorrevisão do plano
 
-Cobertura conferida: perfil/GPU/cor/ABI/mux e posse na tarefa1; fachada/runtime/regressão na2; clock e limites de seleção na3; estado/device/stop/publicação na4; argumentos/JSON/empacotamento na5; medição real/documentação/regressão na6. Cada risco de Review Focus possui teste na tarefa responsável. Interfaces de tempo, índices, dimensões e erros foram comparadas entre tarefas; nenhum teste requer gravar aplicações do usuário. Helena aprovou a execução direta. As seis tarefas foram implementadas e verificadas; revisão independente final pendente.
+Cobertura conferida: perfil/GPU/cor/ABI/mux e posse na tarefa1; fachada/runtime/regressão na2; clock e limites de seleção na3; estado/device/stop/publicação na4; argumentos/JSON/empacotamento na5; medição real/documentação/regressão na6. Cada risco de Review Focus possui teste na tarefa responsável. Interfaces de tempo, índices, dimensões e erros foram comparadas entre tarefas; nenhum teste requer gravar aplicações do usuário. Helena aprovou a execução direta. As seis tarefas foram implementadas e verificadas; revisão independente concluída, achado importante corrigido e achado menor registrado.
 
 ## Evidência de execução em 2026-10-20
 
@@ -167,3 +167,22 @@ Build-window-recording -Action All: 92/92 testes passaram, zero skips (encoder n
 RTX 4090: fonte sintética própria 1920x1080, 600 frames/10 s codificados, 10,0037463 s medidos, atraso máximo 17,5797 ms, 220 repetições; captura observou 385, entregou 382, descartou 1 por overflow e 2 no shutdown. ffprobe confirmou HEVC/hvc1/Main/yuv420p, BT.709 limited, 60/1, PTS e contagem; decode confirmou cores e movimento. As repetições descrevem a cadência real da fixture, sem alegar 600 atualizações distintas da origem.
 
 Integração identificou e corrigiu com regressões RED→GREEN: bind shader-only do produtor (cópia para uma superfície BGRA fixa de conversão) e timestamp inicial ligeiramente futuro (aguardar elegibilidade antes da origem). Pool NV12 usa oito texturas individuais porque a GPU recusou array de render targets; o teste recusa uma nona superfície simultânea.
+
+## Revisão independente e verificação final
+
+Uma revisão independente gpt-6.1-sol/high examinou 3bd408a4..5717f283 em leitura, sem builds, alterações ou subagentes adicionais. Nenhum achado crítico. O achado importante de diretório pai inválido foi reproduzido em dois casos determinísticos e no processo CLI real; corrigido antes de device/captura/workfile. Uma única rodada de correção, sem segunda revisão: All **95/95**, zero skips (encoder nativo6, fachada7, gravador39, CLI19, captura nativa11 e gerenciada13).
+
+Medição final após correção: RTX4090, 1920x1080, 600 frames/10s codificados, 10,0065650s medidos, atraso máximo18,2209ms, 217 repetições. Captura observou386/entregou385, overflow0/shutdown1; refresh descartou2. Probe e decode reais confirmaram formato, cor, geometria, PTS, ausência de áudio e movimento. Isso mede o gravador, sem anunciar 600 atualizações distintas da origem.
+
+Achado menor adiado: se uma cópia entre volumes falha e apagar seu destino parcial também falha, AggregateException preserva as mensagens, mas o relatório usa HResult genérico e não separa esse cleanup em CleanupErrors. A falha continua explícita, com exit3 e sem anunciar saída válida. Não houve correção de itens menores nesta rodada.
+
+Decisões registradas durante a execução:
+- Ledger e temporários em C:\temp, conforme regra de Helena, em vez da pasta de scratch sugerida pela skill; sem efeito no runtime.
+- Pool limitado a oito texturas NV12 individuais porque o driver recusou array de render targets; limite/reuso comprovados por teste da nona superfície. A cópia BGRA fixa é recurso separado de conversão, sem crescimento ou readback.
+- O teste de dependência ausente foi realizado no host CLI da tarefa5, onde existe um processo isolado; passou com exit3 e diagnóstico, sem reduzir cobertura final.
+- Não alegar throughput/compatibilidade além das configurações medidas; outras GPUs/drivers/resoluções podem exigir validação ou falhar explicitamente.
+- Publicação física em outro volume não foi medida; algoritmo de CreateNew/cópia foi exercitado por abstração com corrida e falha parcial. Erros de armazenamento continuam explícitos; atomicidade entre volumes não é prometida.
+- Mantida a escolha do primeiro NVIDIA de hardware prevista no plano, com confirmação ao abrir o codec. Sem nova política de tentativa entre adaptadores: o primeiro incompatível pode falhar mesmo existindo outro NVIDIA capaz.
+- Sem garantia de durabilidade contra crash/queda de energia além do contrato de finalização graciosa; uma interrupção abrupta pode deixar trabalho incompleto.
+
+Entrega: checkout main real, commits locais, sem push. Nenhum arquivo pendente de outras sessões foi incluído. Temporários desta execução serão removidos em C:\temp\helengine-window-recording e C:\temp\helengine-window-capture.

@@ -1,6 +1,16 @@
 namespace helengine.recording.windows.tests;
 /// <summary>Tests actual worker scheduling, finalization and cleanup against controlled external boundaries.</summary>
 public sealed class WindowRecorderTests {
+    /// <summary>An absent parent, or a file in its place, must fail before device, capture or work allocation.</summary>
+    [Theory][InlineData(false)][InlineData(true)] public async Task InvalidOutputParentFailsBeforeRecording(bool parentIsFile) {
+        var dependencies = new RecordingTestDependencies(); var options = RecordingTestDependencies.Options(); string parent = Path.GetDirectoryName(options.OutputPath);
+        if (parentIsFile) { dependencies.Files.Files[parent] = [9, 8, 7]; } else { dependencies.Files.ParentDirectoryExists = false; }
+        var result = await dependencies.Create().RecordAsync(options, (IntPtr)1, default);
+        Assert.False(result.Succeeded); Assert.False(result.HasOutput); Assert.Equal(WindowRecordingStopReason.PublicationFailed, result.StopReason);
+        Assert.Equal(IntPtr.Zero, dependencies.CaptureDevice); Assert.Equal(IntPtr.Zero, dependencies.EncoderDevice); Assert.Equal(0, dependencies.Device.DisposeCount);
+        Assert.Empty(dependencies.Encoder.Indices); Assert.Equal(parentIsFile ? 1 : 0, dependencies.Files.Files.Count);
+        if (parentIsFile) { Assert.Equal(new byte[] { 9, 8, 7 }, dependencies.Files.Files[parent]); }
+    }
     /// <summary>A presentation timestamp slightly ahead of delivery is awaited before establishing the output origin.</summary>
     [Fact] public async Task WaitsForFutureFirstObservationBeforeFixingOrigin() {
         var dependencies = new RecordingTestDependencies(); dependencies.Source.Frames.Clear(); dependencies.Source.DeliverFutureFrames = true; dependencies.Source.Frames.Enqueue(new(10000));

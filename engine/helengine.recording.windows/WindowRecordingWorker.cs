@@ -49,6 +49,8 @@ sealed class WindowRecordingWorker {
         try {
             Stage = WindowRecordingStopReason.PublicationFailed;
             if (Publisher.Exists(OutputPath)) { throw new IOException("The output destination already exists: " + OutputPath); }
+            string outputParent = Path.GetDirectoryName(OutputPath);
+            if (!Publisher.DirectoryExists(outputParent)) { throw new DirectoryNotFoundException("The output parent directory must already exist: " + outputParent); }
             stopToken.ThrowIfCancellationRequested();
             Stage = WindowRecordingStopReason.CaptureFailed;
             Device = DeviceFactory(SuppliedDevice); Result.AdapterName = Device.Name; Result.AdapterLuid = Device.Luid;

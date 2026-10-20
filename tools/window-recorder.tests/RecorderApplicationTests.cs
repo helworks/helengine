@@ -4,6 +4,15 @@ using helengine.recording.windows;
 namespace helengine.tools.windowrecorder.tests;
 /// <summary>Checks automation output, return codes and process packaging without capturing user windows.</summary>
 public sealed class RecorderApplicationTests {
+    /// <summary>The real process rejects a missing parent before even validating/opening its recording source.</summary>
+    [Fact] public async Task MissingOutputDirectoryFailsDuringPreflight() {
+        const string parent = "C:\\temp\\helengine-window-recording\\missing-output-parent"; Assert.False(Directory.Exists(parent));
+        var start = new ProcessStartInfo("C:\\dev\\helworks\\builds\\helengine-capture\\windows\\recorder\\helengine.window-recorder.exe") { WorkingDirectory = "C:\\temp\\helengine-window-recording", UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+        foreach (string argument in new[] { "record", "--hwnd", "1", "--output", Path.Combine(parent, "clip.mp4"), "--duration", "300" }) { start.ArgumentList.Add(argument); }
+        using var process = Process.Start(start); var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync(); await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+        Assert.Equal(3, process.ExitCode); using var json = JsonDocument.Parse(await stdout); Assert.False(json.RootElement.GetProperty("hasOutput").GetBoolean());
+        Assert.Contains("directory", json.RootElement.GetProperty("errorMessage").GetString(), StringComparison.OrdinalIgnoreCase); Assert.Contains("directory", await stderr, StringComparison.OrdinalIgnoreCase);
+    }
     /// <summary>Metadata listing never opens a recording source or encoder.</summary>
     [Fact] public async Task ListsMetadataWithoutOpeningCapture() {
         var app = new RecorderApplication((_, _) => throw new InvalidOperationException("capture must not open"), () => [new() { Hwnd = "0x123", ProcessId = 7, ProcessName = "fixture", Title = "janela ç" }]);

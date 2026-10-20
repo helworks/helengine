@@ -5,6 +5,8 @@ namespace helengine.recording.windows;
 sealed class RecordingFileSystem : IRecordingFileSystem {
     /// <summary>Checks files and directories so neither is overwritten by a recording.</summary>
     public bool Exists(string path) => File.Exists(path) || Directory.Exists(path);
+    /// <summary>Rejects absent parents and ordinary files used as output directories.</summary>
+    public bool DirectoryExists(string path) => Directory.Exists(path);
     /// <summary>Uses volume GUIDs; unsupported/network queries safely select the copy path.</summary>
     public bool IsSameVolume(string source, string destination) {
         var sourceMount = new StringBuilder(32768); var targetMount = new StringBuilder(32768);

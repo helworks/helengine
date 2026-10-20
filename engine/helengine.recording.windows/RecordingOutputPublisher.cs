@@ -7,6 +7,8 @@ sealed class RecordingOutputPublisher {
     internal RecordingOutputPublisher(IRecordingFileSystem files) { Files = files; }
     /// <summary>Checks preflight occupancy without treating that check as reservation.</summary>
     internal bool Exists(string path) => Files.Exists(path);
+    /// <summary>Checks the destination parent without creating any user output or work file.</summary>
+    internal bool DirectoryExists(string path) => Files.DirectoryExists(path);
     /// <summary>Reserves an exclusively named work file under the authorized scratch root.</summary>
     internal string CreateWorkFile() {
         const string root = "C:\\temp\\helengine-window-recording"; Directory.CreateDirectory(root);
