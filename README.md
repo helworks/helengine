@@ -181,7 +181,7 @@ These results do not establish half support on other installed backends or every
 
 The latest Windows 64/64 scene rerun completed all 15 scenes without presentation failures. Its subsequent 1,800-frame menu recapture exceeded the 80-second test timeout; that attempt is not a passing Tracy validation. The table's Tracy evidence comes from the earlier successful captures. The right-aligned Windows menu was also checked by Helena.
 
-PS1 menu measurements use medians of six 600-frame windows:
+Earlier PS1 menu measurements use medians of six 600-frame windows:
 
 | Measurement | 32/32 | 16/32 | 16/16 with deferred string constants |
 | --- | ---: | ---: | ---: |
@@ -199,4 +199,8 @@ Centralizing string constant initialization reduces the 16/16 retail static foot
 
 The final guest numeric self-test passes all 65,536 codec patterns, 40 arithmetic cases, quaternion normalization and the fixed 64-bit clock. All six menu windows have zero dropped rows and clock faults. Sprite geometry takes a median 8.32 ms per frame inside the draw scopes. Fourteen selected converter regressions pass, including startup ordering and null/empty behavior; a GNU module unload/reload regression verifies that deferred values are released while resident values survive. PS1 rendering scenes and visible half-precision differences remain unverified.
 
-The clock quantum is 64 microseconds. Timings are elapsed guest time, including waits inside native calls; they are not instruction-exclusive CPU time. Stage scopes nest, so their rows must not be summed. A reported `0.000 ms` is below measurement resolution, not proof of zero work. The allocator's heap end is a high-water mark, not retained live RAM; retained heap usage has not been measured. The previous 32/32 capture measured update 2.304 ms and draw 19.413 ms. The current comparison report is `C:\temp\numeric-precision\ps1\precision-comparison.json`.
+The subsequent PS1 sprite-cache correction looks up unresolved inputs before calculating local rotation and the four transformed corners. Its key includes the six world-matrix coefficients that affect the XY plane, pivot, scalar rotation, authored size, UVs, texture dimensions and viewport. The cache holds eight sprites in 868 bytes total on MIPS, without per-frame allocation or ownership of Core objects. Host geometry and invalidation tests pass, including inherited shear and mirrored axes.
+
+With that correction and the deferred string accessors retained, a new 32/32 capture completes six 600-frame menu windows with zero dropped rows or clock faults: update 2.288 ms, draw 19.102 ms, AnimationPlayer 1.071 ms and sprite geometry 1.964 ms. Retail remains at 30 FPS. Its static footprint is 1,200,128 bytes, with 765,952 bytes of heap capacity and 523,328 bytes of heap high-water. The full 128-component profiler uses 1,214,464 static bytes and reaches 536,936 bytes of heap high-water, leaving 214,680 bytes of headroom. This returns near the earlier 32/32 timing; it does not establish an isolated cache speedup because the comparison revisions differ. No fixed-point or GTE math change was made. The current cache report is `C:\temp\numeric-precision\ps1\sprite-cache-profile.json`.
+
+The clock quantum is 64 microseconds. Timings are elapsed guest time, including waits inside native calls; they are not instruction-exclusive CPU time. Stage scopes nest, so their rows must not be summed. A reported `0.000 ms` is below measurement resolution, not proof of zero work. The allocator's heap end is a high-water mark, not retained live RAM; retained heap usage has not been measured. The previous 32/32 capture measured update 2.304 ms and draw 19.413 ms. The precision comparison report is `C:\temp\numeric-precision\ps1\precision-comparison.json`.
