@@ -1,6 +1,13 @@
 namespace helengine.recording.windows.tests;
 /// <summary>Tests actual worker scheduling, finalization and cleanup against controlled external boundaries.</summary>
 public sealed class WindowRecorderTests {
+    /// <summary>A presentation timestamp slightly ahead of delivery is awaited before establishing the output origin.</summary>
+    [Fact] public async Task WaitsForFutureFirstObservationBeforeFixingOrigin() {
+        var dependencies = new RecordingTestDependencies(); dependencies.Source.Frames.Clear(); dependencies.Source.DeliverFutureFrames = true; dependencies.Source.Frames.Enqueue(new(10000));
+        var result = await dependencies.Create().RecordAsync(RecordingTestDependencies.Options(TimeSpan.FromMilliseconds(1)), (IntPtr)1, default);
+        Assert.True(result.Succeeded, result.ErrorMessage); Assert.Single(dependencies.Encoder.Indices); Assert.Equal((IntPtr)10001, dependencies.Encoder.Textures[0]);
+        Assert.InRange(result.RecordingDuration.TotalMilliseconds, 16, 17);
+    }
     /// <summary>Setup time must not be encoded as an initial freeze or charged to the requested duration.</summary>
     [Fact] public async Task StartsClockAfterEncoderPreparation() {
         var dependencies = new RecordingTestDependencies(); dependencies.OnEncoderOpen = () => { dependencies.Clock.Counter += 50_000_000; dependencies.Source.Frames.Enqueue(new(dependencies.Clock.Counter)); };

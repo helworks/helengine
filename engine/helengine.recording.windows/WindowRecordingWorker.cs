@@ -64,6 +64,12 @@ sealed class WindowRecordingWorker {
             }
             stopToken.ThrowIfCancellationRequested();
             if (Result.StopReason != WindowRecordingStopReason.Resized) {
+                // WGC may deliver a compositor presentation timestamp just ahead of
+                // host QPC. Await its eligibility as preparation, never present early.
+                long eligibleCounter = checked((long)(((Int128)Initial.Timestamp.Ticks * Clock.CounterFrequency + TimeSpan.TicksPerSecond - 1) / TimeSpan.TicksPerSecond));
+                long beforeOrigin = Clock.GetCounter();
+                if ((Int128)eligibleCounter - beforeOrigin > (Int128)Clock.CounterFrequency * 10) { throw new InvalidDataException("Capture timestamp is more than ten seconds ahead of the host clock."); }
+                if (eligibleCounter > beforeOrigin) { await Clock.WaitUntilAsync(eligibleCounter, stopToken).ConfigureAwait(false); }
                 Origin = Clock.GetCounter(); Timeline = new(Origin, Clock.CounterFrequency, Options.Duration); Selector = new(Timeline);
                 await RecordSlotsAsync(stopToken).ConfigureAwait(false);
             }

@@ -41,9 +41,9 @@ static ComPtr<ID3D11Device> MakeDevice() {
     }
     throw std::runtime_error("No NVIDIA hardware adapter; GPU tests are not approved.");
 }
-static ComPtr<ID3D11Texture2D> Texture(ID3D11Device* device,int width,int height,int color,DXGI_FORMAT format=DXGI_FORMAT_B8G8R8A8_UNORM) {
+static ComPtr<ID3D11Texture2D> Texture(ID3D11Device* device,int width,int height,int color,DXGI_FORMAT format=DXGI_FORMAT_B8G8R8A8_UNORM,UINT bindFlags=D3D11_BIND_RENDER_TARGET) {
     std::vector<uint32_t> pixels(static_cast<size_t>(width)*height,0xff000000u|color);
-    D3D11_TEXTURE2D_DESC desc{}; desc.Width=width; desc.Height=height; desc.MipLevels=1; desc.ArraySize=1; desc.Format=format; desc.SampleDesc.Count=1; desc.Usage=D3D11_USAGE_DEFAULT; desc.BindFlags=D3D11_BIND_RENDER_TARGET;
+    D3D11_TEXTURE2D_DESC desc{}; desc.Width=width; desc.Height=height; desc.MipLevels=1; desc.ArraySize=1; desc.Format=format; desc.SampleDesc.Count=1; desc.Usage=D3D11_USAGE_DEFAULT; desc.BindFlags=bindFlags;
     D3D11_SUBRESOURCE_DATA data{}; data.pSysMem=pixels.data(); data.SysMemPitch=width*4;
     ComPtr<ID3D11Texture2D> texture; Require(SUCCEEDED(device->CreateTexture2D(&desc,&data,&texture)),"Synthetic texture"); return texture;
 }
@@ -139,6 +139,13 @@ static void ReportsErrorsPerInstance() {
     Require(first.Code!=0 && first.Message[0],"Original diagnostic");
     Require(Create(nullptr,L"x",&options,&encoder,&second)!=0,"Second independent failure"); Require(std::string(first.Message).find("MP4")!=std::string::npos,"Earlier error remains independent");
 }
+static void EncodesShaderOnlyCaptureTextures() {
+    auto device=MakeDevice(); Options options; Error error; void* encoder=nullptr;
+    Check(Create(device.Get(),L"C:\\temp\\helengine-window-recording\\native-shader-only.mp4",&options,&encoder,&error),error);
+    auto texture=Texture(device.Get(),640,480,0,DXGI_FORMAT_B8G8R8A8_UNORM,D3D11_BIND_SHADER_RESOURCE);
+    try { Check(Submit(encoder,texture.Get(),0,&error),error); Check(Complete(encoder,&error),error); } catch(...) { Destroy(encoder); throw; }
+    Destroy(encoder); AssertVideo("C:\\temp\\helengine-window-recording\\native-shader-only.mp4",640,480,1);
+}
 int main() {
     try {
         auto module=LoadLibraryW(L"helengine.video.ffmpeg.dll"); Require(module!=nullptr,"Load native backend");
@@ -146,6 +153,7 @@ int main() {
         Require(Create && Submit && Complete && Destroy,"FAIL: encoder exports missing");
         const std::pair<const char*,std::function<void()>> tests[]={{"CreatesHevcMain60Mp4FromGpuTextures",CreatesHevcMain60Mp4FromGpuTextures},{"RejectsInvalidDeviceFormatDimensionsAndIndex",RejectsInvalidDeviceFormatDimensionsAndIndex},{"OwnsSubmittedPixelsAndBoundsPool",OwnsSubmittedPixelsAndBoundsPool},{"ReportsErrorsPerInstance",ReportsErrorsPerInstance},{"FixedPoolRefusesNinthInFlightSurface",FixedPoolRefusesNinthInFlightSurface}};
         int failed=0; for(const auto& test:tests) { try { test.second(); std::cout<<"PASS "<<test.first<<std::endl; } catch(const std::exception& error) { failed++; std::cerr<<"FAIL "<<test.first<<": "<<error.what()<<std::endl; } }
-        std::cout<<(5-failed)<<"/5 native encoder tests passed"<<std::endl; return failed ? 1 : 0;
+        try { EncodesShaderOnlyCaptureTextures(); std::cout<<"PASS EncodesShaderOnlyCaptureTextures"<<std::endl; } catch(const std::exception& error) { failed++; std::cerr<<"FAIL EncodesShaderOnlyCaptureTextures: "<<error.what()<<std::endl; }
+        std::cout<<(6-failed)<<"/6 native encoder tests passed"<<std::endl; return failed ? 1 : 0;
     } catch(const std::exception& error) { std::cerr<<error.what()<<std::endl; return 1; }
 }

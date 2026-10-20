@@ -39,7 +39,9 @@ void EncoderSurfacePool::Open(ID3D11Device* device,int width,int height) {
     RECT sourceRect{0,0,(width+1)&~1,(height+1)&~1}; VideoContext->VideoProcessorSetStreamSourceRect(Processor.Get(),0,TRUE,&sourceRect); VideoContext->VideoProcessorSetStreamDestRect(Processor.Get(),0,TRUE,&sourceRect);
     RECT outputRect{0,0,(width+1)&~1,(height+1)&~1}; VideoContext->VideoProcessorSetOutputTargetRect(Processor.Get(),TRUE,&outputRect);
     D3D11_VIDEO_COLOR black{}; black.YCbCr={16.0f/255.0f,128.0f/255.0f,128.0f/255.0f,1}; VideoContext->VideoProcessorSetOutputBackgroundColor(Processor.Get(),TRUE,&black);
-    if((width&1) || (height&1)) {
+    // Capture producers need not create textures with video-processor input binds.
+    // One fixed BGRA copy surface also provides even-sized black padding.
+    {
         D3D11_TEXTURE2D_DESC desc{}; desc.Width=sourceRect.right; desc.Height=sourceRect.bottom; desc.MipLevels=1; desc.ArraySize=1; desc.Format=DXGI_FORMAT_B8G8R8A8_UNORM; desc.SampleDesc.Count=1; desc.BindFlags=D3D11_BIND_RENDER_TARGET;
         EncoderFailure::CheckHr(Device->CreateTexture2D(&desc,nullptr,&PaddedInput),"Create even BGRA padding surface");
         EncoderFailure::CheckHr(Device->CreateRenderTargetView(PaddedInput.Get(),nullptr,&PaddedTarget),"Create padding target");

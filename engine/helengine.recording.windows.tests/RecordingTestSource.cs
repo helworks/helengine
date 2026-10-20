@@ -10,6 +10,8 @@ sealed class RecordingTestSource : IRecordingSource {
     internal long CloseAt = long.MaxValue;
     /// <summary>Injects a cleanup failure after all encoding work.</summary>
     internal bool FailDispose;
+    /// <summary>Allows presentation timestamps slightly ahead of delivery, as observed in real capture.</summary>
+    internal bool DeliverFutureFrames;
     /// <summary>Counts source shutdown operations.</summary>
     internal int DisposeCount;
     /// <summary>Creates one controllable observation stream.</summary>
@@ -21,7 +23,7 @@ sealed class RecordingTestSource : IRecordingSource {
     /// <summary>Transfers an available lease and distinguishes closure from temporarily absent content.</summary>
     public bool TryAcquire(out IRecordingFrame frame) {
         if (State == WindowCaptureState.WindowClosed) { frame = null; return false; }
-        if (Frames.Count > 0 && Frames.Peek().Timestamp.Ticks <= Clock.Counter) { frame = Frames.Dequeue(); return true; }
+        if (Frames.Count > 0 && (DeliverFutureFrames || Frames.Peek().Timestamp.Ticks <= Clock.Counter)) { frame = Frames.Dequeue(); return true; }
         frame = null; return false;
     }
     /// <summary>Releases queued fixture observations and optionally reproduces a teardown failure.</summary>

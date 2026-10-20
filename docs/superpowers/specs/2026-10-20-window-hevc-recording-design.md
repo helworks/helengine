@@ -1,6 +1,6 @@
 # Gravação de janela em H.265 a 60 FPS
 
-Data: 2026-10-20. Estado: arquitetura e especificação escrita aprovadas por Helena; plano de implementação em revisão.
+Data: 2026-10-20. Estado: implementado e validado; revisão independente final pendente.
 
 ## Resultado solicitado e escopo aprovado
 
@@ -240,4 +240,4 @@ em `C:\temp\helengine-window-recording` e são limpos ao concluir a execução q
 
 A especificação escrita foi aprovada por Helena com “vai” em 2026-10-20. O plano está em
 `C:\dev\helworks\helengine\docs\superpowers\plans\2026-10-20-window-hevc-recording.md`;
-revisar esse plano antes de implementar o encoder e a ferramenta.
+as seis tarefas estão implementadas. Evidência: All 92/92, incluindo gravação sintética 1080p/10s (600 frames, atraso máximo 17,5797ms na RTX 4090); revisão independente final pendente.

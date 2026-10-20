@@ -40,9 +40,11 @@ $RecordingExit = $LASTEXITCODE
 Get-Content -LiteralPath $RecordingLog -Tail 35
 if ($RecordingExit -ne 0) { exit $RecordingExit }
 $RecordingOldCliHome = $env:DOTNET_CLI_HOME
+$RecordingOldSdkEnvironment = $env:HELENGINE_RECORDING_FFMPEG_SDK
 Push-Location $RecordingRepo
 try {
     $env:DOTNET_CLI_HOME = Join-Path $RecordingScratch 'dotnet-home'
+    $env:HELENGINE_RECORDING_FFMPEG_SDK = $FFmpegSdkRoot
     $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
     $env:DOTNET_GENERATE_ASPNET_CERTIFICATE = 'false'
     $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
@@ -68,10 +70,14 @@ try {
         Get-Content -LiteralPath $RecordingLog -Tail 45
         if ($RecordingExit -ne 0) { exit $RecordingExit }
     } else {
-        if ($Action -eq 'IntegrationTests') { throw 'Recording integration projects are not implemented yet.' }
+        if ($Action -eq 'IntegrationTests') { $RecordingTestProjects = @('engine\helengine.recording.windows.tests\helengine.recording.windows.tests.csproj') }
         foreach ($RecordingTestProject in $RecordingTestProjects) {
             $RecordingTestArgs = @('--results-directory', $RecordingScratch)
-            if ($TestFilter) { $RecordingTestArgs += @('--filter', $TestFilter) }
+            $RecordingCategory = ''
+            if ($Action -eq 'ManagedTests') { $RecordingCategory = 'Category!=Integration' }
+            if ($Action -eq 'IntegrationTests') { $RecordingCategory = 'Category=Integration' }
+            if ($TestFilter) { if ($RecordingCategory) { $RecordingCategory = "($RecordingCategory)&($TestFilter)" } else { $RecordingCategory = $TestFilter } }
+            if ($RecordingCategory) { $RecordingTestArgs += @('--filter', $RecordingCategory) }
             $ErrorActionPreference = 'Continue'
             & dotnet test (Join-Path $RecordingRepo $RecordingTestProject) @RecordingManagedArgs @RecordingTestArgs *> $RecordingLog
             $RecordingExit = $LASTEXITCODE
@@ -80,4 +86,10 @@ try {
             if ($RecordingExit -ne 0) { exit $RecordingExit }
         }
     }
-} finally { Pop-Location; $env:DOTNET_CLI_HOME = $RecordingOldCliHome }
+} finally { Pop-Location; $env:DOTNET_CLI_HOME = $RecordingOldCliHome; $env:HELENGINE_RECORDING_FFMPEG_SDK = $RecordingOldSdkEnvironment }
+
+if ($Action -eq 'All') {
+    Write-Output 'Capture regression:'
+    & powershell -NoProfile -File (Join-Path $RecordingRepo 'scripts\build-window-capture.ps1') -Action All
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
