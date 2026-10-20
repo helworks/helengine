@@ -175,7 +175,7 @@ Current target validation:
 | Windows | 32/32, 64/64 | DemoDisc menu and all 14 rendering scenes, 300 frames each; Tracy menu captures |
 | PS1 | 32/32 | Main menu loads in DuckStation; six steady 600-frame CPU windows |
 | PS1 | 16/32 | Menu runs in DuckStation; six steady 600-frame CPU windows; guest tests pass all 65,536 codec patterns, 40 arithmetic cases and quaternion normalization |
-| PS1 | 16/16 | Guest numeric self-test passes and retail menu runs; the full profiler build fails allocation during menu loading. Experimental selection remains a local candidate |
+| PS1 | 16/16 | Guest numeric self-test and retail menu pass; full 128-component profiler completes six steady 600-frame menu windows |
 
 These results do not establish half support on other installed backends or every Cartesian combination of the three widths. The 16-bit scalar/codec tests pass in both 16/32 and 16/16. The host native differential test covers 2,048 input pairs: primitive arithmetic and square roots match the independent `System.Half` oracle, while the tested trigonometric outputs allow at most one binary16 ULP. This is not a bound for every input or for an untested target math library.
 
@@ -183,16 +183,20 @@ The latest Windows 64/64 scene rerun completed all 15 scenes without presentatio
 
 PS1 menu measurements use medians of six 600-frame windows:
 
-| Measurement | 32/32 | 16/32 |
-| --- | ---: | ---: |
-| Update | 2.2745 ms | 2.786 ms |
-| Draw | 19.147 ms | 22.7845 ms |
-| AnimationPlayer update | 1.099 ms | 1.519 ms |
-| Cooked content | 471,926 bytes | 439,560 bytes |
-| Published disc image | 1,853,440 bytes | 1,869,824 bytes |
-| Profiled static RAM footprint (includes startup self-test) | 1,370,112 bytes | 1,421,312 bytes |
-| Profiled heap high-water mark | 537,624 bytes | 510,088 bytes |
+| Measurement | 32/32 | 16/32 | 16/16 with deferred string constants |
+| --- | ---: | ---: | ---: |
+| Update | 2.2745 ms | 2.786 ms | 3.5495 ms |
+| Draw | 19.147 ms | 22.7845 ms | 27.6905 ms |
+| AnimationPlayer update | 1.099 ms | 1.519 ms | 1.9655 ms |
+| Cooked content | 471,926 bytes | 439,560 bytes | 439,560 bytes |
+| Published disc image | 1,853,440 bytes | 1,869,824 bytes | 1,714,176 bytes |
+| Profiled static RAM footprint (includes startup self-test) | 1,370,112 bytes | 1,421,312 bytes | 1,304,576 bytes |
+| Profiled heap high-water mark | 537,624 bytes | 510,088 bytes | 509,600 bytes |
 
-Binary16 saves cooked data and heap high-water space in this menu, but increases executable/static memory and elapsed update/draw time. The profiled static footprint includes the half startup self-test, which is absent from retail builds; it is not an isolated codec-size measurement. It is not a speed improvement here. The 16/16 retail image is 1,910,784 bytes with 439,560 bytes of cooked content and 528,384 bytes of heap capacity. Its menu runs without render failures and reaches the same 496,480-byte heap high-water mark as 16/32 retail. The instrumented 16/16 image leaves only 505,856 bytes for heap and fails a 1,536-byte allocation during menu loading, before any comparable component capture. Its guest numeric self-test passes all 65,536 codec patterns, 40 arithmetic cases and quaternion normalization. Actual MIPS sizes are 13,504 bytes for the profiler sink and 12,392 bytes for its timing window; the profiler reserves 128 component rows while this menu updates five components. Reducing component capacity to 32 would save 6,912 bytes, but that configuration change is awaiting architectural feedback. PS1 rendering scenes and visible half-precision differences remain unverified.
+The 32/32 and 16/32 captures precede the deferred-string emission change, so these columns are not a controlled precision-only comparison. The current 16/16 menu remains slower than the earlier captures; no speed improvement is claimed. The profiled static footprint includes the half startup self-test, which is absent from retail builds, and is not an isolated codec-size measurement.
+
+Centralizing string constant initialization reduces the 16/16 retail static footprint from 1,437,696 to 1,286,144 bytes, saving 148 KiB. Code decreases from 1,069,012 to 947,348 bytes; smaller measured module arenas account for most of the remaining saving. Retail heap capacity rises from 528,384 to 679,936 bytes. Its menu runs without render failures, reaches 495,992 bytes of heap high-water and remains near 30 FPS. The full profiler now loads the menu with 661,504 bytes of heap capacity and 509,600 bytes of high-water, leaving 151,904 bytes of headroom. Its 128 component slots are unchanged; the earlier 1,536-byte startup allocation failure no longer occurs.
+
+The final guest numeric self-test passes all 65,536 codec patterns, 40 arithmetic cases, quaternion normalization and the fixed 64-bit clock. All six menu windows have zero dropped rows and clock faults. Sprite geometry takes a median 8.32 ms per frame inside the draw scopes. Fourteen selected converter regressions pass, including startup ordering and null/empty behavior; a GNU module unload/reload regression verifies that deferred values are released while resident values survive. PS1 rendering scenes and visible half-precision differences remain unverified.
 
 The clock quantum is 64 microseconds. Timings are elapsed guest time, including waits inside native calls; they are not instruction-exclusive CPU time. Stage scopes nest, so their rows must not be summed. A reported `0.000 ms` is below measurement resolution, not proof of zero work. The allocator's heap end is a high-water mark, not retained live RAM; retained heap usage has not been measured. The previous 32/32 capture measured update 2.304 ms and draw 19.413 ms. The current comparison report is `C:\temp\numeric-precision\ps1\precision-comparison.json`.
