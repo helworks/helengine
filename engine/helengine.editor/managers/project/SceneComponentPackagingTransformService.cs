@@ -2741,7 +2741,7 @@ namespace helengine.editor {
                 SelectedBuildProfileId,
                 SelectedGraphicsProfileId,
                 cookMaterialSettings.SchemaId,
-                fieldValues);
+                fieldValues, NumericPolicy);
         }
 
         /// <summary>
@@ -3009,7 +3009,7 @@ namespace helengine.editor {
                 SelectedBuildProfileId,
                 SelectedGraphicsProfileId,
                 standardMaterialSettings.SchemaId,
-                standardMaterialFieldValues));
+                standardMaterialFieldValues, NumericPolicy));
             RememberReferencedShaderDependencies(cookResult.ReferencedShaderDependencies);
             WriteBytes(Path.Combine(buildRootPath, StandardGeneratedMaterialRelativePath), cookResult.CookedMaterialBytes);
             ReportMaterialOutput(StandardGeneratedMaterialRelativePath, StandardGeneratedMaterialAssetId);

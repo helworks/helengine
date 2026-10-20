@@ -14,6 +14,7 @@ namespace helengine.baseplatform.Requests {
         /// <param name="selectedGraphicsProfileId">Selected graphics profile identifier for the current build.</param>
         /// <param name="schemaId">Selected builder-defined schema identifier.</param>
         /// <param name="fieldValues">Serialized field values keyed by builder-defined field identifier.</param>
+        /// <param name="numericPolicy">Immutable precision selected for the consuming build.</param>
         public PlatformMaterialCookRequest(
             string materialAssetId,
             string materialRelativePath,
@@ -21,7 +22,8 @@ namespace helengine.baseplatform.Requests {
             string selectedBuildProfileId,
             string selectedGraphicsProfileId,
             string schemaId,
-            IReadOnlyDictionary<string, string> fieldValues) {
+            IReadOnlyDictionary<string, string> fieldValues,
+            NumericPrecisionPolicy numericPolicy) {
             if (string.IsNullOrWhiteSpace(materialAssetId)) {
                 throw new ArgumentException("Material asset id is required.", nameof(materialAssetId));
             } else if (string.IsNullOrWhiteSpace(materialRelativePath)) {
@@ -34,6 +36,7 @@ namespace helengine.baseplatform.Requests {
                 throw new ArgumentNullException(nameof(fieldValues), "Material field values are required.");
             }
 
+            NumericPolicy = numericPolicy ?? throw new ArgumentNullException(nameof(numericPolicy));
             MaterialAssetId = materialAssetId;
             MaterialRelativePath = materialRelativePath;
             TargetPlatformId = targetPlatformId;
@@ -77,5 +80,8 @@ namespace helengine.baseplatform.Requests {
         /// Gets the serialized field values keyed by builder-defined field identifier.
         /// </summary>
         public IReadOnlyDictionary<string, string> FieldValues { get; }
+
+        /// <summary>Gets the exact build precision used by the platform material serializer.</summary>
+        public NumericPrecisionPolicy NumericPolicy { get; }
     }
 }

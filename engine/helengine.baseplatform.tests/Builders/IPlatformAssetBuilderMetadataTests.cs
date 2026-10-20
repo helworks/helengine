@@ -102,7 +102,7 @@ public class IPlatformAssetBuilderMetadataTests {
                 ["pixel-program"] = "ForwardStandardShader.ps",
                 ["variant"] = "Mesh",
                 ["base-color"] = "#336699"
-            }));
+            }, NumericPrecisionPolicy.Default));
 
         ShaderMaterialAsset materialAsset = Assert.IsType<ShaderMaterialAsset>(global::helengine.editor.AssetSerializer.DeserializeFromBytes(result.CookedMaterialBytes));
         Assert.Equal("ForwardStandardShader", materialAsset.ShaderAssetId);

@@ -55,13 +55,17 @@ namespace helengine.files {
         /// <param name="asset">Asset instance to serialize.</param>
         /// <returns>Encoded byte array.</returns>
         /// <exception cref="ArgumentNullException">Thrown when the asset is null.</exception>
-        public static byte[] SerializeToBytes(Asset asset) {
+        public static byte[] SerializeToBytes(Asset asset) { return SerializeToBytes(asset, RealRepresentation.Policy); }
+
+        /// <summary>Serializes one runtime asset under the consuming build's explicit numeric contract.</summary>
+        public static byte[] SerializeToBytes(Asset asset, NumericPrecisionPolicy numericPolicy) {
+            RealBinaryCodec.ValidatePolicy(numericPolicy);
             if (asset == null) {
                 throw new ArgumentNullException(nameof(asset));
             }
 
             using var stream = new MemoryStream();
-            Serialize(stream, asset);
+            Serialize(stream, asset, numericPolicy);
             return stream.ToArray();
         }
 

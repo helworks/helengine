@@ -270,10 +270,10 @@ public sealed class TestPlatformAssetBuilder : IPlatformAssetBuilder {
     static byte[] CreateFloat4ConstantBufferData(float4 value) {
         using MemoryStream stream = new MemoryStream();
         using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-        writer.WriteSingle(value.X);
-        writer.WriteSingle(value.Y);
-        writer.WriteSingle(value.Z);
-        writer.WriteSingle(value.W);
+        writer.WriteSingle(value.X.ToSingle());
+        writer.WriteSingle(value.Y.ToSingle());
+        writer.WriteSingle(value.Z.ToSingle());
+        writer.WriteSingle(value.W.ToSingle());
         return stream.ToArray();
     }
 }
