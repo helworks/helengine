@@ -61,5 +61,18 @@ namespace helengine.editor {
                     StringComparer.Ordinal);
             }
         }
+        /// <summary>Applies invocation-only precision after persisted settings without rewriting their dictionaries.</summary>
+        internal static void ApplyNumericOptions(EditorBuildPlatformConfigDocument platformConfig, EditorCliBuildOptions options) {
+            ArgumentNullException.ThrowIfNull(platformConfig);
+            ArgumentNullException.ThrowIfNull(options);
+            Dictionary<string, string> selected = new(platformConfig.SelectedCodegenOptionValues ?? []);
+            foreach (KeyValuePair<string, string> option in options.NumericOptionValues) {
+                foreach (string key in selected.Keys.Where(key => string.Equals(key, option.Key, StringComparison.OrdinalIgnoreCase)).ToArray()) {
+                    selected.Remove(key);
+                }
+                selected[option.Key] = option.Value;
+            }
+            platformConfig.SelectedCodegenOptionValues = selected;
+        }
     }
 }

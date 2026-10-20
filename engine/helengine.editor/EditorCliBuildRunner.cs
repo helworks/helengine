@@ -146,6 +146,7 @@ namespace helengine.editor {
                     platformConfig.SelectedEnvironmentId = string.Empty;
                 }
 
+                EditorCliBuildPlatformConfigOverlayService.ApplyNumericOptions(platformConfig, options);
                 EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(
                     bootstrap.SceneCatalogService,
                     platformConfig,

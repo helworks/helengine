@@ -51,8 +51,8 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(colors));
             }
 
-            int width = Math.Max(1, (int)Math.Ceiling(Math.Max(1.0, camera.Viewport.Z)));
-            int height = Math.Max(1, (int)Math.Ceiling(Math.Max(1.0, camera.Viewport.W)));
+            int width = Math.Max(1, (int)Math.Ceiling(Math.Max(1.0, camera.Viewport.Z.ToDouble())));
+            int height = Math.Max(1, (int)Math.Ceiling(Math.Max(1.0, camera.Viewport.W.ToDouble())));
             EnsureRenderTarget(camera, width, height);
             IRenderQueue3D queue = camera.RenderQueue3D ?? throw new InvalidOperationException("Picker camera must provide a render queue.");
             Renderer.RequestShaderPass(camera, queue, PickerShaderPath, GetPickColor(colors));

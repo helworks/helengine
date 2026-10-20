@@ -12,7 +12,11 @@ namespace helengine.editor {
         /// <param name="outputDirectoryPath">Build output directory path.</param>
         /// <param name="environmentId">Optional nested build environment identifier.</param>
         /// <param name="useCommonOutputDirectory">Whether the build should use the full-graph common output directory mode.</param>
-        public EditorCliBuildOptions(string projectPath, string platformId, string buildProfileId, string outputDirectoryPath, bool useCommonOutputDirectory, string environmentId = "release", bool environmentWasExplicitlyProvided = false) {
+        public EditorCliBuildOptions(string projectPath, string platformId, string buildProfileId, string outputDirectoryPath, bool useCommonOutputDirectory, string environmentId = "release", bool environmentWasExplicitlyProvided = false) : this(projectPath, platformId, buildProfileId, outputDirectoryPath, useCommonOutputDirectory, environmentId, environmentWasExplicitlyProvided, new Dictionary<string, string>()) { }
+
+        /// <summary>Captures invocation-only numeric overrides independently of project/platform preferences.</summary>
+        public EditorCliBuildOptions(string projectPath, string platformId, string buildProfileId, string outputDirectoryPath, bool useCommonOutputDirectory, string environmentId, bool environmentWasExplicitlyProvided, IReadOnlyDictionary<string, string> numericOptionValues) {
+            NumericOptionValues = new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(new Dictionary<string, string>(numericOptionValues ?? throw new ArgumentNullException(nameof(numericOptionValues))));
             ProjectPath = projectPath ?? throw new ArgumentNullException(nameof(projectPath));
             PlatformId = platformId ?? throw new ArgumentNullException(nameof(platformId));
             BuildProfileId = buildProfileId ?? string.Empty;
@@ -21,6 +25,9 @@ namespace helengine.editor {
             EnvironmentId = string.IsNullOrWhiteSpace(environmentId) ? "release" : environmentId.Trim();
             EnvironmentWasExplicitlyProvided = environmentWasExplicitlyProvided;
         }
+
+        /// <summary>Gets the immutable numeric overrides supplied for this invocation only.</summary>
+        public IReadOnlyDictionary<string, string> NumericOptionValues { get; }
 
         /// <summary>
         /// Gets the project directory or canonical project file path.

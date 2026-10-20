@@ -63,6 +63,30 @@ public sealed class NumericPrecisionCacheTests {
         Assert.Throws<InvalidOperationException>(() => System.Text.Json.JsonSerializer.Deserialize<PlatformBuildManifest>(forged.ToJsonString()));
     }
 
+    /// <summary>CLI precision is an invocation override and leaves persisted project selections unchanged.</summary>
+    [Theory]
+    [InlineData("32", "32")]
+    [InlineData("64", "64")]
+    public void CommandLineNumericSelectionDoesNotRewriteProject(string storage, string arithmetic) {
+        Assert.True(EditorCliArgumentParser.TryParseBuildOptions(["--project=C:/project", "--build=windows", "--output=C:/output",
+            "--real-storage-bits=" + storage, "--real-arithmetic-bits", arithmetic], out EditorCliBuildOptions options, out string error), error);
+        Dictionary<string, string> original = new() { ["real-storage-bits"] = "16", ["other"] = "kept" };
+        EditorBuildPlatformConfigDocument config = new() { SelectedCodegenOptionValues = original };
+        EditorCliBuildPlatformConfigOverlayService.ApplyNumericOptions(config, options);
+        Assert.Equal(storage, config.SelectedCodegenOptionValues["real-storage-bits"]);
+        Assert.Equal(arithmetic, config.SelectedCodegenOptionValues["real-arithmetic-bits"]);
+        Assert.Equal("kept", config.SelectedCodegenOptionValues["other"]);
+        Assert.Equal("16", original["real-storage-bits"]);
+    }
+
+    /// <summary>Malformed or duplicated precision switches fail before any build phase starts.</summary>
+    [Theory]
+    [InlineData("--real-storage-bits=128", "--real-arithmetic-bits=32")]
+    [InlineData("--real-storage-bits=32", "--real-storage-bits=64")]
+    public void CommandLineRejectsInvalidNumericSelection(string first, string second) {
+        Assert.False(EditorCliArgumentParser.TryParseBuildOptions(["--project=C:/project", "--build=windows", "--output=C:/output", first, second], out _, out _));
+    }
+
     /// <summary>Invokes the same deterministic function used by the native graph phase.</summary>
     static string ComputeNativeKey(EditorBuildQueueItemDocument queue, IReadOnlyDictionary<string, string> options) {
         PlatformBuilderDescriptor descriptor = new("test", "1", "windows", new("1.0.0", "1.0.0"), new(1, 2), ["test"], ["test"]);

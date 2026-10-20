@@ -57,6 +57,7 @@ namespace helengine.editor {
                 return false;
             }
 
+            Dictionary<string, string> numericOptions = new(StringComparer.Ordinal);
             string projectPath = string.Empty;
             string platformId = string.Empty;
             string buildProfileId = string.Empty;
@@ -68,6 +69,23 @@ namespace helengine.editor {
             for (int index = 0; index < args.Length; index++) {
                 string argument = args[index];
                 if (string.IsNullOrWhiteSpace(argument)) {
+                    continue;
+                }
+
+                string numericSetting = string.Empty;
+                if (IsSwitchMatch(argument, "--real-storage-bits") || argument.StartsWith("--real-storage-bits=", StringComparison.OrdinalIgnoreCase)) {
+                    numericSetting = helengine.baseplatform.Definitions.PlatformCodegenSettingIds.RealStorageBits;
+                } else if (IsSwitchMatch(argument, "--real-arithmetic-bits") || argument.StartsWith("--real-arithmetic-bits=", StringComparison.OrdinalIgnoreCase)) {
+                    numericSetting = helengine.baseplatform.Definitions.PlatformCodegenSettingIds.RealArithmeticBits;
+                }
+                if (numericSetting.Length > 0) {
+                    if (!TryReadInlineValue(argument, "--" + numericSetting, out string width)
+                        && !TryReadFollowingValue(args, ref index, out width, out errorMessage)) { return false; }
+                    if (numericOptions.ContainsKey(numericSetting) || !int.TryParse(width, out int bits) || bits != 16 && bits != 32 && bits != 64) {
+                        errorMessage = "Numeric precision must be 16, 32 or 64 and each setting may appear only once.";
+                        return false;
+                    }
+                    numericOptions.Add(numericSetting, bits.ToString(System.Globalization.CultureInfo.InvariantCulture));
                     continue;
                 }
 
@@ -159,7 +177,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            options = new EditorCliBuildOptions(projectPath, platformId, buildProfileId, outputDirectoryPath, useCommonOutputDirectory, environmentId, environmentWasExplicitlyProvided);
+            options = new EditorCliBuildOptions(projectPath, platformId, buildProfileId, outputDirectoryPath, useCommonOutputDirectory, environmentId, environmentWasExplicitlyProvided, numericOptions);
             return true;
         }
 

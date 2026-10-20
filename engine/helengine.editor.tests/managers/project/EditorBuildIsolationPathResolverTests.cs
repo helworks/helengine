@@ -349,5 +349,19 @@ namespace helengine.editor.tests.managers.project {
             Assert.Throws<ArgumentException>(() => resolver.ResolveNativeObjectCacheRootPath(null, new string('a', 64)));
             Assert.Throws<ArgumentException>(() => resolver.ResolveNativeObjectCacheRootPath(Directory.GetCurrentDirectory(), ""));
         }
+        /// <summary>Headless generated project metadata honors the same external stable cache as its compiler output.</summary>
+        [Fact]
+        public void GeneratedProjectMetadataUsesExternalStableCache() {
+            string cache = @"C:\temp\numeric-precision\windows\cache";
+            Environment.SetEnvironmentVariable("HELENGINE_BUILD_CACHE_ROOT", cache);
+            Environment.SetEnvironmentVariable("HELENGINE_BUILD_CONFIGURATION", "debug");
+            Environment.SetEnvironmentVariable("HELENGINE_BUILD_PROFILE", "profiler");
+            EditorBuildIsolationPathResolver resolver = new(@"C:\dev\helprojs\demodisc");
+            string workspace = resolver.ResolveGeneratedCodeProjectWorkspaceRootPath("windows", EditorScriptCompilationMode.RuntimeOnly);
+            Assert.StartsWith(cache + Path.DirectorySeparatorChar, workspace, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(workspace, resolver.ResolveGeneratedCodeProjectWorkspaceRootPath("windows", EditorScriptCompilationMode.RuntimeOnly));
+            Assert.StartsWith(workspace + Path.DirectorySeparatorChar,
+                resolver.ResolveGeneratedCodeProjectOutputRootPath("windows", EditorScriptCompilationMode.RuntimeOnly));
+        }
     }
 }

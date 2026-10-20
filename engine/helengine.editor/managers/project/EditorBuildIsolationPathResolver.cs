@@ -197,6 +197,10 @@ namespace helengine.editor {
                 throw new ArgumentOutOfRangeException(nameof(compilationMode), compilationMode, "Unknown script compilation mode.");
             }
 
+            if (UsesStableCacheRoot()) {
+                return CombineStrictDescendantPath(CombineStrictDescendantPath(ResolveStableProfileCacheRootPath(routeId), "generated-code-projects"), SanitizeStablePathSegment(compilationMode.ToString()));
+            }
+
             return Path.Combine(
                 ResolveGeneratedCodeProjectWorkspaceRootPath(),
                 SanitizeStablePathSegment(routeId),
