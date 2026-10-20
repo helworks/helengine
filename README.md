@@ -145,3 +145,54 @@ dotnet run --project C:\dev\helworks\helengine\tools\build-waiter\helengine.buil
   -Platform ps2 `
   -Output C:\dev\helprojs\output\ps2
 ```
+
+
+## Build Numeric Precision
+
+Numeric precision belongs to each resolved build request. `real-storage-bits` selects the physical width of engine `Real` fields; `real-arithmetic-bits` selects `RealEvaluation` expression precision. The queue captures both values, and the same versioned identity is required by cooked assets, generated Core, scene modules, native receipts and cache keys. A mismatched identity fails before the dependent payload is consumed.
+
+For example, select a Windows double build without changing the authored project's default or another queued build:
+
+```powershell
+& C:\dev\helworks\helengine\scripts\build-platform.ps1 `
+  -Project C:\dev\helprojs\demodisc `
+  -Platform windows -BuildProfile profiler -Configuration Debug `
+  -Output C:\temp\numeric-precision\windows\package `
+  -CacheRoot C:\temp\numeric-precision\windows\cache `
+  -AdditionalArgs @('--environment=debug', '--real-storage-bits=64', '--real-arithmetic-bits=64')
+```
+
+Use `32` for both options for a float build. Both selections use the same output and overwrite the previous package. The editor also exposes the two settings through each backend's existing codegen profile. Unsupported combinations are rejected rather than approximated by another evaluator.
+
+The authoring host uses 64/64, independently of the build selection. Stored engine vectors, matrices and migrated animation values use `Real`; an expression retains evaluation precision until its result reaches a stored destination. Ordinary C# `float`/`double`, fixed-width binary IO, SDK/GPU buffers and monotonic clocks keep their explicit contracts.
+
+Binary16 storage occupies two bytes per `Real`. In 16/32, `(2048 + 1) - 2048` evaluates to `1` unless an explicit intermediate store rounds it. In 16/16, each primitive result is rounded to binary16 and the same expression yields `0`. Portable conversion does not require a target half instruction. Half math uses float primitives followed by explicit half rounding; it does not expose unrounded float intermediates as binary16 evaluation results.
+
+Current target validation:
+
+| Target | Storage/arithmetic | Validation |
+| --- | --- | --- |
+| Windows | 32/32, 64/64 | DemoDisc menu and all 14 rendering scenes, 300 frames each; Tracy menu captures |
+| PS1 | 32/32 | Main menu loads in DuckStation; six steady 600-frame CPU windows |
+| PS1 | 16/32 | Menu runs in DuckStation; six steady 600-frame CPU windows; guest tests pass all 65,536 codec patterns, 40 arithmetic cases and quaternion normalization |
+| PS1 | 16/16 | Guest numeric self-test passes and retail menu runs; the full profiler build fails allocation during menu loading. Experimental selection remains a local candidate |
+
+These results do not establish half support on other installed backends or every Cartesian combination of the three widths. The 16-bit scalar/codec tests pass in both 16/32 and 16/16. The host native differential test covers 2,048 input pairs: primitive arithmetic and square roots match the independent `System.Half` oracle, while the tested trigonometric outputs allow at most one binary16 ULP. This is not a bound for every input or for an untested target math library.
+
+The latest Windows 64/64 scene rerun completed all 15 scenes without presentation failures. Its subsequent 1,800-frame menu recapture exceeded the 80-second test timeout; that attempt is not a passing Tracy validation. The table's Tracy evidence comes from the earlier successful captures. The right-aligned Windows menu was also checked by Helena.
+
+PS1 menu measurements use medians of six 600-frame windows:
+
+| Measurement | 32/32 | 16/32 |
+| --- | ---: | ---: |
+| Update | 2.2745 ms | 2.786 ms |
+| Draw | 19.147 ms | 22.7845 ms |
+| AnimationPlayer update | 1.099 ms | 1.519 ms |
+| Cooked content | 471,926 bytes | 439,560 bytes |
+| Published disc image | 1,853,440 bytes | 1,869,824 bytes |
+| Profiled static RAM footprint (includes startup self-test) | 1,370,112 bytes | 1,421,312 bytes |
+| Profiled heap high-water mark | 537,624 bytes | 510,088 bytes |
+
+Binary16 saves cooked data and heap high-water space in this menu, but increases executable/static memory and elapsed update/draw time. The profiled static footprint includes the half startup self-test, which is absent from retail builds; it is not an isolated codec-size measurement. It is not a speed improvement here. The 16/16 retail image is 1,910,784 bytes with 439,560 bytes of cooked content and 528,384 bytes of heap capacity. Its menu runs without render failures and reaches the same 496,480-byte heap high-water mark as 16/32 retail. The instrumented 16/16 image leaves only 505,856 bytes for heap and fails a 1,536-byte allocation during menu loading, before any comparable component capture. Its guest numeric self-test passes all 65,536 codec patterns, 40 arithmetic cases and quaternion normalization. Actual MIPS sizes are 13,504 bytes for the profiler sink and 12,392 bytes for its timing window; the profiler reserves 128 component rows while this menu updates five components. Reducing component capacity to 32 would save 6,912 bytes, but that configuration change is awaiting architectural feedback. PS1 rendering scenes and visible half-precision differences remain unverified.
+
+The clock quantum is 64 microseconds. Timings are elapsed guest time, including waits inside native calls; they are not instruction-exclusive CPU time. Stage scopes nest, so their rows must not be summed. A reported `0.000 ms` is below measurement resolution, not proof of zero work. The allocator's heap end is a high-water mark, not retained live RAM; retained heap usage has not been measured. The previous 32/32 capture measured update 2.304 ms and draw 19.413 ms. The current comparison report is `C:\temp\numeric-precision\ps1\precision-comparison.json`.

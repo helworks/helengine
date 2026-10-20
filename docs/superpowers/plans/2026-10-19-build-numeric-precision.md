@@ -17,10 +17,10 @@
 - Core, cooked payloads and scene modules reject incompatible policy identities before consuming dependent structures.
 - Fixed-width single/double IO and external formats retain their stated widths. No blanket primitive remapping, generated-source patches, fast-math or silent precision fallback.
 - Compound arithmetic retains ArithmeticBits; narrowing occurs at stored destinations. ArithmeticBits=16 has binary16 operation rounding, including on software implementations.
-- Real source changes and tests run in the actual checkouts. All scratch/generated sources, test outputs and logs go under C:\temp\numeric-precision, with fixed windows and ps1 subdirectories. Final packages overwrite C:\dev\helworks\builds\windows and C:\dev\helworks\builds\ps1 respectively.
+- Real source changes and tests run in the actual checkouts. All scratch/generated sources, test outputs and logs go under C:\temp\numeric-precision, with fixed windows and ps1 subdirectories. Final packages overwrite C:\temp\numeric-precision\windows\package and C:\temp\numeric-precision\ps1\package respectively (the original builds output was rejected by automatic approval review; the fixed C:\temp alternative is authorized).
 - Preserve unrelated local edits. Do not create any worktree. Check status before editing each repository; consult Helena for another session's changes on target paths or an unapproved branch.
 - Helena explicitly approved using the existing clean master in C:\dev\helworks\csharpcodegen. Keep that branch; do not create or switch branches. The engine, Windows and PS1 repositories remain on main.
-- Current viewport files in the engine contain existing local changes; do not edit or overwrite those paths without renewed ownership confirmation. Existing PS1 profiler-forwarding edits belong to the preceding profiling task and must remain intact.
+- Helena authorized integrating the necessary existing viewport/backend/project changes while preserving them. Existing PS1 profiler-forwarding edits belong to the preceding profiling task and must remain intact.
 
 Before invoking any test/build command, create its fixed scratch directory, set TEMP and TMP to C:\temp\numeric-precision\windows (or ps1 for that target), and select the listed artifacts/results roots. Do not use the default repository bin/obj or AppData temporary paths for agent-owned outputs.
 
@@ -124,8 +124,8 @@ Validation boundary: full Physics3D suite currently has seven dynamics/stack fai
 - [x] Write tests CookKeyChangesWithNumericPolicy, NativeKeyChangesWithNumericPolicy, EquivalentPolicyOptionsHaveSameKey and RejectsModulePolicyBeforeLoad where 32/32 and 64/64 share source hashes/profile labels but must produce different cook, generation, native and module keys. Repeat with reordered equivalent settings to prove determinism. Forge only the policy identity in real test packages and require early rejection.
 - [x] Run NumericPrecisionCacheTests and the module-host fixture; expect invalidation/mismatch failures before implementation.
 - [x] Propagate one resolved immutable policy through every graph phase; extend existing locks/fingerprints rather than introducing timestamp folders or deleting shared cache roots. Preserve the existing profiler-forwarding edits in the PS1 Python runner.
-- [ ] Re-run tests and build 32 -> 64 -> 32 using the same fixed output. Prove the final package's content/Core/modules all match its selected policy, and a concurrent queue snapshot remains unchanged.
-- [ ] Commit engine and PS1 changes separately with explicit matching contract revisions: `feat: bind numeric policy to build and module identities`.
+- [x] Re-run tests and build 32 -> 64 -> 32 using the same fixed output. Prove the final package's content/Core/modules all match its selected policy, and a concurrent queue snapshot remains unchanged.
+- [x] Commit engine and PS1 changes separately with explicit matching contract revisions: `feat: bind numeric policy to build and module identities`.
 
 ## Task 6: Windows 32/64 end-to-end and PS1 32-bit baseline
 
@@ -137,11 +137,11 @@ Validation boundary: full Physics3D suite currently has seven dynamics/stack fai
 
 **Interfaces:** Windows advertises 32/32 and 64/64 only after native conversion/interop passes; PS1 initially advertises 32/32. Existing debug/profiler/release selections remain independent of numeric precision. Final reports record numeric policy and revisions; old generated Core without the matching identity is rejected.
 
-- [ ] Write builder tests WindowsPoliciesReachCoreAndModules, DoubleEnginePreservesGpuLayout and Ps1RejectsUnavailableHalfArithmetic for policy handoff, fixed DirectX buffer layout in 64-bit engine mode, option persistence and unsupported half arithmetic diagnostics. Inventory all native scalar/vector consumers; do not silently enable unported combinations on other platforms.
-- [ ] Run the two new builder filters in their actual project checkouts with fixed C:\temp\numeric-precision\windows or ps1 artifacts/results roots; expect failures for absent capability/handoff support.
-- [ ] Adapt both backends' explicit native boundaries and build receipts. Regenerate Core through the existing real converter checkout, then build Windows 32/32 and 64/64 sequentially into the same Windows output. Do not overwrite or regenerate the authored DemoDisc project from a scratch copy.
-- [ ] Run menu + all 14 rendering scenes on each Windows precision, report success/crash per scene and numeric/visual differences. Only capture screenshots when authorized. Build/run the PS1 32/32 menu through emulator MCP and capture comparable steady 600-frame profiler windows. Compare with C:\dev\helworks\builds\ps1\menu-profile.json before replacing that report with the new annotated results; keep no build history.
-- [ ] Commit backend integrations separately: `feat: build Windows and PS1 with resolved numeric policies`. Report actual tested platforms; do not claim all installed targets support the new representations.
+- [x] Write builder tests WindowsPoliciesReachCoreAndModules, DoubleEnginePreservesGpuLayout and Ps1RejectsUnavailableHalfArithmetic for policy handoff, fixed DirectX buffer layout in 64-bit engine mode, option persistence and unsupported half arithmetic diagnostics. Inventory all native scalar/vector consumers; do not silently enable unported combinations on other platforms.
+- [x] Run the two new builder filters in their actual project checkouts with fixed C:\temp\numeric-precision\windows or ps1 artifacts/results roots; expect failures for absent capability/handoff support.
+- [x] Adapt both backends' explicit native boundaries and build receipts. Regenerate Core through the existing real converter checkout, then build Windows 32/32 and 64/64 sequentially into the same Windows output. Do not overwrite or regenerate the authored DemoDisc project from a scratch copy.
+- [x] Run menu + all 14 rendering scenes on each Windows precision, report success/crash per scene and numeric/visual differences. Only capture screenshots when authorized. Build/run the PS1 32/32 menu through emulator MCP and capture comparable steady 600-frame profiler windows. Compare with C:\dev\helworks\builds\ps1\menu-profile.json before replacing that report with the new annotated results; keep no build history.
+- [x] Commit backend integrations separately: `feat: build Windows and PS1 with resolved numeric policies`. Report actual tested platforms; do not claim all installed targets support the new representations.
 
 ## Task 7: PS1 16-bit storage with 32-bit arithmetic
 
@@ -152,11 +152,11 @@ Validation boundary: full Physics3D suite currently has seven dynamics/stack fai
 
 **Interfaces:** Binary16 stored Real is exactly 2 bytes with specified alignment; evaluation remains IEEE binary32. `he_real_load/store` implement explicit software conversion without assuming MIPS `_Float16` support. Only advertise PS1 16/32 after this task's gates pass.
 
-- [ ] Add tests Binary16StorageMatchesIeeeBoundaries, MixedArithmeticDoesNotNarrowEarly and StoredIntermediateRoundsToBinary16 for signed zero, minimum subnormal, maximum finite 65504, halfway rounding, NaN/infinity classification and both endiannesses. Assert a transient expression equivalent to `(2048 + 1) - 2048` yields 1 with 16/32 arithmetic before the final store, whereas an explicit intermediate stored Real becomes 2048. Compare complete native and managed expression results, not just component sizeof.
-- [ ] Run the numeric, codec and converter compile/run filters; expect 16/32 rejection or absent implementation failures.
-- [ ] Implement the portable half storage codec/load/store and managed representation with genuine 32-bit intermediates. Test struct size/alignment and fixed GPU interfaces on the actual MIPS build, not only the host.
+- [x] Add tests Binary16StorageMatchesIeeeBoundaries, MixedArithmeticDoesNotNarrowEarly and StoredIntermediateRoundsToBinary16 for signed zero, minimum subnormal, maximum finite 65504, halfway rounding, NaN/infinity classification and both endiannesses. Assert a transient expression equivalent to `(2048 + 1) - 2048` yields 1 with 16/32 arithmetic before the final store, whereas an explicit intermediate stored Real becomes 2048. Compare complete native and managed expression results, not just component sizeof.
+- [x] Run the numeric, codec and converter compile/run filters; expect 16/32 rejection or absent implementation failures.
+- [x] Implement the portable half storage codec/load/store and managed representation with genuine 32-bit intermediates. Test struct size/alignment and fixed GPU interfaces on the actual MIPS build, not only the host.
 - [ ] Build/run PS1 menu and supported rendering scenes; measure retained runtime RAM, cooked bytes, package bytes, component/render CPU and visible/numeric errors against the saved 32/32 measurement in the current review report. Overwrite the same PS1 output. Report a slowdown honestly; reduced storage is not an acceptance claim of faster arithmetic.
-- [ ] Commit only verified support: `feat: add PS1 binary16 storage with float32 evaluation`.
+- [x] Commit only verified support: `feat: add PS1 binary16 storage with float32 evaluation`.
 
 ## Task 8: Explicit binary16 arithmetic and final review
 
@@ -167,9 +167,9 @@ Validation boundary: full Physics3D suite currently has seven dynamics/stack fai
 
 **Interfaces:** The portable binary16 backend explicitly rounds each primitive operation result to binary16, including math-function outputs and intermediate operations; compare canonical bit patterns/classification with the managed binary16 contract. It is a separate evaluator from 16/32, not an alias or implicit wider fallback. Fixed-point substitution remains out of scope.
 
-- [ ] Write differential tests Binary16RoundsEachPrimitiveOperation, QuaternionNormalizationMatchesManaged and FixedClockDoesNotBecomeBinary16 for the mixed-expression case from Task 7 (16-bit evaluation yields 0), cancellation, subnormal transitions, rounding ties, division/square-root boundaries, quaternion normalization and long-running clock separation. Exact arithmetic must agree; transcendental functions need a documented tested error bound, never an unexamined host/native precision difference.
-- [ ] Run the managed and native fixtures; expect unsupported 16/16 or numeric mismatches before implementing this backend.
-- [ ] Implement explicit software binary16 operations/math rounding and prove semantics on MIPS. Keep unsupported storage/arithmetic combinations rejected until they have equivalent tests and backend support; accepting the two numeric enums does not advertise every Cartesian combination.
+- [x] Write differential tests Binary16RoundsEachPrimitiveOperation, QuaternionNormalizationMatchesManaged and FixedClockDoesNotBecomeBinary16 for the mixed-expression case from Task 7 (16-bit evaluation yields 0), cancellation, subnormal transitions, rounding ties, division/square-root boundaries, quaternion normalization and long-running clock separation. Exact arithmetic must agree; transcendental functions need a documented tested error bound, never an unexamined host/native precision difference.
+- [x] Run the managed and native fixtures; expect unsupported 16/16 or numeric mismatches before implementing this backend.
+- [x] Implement explicit software binary16 operations/math rounding and prove semantics on MIPS. Keep unsupported storage/arithmetic combinations rejected until they have equivalent tests and backend support; accepting the two numeric enums does not advertise every Cartesian combination.
 - [ ] Build/run PS1 16/16 and repeat the same CPU/RAM/scene observations. Run the targeted suites once more after the final changes. Review the full diff for primitive ABI leaks, generated-file edits, hidden double promotion, stale policy fingerprints and changes from other sessions. Use a reviewer agent only if Helena selected delegation; otherwise review inline and report that boundary.
 - [ ] Commit verified changes, publish a support/measurement table and clean only task-owned disposable probes/logs. Keep the running emulator's mounted disc and shared caches intact until they are released; never recursively delete shared C:\temp\helengine state. Push only when requested.
 
@@ -177,4 +177,16 @@ Validation boundary: full Physics3D suite currently has seven dynamics/stack fai
 
 Recommended method: inline execution in this session. These tasks are coupled by scalar semantics, serialized formats and ABI identity, so sequential ownership avoids simultaneous changes to shared contracts. Delegation remains an explicit alternative if Helena requests it; subagents must use gpt-6.1-sol with high reasoning and the same real checkouts.
 
-Before production edits, Helena reviews this plan and selects/confirms the execution method. Converter master usage is approved. Ownership confirmation for existing viewport edits remains a prerequisite to touching those specific paths, not a reason to discard or reset them.
+Before production edits, Helena reviews this plan and selects/confirms the execution method. Converter master usage is approved. Ownership/integration authorization for existing viewport/backend/project edits has been received; preserve those changes throughout execution.
+
+## Current validation boundary
+
+Windows 32/32 and 64/64 passed all 15 scenes and menu Tracy captures earlier in execution. The latest final-source 64/64 rerun passed all 15 scenes again, but the subsequent 1,800-frame Tracy recapture timed out at 80 seconds. It is recorded as a failed attempt, not a replacement passing capture. Helena confirmed the Windows right alignment after reopening the menu.
+
+PS1 16/32 runs the menu and its instrumented guest self-test passes all 65,536 binary16 encodings, 40 independent arithmetic cases and quaternion normalization. Six steady 600-frame windows show update 2.786 ms and draw 22.7845 ms, slower than the 32/32 baseline (2.2745 / 19.147 ms). Cooked bytes decrease from 471,926 to 439,560. Profiled static RAM increases from 1,370,112 to 1,421,312 bytes, and heap high-water decreases from 537,624 to 510,088 bytes. Live retained heap has not been measured. PS1 rendering-scene/visual validation remains pending.
+
+PS1 16/16 is a local candidate, with 134 builder tests and actual MIPS compilation of its profiler/self-test passing. The complete official retail game build succeeded at 2026-10-20T13:20:24Z; it has 117 policy-checked numeric assets, nine modules, a 1,910,784-byte disc, 439,560 bytes of cooked content and 528,384 bytes of heap capacity. Its profiler build also succeeded. After explicit launch authorization, the guest numeric self-test passed, but the profiler image failed a 1,536-byte allocation while loading the menu. The retail image runs the menu without render failures and reaches 496,480 bytes of heap high-water, identical to 16/32 retail. The profiled heap capacity is only 505,856 bytes. Actual MIPS sizeof reports a 13,504-byte sink containing a 12,392-byte window with 128 component slots. Configurable capacity (default 128, 32 for this menu, saving 6,912 bytes) versus binary16 code compaction is awaiting required architectural feedback. No profiler capacity or codec change has been made. Managed numeric tests pass 52/52 in each of 16/16, 16/32, 32/32 and 64/64. Two former float-only test inputs were corrected to use the corresponding binary16 precision boundary; runtime semantics and tolerances were not changed.
+
+Helena revoked UI automation: never send keyboard/mouse input, change focus or capture screens. No UI input or capture is automated. Helena explicitly requested emulator MCP launch for the prepared 16/16 image; the failing profiler PID33028 was closed after recording its failure, and the retail image is open as PID41188. Remaining PS1 scene/visual checks require manual navigation. The 16/16 arithmetic implementation has now executed successfully on the guest; full component profiling is blocked on the memory decision above. Candidate 16/16 capability is not committed as target-execution-verified support.
+
+Verified PS1 16/32 support is committed as `e329190`; the exact local 16/16 selection/test delta was restored after the commit. The precision-specific vector/GPU tests are committed as `a3d4f03c`.
