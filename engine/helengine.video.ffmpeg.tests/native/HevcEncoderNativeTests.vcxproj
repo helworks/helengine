@@ -1,0 +1,11 @@
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations"><ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration></ItemGroup>
+  <PropertyGroup Label="Globals"><ProjectGuid>{A213F5C0-103A-4D07-AD6B-3F0136CB7E51}</ProjectGuid><WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props"/>
+  <PropertyGroup Label="Configuration"><ConfigurationType>Application</ConfigurationType><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props"/>
+  <PropertyGroup><TargetName>helengine.video.encoder.tests</TargetName><OutDir>$(NativeOutputRoot)\</OutDir><IntDir>$(NativeOutputRoot)\obj\encoder-tests\</IntDir></PropertyGroup>
+  <ItemDefinitionGroup><ClCompile><LanguageStandard>stdcpp17</LanguageStandard><ExceptionHandling>Sync</ExceptionHandling><RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary><PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions><AdditionalIncludeDirectories>$(FFmpegSdkRoot)\include;$(ProjectDir)..\..\helengine.video.ffmpeg\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ClCompile><Link><AdditionalLibraryDirectories>$(FFmpegSdkRoot)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories><AdditionalDependencies>d3d11.lib;dxgi.lib;avformat.lib;avcodec.lib;avutil.lib;swscale.lib;%(AdditionalDependencies)</AdditionalDependencies></Link></ItemDefinitionGroup>
+  <ItemGroup><ClCompile Include="HevcEncoderNativeTests.cpp"/><ClCompile Include="..\..\helengine.video.ffmpeg\src\EncoderSurfacePool.cpp"/><ClCompile Include="..\..\helengine.video.ffmpeg\src\EncoderFailure.cpp"/></ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets"/>
+</Project>
