@@ -1,7 +1,8 @@
 # Captura de frames de janelas no Windows
 
 Data: 2026-10-20. Estado: implementação validada com 11 testes nativos e 13 testes gerenciados,
-incluindo 8 casos de captura real de janelas sintéticas; revisão independente final pendente.
+incluindo 8 casos de captura real de janelas sintéticas; revisão independente final concluída sem
+falhas críticas ou importantes.
 
 ## Objetivo e decisões aprovadas
 
@@ -207,3 +208,8 @@ A suíte All passou em 2026-10-20, sem testes ignorados. O teste de fechamento c
 notificação WinRT Closed não foi entregue a tempo neste ambiente; a implementação conserva também
 a verificação de vida do HWND usada na origem. Os testes de integração usam Windows Forms somente
 no fixture e não acrescentam dependência de UI à biblioteca de produção.
+
+Melhoria opcional anotada pela revisão: no teste ResizeKeepsHeldFramePixelsStable, aguardar cada
+tamanho solicitado especificamente; o predicado atual aceita qualquer largura diferente da inicial,
+podendo consumir um frame enfileirado de um redimensionamento anterior. Não foi identificado defeito
+de produção correspondente. Essa melhoria de cobertura permanece pendente.
