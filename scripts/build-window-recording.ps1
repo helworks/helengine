@@ -34,6 +34,11 @@ if ($Action -in @('NativeTests', 'All')) {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     if ($Action -eq 'NativeTests') { exit 0 }
 }
+$RecordingCaptureNative = Join-Path $RecordingRepo 'engine\helengine.capture.windows.native\helengine.capture.windows.native.vcxproj'
+& $RecordingMsBuild $RecordingCaptureNative /nologo /v:minimal /p:Configuration=Release /p:Platform=x64 "/p:NativeOutputRoot=$RecordingOutput" *> $RecordingLog
+$RecordingExit = $LASTEXITCODE
+Get-Content -LiteralPath $RecordingLog -Tail 35
+if ($RecordingExit -ne 0) { exit $RecordingExit }
 $RecordingOldCliHome = $env:DOTNET_CLI_HOME
 Push-Location $RecordingRepo
 try {
@@ -47,6 +52,14 @@ try {
     $RecordingManagedProject = Join-Path $RecordingRepo 'engine\helengine.directx11.video\helengine.directx11.video.csproj'
     $RecordingTestProjects = @('engine\helengine.directx11.video.tests\helengine.directx11.video.tests.csproj')
     if (Test-Path -LiteralPath (Join-Path $RecordingRepo 'engine\helengine.recording.windows.tests\helengine.recording.windows.tests.csproj')) { $RecordingTestProjects += 'engine\helengine.recording.windows.tests\helengine.recording.windows.tests.csproj' }
+    if (Test-Path -LiteralPath (Join-Path $RecordingRepo 'tools\window-recorder.tests\helengine.window-recorder.tests.csproj')) { $RecordingTestProjects += 'tools\window-recorder.tests\helengine.window-recorder.tests.csproj' }
+    $RecordingCliProject = Join-Path $RecordingRepo 'tools\window-recorder\helengine.window-recorder.csproj'
+    $ErrorActionPreference = 'Continue'
+    & dotnet publish $RecordingCliProject @RecordingManagedArgs -o (Join-Path $RecordingOutput 'recorder') --no-self-contained *> $RecordingLog
+    $RecordingExit = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    Get-Content -LiteralPath $RecordingLog -Tail 45
+    if ($RecordingExit -ne 0) { exit $RecordingExit }
     if ($Action -eq 'Build') {
         $ErrorActionPreference = 'Continue'
         & dotnet build $RecordingManagedProject @RecordingManagedArgs *> $RecordingLog
