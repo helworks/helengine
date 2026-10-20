@@ -9,6 +9,6 @@
     <ClCompile><LanguageStandard>stdcpp17</LanguageStandard><ExceptionHandling>Sync</ExceptionHandling><AdditionalIncludeDirectories>$(ProjectDir)..\..\helengine.capture.windows.native\src;$(ProjectDir)..\..\helengine.capture.windows.native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions><RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary><AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions></ClCompile>
     <Link><AdditionalDependencies>d3d11.lib;dxgi.lib;windowsapp.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
   </ItemDefinitionGroup>
-  <ItemGroup><ClCompile Include="NativeTestMain.cpp"/><ClCompile Include="FrameResourceTests.cpp"/></ItemGroup>
+  <ItemGroup><ClCompile Include="NativeTestMain.cpp"/><ClCompile Include="FrameResourceTests.cpp"/><ClCompile Include="SessionContractTests.cpp"/><ClCompile Include="..\..\helengine.capture.windows.native\src\CaptureExports.cpp"/></ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

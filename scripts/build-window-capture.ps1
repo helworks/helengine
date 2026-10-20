@@ -21,6 +21,11 @@ $CaptureManagedTestProject = Join-Path $CaptureRepoRoot 'engine\helengine.captur
 $CaptureManagedProject = Join-Path $CaptureRepoRoot 'engine\helengine.capture.windows\helengine.capture.windows.csproj'
 $CaptureLog = Join-Path $CaptureScratchRoot 'build.log'
 
+& $CaptureMsBuild $CaptureNativeProject /nologo /v:minimal /p:Configuration=Release /p:Platform=x64 "/p:NativeOutputRoot=$CaptureOutputRoot" *> $CaptureLog
+$CaptureExit = $LASTEXITCODE
+Get-Content -LiteralPath $CaptureLog -Tail 45
+if ($CaptureExit -ne 0) { exit $CaptureExit }
+
 if ($Action -eq 'NativeTests') {
     & $CaptureMsBuild $CaptureNativeTestProject /nologo /v:minimal /p:Configuration=Release /p:Platform=x64 "/p:NativeOutputRoot=$CaptureOutputRoot" *> $CaptureLog
     $CaptureExit = $LASTEXITCODE
@@ -29,4 +34,5 @@ if ($Action -eq 'NativeTests') {
     & (Join-Path $CaptureOutputRoot 'helengine.capture.native.tests.exe')
     exit $LASTEXITCODE
 }
+if ($Action -eq 'Build') { exit 0 }
 throw "Action $Action is not implemented yet; the native resource task currently provides NativeTests."
