@@ -1,6 +1,6 @@
 # Captura de frames de janelas no Windows
 
-Data: 2026-10-20. Estado: especificação proposta para revisão de Helena; implementação ainda não iniciada.
+Data: 2026-10-20. Estado: especificação aprovada por Helena; implementação ainda não iniciada.
 
 ## Objetivo e decisões aprovadas
 
