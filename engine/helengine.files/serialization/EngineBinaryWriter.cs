@@ -50,7 +50,8 @@ namespace helengine.files {
 
         /// <summary>Writes one configurable stored scalar under the selected stream policy.</summary>
         public void WriteReal(Real value) {
-            if (NumericPolicy.StorageBits == 32) { WriteSingle(value.ToSingle()); }
+            if (NumericPolicy.StorageBits == 16) { WriteUInt16(Binary16Codec.Encode(value.ToDouble())); }
+            else if (NumericPolicy.StorageBits == 32) { WriteSingle(value.ToSingle()); }
             else { WriteDouble(value.ToDouble()); }
         }
 

@@ -108,6 +108,8 @@ namespace helengine.editor {
             AppendText(hash, graphicsProfileId ?? string.Empty);
             AppendText(hash, environmentId ?? string.Empty);
             AppendType(hash, typeof(EditorPlatformBuildScenePackager));
+            AppendType(hash, typeof(helengine.files.EngineBinaryWriter));
+            AppendType(hash, typeof(RealBinaryCodec));
             AppendType(hash, materialBuilder?.GetType());
             AppendType(hash, scriptTypeResolver?.GetType());
             AppendType(hash, shaderLibrary?.GetType());
