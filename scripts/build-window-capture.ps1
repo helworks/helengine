@@ -47,7 +47,10 @@ try {
     if ($LASTEXITCODE -ne 0 -or $CaptureSdkVersion -ne '9.0.308') { throw 'The repository requires .NET SDK 9.0.308.' }
     $CaptureManagedArguments = @('-c', 'Release', '--artifacts-path', (Join-Path $CaptureOutputRoot 'managed'), '-p:UseCommonOutputDirectory=false')
     if ($Action -eq 'Build') {
+        $ErrorActionPreference = 'Continue'
         & dotnet build $CaptureManagedProject @CaptureManagedArguments *> $CaptureLog
+        $CaptureExit = $LASTEXITCODE
+        $ErrorActionPreference = 'Stop'
     } else {
         $CaptureCategory = ''
         if ($Action -eq 'ManagedTests') { $CaptureCategory = 'Category=Contract' }
@@ -58,9 +61,11 @@ try {
         }
         $CaptureTestArguments = @('--results-directory', $CaptureScratchRoot)
         if ($CaptureCategory) { $CaptureTestArguments += @('--filter', $CaptureCategory) }
+        $ErrorActionPreference = 'Continue'
         & dotnet test $CaptureManagedTestProject @CaptureManagedArguments @CaptureTestArguments *> $CaptureLog
+        $CaptureExit = $LASTEXITCODE
+        $ErrorActionPreference = 'Stop'
     }
-    $CaptureExit = $LASTEXITCODE
     Get-Content -LiteralPath $CaptureLog -Tail 55
     exit $CaptureExit
 } finally {

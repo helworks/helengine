@@ -1,6 +1,7 @@
 # Captura de frames de janelas no Windows
 
-Data: 2026-10-20. Estado: especificação aprovada por Helena; implementação ainda não iniciada.
+Data: 2026-10-20. Estado: implementação validada com 11 testes nativos e 13 testes gerenciados,
+incluindo 8 casos de captura real de janelas sintéticas; revisão independente final pendente.
 
 ## Objetivo e decisões aprovadas
 
@@ -201,5 +202,8 @@ Trabalhar no checkout real, na main, preservando mudanças preexistentes e sem w
 
 ## Próximo passo
 
-Helena revisa esta especificação. Após aprovação, preparar o plano de implementação e sua validação,
-respeitando o escopo da biblioteca de frames e as regras do checkout compartilhado.
+Plano aprovado e executado em `C:\dev\helworks\helengine\docs\superpowers\plans\2026-10-20-window-frame-capture.md`.
+A suíte All passou em 2026-10-20, sem testes ignorados. O teste de fechamento confirmou que a
+notificação WinRT Closed não foi entregue a tempo neste ambiente; a implementação conserva também
+a verificação de vida do HWND usada na origem. Os testes de integração usam Windows Forms somente
+no fixture e não acrescentam dependência de UI à biblioteca de produção.

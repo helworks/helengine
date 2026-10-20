@@ -19,11 +19,14 @@ public:
     static std::unique_ptr<CaptureSession> Open(HWND window, ID3D11Device* device, const he_capture_options& options) {
         if (!window || !IsWindow(window)) { throw winrt::hresult_error(HRESULT_FROM_WIN32(ERROR_INVALID_WINDOW_HANDLE), L"The capture window is invalid."); }
         auto session = std::make_unique<CaptureSession>(CaptureGpuContext::Create(device), options);
+        session->Shared->SourceWindow = window;
+        session->Shared->SourceThread = GetWindowThreadProcessId(window, &session->Shared->SourceProcess);
         session->Worker = std::make_unique<CaptureWorker>(window, options, session->Shared); return session;
     }
     /// <summary>Returns 0 for pending, 1 for an owned frame and 2 for closed; actual failures throw internally.</summary>
     int32_t TryAcquire(std::unique_ptr<CaptureFrame>& frame) {
         std::lock_guard<std::mutex> lock(Shared->Gate); frame.reset();
+        Shared->CheckSourceWindow();
         if (Shared->Status == he_capture_state::Faulted) { Shared->Failure.Throw(); }
         if (Shared->Status == he_capture_state::Disposed) { throw winrt::hresult_illegal_method_call(L"Capture session is disposed."); }
         if (Shared->Status == he_capture_state::WindowClosed) { return 2; }
@@ -35,7 +38,7 @@ public:
         Shared->Terminate(he_capture_state::Faulted, failure);
     }
     /// <summary>Provides an atomic state snapshot independently of queued frame availability.</summary>
-    he_capture_state State() const { std::lock_guard<std::mutex> lock(Shared->Gate); return Shared->Status; }
+    he_capture_state State() const { std::lock_guard<std::mutex> lock(Shared->Gate); Shared->CheckSourceWindow(); return Shared->Status; }
     /// <summary>Returns library-side statistics while keeping held frame resources independent.</summary>
     he_capture_statistics Statistics() const { return Shared->Queue.Snapshot(); }
     /// <summary>Stops publication before tearing down WinRT and waiting for its MTA; never waits for consumers.</summary>

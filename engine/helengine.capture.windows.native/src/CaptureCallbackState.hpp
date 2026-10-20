@@ -21,10 +21,24 @@ public:
     winrt::Windows::Graphics::SizeInt32 PoolSize {};
     /// <summary>Current terminal or running state.</summary>
     he_capture_state Status = he_capture_state::Running;
+    /// <summary>Original HWND checked when the platform has not delivered its asynchronous Closed event.</summary>
+    HWND SourceWindow = nullptr;
+    /// <summary>Original window owner thread, used to reject an obvious recycled HWND identity.</summary>
+    DWORD SourceThread = 0;
+    /// <summary>Original owning process; a recycled handle never authorizes another source.</summary>
+    DWORD SourceProcess = 0;
     /// <summary>First terminal capture failure, preserved for later polling calls.</summary>
     CaptureFailure Failure;
     /// <summary>Creates callback state without establishing a window dependency.</summary>
     CaptureCallbackState(uint32_t capacity, std::shared_ptr<CaptureGpuContext> gpu) : Queue(capacity, gpu), Gpu(std::move(gpu)) {}
+    /// <summary>Checks source lifetime while Gate is held; closure cannot depend solely on delivery of a WinRT event.</summary>
+    void CheckSourceWindow() {
+        if (!SourceWindow || Status != he_capture_state::Running) { return; }
+        DWORD process = 0; DWORD thread = GetWindowThreadProcessId(SourceWindow, &process);
+        if (!IsWindow(SourceWindow) || thread != SourceThread || process != SourceProcess) {
+            Status = he_capture_state::WindowClosed; Queue.DiscardPending();
+        }
+    }
     /// <summary>Publishes only while running; also supplies a deterministic synthetic input seam for native tests.</summary>
     void PublishTexture(ID3D11Texture2D* texture, int32_t width, int32_t height, int64_t timestamp) {
         std::lock_guard<std::mutex> lock(Gate);
@@ -39,6 +53,7 @@ public:
     /// <summary>Copies a Windows frame before returning its surface and recreates the pool after valid size changes.</summary>
     void Refresh(const winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool& pool) noexcept {
         std::lock_guard<std::mutex> lock(Gate);
+        CheckSourceWindow();
         if (Status != he_capture_state::Running) { return; }
         try {
             auto frame = pool.TryGetNextFrame(); if (!frame) { return; }
