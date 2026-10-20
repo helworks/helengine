@@ -18,10 +18,13 @@ namespace helengine.core.tests.numeric {
         /// <summary>Scalar vector results remain evaluation values until an actual stored destination receives them.</summary>
         [Fact]
         public void DotProductKeepsEvaluationPrecision() {
-            float3 left = new float3(16777216d, 1d, 0d);
+            double large = RealRepresentation.StorageBits == 16 ? 2048d : 16777216d;
+            float3 left = new float3(large, 1d, 0d);
             float3 right = new float3(1d, 1d, 0d);
-            double difference = (double)(float3.Dot(left, right) - Real.FromDouble(16777216d));
-            Assert.Equal(RealRepresentation.ArithmeticBits == 64 ? 1d : 0d, difference);
+            double difference = (double)(float3.Dot(left, right) - Real.FromDouble(large));
+            bool retainsUnit = RealRepresentation.StorageBits == 16
+                ? RealRepresentation.ArithmeticBits > 16 : RealRepresentation.ArithmeticBits > 32;
+            Assert.Equal(retainsUnit ? 1d : 0d, difference);
         }
     }
 }

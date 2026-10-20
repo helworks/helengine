@@ -15,13 +15,16 @@ namespace helengine.core.tests.numeric {
         /// <summary>The named GPU boundary rounds wide engine components explicitly to the shader's declared IEEE32 format.</summary>
         [Fact]
         public void NamedBoundaryConvertsEngineValues() {
-            float4 source = new float4(16777217d, 2d, 3d, 4d);
+            double input = RealRepresentation.StorageBits == 16 ? 2049d : 16777217d;
+            float4 source = new float4(input, 2d, 3d, 4d);
             GpuFloat4 packet = GpuFloat4.FromEngine(source);
-            Assert.Equal(16777216f, packet.X);
+            Assert.Equal(RealRepresentation.StorageBits == 16 ? 2048f : 16777216f, packet.X);
             Assert.Equal(2f, packet.Y);
             Assert.Equal(3f, packet.Z);
             Assert.Equal(4f, packet.W);
-            Assert.Equal(RealRepresentation.StorageBits == 64 ? 16777217d : 16777216d, source.X.ToDouble());
+            double expectedStored = RealRepresentation.StorageBits == 16 ? 2048d
+                : RealRepresentation.StorageBits == 32 ? 16777216d : 16777217d;
+            Assert.Equal(expectedStored, source.X.ToDouble());
         }
     }
 }
