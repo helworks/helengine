@@ -89,6 +89,12 @@ function Initialize-WorkspaceSubmodules {
         if (-not $Child.StartsWith($Prefix, [StringComparison]::OrdinalIgnoreCase)) {
             throw "Submodule path escapes its repository: $RelativePath"
         }
+        $Tracked = Invoke-WorkspaceGit @('--literal-pathspecs', '-C', $RepositoryRoot, 'ls-files', '--stage', '--', $RelativePath)
+        $GitlinkPattern = '(?m)^160000 [0-9a-f]+ 0\t' + [regex]::Escape($RelativePath) + '\r?$'
+        if ($Tracked -notmatch $GitlinkPattern) {
+            Write-Warning "Ignoring stale submodule declaration (not a tracked gitlink): $Child"
+            continue
+        }
         if (-not (Test-WorkspaceCheckout $Child)) {
             if (-not $PSCmdlet.ShouldProcess($Child, 'Initialize missing pinned submodule')) { continue }
             Write-Host "Initializing submodule: $Child"

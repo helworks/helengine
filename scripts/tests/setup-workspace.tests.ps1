@@ -132,12 +132,20 @@ try {
     ++$Passed
     Assert-True (Test-Path (Join-Path $Module 'payload.txt')) 'Missing submodule checkout was not initialized.'
     ++$Passed
+    # Vendor commits can retain .gitmodules declarations after removing the actual gitlink.
+    $null = Invoke-TestGit @('-C', $Engine, 'config', '--file', '.gitmodules', 'submodule.obsolete.path', 'vendor/obsolete')
+    $null = Invoke-TestGit @('-C', $Engine, 'config', '--file', '.gitmodules', 'submodule.obsolete.url', $Bare)
+    $StaleWarnings = @()
+    & $Script -EngineRoot $Engine -CatalogPath $Catalog -Platforms ps1 -WarningVariable StaleWarnings | Out-Null
+    Assert-True (($StaleWarnings -join ' ') -match 'not a tracked gitlink') 'Stale submodule declaration was not reported.'
+    Assert-True (-not (Test-Path (Join-Path $Engine 'vendor/obsolete'))) 'Stale submodule declaration created a checkout.'
+    ++$Passed
     $Broken = Join-Path $Root 'broken-catalog.json'
     @{schemaVersion=1; repositories=@(@{id='broken';name='Missing fixture';directory='helengine-broken';url=(Join-Path $Root 'missing.git')})} |
         ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $Broken -Encoding UTF8
     Assert-Fails { & $Script -EngineRoot $Engine -CatalogPath $Broken -Platforms broken -SkipSubmodules } 'Git failed'
     ++$Passed
-    Write-Host "PASS $Passed/16 bootstrap integration checks (real local Git, no network)."
+    Write-Host "PASS $Passed/17 bootstrap integration checks (real local Git, no network)."
 } finally {
     $env:GIT_ALLOW_PROTOCOL = $OriginalProtocols
     $env:GIT_TRACE2_EVENT = $OriginalTrace
