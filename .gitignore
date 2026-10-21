@@ -18,6 +18,7 @@ artifacts/
 user_settings/
 out/
 scratch/
+/engine/vendor/bepuphysics2/
 
 # Local build, log, and temporary artifacts
 *.log
