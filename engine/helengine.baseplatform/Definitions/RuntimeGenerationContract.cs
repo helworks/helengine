@@ -27,12 +27,25 @@ namespace helengine.baseplatform.Definitions {
             bool supportsRenderManager2DTextureReleaseFlush,
             PackagedPathPolicy packagedPathPolicy,
             IReadOnlyList<string> portableInputPreprocessorSymbols = null,
-            bool supportsSceneCodeModules = false) {
+            bool supportsSceneCodeModules = false)
+            : this(materialResolutionMode, supportsRenderManager2DTextureReleaseFlush, packagedPathPolicy,
+                portableInputPreprocessorSymbols, supportsSceneCodeModules, false) {
+        }
+
+        /// <summary>Initializes an explicit viewport-generation policy while preserving the published builder constructor ABI.</summary>
+        public RuntimeGenerationContract(
+            RuntimeMaterialResolutionMode materialResolutionMode,
+            bool supportsRenderManager2DTextureReleaseFlush,
+            PackagedPathPolicy packagedPathPolicy,
+            IReadOnlyList<string> portableInputPreprocessorSymbols,
+            bool supportsSceneCodeModules,
+            bool requiresCookedViewportLayout) {
             MaterialResolutionMode = materialResolutionMode;
             SupportsRenderManager2DTextureReleaseFlush = supportsRenderManager2DTextureReleaseFlush;
             PackagedPathPolicy = packagedPathPolicy;
             PortableInputPreprocessorSymbols = portableInputPreprocessorSymbols ?? [];
             SupportsSceneCodeModules = supportsSceneCodeModules;
+            RequiresCookedViewportLayout = requiresCookedViewportLayout;
         }
 
         /// <summary>
@@ -57,5 +70,8 @@ namespace helengine.baseplatform.Definitions {
 
         /// <summary>Gets whether the platform can consume generated per-scene native code partitions rather than a single resident gameplay image.</summary>
         public bool SupportsSceneCodeModules { get; }
+
+        /// <summary>Gets whether packaging must bake every layout owner and generation must exclude dynamic viewport resizing and original-value caches.</summary>
+        public bool RequiresCookedViewportLayout { get; }
     }
 }

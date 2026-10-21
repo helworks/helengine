@@ -434,10 +434,8 @@ namespace helengine {
             entity.InvalidateWorldTransformCache();
             RetainChildReference(entity);
             ViewportLayoutInvalidation.AfterAttach(entity);
-            if (IsInitializedValue) {
-                bool prepareLayout = !entity.IsInitialized;
-                entity.InitializeHierarchy();
-                if (prepareLayout) { ViewportLayoutInvalidation.PrepareIncomingSubtree(entity); }
+            if (IsInitializedValue && !entity.IsInitialized) {
+                ViewportLayoutInvalidation.InitializeIncomingSubtree(entity);
             }
             if (wasHierarchyEnabled && entity.IsHierarchyEnabled) {
                 entity.RefreshRenderRegistrations();

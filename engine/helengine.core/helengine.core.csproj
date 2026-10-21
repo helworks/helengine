@@ -4,6 +4,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
+    <DefineConstants Condition="'$(CookedViewportLayout)' == 'true'">$(DefineConstants);HELENGINE_RUNTIME_COOKED_VIEWPORT_LAYOUT</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

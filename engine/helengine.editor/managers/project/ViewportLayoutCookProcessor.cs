@@ -3,6 +3,8 @@ using helengine.baseplatform.Builders;
 namespace helengine.editor {
     /// <summary>Resolves packaged UI with detached participants, sharing runtime math without running scene callbacks.</summary>
     internal sealed class ViewportLayoutCookProcessor {
+        /// <summary>Requires every detached layout owner to use the platform's fixed cooked target.</summary>
+        bool RequiresCookedViewportLayout;
         /// <summary>Version included in cook identity and checked by the player.</summary>
         public const int AlgorithmVersion = ViewportCookedLayout.CurrentAlgorithmVersion;
         /// <summary>Uses the existing packaging resolver for effective overrides and saved references.</summary>
@@ -21,8 +23,9 @@ namespace helengine.editor {
         }
 
         /// <summary>Prepares only Cook owners in the already expanded and pruned packaged scene.</summary>
-        public void Process(SceneAsset packagedScene, PlatformLayoutTarget target) {
+        public void Process(SceneAsset packagedScene, PlatformLayoutTarget target, bool requiresCookedViewportLayout = false) {
             if (packagedScene == null) { throw new ArgumentNullException(nameof(packagedScene)); }
+            RequiresCookedViewportLayout = requiresCookedViewportLayout;
             foreach (SceneEntityAsset entity in packagedScene.RootEntities ?? Array.Empty<SceneEntityAsset>()) {
                 if (entity != null) { ProcessNode(BuildNode(entity, null), null, null, target); }
             }
@@ -36,7 +39,10 @@ namespace helengine.editor {
                 if (record == null || !IsParticipant(record.ComponentTypeId)) { continue; }
                 Component component = ComponentResolver(record, entity.HasOverrideLevelOrder ? entity.OverrideLevelOrder : null);
                 node.Components.Add(component);
-                if (component is ViewportComponent viewport) { node.Viewport = viewport; }
+                if (component is ViewportComponent viewport) {
+                    node.Viewport = viewport;
+                    if (RequiresCookedViewportLayout) { viewport.LayoutProcessingMode = ViewportLayoutProcessingMode.Cook; }
+                }
                 else if (component is ReferenceCanvasFitComponent fit) { node.Fit = fit; }
             }
             foreach (SceneEntityAsset child in entity.Children ?? Array.Empty<SceneEntityAsset>()) {
@@ -93,7 +99,7 @@ namespace helengine.editor {
                     throw Failure(node, "two scaling owners on the same entity");
                 }
                 geometryOwner = node;
-                PlatformLayoutTarget fitTarget = viewportOwner == null ? ResolveCameraTarget(node, target, false) : viewportOwner.ViewportTarget;
+                PlatformLayoutTarget fitTarget = viewportOwner == null ? ResolveCameraTarget(node, target, false, false) : viewportOwner.ViewportTarget;
                 node.MetricsKnown = TryResolveMetrics(node, ViewportComponent.ReferenceCanvasScalingMode, node.Fit.ReferenceWidth,
                     node.Fit.ReferenceHeight, 1d, 0d, fitTarget, out ViewportLayoutMetrics fitMetrics);
                 node.Metrics = fitMetrics;
@@ -110,7 +116,10 @@ namespace helengine.editor {
             node.BakeGeometry = geometryOwner != null && GetMode(geometryOwner) == ViewportLayoutProcessingMode.Cook;
             if (node.BakeGeometry) {
                 if (node.UnsupportedGeneratedControlTypeId != null) {
-                    throw new InvalidOperationException($"Viewport '{geometryOwner.Asset.Name}' cannot Cook runtime-generated UI component '{node.UnsupportedGeneratedControlTypeId}' on entity '{node.Asset.Name}'. Use OnLoad or Dynamic until a detached control cook adapter is available.");
+                    string requirement = RequiresCookedViewportLayout
+                        ? "This platform requires Cook; a detached control cook adapter is required."
+                        : "Use OnLoad or Dynamic until a detached control cook adapter is available.";
+                    throw new InvalidOperationException($"Viewport '{geometryOwner.Asset.Name}' cannot Cook runtime-generated UI component '{node.UnsupportedGeneratedControlTypeId}' on entity '{node.Asset.Name}'. {requirement}");
                 }
                 RequireKnown(node, node.MetricsKnown, "layout factors");
                 foreach (Component component in node.Components) { ViewportLayoutApplier.ApplyComponent(component, node.Metrics, NumericPolicy); }
@@ -130,7 +139,8 @@ namespace helengine.editor {
         }
 
         /// <summary>Gets the effective policy of a viewport or a legacy fit inheriting its nearest viewport.</summary>
-        static ViewportLayoutProcessingMode GetMode(ViewportLayoutCookNode node) {
+        ViewportLayoutProcessingMode GetMode(ViewportLayoutCookNode node) {
+            if (RequiresCookedViewportLayout) { return ViewportLayoutProcessingMode.Cook; }
             if (node.Fit != null) { return node.ViewportOwner == null ? ViewportLayoutProcessingMode.Dynamic : node.ViewportOwner.Viewport.LayoutProcessingMode; }
             return node.Viewport == null ? ViewportLayoutProcessingMode.Dynamic : node.Viewport.LayoutProcessingMode;
         }
@@ -151,7 +161,7 @@ namespace helengine.editor {
         }
 
         /// <summary>Resolves the ancestor camera rectangle using the same normalized-viewport helper as the player.</summary>
-        PlatformLayoutTarget ResolveCameraTarget(ViewportLayoutCookNode node, PlatformLayoutTarget target, bool required) {
+        PlatformLayoutTarget ResolveCameraTarget(ViewportLayoutCookNode node, PlatformLayoutTarget target, bool required, bool useViewportRectangle = true) {
             ViewportLayoutCookNode current = node;
             while (current != null) {
                 foreach (Component component in current.Components) {
@@ -164,6 +174,7 @@ namespace helengine.editor {
                             return new PlatformLayoutTarget(camera.RenderTarget.Width, camera.RenderTarget.Height, 1d, false, 0d, 1d);
                         }
                         if (target == null) { return null; }
+                        if (!useViewportRectangle) { return target; }
                         float4 bounds = CameraViewportResolver.ResolveViewport(camera.Viewport, target.Width, target.Height, NumericPolicy);
                         return new PlatformLayoutTarget(Math.Max(1, NumericMath.RoundToInt(NumericMath.Read(bounds.Z))), Math.Max(1, NumericMath.RoundToInt(NumericMath.Read(bounds.W))),
                             target.PixelAspect, target.HasDpi, target.Dpi, target.UiScale);

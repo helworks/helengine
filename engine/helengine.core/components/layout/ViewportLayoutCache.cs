@@ -1,3 +1,4 @@
+#if !HELENGINE_RUNTIME_COOKED_VIEWPORT_LAYOUT
 namespace helengine {
     /// <summary>Retains compact typed original values only for a dynamic owner or editor preview.</summary>
     public sealed class ViewportLayoutCache {
@@ -401,3 +402,4 @@ namespace helengine {
         }
     }
 }
+#endif

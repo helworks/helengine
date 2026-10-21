@@ -1,3 +1,4 @@
+#if !HELENGINE_RUNTIME_COOKED_VIEWPORT_LAYOUT
 namespace helengine {
     /// <summary>Stores only original RoundedRectComponent layout fields in the optional typed cache.</summary>
     internal struct ViewportRectangleState {
@@ -30,3 +31,4 @@ namespace helengine {
         }
     }
 }
+#endif

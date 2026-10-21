@@ -1,3 +1,4 @@
+#if !HELENGINE_RUNTIME_COOKED_VIEWPORT_LAYOUT
 namespace helengine {
     /// <summary>
     /// Exposes a reusable logical viewport that can follow the current screen or a camera and can optionally scale one authored subtree against a reference canvas.
@@ -1022,3 +1023,4 @@ namespace helengine {
         }
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if !HELENGINE_RUNTIME_COOKED_VIEWPORT_LAYOUT
 namespace helengine {
     /// <summary>Stores only original ClipRectComponent layout fields in the optional typed cache.</summary>
     internal struct ViewportClipState {
@@ -20,3 +21,4 @@ namespace helengine {
         }
     }
 }
+#endif

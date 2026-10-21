@@ -38,6 +38,24 @@ namespace helengine {
         public static void AfterDetach(Entity owner, Component component) {
             if (component is IAnchorBoundsProvider || component is CameraComponent) { RefreshBindings(owner); }
         }
+        /// <summary>Initializes nested attachments as one transaction, without retaining a processed flag on every entity.</summary>
+        public static void InitializeIncomingSubtree([NativeRetainsBorrow] Entity subtree) {
+            Core core = subtree.OwnerCore;
+            Entity previous = core.InitializingLayoutSubtree;
+            bool nested = false;
+            Entity current = subtree.Parent;
+            while (current != null && !nested) {
+                nested = ReferenceEquals(current, previous);
+                current = current.Parent;
+            }
+            if (!nested) { core.InitializingLayoutSubtree = subtree; }
+            try {
+                subtree.InitializeHierarchy();
+                if (!nested) { PrepareIncomingSubtree(subtree); }
+            } finally {
+                core.InitializingLayoutSubtree = previous;
+            }
+        }
         /// <summary>Prepares a newly initialized instance once at its attachment boundary.</summary>
         public static void PrepareIncomingSubtree(Entity subtree) {
             if (!ViewportLayoutTraversal.ShouldVisit(subtree)) { return; }

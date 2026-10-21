@@ -1,3 +1,4 @@
+#if !HELENGINE_RUNTIME_COOKED_VIEWPORT_LAYOUT
 namespace helengine {
     /// <summary>Retains one original UI position without adding cache fields to Entity.</summary>
     internal struct ViewportPositionState {
@@ -22,3 +23,4 @@ namespace helengine {
         }
     }
 }
+#endif

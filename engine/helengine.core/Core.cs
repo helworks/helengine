@@ -5,6 +5,8 @@ namespace helengine {
     /// Central runtime coordinating managers, lifecycle, and shared services.
     /// </summary>
     public class Core : IDisposable {
+        /// <summary>Temporarily borrows the outer incoming UI subtree so nested initialization callbacks share one layout preparation pass.</summary>
+        internal Entity InitializingLayoutSubtree;
         /// <summary>
         /// Cached content managers keyed by stream-source identity.
         /// </summary>

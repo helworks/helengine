@@ -127,6 +127,9 @@ namespace helengine.editor {
                 symbols.Add(RuntimeSupportsRenderManager2DTextureReleaseFlushSymbol);
             }
             AddUniqueSymbols(symbols, runtimeGenerationContract.PortableInputPreprocessorSymbols);
+            if (runtimeGenerationContract.RequiresCookedViewportLayout) {
+                symbols.Add("HELENGINE_RUNTIME_COOKED_VIEWPORT_LAYOUT");
+            }
             symbols.Add("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION");
             return symbols;
         }

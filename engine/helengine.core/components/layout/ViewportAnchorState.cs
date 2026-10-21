@@ -1,3 +1,4 @@
+#if !HELENGINE_RUNTIME_COOKED_VIEWPORT_LAYOUT
 namespace helengine {
     /// <summary>Stores only original LayoutComponent layout fields in the optional typed cache.</summary>
     internal struct ViewportAnchorState {
@@ -25,3 +26,4 @@ namespace helengine {
         }
     }
 }
+#endif

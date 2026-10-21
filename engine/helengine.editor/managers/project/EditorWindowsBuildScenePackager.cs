@@ -780,7 +780,8 @@ namespace helengine.editor {
                 foreach (SceneEntityAsset root in packagedSceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>()) {
                     if (root != null) { PrepareEffectiveLayoutHierarchy(root); }
                 }
-                new ViewportLayoutCookProcessor(TransformService.PrepareLayoutComponent, NumericPolicy).Process(packagedSceneAsset, LayoutTarget);
+                new ViewportLayoutCookProcessor(TransformService.PrepareLayoutComponent, NumericPolicy).Process(packagedSceneAsset, LayoutTarget,
+                    PlatformDefinition?.RuntimeGenerationContract?.RequiresCookedViewportLayout == true);
                 RewriteSceneAsset(packagedSceneAsset, fullBuildRootPath);
                 TransformService.ClearPreparedLayoutComponents();
 

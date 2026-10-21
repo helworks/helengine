@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <ProjectReference Include="..\helengine.core\helengine.core.csproj" />
+    <ProjectReference Include="..\helengine.managed\helengine.managed.csproj" />
+    <Compile Include="..\helengine.core.tests\components\ViewportLayoutTestScene.cs" Link="ViewportLayoutTestScene.cs" />
+    <Compile Include="..\helengine.core.tests\managers\rendering\MultiWindowTestRenderManager.cs" Link="MultiWindowTestRenderManager.cs" />
+    <Compile Include="..\helengine.core.tests\managers\rendering\Batch2DTestRenderManager.cs" Link="Batch2DTestRenderManager.cs" />
+  </ItemGroup>
+  <Target Name="RequireCookedImplementation" BeforeTargets="Build" Condition="'$(CookedViewportLayout)' != 'true'">
+    <Error Text="Run this suite with -p:CookedViewportLayout=true and a separate artifact configuration to exercise the Cook-only player." />
+  </Target>
+</Project>

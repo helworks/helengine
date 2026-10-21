@@ -1,3 +1,4 @@
+#if !HELENGINE_RUNTIME_COOKED_VIEWPORT_LAYOUT
 namespace helengine {
     /// <summary>
     /// Scales one authored 2D subtree from a reference canvas into the camera's layout surface size while preserving the original layout as the source of truth.
@@ -563,3 +564,4 @@ namespace helengine {
 
     }
 }
+#endif
