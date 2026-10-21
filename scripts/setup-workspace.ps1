@@ -81,6 +81,8 @@ function Initialize-WorkspaceSubmodules {
     $ModulesFile = Join-Path $RepositoryRoot '.gitmodules'
     if (-not (Test-Path -LiteralPath $ModulesFile -PathType Leaf)) { return }
     $Configuration = Invoke-WorkspaceGit @('-C', $RepositoryRoot, 'config', '--file', $ModulesFile, '--list')
+    # Git must be able to map every tracked gitlink before any checkout changes.
+    $null = Invoke-WorkspaceGit @('-C', $RepositoryRoot, 'submodule', 'status')
     foreach ($Line in ($Configuration -split '\r?\n')) {
         if ($Line -notmatch '^submodule\..+\.path=(.+)$') { continue }
         $RelativePath = $Matches[1]
