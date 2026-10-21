@@ -3,9 +3,11 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $Script = Join-Path $PSScriptRoot '..\setup-workspace.ps1'
-$Root = 'C:\temp\helengine-bootstrap-tests'
+$IsWindowsHost = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
+$Root = if ($IsWindowsHost) { 'C:\temp\helengine-bootstrap-tests' } else { '/tmp/helengine-bootstrap-tests' }
+$ExpectedRoot = [IO.Path]::GetFullPath($Root)
 if (Test-Path -LiteralPath $Root) { throw "Test scratch already exists: $Root" }
-$Git = (Get-Command git -CommandType Application -ErrorAction Stop).Source
+$Git = (Get-Command git -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 $OriginalProtocols = $env:GIT_ALLOW_PROTOCOL
 $OriginalTrace = $env:GIT_TRACE2_EVENT
 $Passed = 0
@@ -54,7 +56,8 @@ try {
 
     # Exercise the actual entry point with default paths, not only injected fixture roots.
     if ($PSVersionTable.PSEdition -eq 'Desktop') { $Shell = Join-Path $PSHOME 'powershell.exe' }
-    else { $Shell = Join-Path $PSHOME 'pwsh.exe' }
+    elseif ($IsWindowsHost) { $Shell = Join-Path $PSHOME 'pwsh.exe' }
+    else { $Shell = Join-Path $PSHOME 'pwsh' }
     $Previous = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
@@ -69,6 +72,16 @@ try {
     ++$Passed
     & $Script @Common -Platforms 'ps1' -WhatIf | Out-Null
     Assert-True (-not (Test-Path (Join-Path $Workspace 'helengine-ps1'))) 'WhatIf unexpectedly cloned a repository.'
+    ++$Passed
+    # Unix PATH commonly resolves /usr/bin/git and /bin/git; invoke only the first executable.
+    function Get-Command {
+        param([string]$Name, [string]$CommandType, [string]$ErrorAction)
+        if ($Name -eq 'git') { return @([PSCustomObject]@{ Source = $Git }, [PSCustomObject]@{ Source = $Git }) }
+        return Microsoft.PowerShell.Core\Get-Command @PSBoundParameters
+    }
+    try { & $Script @Common -Platforms 'ps1' -WhatIf | Out-Null }
+    finally { Remove-Item Function:\Get-Command }
+    Assert-True (-not (Test-Path (Join-Path $Workspace 'helengine-ps1'))) 'Duplicate Git lookup unexpectedly cloned a repository.'
     ++$Passed
     & $Script @Common -Platforms 'ps1' | Out-Null
     $Ps1 = Join-Path $Workspace 'helengine-ps1'
@@ -124,13 +137,13 @@ try {
         ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $Broken -Encoding UTF8
     Assert-Fails { & $Script -EngineRoot $Engine -CatalogPath $Broken -Platforms broken -SkipSubmodules } 'Git failed'
     ++$Passed
-    Write-Host "PASS $Passed/15 bootstrap integration checks (real local Git, no network)."
+    Write-Host "PASS $Passed/16 bootstrap integration checks (real local Git, no network)."
 } finally {
     $env:GIT_ALLOW_PROTOCOL = $OriginalProtocols
     $env:GIT_TRACE2_EVENT = $OriginalTrace
     if (Test-Path -LiteralPath $Root) {
         $Resolved = (Resolve-Path -LiteralPath $Root).Path
-        if ($Resolved -ne 'C:\temp\helengine-bootstrap-tests') { throw 'Unexpected fixture cleanup path.' }
+        if ($Resolved -ne $ExpectedRoot) { throw 'Unexpected fixture cleanup path.' }
         Remove-Item -LiteralPath $Resolved -Recurse -Force
     }
 }

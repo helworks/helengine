@@ -155,7 +155,7 @@ else {
 $Unknown = @($Selection | Where-Object { -not $Ids.ContainsKey($_) })
 if ($Unknown.Count -gt 0) { throw "Unknown repository/platform IDs: $($Unknown -join ', '). Use -List." }
 $Selected = @($Repositories | Where-Object { $_.id -in $Selection })
-$script:WorkspaceGit = (Get-Command git -CommandType Application -ErrorAction Stop).Source
+$script:WorkspaceGit = (Get-Command git -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 if (-not (Test-WorkspaceCheckout $EngineRoot)) { throw "EngineRoot must be the main Git repository checkout: $EngineRoot" }
 $MainOrigin = Invoke-WorkspaceGit @('-C', $EngineRoot, 'remote', 'get-url', 'origin')
 if ($Protocol -eq 'Auto') {
