@@ -1621,15 +1621,19 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
         static string ReadLinuxDirectoryEntryName(IntPtr entry) {
             // linux_dirent64 places d_name immediately after ino, offset, reclen, and d_type.
             const int nameOffset = 19;
+            int recordLength = unchecked((ushort)Marshal.ReadInt16(entry, 16));
+            int availableNameBytes = Math.Min(256, recordLength - nameOffset);
             List<byte> name = new List<byte>();
-            for (int index = 0; index < 256; index++) {
+            bool terminated = false;
+            for (int index = 0; index < availableNameBytes; index++) {
                 byte value = Marshal.ReadByte(entry, nameOffset + index);
                 if (value == 0) {
+                    terminated = true;
                     break;
                 }
                 name.Add(value);
             }
-            if (name.Count == 0) {
+            if (name.Count == 0 || !terminated) {
                 throw new InvalidDataException("The Linux authoring directory contained an invalid entry name.");
             }
             string decoded;
@@ -1638,7 +1642,8 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
             } catch (DecoderFallbackException exception) {
                 throw new InvalidDataException("The Linux authoring directory contained a non-UTF8 entry name.", exception);
             }
-            if (decoded.IndexOf('\0') >= 0 || decoded == "." || decoded == "..") {
+            // The enumeration caller skips the mandatory '.' and '..' records.
+            if (decoded.IndexOf('\0') >= 0 || decoded.IndexOf('/') >= 0) {
                 throw new InvalidDataException("The Linux authoring directory contained an invalid entry name.");
             }
             return decoded;
