@@ -116,6 +116,7 @@ namespace helengine.editor {
                 if (platformConfig == null) {
                     return EditorBuildExecutionResult.Failure($"No build settings exist for platform '{options.PlatformId}'.");
                 }
+                platformConfig = EditorBuildConfigService.CopyPlatformConfig(platformConfig);
 
                 EditorProfileSettingsDocument sharedProfileSettings = bootstrap.ProfileSettingsService.TryLoadExisting();
                 EditorPlatformProfileSettingsDocument sharedPlatformSettings = EditorCliBuildPlatformConfigOverlayService.FindPlatformSettings(
@@ -145,6 +146,11 @@ namespace helengine.editor {
                 }
 
                 EditorCliBuildPlatformConfigOverlayService.ApplyRequestedOptions(platformConfig, options, selectionModel);
+                try {
+                    EditorCliBuildPlatformConfigOverlayService.ApplyRequestedScenes(platformConfig, bootstrap.SceneCatalogService, options.SelectedSceneIds);
+                } catch (ArgumentException ex) {
+                    return EditorBuildExecutionResult.Failure(ex.Message);
+                }
                 EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(
                     bootstrap.SceneCatalogService,
                     platformConfig,

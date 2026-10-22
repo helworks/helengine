@@ -6,6 +6,10 @@ Supply `--default-font-source` explicitly because a headless host has no editor 
 
 Build the CLI from the real engine checkout using its pinned .NET SDK and a fixed external artifacts/output root. Pass the existing `--project`, `--build`, `--build-profile` and `--output` arguments after the host option. The platform builder still owns the native build and its host requirements.
 
+Use `--scenes "DemoDiscMainMenu"` to replace the persisted scene selection for one invocation, or `--scenes="SceneB;SceneA"` for an ordered subset. The flag may appear only once. Entries are trimmed, must be non-empty, and must exactly match case-sensitive authored scene ids; unknown ids fail instead of falling back to all scenes. Repeated ids retain their first position. Omitting the flag keeps the persisted selection. The invocation updates an independent in-memory configuration copy and never saves the scene selection to project or user settings.
+
+Scene selection still uses the normal platform queue rules: DS and 3DS map `DemoDiscMainMenu` to `DemoDiscMainMenuHandheld` and prepend their generated boot scene. Main-menu button content is independent of this packaging subset. Use `--build-profile release --environment debug` when native Release code should show labels authored for the debug environment; these options select independent build and content settings.
+
 The Roslyn/MSBuild workspace used by codegen must resolve the same restore directory as the authoring build. When using external artifacts, export `UseArtifactsOutput=true` and `ArtifactsPath` for the CLI process as well as the initial build. Otherwise a fresh checkout has no default `obj/project.assets.json`; missing framework references can produce misleading ownership errors. Do not disable ownership validation to work around missing restore inputs.
 
 For the Linux development host, build from `/home/helena/dev/helworks/helengine`:

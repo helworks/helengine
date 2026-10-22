@@ -6,6 +6,37 @@ namespace helengine.editor.tests {
     /// Verifies the editor CLI build argument parser.
     /// </summary>
     public sealed class EditorCliArgumentParserTests {
+        /// <summary>Accepts one ordered scene subset in either supported command-line spelling.</summary>
+        /// <param name="inline">Whether the selection is attached to the switch.</param>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void TryParseBuildOptions_WhenScenesProvided_AcceptsOrderedSubset(bool inline) {
+            List<string> args = ["--project", "project.heproj", "--build", "windows", "--output", "out"];
+            args.AddRange(inline ? ["--scenes= DemoDiscMainMenu ; B "] : ["--scenes", "DemoDiscMainMenu;B"]);
+
+            Assert.True(EditorCliArgumentParser.TryParseBuildOptions(args.ToArray(), out EditorCliBuildOptions options, out string errorMessage), errorMessage);
+            Assert.Equal(new[] { "DemoDiscMainMenu", "B" }, options.SelectedSceneIds);
+        }
+
+        /// <summary>Malformed or repeated selection flags must never silently broaden a build to all scenes.</summary>
+        /// <param name="selectionArgs">Invalid scene selection arguments.</param>
+        [Theory]
+        [InlineData("--scenes=")]
+        [InlineData("--scenes", "A;;B")]
+        [InlineData("--scenes", ";A")]
+        [InlineData("--scenes", "A; ")]
+        [InlineData("--scenes", "A", "--scenes=B")]
+        [InlineData("--scenes=A", "--scenes", "B")]
+        public void TryParseBuildOptions_WhenScenesMalformed_RejectsSelection(params string[] selectionArgs) {
+            List<string> args = ["--project", "project.heproj", "--build", "windows", "--output", "out"];
+            args.AddRange(selectionArgs);
+
+            Assert.False(EditorCliArgumentParser.TryParseBuildOptions(args.ToArray(), out EditorCliBuildOptions options, out string errorMessage));
+            Assert.Null(options);
+            Assert.Contains("--scenes", errorMessage);
+        }
+
         /// <summary>
         /// Ensures build mode is not reported when no build flag is supplied.
         /// </summary>
@@ -48,6 +79,7 @@ namespace helengine.editor.tests {
             Assert.Equal("release", options.EnvironmentId);
             Assert.Equal("C:/dev/out", options.OutputDirectoryPath);
             Assert.True(options.UseCommonOutputDirectory);
+            Assert.Empty(options.SelectedSceneIds);
         }
 
         /// <summary>

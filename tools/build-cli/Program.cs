@@ -11,8 +11,9 @@ namespace helengine.buildcli {
             try {
                 if (args.Length == 0 || args.Contains("--help")) {
                     Console.WriteLine("HelEngine portable build CLI");
-                    Console.WriteLine("--default-font-source <font.ttf> --project <project.heproj> --build <platform> --output <directory> [--build-profile <profile>]");
+                    Console.WriteLine("--default-font-source <font.ttf> --project <project.heproj> --build <platform> --output <directory> [--build-profile <profile>] [--environment <id>] [--scenes <id;id2>]");
                     Console.WriteLine("--default-font-source supplies the explicit face used for built-in editor font references; source assets keep their own font settings.");
+                    Console.WriteLine("--scenes replaces the persisted scene selection for this invocation only. Quote semicolon-separated, case-sensitive authored scene ids; platform startup and menu variants still apply.");
                     return args.Length == 0 ? 1 : 0;
                 }
                 string fontSource = null;

@@ -1,8 +1,42 @@
 namespace helengine.editor {
     /// <summary>
-    /// Applies shared per-platform profile settings onto local CLI build execution state without disturbing scene selection or output paths.
+    /// Applies shared profiles and explicit invocation selections onto local CLI build execution state.
     /// </summary>
     internal static class EditorCliBuildPlatformConfigOverlayService {
+        /// <summary>Replaces only invocation-local scene selections after validating every authored id before queue normalization.</summary>
+        /// <param name="platformConfig">Independent platform settings copy consumed by this invocation.</param>
+        /// <param name="sceneCatalogService">Authored catalog used for exact id validation and stable references.</param>
+        /// <param name="sceneIds">Ordered explicit subset; an empty list preserves persisted scene selection.</param>
+        internal static void ApplyRequestedScenes(EditorBuildPlatformConfigDocument platformConfig, EditorProjectSceneCatalogService sceneCatalogService, IReadOnlyList<string> sceneIds) {
+            ArgumentNullException.ThrowIfNull(platformConfig);
+            ArgumentNullException.ThrowIfNull(sceneCatalogService);
+            ArgumentNullException.ThrowIfNull(sceneIds);
+            if (sceneIds.Count == 0) {
+                return;
+            }
+
+            HashSet<string> availableSceneIds = new HashSet<string>(sceneCatalogService.GetSceneIds(), StringComparer.Ordinal);
+            foreach (string sceneId in sceneIds) {
+                if (string.IsNullOrWhiteSpace(sceneId) || !availableSceneIds.Contains(sceneId)) {
+                    throw new ArgumentException($"Unknown scene id '{sceneId}' supplied through `--scenes`. Scene ids are case-sensitive.", nameof(sceneIds));
+                }
+            }
+
+            List<string> selectedSceneIds = sceneIds.Distinct(StringComparer.Ordinal).ToList();
+            List<SceneAssetReference> references = sceneCatalogService.CreateSceneReferences(selectedSceneIds);
+            List<EditorBuildSceneOrderDocument> sceneOrders = new List<EditorBuildSceneOrderDocument>(selectedSceneIds.Count);
+            for (int index = 0; index < selectedSceneIds.Count; index++) {
+                sceneOrders.Add(new EditorBuildSceneOrderDocument {
+                    SceneId = selectedSceneIds[index],
+                    SceneReference = references[index],
+                    OrderNumber = index + 1
+                });
+            }
+            platformConfig.SelectedSceneIds = selectedSceneIds;
+            platformConfig.SelectedSceneReferences = references;
+            platformConfig.SceneOrders = sceneOrders;
+        }
+
         /// <summary>
         /// Finds the shared platform profile settings record for the requested platform identifier.
         /// </summary>

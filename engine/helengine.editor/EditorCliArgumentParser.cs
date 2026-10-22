@@ -65,10 +65,30 @@ namespace helengine.editor {
             bool environmentWasExplicitlyProvided = false;
             string outputDirectoryPath = string.Empty;
             bool useCommonOutputDirectory = false;
+            IReadOnlyList<string> selectedSceneIds = null;
 
             for (int index = 0; index < args.Length; index++) {
                 string argument = args[index];
                 if (string.IsNullOrWhiteSpace(argument)) {
+                    continue;
+                }
+
+                if (IsSwitchMatch(argument, "--scenes")) {
+                    if (selectedSceneIds != null) {
+                        errorMessage = "Supply `--scenes` only once with a semicolon-separated list of scene ids.";
+                        return false;
+                    }
+                    if (!TryReadInlineValue(argument, "--scenes", out string scenes)
+                        && !TryReadFollowingValue(args, ref index, out scenes, out errorMessage)) {
+                        errorMessage = "Supply a semicolon-separated list of scene ids after `--scenes`.";
+                        return false;
+                    }
+                    string[] sceneIds = scenes.Split(';', StringSplitOptions.TrimEntries);
+                    if (sceneIds.Any(string.IsNullOrWhiteSpace)) {
+                        errorMessage = "The `--scenes` list must contain non-empty scene ids separated by semicolons.";
+                        return false;
+                    }
+                    selectedSceneIds = sceneIds;
                     continue;
                 }
 
@@ -177,7 +197,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            options = new EditorCliBuildOptions(projectPath, platformId, buildProfileId, outputDirectoryPath, useCommonOutputDirectory, environmentId, environmentWasExplicitlyProvided, numericOptions);
+            options = new EditorCliBuildOptions(projectPath, platformId, buildProfileId, outputDirectoryPath, useCommonOutputDirectory, environmentId, environmentWasExplicitlyProvided, numericOptions, selectedSceneIds);
             return true;
         }
 

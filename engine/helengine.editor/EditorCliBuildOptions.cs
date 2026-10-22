@@ -14,9 +14,19 @@ namespace helengine.editor {
         /// <param name="useCommonOutputDirectory">Whether the build should use the full-graph common output directory mode.</param>
         public EditorCliBuildOptions(string projectPath, string platformId, string buildProfileId, string outputDirectoryPath, bool useCommonOutputDirectory, string environmentId = "release", bool environmentWasExplicitlyProvided = false) : this(projectPath, platformId, buildProfileId, outputDirectoryPath, useCommonOutputDirectory, environmentId, environmentWasExplicitlyProvided, new Dictionary<string, string>()) { }
 
-        /// <summary>Captures invocation-only numeric overrides independently of project/platform preferences.</summary>
-        public EditorCliBuildOptions(string projectPath, string platformId, string buildProfileId, string outputDirectoryPath, bool useCommonOutputDirectory, string environmentId, bool environmentWasExplicitlyProvided, IReadOnlyDictionary<string, string> numericOptionValues) {
+        /// <summary>Captures immutable numeric overrides and an optional ordered scene subset independently of persisted project preferences.</summary>
+        /// <param name="projectPath">Project directory or canonical project file path.</param>
+        /// <param name="platformId">Target platform identifier.</param>
+        /// <param name="buildProfileId">Optional invocation-only build-profile identifier.</param>
+        /// <param name="outputDirectoryPath">Build output directory path.</param>
+        /// <param name="useCommonOutputDirectory">Whether the full-graph common output mode is requested.</param>
+        /// <param name="environmentId">Selected content environment identifier.</param>
+        /// <param name="environmentWasExplicitlyProvided">Whether the CLI explicitly selected a content environment.</param>
+        /// <param name="numericOptionValues">Explicit invocation-only precision selections.</param>
+        /// <param name="selectedSceneIds">Optional ordered authored scene subset, copied before the caller can change it.</param>
+        public EditorCliBuildOptions(string projectPath, string platformId, string buildProfileId, string outputDirectoryPath, bool useCommonOutputDirectory, string environmentId, bool environmentWasExplicitlyProvided, IReadOnlyDictionary<string, string> numericOptionValues, IReadOnlyList<string> selectedSceneIds = null) {
             NumericOptionValues = new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(new Dictionary<string, string>(numericOptionValues ?? throw new ArgumentNullException(nameof(numericOptionValues))));
+            SelectedSceneIds = Array.AsReadOnly((selectedSceneIds ?? Array.Empty<string>()).ToArray());
             ProjectPath = projectPath ?? throw new ArgumentNullException(nameof(projectPath));
             PlatformId = platformId ?? throw new ArgumentNullException(nameof(platformId));
             BuildProfileId = buildProfileId ?? string.Empty;
@@ -28,6 +38,9 @@ namespace helengine.editor {
 
         /// <summary>Gets the immutable numeric overrides supplied for this invocation only.</summary>
         public IReadOnlyDictionary<string, string> NumericOptionValues { get; }
+
+        /// <summary>Gets the immutable ordered scene subset for this invocation; an empty list retains the persisted selection.</summary>
+        public IReadOnlyList<string> SelectedSceneIds { get; }
 
         /// <summary>
         /// Gets the project directory or canonical project file path.
