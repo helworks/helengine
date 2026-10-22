@@ -32,18 +32,18 @@
 **Files:** novos `AGENTS.md`, `.gitignore`, `README.md`, `CMakeLists.txt` e locks nos dois siblings; catálogo `scripts/workspace-repositories.json` no engine após remotos existirem.
 **Interfaces:** executáveis `helengine_linux` e `helengine_macos`; targets `linux`, `macos`, `ios`. CMake recebe diretórios externos de core gerado/conteúdo; não cria cópias de engine.
 
-- [ ] Inicializar ambos na main; verificar SSH, SDK e espaço nos hosts sem alterar GUI.
-- [ ] Fixar dependências SDL3 e SDKs efetivamente usados em lock e documentar comandos reproduzíveis.
-- [ ] Testar configuração com dependência/core ausente: erro concreto, sem um executável vazio anunciado como player.
+- [x] Inicializar ambos na main; verificar SSH, SDK e espaço nos hosts sem alterar GUI.
+- [x] Fixar dependências SDL3 e SDKs efetivamente usados em lock e documentar comandos reproduzíveis.
+- [x] Testar configuração com dependência/core ausente: erro concreto, sem um executável vazio anunciado como player.
 
 ### Task 2: Host Vulkan Linux (worker Linux)
 
 **Files:** `C:\dev\helworks\helengine-linux\src`, `tests`, `CMakeLists.txt`, scripts e builder pertencem ao worker Linux.
 **Interfaces:** SDL3 recebe eventos e cria surface Vulkan; adapter implementa os contratos gerados de RenderManager/input/Core observados no backend existente. Renderer não altera simulação ou código gerado.
 
-- [ ] Fixar testes de seleção/capacidades, falhas de inicialização e resize/minimização.
-- [ ] Implementar ownership de instance/device/filas/swapchain e submissão sincronizada.
-- [ ] Compilar pelo checkout real no servidor e validar GPU/offscreen sem abrir desktop da usuária.
+- [x] Fixar testes de seleção/capacidades, falhas de inicialização e resize/minimização.
+- [x] Implementar ownership de instance/device/filas/swapchain e submissão sincronizada.
+- [x] Compilar pelo checkout real no servidor e validar GPU/offscreen sem abrir desktop da usuária.
 - [ ] Implementar fila 2D e integração do core/menu; avançar para materiais, texturas e fila 3D exigidos pelas cenas.
 - [ ] Validar os perfis e registrar separadamente host mínimo, menu e cada cena; comunicar bloqueios de integração imediatamente.
 
@@ -52,9 +52,9 @@
 **Files:** `C:\dev\helworks\helengine-apple\src`, `tests`, `CMakeLists.txt`, scripts e builder pertencem ao worker Apple.
 **Interfaces:** um renderer Metal, hosts `macos`/`ios`, SDL view/CAMetalLayer; adapter do core gerado e formato de conteúdo obedecem ao engine.
 
-- [ ] Fixar testes de lifecycle/drawable indisponível, ownership GPU e paths de recursos/sandbox.
-- [ ] Implementar command queue/pipelines/buffers/texturas e teste real de render Metal offscreen com readback.
-- [ ] Compilar no Mac real; verificar SDK iOS/device/simulator e build unsigned sem provisioning inventado.
+- [x] Fixar testes de lifecycle/drawable indisponível, ownership GPU e paths de recursos/sandbox.
+- [x] Implementar command queue/pipelines/buffers/texturas e teste real de render Metal offscreen com readback.
+- [x] Compilar no Mac real; verificar SDK iOS/device/simulator e build unsigned sem provisioning inventado.
 - [ ] Integrar core/menu, fila 2D, materiais e 3D; registrar limites por target em vez de afirmar paridade sem teste.
 
 ### Task 4: Geração e contratos de targets (worker codegen)
@@ -62,19 +62,19 @@
 **Files:** código de configuração/seleção de plataforma e testes no conversor/engine estritamente necessários; não tocar host CLI/importadores ou siblings dos outros workers.
 **Interfaces:** IDs `linux`, `macos`, `ios`; saída C++/ABI existente, política numérica selecionada, providers definidos pelo builder.
 
-- [ ] Identificar guards/switches/contratos que atualmente só reconhecem plataformas existentes.
-- [ ] Testar geração mínima para os três targets e falhas de configuração incompatível.
-- [ ] Corrigir a geração na origem; comunicar aos workers os nomes de contrato e flags exatos.
+- [x] Identificar guards/switches/contratos que atualmente só reconhecem plataformas existentes.
+- [x] Testar geração mínima para os três targets e falhas de configuração incompatível.
+- [x] Corrigir a geração na origem; comunicar aos workers os nomes de contrato e flags exatos.
 
 ### Task 5: Host de build portátil (agente principal)
 
 **Files:** novo CLI no engine, importadores portáveis necessários, scripts `build-platform` e testes correspondentes. Preservar a interface Windows existente.
 **Interfaces:** `--project`, `--build`, `--build-profile`, `--output`; reaproveitar manifests, providers, catálogos e pipeline existente sem inicializar WinForms/DirectX no CLI portátil.
 
-- [ ] Reproduzir a dependência Windows com o grafo real e teste de execução Linux/Mac.
-- [ ] Separar inicialização headless de renderer/GUI e registrar importadores compatíveis com os assets reais.
-- [ ] Resolver binários/ferramentas por host sem `.exe` fixo; falhas continuam fatais e contextualizadas.
-- [ ] Buildar conteúdo e código por target usando o DemoDisc real; preservar todos os botões e seleção de cenas.
+- [x] Reproduzir a dependência Windows com o grafo real e teste de execução Linux/Mac.
+- [x] Separar inicialização headless de renderer/GUI e registrar importadores compatíveis com os assets reais.
+- [x] Resolver binários/ferramentas por host sem `.exe` fixo; falhas continuam fatais e contextualizadas.
+- [ ] Buildar conteúdo e código por target usando o DemoDisc real; preservar todos os botões e seleção de cenas. Linux e macOS já geraram e cozinharam as 15 cenas; falta concluir o pacote completo iOS e a validação 3D.
 
 ### Task 6: Integração e revisão
 

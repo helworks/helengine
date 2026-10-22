@@ -20,6 +20,9 @@ export HELENGINE_BUILD_CONFIGURATION=Debug
 export HELENGINE_BUILD_PROFILE=debug
 export HELENGINE_LINUX_REPOSITORY_ROOT=/home/helena/dev/helworks/helengine-linux
 export HELENGINE_LINUX_NATIVE_PREFIX=/home/helena/dev/helworks/tools/linux-native/usr
+export LD_LIBRARY_PATH="$HELENGINE_LINUX_NATIVE_PREFIX/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+dotnet build /home/helena/dev/helworks/helengine-linux/builder/helengine.linux.builder.csproj \
+  -c Debug --artifacts-path "$ArtifactsPath"
 dotnet build tools/build-cli/helengine.buildcli.csproj -c Debug --artifacts-path "$ArtifactsPath"
 dotnet publish engine/vendor/csharpcodegen/codegen/codegen.csproj -c Release \
   --artifacts-path /tmp/helengine/linux/codegen-managed \
@@ -38,3 +41,32 @@ dotnet /tmp/helengine/linux/managed/bin/helengine.buildcli/debug/helengine.build
   --project /home/helena/dev/helprojs/demodisc/project.heproj \
   --build linux --build-profile debug --output /tmp/helengine/linux/package
 ```
+
+On the Mac development host, build from `/Users/distro/dev/helworks/helengine` after installing the Apple sibling's locked SDK dependencies:
+
+```sh
+export UseArtifactsOutput=true
+export ArtifactsPath=/tmp/helengine/macos/managed
+export HELENGINE_SOURCE_ROOT=/Users/distro/dev/helworks/helengine
+export HELENGINE_BUILD_WORKSPACE_ROOT=/tmp/helengine/macos/workspace
+export HELENGINE_BUILD_CACHE_ROOT=/tmp/helengine/macos/cache
+export HELENGINE_BUILD_CONFIGURATION=Debug
+export HELENGINE_BUILD_PROFILE=debug
+export HELENGINE_APPLE_ROOT=/Users/distro/dev/helworks/helengine-apple
+export DYLD_LIBRARY_PATH=/Users/distro/dev/helworks/tools/shaderc/lib
+export PATH="/Users/distro/.local/bin:/Users/distro/.dotnet:/Users/distro/dev/helworks/tools/cmake-3.31.12-macos-universal/CMake.app/Contents/bin:$PATH"
+dotnet build /Users/distro/dev/helworks/helengine-apple/builder/macos/helengine.macos.builder.csproj \
+  -c Debug --artifacts-path "$ArtifactsPath"
+dotnet build tools/build-cli/helengine.buildcli.csproj -c Debug --artifacts-path "$ArtifactsPath"
+dotnet publish engine/vendor/csharpcodegen/codegen/codegen.csproj -c Release \
+  --artifacts-path /tmp/helengine/macos/codegen-managed \
+  -o /tmp/helengine/macos/managed/bin/helengine.buildcli/debug/codegen
+dotnet /tmp/helengine/macos/managed/bin/helengine.buildcli/debug/helengine.buildcli.dll \
+  --default-font-source /Users/distro/dev/helprojs/demodisc/assets/fonts/DemoDiscBody.ttf \
+  --project /Users/distro/dev/helprojs/demodisc/project.heproj \
+  --build macos --build-profile debug --output /tmp/helengine/macos/package
+```
+
+The macOS authoring build uses Xcode's `xcrun clang` to compile a universal arm64/x86_64 library, `libhelengine.authoring.native.dylib`. It keeps the Darwin variadic `open`, `openat` and `fcntl` calls inside C, exposing fixed-arity entrypoints to managed code. MSBuild copies this dependency beside the CLI for both build and publish; distribute it with the CLI. It is an authoring-host dependency and is not part of the generated iOS player.
+
+Build and publish the CLI and converter natively on each host. A Windows-built CLI folder does not include the Darwin shim or a Unix converter executable. The native player profile is independently validated by its sibling; a successful cook or staged manifest alone does not establish that the player links or renders every selected scene.
