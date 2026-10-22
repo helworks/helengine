@@ -17,3 +17,13 @@
 - [ ] Read the guest allocator again; verify serialized bytes released, menu entities/assets still valid and profiler progressing. Record actual savings and any limits.
 
 Work on main without worktrees or source exports. Preserve the unrelated PS1 edits in scripts/build.ps1 and scripts/native-object-cache.ps1. All temporary outputs use the fixed platform directory. The previously observed PS1_RENDER_POSE_REJECTED remains a separate recorded issue.
+
+## Verification and current build blocker
+
+- Lifecycle correction is published as `879be493`; 45 focused lifecycle/ownership/loading tests pass.
+- The real Linux cook exposed a source-path casing error. `db2ae76a` preserves authored texture casing; its regression was observed failing before the fix, then all 46 focused packaging/factory tests passed.
+- The PS1 cooker used Windows-only System.Drawing. PS1 commit `56c9b63` reuses the existing portable Magick importer. The PNG regression failed on Linux before the fix; three focused PNG/TIM tests pass afterward, and all 27 cook work items complete.
+- The actual MIPS SDK compiles the regenerated SceneManager.cpp, including ReleaseSceneContentPreparation. Evidence: /tmp/helengine/ps1/scene-manager-native-check.json on Linux.
+- Complete candidate compilation is blocked by RotationGizmoGeometry.cpp: its existing Guid.NewGuid dependency requires hosted services/std::string in the converter runtime. Evidence: /tmp/helengine/ps1/scene-module-candidates/ebb5a00d59672ee94791a824.log on Linux. No generated code was patched or excluded.
+- Making Guid portable is a separate runtime architectural extension; feedback was requested under Helena's architectural decision rule. Do not replace model IDs with constants or remove gizmos to bypass this failure.
+- The Mac emulator still runs the exact baseline disc. No after-build RAM saving has been claimed or measured yet. Resume the complete build, CPU profiler and guest allocator snapshot after the Guid decision.
