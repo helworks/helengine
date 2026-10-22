@@ -23,10 +23,12 @@ namespace helengine.editor.tests {
                 MethodInfo generate = typeof(EditorPlatformBuildScenePackager).GetMethod("EnsureGeneratedStandardMaterialAssets", BindingFlags.Instance | BindingFlags.NonPublic);
                 Assert.NotNull(generate);
                 generate.Invoke(packager, [root]);
-                string path = Path.Combine(root, "cooked", "shaders", "ForwardStandardShader." + targetName + ".hasset");
+                string expectedName = "forwardstandardshader." + targetName + ".hasset";
+                string path = Path.Combine(root, "cooked", "shaders", expectedName);
                 using FileStream stream = File.OpenRead(path);
                 ShaderAsset written = Assert.IsType<ShaderAsset>(AssetSerializer.Deserialize(stream));
                 Assert.Equal(targetName, written.TargetName);
+                Assert.Equal(expectedName, Path.GetFileName(Assert.Single(Directory.GetFiles(Path.GetDirectoryName(path)))));
             } finally {
                 Directory.Delete(root, true);
             }

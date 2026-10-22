@@ -22,7 +22,7 @@ namespace helengine.editor {
         /// <param name="platformId">Build target that owns the generated shader.</param>
         /// <returns>Content-relative shader package path.</returns>
         internal static string ResolveStandardShaderRelativePath(string platformId) {
-            return "cooked/shaders/ForwardStandardShader." + ShaderTargetNames.GetTargetName(Resolve(platformId)) + ".hasset";
+            return CanonicalPackagedAssetPath.Normalize("cooked/shaders/ForwardStandardShader." + ShaderTargetNames.GetTargetName(Resolve(platformId)) + ".hasset");
         }
     }
 }
