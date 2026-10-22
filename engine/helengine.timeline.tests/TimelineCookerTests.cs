@@ -158,9 +158,9 @@ namespace helengine.timeline.tests {
             player.Evaluate(180);
             Assert.Equal(1 + (0.4 - 1) * 0.5, receivers[1].Values[0], 5);
             player.Evaluate(250);
-            Assert.Equal(0.5f, slots[2].LocalScale.X, 4);
+            Assert.Equal(0.5f, (double)slots[2].LocalScale.X, 4);
             player.Evaluate(285);
-            Assert.Equal(1f, slots[2].LocalScale.Y, 4);
+            Assert.Equal(1f, (double)slots[2].LocalScale.Y, 4);
             Assert.True(slots[0].Enabled);
             player.Evaluate(5);
             Assert.False(slots[0].Enabled);

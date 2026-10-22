@@ -29,13 +29,13 @@ namespace helengine.video {
                 result.Type = "color";
                 result.Minimum = 0;
                 result.Maximum = 1;
-                result.DefaultValue = JsonSerializer.SerializeToElement(value.W == 1 ? new double[] { value.X, value.Y, value.Z } : new double[] { value.X, value.Y, value.Z, value.W });
+                result.DefaultValue = JsonSerializer.SerializeToElement(value.W == 1 ? new double[] { (double)value.X, (double)value.Y, (double)value.Z } : new double[] { (double)value.X, (double)value.Y, (double)value.Z, (double)value.W });
             } else if (parameter.Type == EffectParameterType.Float2) {
                 result.Type = "float2";
-                result.DefaultValue = JsonSerializer.SerializeToElement(new double[] { value.X, value.Y });
+                result.DefaultValue = JsonSerializer.SerializeToElement(new double[] { (double)value.X, (double)value.Y });
             } else if (parameter.Type == EffectParameterType.Float4) {
                 result.Type = "float4";
-                result.DefaultValue = JsonSerializer.SerializeToElement(new double[] { value.X, value.Y, value.Z, value.W });
+                result.DefaultValue = JsonSerializer.SerializeToElement(new double[] { (double)value.X, (double)value.Y, (double)value.Z, (double)value.W });
             } else {
                 result.Type = parameter.Type == EffectParameterType.Integer ? "integer" : "number";
                 result.DefaultValue = JsonSerializer.SerializeToElement((double)value.X);

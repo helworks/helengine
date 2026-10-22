@@ -44,7 +44,7 @@ namespace helengine.video {
             if (Values.TryGetValue(name, out JsonElement value)) {
                 return value.GetDouble();
             }
-            return Declared(name).DefaultValue.X;
+            return (double)Declared(name).DefaultValue.X;
         }
 
         /// <summary>
@@ -73,7 +73,7 @@ namespace helengine.video {
                 return VideoTextStyles.Hex(components[0], components[1], components[2], components.Length == 4 ? components[3] : 1);
             }
             float4 fallback = Declared(name).DefaultValue;
-            return VideoTextStyles.Hex(fallback.X, fallback.Y, fallback.Z, fallback.W);
+            return VideoTextStyles.Hex((double)fallback.X, (double)fallback.Y, (double)fallback.Z, (double)fallback.W);
         }
 
         /// <summary>

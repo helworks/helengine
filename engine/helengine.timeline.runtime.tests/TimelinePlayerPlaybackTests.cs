@@ -24,7 +24,7 @@ namespace helengine.timeline.runtime.tests {
             Assert.Equal(new string[] { "start=", "mid=x", "end=" }, scene.Listener.Events);
             Assert.False(scene.Player.IsPlaying);
             Assert.Equal(2.0, scene.Player.Time, 9);
-            Assert.Equal(0f, scene.Hero.LocalPosition.X, 4);
+            Assert.Equal(0f, (double)scene.Hero.LocalPosition.X, 4);
         }
 
         /// <summary>
@@ -38,7 +38,7 @@ namespace helengine.timeline.runtime.tests {
 
             scene.Player.Seek(1.0);
             Assert.Equal(10, scene.Player.CurrentTick);
-            Assert.Equal(10f, scene.Hero.LocalPosition.X, 4);
+            Assert.Equal(10f, (double)scene.Hero.LocalPosition.X, 4);
             scene.AdvanceTicks(10);
 
             Assert.Equal(new string[] { "start=", "end=" }, scene.Listener.Events);
@@ -55,7 +55,7 @@ namespace helengine.timeline.runtime.tests {
             scene.AdvanceTicks(6);
 
             scene.Player.Seek(0.3);
-            Assert.Equal(3f, scene.Hero.LocalPosition.X, 4);
+            Assert.Equal(3f, (double)scene.Hero.LocalPosition.X, 4);
             scene.AdvanceTicks(3);
             Assert.Equal(new string[] { "start=", "mid=x", "mid=x" }, scene.Listener.Events);
 
@@ -95,7 +95,7 @@ namespace helengine.timeline.runtime.tests {
             Assert.Equal(new string[] { "start=", "mid=x", "end=", "start=", "mid=x" }, scene.Listener.Events);
             Assert.True(scene.Player.IsPlaying);
             Assert.Equal(0.5, scene.Player.Time, 6);
-            Assert.Equal(5f, scene.Hero.LocalPosition.X, 4);
+            Assert.Equal(5f, (double)scene.Hero.LocalPosition.X, 4);
         }
 
         /// <summary>
@@ -113,7 +113,7 @@ namespace helengine.timeline.runtime.tests {
 
             Assert.True(scene.Player.IsPlaying);
             Assert.Equal(2.0, scene.Player.Time, 9);
-            Assert.Equal(0f, scene.Hero.LocalPosition.X, 4);
+            Assert.Equal(0f, (double)scene.Hero.LocalPosition.X, 4);
             Assert.True(scene.Door.Enabled);
             Assert.Equal(new string[] { "start=", "mid=x", "end=" }, scene.Listener.Events);
         }
@@ -147,7 +147,7 @@ namespace helengine.timeline.runtime.tests {
             scene.AdvanceTicks(4);
 
             Assert.Equal(8, scene.Player.CurrentTick);
-            Assert.Equal(8f, scene.Hero.LocalPosition.X, 4);
+            Assert.Equal(8f, (double)scene.Hero.LocalPosition.X, 4);
         }
 
         /// <summary>

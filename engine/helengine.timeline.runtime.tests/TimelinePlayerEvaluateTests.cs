@@ -29,21 +29,21 @@ namespace helengine.timeline.runtime.tests {
             using PlayerScene scene = new PlayerScene(SampleCookedTimelines.Rich(), new RecordingAudioBackend());
 
             scene.Player.Evaluate(5);
-            Assert.Equal(5f, scene.Hero.LocalPosition.X, 4);
-            Assert.Equal(3f, scene.Hero.LocalScale.Y, 4);
+            Assert.Equal(5f, (double)scene.Hero.LocalPosition.X, 4);
+            Assert.Equal(3f, (double)scene.Hero.LocalScale.Y, 4);
             Assert.Equal(3.0, scene.Receiver.Values[1], 6);
             Assert.True(scene.Door.Enabled);
 
             scene.Player.Evaluate(8);
-            Assert.Equal(8f, scene.Hero.LocalPosition.X, 4);
-            Assert.Equal(4.8f, scene.Hero.LocalScale.Y, 4);
-            Assert.Equal(3f, scene.Hero.LocalScale.X, 4);
+            Assert.Equal(8f, (double)scene.Hero.LocalPosition.X, 4);
+            Assert.Equal(4.8f, (double)scene.Hero.LocalScale.Y, 4);
+            Assert.Equal(3f, (double)scene.Hero.LocalScale.X, 4);
             Assert.Equal(4.0, scene.Receiver.Values[1], 6);
             Assert.False(scene.Door.Enabled);
 
             scene.Player.Evaluate(12);
-            Assert.Equal(10f, scene.Hero.LocalPosition.X, 4);
-            Assert.Equal(6f, scene.Hero.LocalScale.Y, 4);
+            Assert.Equal(10f, (double)scene.Hero.LocalPosition.X, 4);
+            Assert.Equal(6f, (double)scene.Hero.LocalScale.Y, 4);
             Assert.True(scene.Door.Enabled);
         }
 
@@ -56,12 +56,12 @@ namespace helengine.timeline.runtime.tests {
             using PlayerScene scene = new PlayerScene(SampleCookedTimelines.Rich(), new RecordingAudioBackend());
 
             scene.Player.Evaluate(15);
-            Assert.Equal(10 - 10 * CurveCatalog.Evaluate(CurveCatalog.SmoothstepCode, 0.25), scene.Hero.LocalPosition.X, 4);
+            Assert.Equal(10 - 10 * CurveCatalog.Evaluate(CurveCatalog.SmoothstepCode, 0.25), (double)scene.Hero.LocalPosition.X, 4);
             scene.Player.Evaluate(16);
-            Assert.Equal(5f, scene.Hero.LocalPosition.X, 4);
+            Assert.Equal(5f, (double)scene.Hero.LocalPosition.X, 4);
 
             scene.Player.Evaluate(20);
-            Assert.Equal(0f, scene.Hero.LocalPosition.X, 4);
+            Assert.Equal(0f, (double)scene.Hero.LocalPosition.X, 4);
             Assert.True(scene.Door.Enabled);
         }
 
@@ -76,10 +76,10 @@ namespace helengine.timeline.runtime.tests {
             scene.Player.Evaluate(12);
             Assert.Same(scene.Animation, scene.Animator.CurrentClip);
             Assert.True(scene.Animator.IsPaused);
-            Assert.Equal(0.9f, scene.Animator.CurrentTime, 4);
+            Assert.Equal(0.9f, (double)scene.Animator.CurrentTime, 4);
 
             scene.Player.Evaluate(18);
-            Assert.Equal(1.7f, scene.Animator.CurrentTime, 4);
+            Assert.Equal(1.7f, (double)scene.Animator.CurrentTime, 4);
         }
 
         /// <summary>

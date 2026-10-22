@@ -166,9 +166,9 @@ namespace helengine.timeline.runtime {
                 if (DrivenGroups[slot * 3]) {
                     float3 basePosition = BasePositions[slot];
                     entity.LocalPosition = new float3(
-                        (float)(Resolve(baseIndex, basePosition.X) + OffsetValues[baseIndex]),
-                        (float)(Resolve(baseIndex + 1, basePosition.Y) + OffsetValues[baseIndex + 1]),
-                        (float)(Resolve(baseIndex + 2, basePosition.Z) + OffsetValues[baseIndex + 2]));
+                        (float)(Resolve(baseIndex, (double)basePosition.X) + OffsetValues[baseIndex]),
+                        (float)(Resolve(baseIndex + 1, (double)basePosition.Y) + OffsetValues[baseIndex + 1]),
+                        (float)(Resolve(baseIndex + 2, (double)basePosition.Z) + OffsetValues[baseIndex + 2]));
                 }
                 if (DrivenGroups[slot * 3 + 1]) {
                     entity.LocalOrientation = ComposeOrientation(slot, baseIndex + (int)CookedTimelineTransformChannel.RotationX);
@@ -177,9 +177,9 @@ namespace helengine.timeline.runtime {
                     float3 baseScale = BaseScales[slot];
                     int scaleIndex = baseIndex + (int)CookedTimelineTransformChannel.ScaleX;
                     entity.LocalScale = new float3(
-                        (float)(Resolve(scaleIndex, baseScale.X) * OffsetValues[scaleIndex]),
-                        (float)(Resolve(scaleIndex + 1, baseScale.Y) * OffsetValues[scaleIndex + 1]),
-                        (float)(Resolve(scaleIndex + 2, baseScale.Z) * OffsetValues[scaleIndex + 2]));
+                        (float)(Resolve(scaleIndex, (double)baseScale.X) * OffsetValues[scaleIndex]),
+                        (float)(Resolve(scaleIndex + 1, (double)baseScale.Y) * OffsetValues[scaleIndex + 1]),
+                        (float)(Resolve(scaleIndex + 2, (double)baseScale.Z) * OffsetValues[scaleIndex + 2]));
                 }
             }
         }
