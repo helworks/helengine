@@ -58,7 +58,9 @@ namespace helengine.editor {
             }
 
             List<string> symbols = [];
-            if (string.Equals(platformId, "windows", StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(platformId, "windows", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(platformId, "linux", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(platformId, "macos", StringComparison.OrdinalIgnoreCase)) {
                 symbols.Add("DESKTOP_PLATFORM");
             }
 
