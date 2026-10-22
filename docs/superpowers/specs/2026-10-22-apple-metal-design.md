@@ -35,7 +35,11 @@ O contrato compartilhado contém `PlatformCookContext`, com a plataforma e uma s
 
 Um provider opcional captura a seleção uma única vez por build. O CLI transporta o mesmo contexto por executor, grafo, cook e request nativo; a entrada direta do grafo captura quando não recebeu contexto. O provider registra o compilador com o contexto capturado em uma biblioteca de shaders pertencente àquela execução. Não há troca de estado global, `AsyncLocal`, consulta posterior ao ambiente ou descarte de uma biblioteca emprestada da sessão.
 
+Helena aprovou separar os contratos: os DTOs e a captura ficam em `baseplatform`; o registro contextual de shaders fica em `shader.compilation`, que referencia `baseplatform`. A inicialização global do editor não captura SDK nem registra um compilador contextual apenas porque um sibling está instalado. Plataformas com a contribuição de shaders existente continuam usando esse caminho.
+
 As duas passagens de chave do pacote de cenas e o fingerprint nativo recebem a mesma identidade. O compilador Metal e o executor Apple usam a mesma seleção para produzir e empacotar bibliotecas e aplicativo do SDK correto. Contexto ausente ou incompatível no consumidor Apple é erro explícito. Plataformas sem esse provider preservam a contribuição de shaders existente e não passam a exigir um SDK Apple.
+
+O manifesto gerenciado de build conserva a proveniência do cook e o consumidor Apple exige que ela corresponda ao contexto do request. Esse campo é opcional para consumidores anteriores sem provider e não altera o formato de assets ou o ABI C++.
 
 A validação exige testes de imutabilidade, chaves distintas por SDK/versão/compilador e propagação do mesmo contexto. No Mac, o pipeline real deve alternar device e simulator com a mesma DLL e sem limpar o cache, verificando os marcadores de SDK dos MTLBs do pacote e hits corretos ao voltar ao SDK anterior. Cada execução sobrescreve a saída iOS existente. Essa prova de cook/link não será apresentada como execução do aplicativo iOS.
 
