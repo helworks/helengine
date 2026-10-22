@@ -13,6 +13,14 @@ namespace helengine.editor {
         /// <param name="platformConfig">Platform configuration to normalize in place.</param>
         /// <param name="selectionModel">Builder-provided metadata describing the profiles available for the platform, or null when unavailable.</param>
         public static void EnsurePlatformSelectionDefaults(EditorBuildPlatformConfigDocument platformConfig, EditorPlatformBuildSelectionModel selectionModel) {
+            EnsurePlatformSelectionDefaults(platformConfig, selectionModel, platformConfig == null ? string.Empty : platformConfig.SelectedBuildProfileId);
+        }
+
+        /// <summary>Normalizes selections after an explicit profile transition while retaining the old profile's inherited-default identity.</summary>
+        /// <param name="platformConfig">Invocation configuration whose selected profile already contains the requested value.</param>
+        /// <param name="selectionModel">Builder metadata defining the old and requested profiles.</param>
+        /// <param name="previousBuildProfileId">Profile selected before the invocation override, used to distinguish inherited options from authored overrides.</param>
+        public static void EnsurePlatformSelectionDefaults(EditorBuildPlatformConfigDocument platformConfig, EditorPlatformBuildSelectionModel selectionModel, string previousBuildProfileId) {
             if (platformConfig == null) {
                 return;
             }
@@ -22,7 +30,7 @@ namespace helengine.editor {
                 return;
             }
 
-            PlatformBuildProfileDefinition previousBuildProfile = selectionModel.TryResolveBuildProfileExact(platformConfig.SelectedBuildProfileId);
+            PlatformBuildProfileDefinition previousBuildProfile = selectionModel.TryResolveBuildProfileExact(previousBuildProfileId);
             PlatformBuildProfileDefinition buildProfile = EditorBuildProfileDefaultResolver.ResolveBuildProfile(
                 selectionModel,
                 platformConfig.SelectedBuildProfileId,

@@ -75,6 +75,33 @@ namespace helengine.editor {
             }
         }
 
+        /// <summary>Applies an invocation profile using the existing defaults policy before the previous selection is lost.</summary>
+        /// <param name="platformConfig">Invocation-local persisted selections and inherited options.</param>
+        /// <param name="profileId">Explicit CLI build profile.</param>
+        /// <param name="selectionModel">Actual builder metadata used to resolve profile-bound selections and defaults.</param>
+        internal static void ApplyRequestedBuildProfile(EditorBuildPlatformConfigDocument platformConfig, string profileId, EditorPlatformBuildSelectionModel selectionModel) {
+            ArgumentNullException.ThrowIfNull(platformConfig);
+            ArgumentNullException.ThrowIfNull(selectionModel);
+            string previousBuildProfileId = platformConfig.SelectedBuildProfileId;
+            ApplyRequestedBuildProfile(platformConfig, profileId);
+            EditorBuildPlatformConfigDefaultsService.EnsurePlatformSelectionDefaults(platformConfig, selectionModel, previousBuildProfileId);
+        }
+
+        /// <summary>Applies invocation profile and numeric selections in one execution path shared by the CLI and regression tests.</summary>
+        /// <param name="platformConfig">Invocation-local persisted platform state.</param>
+        /// <param name="options">Explicit invocation settings.</param>
+        /// <param name="selectionModel">Builder metadata for inherited profile defaults.</param>
+        internal static void ApplyRequestedOptions(EditorBuildPlatformConfigDocument platformConfig, EditorCliBuildOptions options, EditorPlatformBuildSelectionModel selectionModel) {
+            ArgumentNullException.ThrowIfNull(options);
+            // Normalize stale persisted precision before profile-default validation reads it.
+            ApplyNumericOptions(platformConfig, options);
+            if (!string.IsNullOrWhiteSpace(options.BuildProfileId)) {
+                ApplyRequestedBuildProfile(platformConfig, options.BuildProfileId, selectionModel);
+                // Explicit invocation values still win when they equal the old profile's inherited defaults.
+                ApplyNumericOptions(platformConfig, options);
+            }
+        }
+
         /// <summary>Applies invocation-only precision after persisted settings without rewriting their dictionaries.</summary>
         internal static void ApplyNumericOptions(EditorBuildPlatformConfigDocument platformConfig, EditorCliBuildOptions options) {
             ArgumentNullException.ThrowIfNull(platformConfig);

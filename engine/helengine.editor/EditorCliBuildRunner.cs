@@ -131,9 +131,6 @@ namespace helengine.editor {
                     return EditorBuildExecutionResult.Failure($"Platform '{options.PlatformId}' could not load its builder metadata: {ex}");
                 }
 
-                if (!string.IsNullOrWhiteSpace(options.BuildProfileId)) {
-                    EditorCliBuildPlatformConfigOverlayService.ApplyRequestedBuildProfile(platformConfig, options.BuildProfileId);
-                }
                 if (options.EnvironmentWasExplicitlyProvided) {
                     EditorProjectEnvironmentsDocument environments = new EditorProjectEnvironmentsService(bootstrap.ProjectRootPath).Load();
                     if (!environments.Environments.Any(environment => string.Equals(environment.Id, options.EnvironmentId, StringComparison.OrdinalIgnoreCase))) {
@@ -146,7 +143,7 @@ namespace helengine.editor {
                     platformConfig.SelectedEnvironmentId = string.Empty;
                 }
 
-                EditorCliBuildPlatformConfigOverlayService.ApplyNumericOptions(platformConfig, options);
+                EditorCliBuildPlatformConfigOverlayService.ApplyRequestedOptions(platformConfig, options, selectionModel);
                 EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(
                     bootstrap.SceneCatalogService,
                     platformConfig,
