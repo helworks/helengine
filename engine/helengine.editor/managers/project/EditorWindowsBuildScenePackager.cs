@@ -2020,6 +2020,10 @@ namespace helengine.editor {
         /// <returns>Packaged file-backed scene reference for the copied material asset.</returns>
         SceneAssetReference RewriteFileSystemMaterialReference(SceneAssetReference reference, string buildRootPath) {
             string fullPath = ResolveProjectAssetPath(reference.RelativePath);
+            if (!File.Exists(fullPath)) {
+                using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(ProjectRootPath);
+                fullPath = resolver.Resolve(reference, AssetEntryKind.Material).FullPath;
+            }
             ShaderMaterialAsset materialAsset;
             try {
                 materialAsset = MaterialAssetSettingsService.LoadMaterialAsset(fullPath, TargetPlatformId);

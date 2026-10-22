@@ -2148,6 +2148,10 @@ namespace helengine.editor {
 
         SceneAssetReference RewriteFileSystemMaterialReference(SceneAssetReference reference, string buildRootPath) {
             string fullPath = ResolveProjectAssetPath(reference.RelativePath);
+            if (!File.Exists(fullPath)) {
+                using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(AssetImportManager.ProjectRootPath);
+                fullPath = resolver.Resolve(reference, AssetEntryKind.Material).FullPath;
+            }
             ShaderMaterialAsset materialAsset;
             try {
                 materialAsset = MaterialAssetSettingsService.LoadMaterialAsset(fullPath, TargetPlatformId);

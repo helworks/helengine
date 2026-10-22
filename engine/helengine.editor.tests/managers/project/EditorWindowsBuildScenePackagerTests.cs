@@ -371,6 +371,28 @@ namespace helengine.editor.tests {
             Assert.NotEmpty(Directory.GetFiles(Path.Combine(BuildRootPath, "cooked", "imported")));
             Assert.Equal(originalScene, File.ReadAllBytes(scenePath));
         }
+
+        /// <summary>Material dependencies use stable identity when their authored path is stale, without rewriting scene bytes.</summary>
+        [Fact]
+        public void Package_WhenSceneMaterialMoved_ResolvesIdentityWithoutRewritingScene() {
+            const string relativePath = "materials/moved.hasset";
+            const string assetId = "112233445566778899aabbccddeeff00";
+            WriteMaterialAsset(relativePath, "ForwardStandardShader");
+            string sourcePath = Path.Combine(ProjectRootPath, "assets", relativePath);
+            new AssetIdentityMetadataService(ProjectRootPath).Save(sourcePath, new AssetIdentityMetadataDocument {
+                AssetId = assetId, FormerAssetIds = new List<string>()
+            });
+            string contentHash = "sha256:" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(sourcePath))).ToLowerInvariant();
+            SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(assetId, "Materials/old.hasset", contentHash);
+            const string sceneId = "Scenes/MovedMaterial.helen";
+            WriteSceneAsset(sceneId, reference);
+            string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId);
+            byte[] originalScene = File.ReadAllBytes(scenePath);
+            using EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath, BuiltInShaderAssetLibrary);
+            packager.Package([sceneId], BuildRootPath);
+            Assert.True(File.Exists(GetPackagedScenePath(BuildRootPath, sceneId)));
+            Assert.Equal(originalScene, File.ReadAllBytes(scenePath));
+        }
         /// <summary>
         /// Loads the editor host's default importer registrations so the repro test matches the real Windows build path.
         /// </summary>
