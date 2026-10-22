@@ -74,18 +74,18 @@
 - [x] Reproduzir a dependência Windows com o grafo real e teste de execução Linux/Mac.
 - [x] Separar inicialização headless de renderer/GUI e registrar importadores compatíveis com os assets reais.
 - [x] Resolver binários/ferramentas por host sem `.exe` fixo; falhas continuam fatais e contextualizadas.
-- [x] Buildar conteúdo e código por target usando o DemoDisc real; preservar todos os botões e seleção de cenas. Linux e macOS executaram as 14 cenas de rendering; iOS device completou cook/codegen/link unsigned. O Core de simulator também linkou unsigned; a troca de SDK no cache de shaders exige a decisão pendente abaixo. Nenhuma execução iOS é afirmada.
+- [x] Buildar conteúdo e código por target usando o DemoDisc real; preservar todos os botões e seleção de cenas. Linux e macOS executaram as 14 cenas de rendering; iOS device e simulator completaram cook/codegen/link unsigned. A troca de SDK com as mesmas DLLs e sem limpar o cache passou nas quatro execuções abaixo. Nenhuma execução iOS é afirmada.
 
 ### Task 6: Integração e revisão
 
 **Files:** fixtures/testes de cada dono, catálogo e documentação de uso; sem testes artificiais que apenas espelham implementação.
 
 - [x] Revisar mudanças por responsabilidade e executar verificações relevantes após cada integração. Revisão final corrigiu a seleção vazia de escopos e a combinação de profiling sem linkage Tracy; também identificou o problema de identidade do SDK iOS no cache.
-- [ ] Verificar hashes/sincronização dos checkouts reais, outputs fixos e ausência de temporários abandonados.
+- [x] Verificar hashes/sincronização dos checkouts reais, outputs fixos e ausência de processos de teste/build abandonados. Fontes na main foram sincronizadas com seus submódulos nos dois hosts. Os receipts preservam a proveniência dos binários realmente testados: engine `32a6f763` / conversor `41e603f` para a validação final do contexto; mudanças posteriores de outra sessão não foram anunciadas como retestadas. A nova captura Linux foi conferida por SHA; o binário macOS manteve exatamente o SHA da captura existente.
 - [x] Executar menu e matriz de cenas onde o runtime estiver pronto; classificar explicitamente compilado, offscreen, interativo e não validado. São 14/14 cenas em Linux e macOS offscreen, 44 botões e input SDL real; macOS tem 28 retornos por teclado/controle, Linux tem roundtrip de uma cena também em Xvfb.
 - [x] Não declarar a criação do backend como paridade completa antes das evidências exigidas pelas specs. iOS continua sem execução, Wayland não foi validado e o profiler mede CPU, sem timestamps GPU.
 
 ### Contexto do cook iOS aprovado
 
-- [x] Helena aprovou acrescentar um contexto de cook imutável que capture o SDK e participe da identidade do cache. O SDK selecionado por ambiente já chega ao compilador Metal e ao build nativo, mas não distingue a chave compartilhada do pacote de cenas.
-- [ ] Capturar e transportar explicitamente o contexto por build, incluir sua identidade no cache e validar a troca device/simulator usando a mesma DLL. Não contornar com limpeza do cache ou descrição de perfil.
+- [x] Helena aprovou acrescentar um contexto de cook imutável que capture o SDK e participe da identidade do cache, separando os DTOs/captura em baseplatform do registro contextual em shader.compilation.
+- [x] Capturar e transportar explicitamente o contexto por build, incluir sua identidade no cache e validar a troca device/simulator usando as mesmas DLLs. Os 22 testes focados passaram. No Mac real, device → simulator → device → simulator passou sem limpar o cache: os retornos tiveram hits em 146/144 ms, hashes de shaders idênticos aos respectivos primeiros cooks, dez MTLBs do SDK correto e nenhum marcador do outro SDK. Receipt: `/tmp/helengine/ios/sdk-flip-validation.json`. Nenhum DTO authoring apareceu no C++ gerado Linux/iOS.
