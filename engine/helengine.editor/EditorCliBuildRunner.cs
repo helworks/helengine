@@ -132,7 +132,7 @@ namespace helengine.editor {
                 }
 
                 if (!string.IsNullOrWhiteSpace(options.BuildProfileId)) {
-                    platformConfig.SelectedBuildProfileId = options.BuildProfileId;
+                    EditorCliBuildPlatformConfigOverlayService.ApplyRequestedBuildProfile(platformConfig, options.BuildProfileId);
                 }
                 if (options.EnvironmentWasExplicitlyProvided) {
                     EditorProjectEnvironmentsDocument environments = new EditorProjectEnvironmentsService(bootstrap.ProjectRootPath).Load();

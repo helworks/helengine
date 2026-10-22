@@ -61,6 +61,20 @@ namespace helengine.editor {
                     StringComparer.Ordinal);
             }
         }
+        /// <summary>Applies an explicit CLI profile and aligns canonical build modes so the legacy toggle cannot reverse the request.</summary>
+        /// <param name="platformConfig">Invocation-local configuration consumed by the build queue.</param>
+        /// <param name="profileId">Explicitly requested profile; custom profiles retain the independent debug overlay choice.</param>
+        internal static void ApplyRequestedBuildProfile(EditorBuildPlatformConfigDocument platformConfig, string profileId) {
+            ArgumentNullException.ThrowIfNull(platformConfig);
+            ArgumentException.ThrowIfNullOrWhiteSpace(profileId);
+            platformConfig.SelectedBuildProfileId = profileId;
+            if (string.Equals(profileId, "debug", StringComparison.OrdinalIgnoreCase)) {
+                platformConfig.DebugBuild = true;
+            } else if (string.Equals(profileId, "release", StringComparison.OrdinalIgnoreCase)) {
+                platformConfig.DebugBuild = false;
+            }
+        }
+
         /// <summary>Applies invocation-only precision after persisted settings without rewriting their dictionaries.</summary>
         internal static void ApplyNumericOptions(EditorBuildPlatformConfigDocument platformConfig, EditorCliBuildOptions options) {
             ArgumentNullException.ThrowIfNull(platformConfig);
