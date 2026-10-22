@@ -195,11 +195,6 @@ namespace helengine.editor {
         const string StandardGeneratedMaterialRelativePath = "cooked/engine/materials/standard.hasset";
 
         /// <summary>
-        /// Relative packaged shader path used by generated primitive scenes.
-        /// </summary>
-        const string StandardGeneratedShaderRelativePath = "cooked/shaders/ForwardStandardShader.dx11.hasset";
-
-        /// <summary>
         /// Absolute project root that owns the source `assets` folder.
         /// </summary>
         readonly string ProjectRootPath;
@@ -2630,7 +2625,7 @@ namespace helengine.editor {
             if (IsStandardShaderSchema(materialSettings.SchemaId) && !useCustomShader) {
                 fieldValues[VariantFieldId] = StandardShaderVariantName;
                 if (!usesCookedPlatformOwnedMaterialResolution) {
-                    ShaderAsset shaderAsset = BuiltInShaderAssetLibrary.Load(ShaderCompileTarget.DirectX11, StandardShaderFileName);
+                    ShaderAsset shaderAsset = BuiltInShaderAssetLibrary.Load(EditorPlatformShaderTargetResolver.Resolve(TargetPlatformId), StandardShaderFileName);
                     fieldValues[ShaderAssetIdFieldId] = shaderAsset.Id;
                     fieldValues[VertexProgramFieldId] = StandardVertexProgramName;
                     fieldValues[PixelProgramFieldId] = StandardPixelProgramName;
@@ -2786,10 +2781,11 @@ namespace helengine.editor {
             }
             string shaderAssetId = StandardShaderAssetId;
             if (ShouldWriteGeneratedStandardShaderAsset()) {
-                ShaderAsset shaderAsset = BuiltInShaderAssetLibrary.Load(ShaderCompileTarget.DirectX11, StandardShaderFileName);
+                ShaderAsset shaderAsset = BuiltInShaderAssetLibrary.Load(EditorPlatformShaderTargetResolver.Resolve(TargetPlatformId), StandardShaderFileName);
                 shaderAssetId = shaderAsset.Id;
-                WriteAsset(Path.Combine(buildRootPath, StandardGeneratedShaderRelativePath), shaderAsset);
-                RememberShaderOutput(StandardGeneratedShaderRelativePath, shaderAssetId);
+                string shaderRelativePath = EditorPlatformShaderTargetResolver.ResolveStandardShaderRelativePath(TargetPlatformId);
+                WriteAsset(Path.Combine(buildRootPath, shaderRelativePath), shaderAsset);
+                RememberShaderOutput(shaderRelativePath, shaderAssetId);
             } else if (MaterialBuilder == null) {
                 throw new InvalidOperationException("Generated standard materials for cooked-platform-owned builders require a material builder.");
             }

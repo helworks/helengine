@@ -444,17 +444,7 @@ namespace helengine.editor {
         /// <param name="platformId">Stable platform identifier supplied by the editor build request.</param>
         /// <returns>The native target's shader package API, retaining existing legacy platform selection.</returns>
         internal static ShaderCompileTarget ResolveShaderCompileTarget(string platformId) {
-            if (string.Equals(platformId, "xbox", StringComparison.OrdinalIgnoreCase)) {
-                return ShaderCompileTarget.Xbox;
-            } else if (string.Equals(platformId, "linux", StringComparison.OrdinalIgnoreCase)) {
-                return ShaderCompileTarget.Vulkan;
-            } else if (string.Equals(platformId, "macos", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(platformId, "ios", StringComparison.OrdinalIgnoreCase)) {
-                return ShaderCompileTarget.Metal;
-            }
-            return string.Equals(platformId, "psvita", StringComparison.OrdinalIgnoreCase)
-                ? ShaderCompileTarget.PsVita
-                : ShaderCompileTarget.DirectX11;
+            return EditorPlatformShaderTargetResolver.Resolve(platformId);
         }
 
         /// <summary>
