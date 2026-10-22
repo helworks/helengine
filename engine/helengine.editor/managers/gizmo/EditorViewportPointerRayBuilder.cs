@@ -4,19 +4,6 @@ namespace helengine.editor {
     /// </summary>
     public static class EditorViewportPointerRayBuilder {
         /// <summary>
-        /// Smallest squared vector magnitude treated as non-zero during normalization.
-        /// </summary>
-        const double MinimumVectorLengthSquared = 0.000000000001;
-        /// <summary>
-        /// Minimum viewport dimension accepted when mapping a pointer into a camera ray.
-        /// </summary>
-        const double MinimumViewportDimension = 1.0;
-        /// <summary>
-        /// Forward axis used by cameras before orientation is applied.
-        /// </summary>
-        static readonly float3 CameraForwardAxis = new float3(0f, 0f, -1f);
-
-        /// <summary>
         /// Builds a normalized world-space ray using the camera's active perspective or orthographic projection.
         /// </summary>
         /// <param name="camera">Camera used to convert the pointer into a world-space ray.</param>
@@ -71,86 +58,7 @@ namespace helengine.editor {
         /// <param name="rayDirection">Resolved normalized ray direction.</param>
         /// <returns>True when the ray can be constructed.</returns>
         static bool TryBuildCameraRay(CameraComponent camera, float4 viewport, int2 pointer, bool useCameraProjection, out float3 rayOrigin, out float3 rayDirection) {
-            if (camera == null) {
-                throw new ArgumentNullException(nameof(camera));
-            }
-
-            Entity cameraEntity = camera.Parent;
-            if (cameraEntity == null) {
-                throw new InvalidOperationException("Scene camera must belong to an entity.");
-            }
-
-            if (!float.IsFinite((float)(viewport.X)) || !float.IsFinite((float)(viewport.Y)) ||
-                !float.IsFinite((float)(viewport.Z)) || !float.IsFinite((float)(viewport.W)) ||
-                viewport.Z <= MinimumViewportDimension || viewport.W <= MinimumViewportDimension) {
-                rayOrigin = float3.Zero;
-                rayDirection = float3.Zero;
-                return false;
-            }
-
-            double normalizedX = (double)((pointer.X - viewport.X) / viewport.Z);
-            double normalizedY = (double)((pointer.Y - viewport.Y) / viewport.W);
-            double ndcX = (normalizedX * 2.0) - 1.0;
-            double ndcY = 1.0 - (normalizedY * 2.0);
-            double aspect = (double)(viewport.Z / viewport.W);
-            if (!double.IsFinite(aspect) || aspect <= 0.0) {
-                rayOrigin = float3.Zero;
-                rayDirection = float3.Zero;
-                return false;
-            }
-
-            float4 cameraOrientation = cameraEntity.Orientation;
-            float3 worldForward = NormalizeSafe(float4.RotateVector(CameraForwardAxis, cameraOrientation), CameraForwardAxis);
-            ICameraProjectionSettings projectionSettings = useCameraProjection ? camera as ICameraProjectionSettings : null;
-            if (projectionSettings != null && projectionSettings.ProjectionMode == CameraProjectionMode.Orthographic) {
-                double span = (double)(projectionSettings.OrthographicVerticalSpan);
-                if (!double.IsFinite(span) || span < CameraProjectionUtils.MinimumOrthographicVerticalSpan) {
-                    rayOrigin = float3.Zero;
-                    rayDirection = float3.Zero;
-                    return false;
-                }
-
-                float3 cameraRight = NormalizeSafe(float4.RotateVector(new float3(1f, 0f, 0f), cameraOrientation), new float3(1f, 0f, 0f));
-                float3 cameraUp = NormalizeSafe(float4.RotateVector(new float3(0f, 1f, 0f), cameraOrientation), new float3(0f, 1f, 0f));
-                double horizontalOffset = ndcX * span * aspect * 0.5;
-                double verticalOffset = ndcY * span * 0.5;
-                rayOrigin = cameraEntity.Position + (cameraRight * (float)horizontalOffset) + (cameraUp * (float)verticalOffset);
-                rayDirection = worldForward;
-                return true;
-            }
-
-            double fieldOfView = (double)(CameraProjectionUtils.ClampFieldOfView(camera.FieldOfView));
-            double tanHalfFieldOfView = Math.Tan(fieldOfView * 0.5);
-            float3 cameraSpaceDirection = new float3(
-                (float)(ndcX * aspect * tanHalfFieldOfView),
-                (float)(ndcY * tanHalfFieldOfView),
-                -1f);
-            cameraSpaceDirection = NormalizeSafe(cameraSpaceDirection, CameraForwardAxis);
-            rayDirection = NormalizeSafe(float4.RotateVector(cameraSpaceDirection, cameraOrientation), worldForward);
-            rayOrigin = cameraEntity.Position;
-            return rayDirection != float3.Zero;
-        }
-
-        /// <summary>
-        /// Normalizes a vector or returns a fallback when the magnitude is too small.
-        /// </summary>
-        /// <param name="value">Vector to normalize.</param>
-        /// <param name="fallback">Fallback direction returned for near-zero vectors.</param>
-        /// <returns>Normalized vector when valid; otherwise the fallback value.</returns>
-        static float3 NormalizeSafe(float3 value, float3 fallback) {
-            double lengthSquared =
-                (double)((value.X * value.X) +
-                (value.Y * value.Y) +
-                (value.Z * value.Z));
-            if (lengthSquared <= MinimumVectorLengthSquared) {
-                return fallback;
-            }
-
-            double inverseLength = 1.0 / Math.Sqrt(lengthSquared);
-            return new float3(
-                (float)(value.X * inverseLength),
-                (float)(value.Y * inverseLength),
-                (float)(value.Z * inverseLength));
+            return RotationGizmoMath.TryBuildCameraRay(camera, viewport, pointer, useCameraProjection, out rayOrigin, out rayDirection);
         }
     }
 }

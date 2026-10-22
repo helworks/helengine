@@ -55,6 +55,39 @@ namespace helengine.editor.tests {
             Assert.NotEmpty(method.GetParameters()[0].GetCustomAttributes(typeof(NativeTakesOwnershipAttribute), false));
         }
 
+        /// <summary>Both cloning setters borrow caller-owned payloads without retaining them, preserving native cleanup authority at each call site.</summary>
+        [Fact]
+        public void SetConstantBufferData_PayloadParameterDoesNotEscapeEitherOverload() {
+            foreach (Type bindingType in new[] { typeof(string), typeof(int) }) {
+                System.Reflection.MethodInfo method = typeof(MaterialPropertyBlock).GetMethod(
+                    nameof(MaterialPropertyBlock.SetConstantBufferData), new[] { bindingType, typeof(byte[]) });
+                Assert.NotNull(method);
+                Assert.NotEmpty(method.GetParameters()[1].GetCustomAttributes(typeof(NativeNoEscapeAttribute), false));
+            }
+        }
+
+        /// <summary>Both payload replacement paths delete the owned array element directly, avoiding unsupported ref elements and borrowed-local cleanup.</summary>
+        [Fact]
+        public void SetConstantBufferData_DeletesOwnedSlotBeforePublishingReplacementOrClear() {
+            string sourcePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "engine", "helengine.shader", "assets", "material", "MaterialPropertyBlock.cs");
+            string source = File.ReadAllText(sourcePath);
+            int setterStart = source.IndexOf("public void SetConstantBufferData(int bindingIndex, [NativeNoEscape] byte[] data)", StringComparison.Ordinal);
+            int getterStart = source.IndexOf("public byte[] GetConstantBufferData", setterStart, StringComparison.Ordinal);
+            string setter = source.Substring(setterStart, getterStart - setterStart);
+            int clearStart = setter.IndexOf("if (data == null)", StringComparison.Ordinal);
+            int clearEnd = setter.IndexOf("return;", clearStart, StringComparison.Ordinal);
+            string clearPath = setter.Substring(clearStart, clearEnd - clearStart);
+            int deleteClearedPayload = clearPath.IndexOf("NativeOwnership.Delete(ConstantBufferValues[bindingIndex]);", StringComparison.Ordinal);
+            int clearSlot = clearPath.IndexOf("ConstantBufferValues[bindingIndex] = null;", StringComparison.Ordinal);
+            Assert.True(deleteClearedPayload >= 0 && clearSlot > deleteClearedPayload, "Clearing must delete the slot's owned payload directly before removing its stored reference.");
+            int copiedPayload = setter.IndexOf("Array.Copy(data, copiedData, data.Length);", StringComparison.Ordinal);
+            int deletePrevious = setter.IndexOf("NativeOwnership.Delete(ConstantBufferValues[bindingIndex]);", copiedPayload, StringComparison.Ordinal);
+            int publishReplacement = setter.IndexOf("ConstantBufferValues[bindingIndex] = copiedData;", copiedPayload, StringComparison.Ordinal);
+            Assert.True(deletePrevious > copiedPayload && publishReplacement > deletePrevious, "Native replacement must validate and copy the new bytes before deleting the previous owned array element and publishing its replacement.");
+            Assert.DoesNotContain("NativeOwnership.Release(", setter, StringComparison.Ordinal);
+            Assert.DoesNotContain("byte[] previousData =", setter, StringComparison.Ordinal);
+        }
+
         /// <summary>
         /// Verifies that one reflected method carries the native borrowed-return contract.
         /// </summary>

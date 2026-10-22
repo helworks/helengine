@@ -51,6 +51,23 @@ namespace helengine.editor.tests {
             Assert.Contains("expects 4 bytes", exception.Message);
         }
 
+        /// <summary>Live edits replace and clear private payloads without changing caller-owned data or discarding a valid buffer after a rejected edit.</summary>
+        [Fact]
+        public void SetConstantBufferData_RepeatedEditsAndClearPreserveValidationAndCopyIsolation() {
+            using MaterialPropertyBlock propertyBlock = new MaterialPropertyBlock(CreateLayout());
+            propertyBlock.SetConstantBufferData(0, new byte[] { 1, 2, 3, 4 });
+            byte[] replacement = new byte[] { 5, 6, 7, 8 };
+            propertyBlock.SetConstantBufferData(0, replacement);
+            replacement[0] = 99;
+            Assert.Equal(new byte[] { 5, 6, 7, 8 }, propertyBlock.GetConstantBufferData(0));
+            Assert.Throws<InvalidOperationException>(() => propertyBlock.SetConstantBufferData(0, new byte[] { 9 }));
+            Assert.Equal(new byte[] { 5, 6, 7, 8 }, propertyBlock.GetConstantBufferData(0));
+            propertyBlock.SetConstantBufferData(0, null);
+            Assert.Null(propertyBlock.GetConstantBufferData(0));
+            propertyBlock.SetConstantBufferData(0, new byte[] { 8, 7, 6, 5 });
+            Assert.Equal(new byte[] { 8, 7, 6, 5 }, propertyBlock.GetConstantBufferData(0));
+        }
+
         /// <summary>
         /// Creates a representative material layout for property-block tests.
         /// </summary>

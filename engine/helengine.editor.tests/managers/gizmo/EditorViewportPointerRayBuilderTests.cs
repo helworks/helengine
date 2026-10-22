@@ -124,6 +124,23 @@ namespace helengine.editor.tests.managers.gizmo {
             Assert.Equal(-Math.Sqrt(0.5), direction.Z, 6);
         }
 
+        /// <summary>A captured viewport remains authoritative when layout changes the camera viewport during a drag.</summary>
+        [Fact]
+        public void SharedRay_WhenViewportChanges_UsesCapturedViewportAndCameraOrientation() {
+            InitializeCore();
+            CameraComponent camera = CreateSceneCamera();
+            float4 capturedViewport = new float4(20, 30, 100, 80);
+            camera.Viewport = new float4(400, 500, 200, 160);
+            camera.Parent.Position = new float3(3, 4, 5);
+            camera.Parent.Orientation = RotationGizmoMath.Rotate(float4.Identity, new float3(0, 1, 0), Math.PI / 2);
+            Assert.True(RotationGizmoMath.TryBuildCameraRay(camera, capturedViewport, new int2(70, 70), out float3 origin, out float3 direction));
+            Assert.Equal(camera.Parent.Position, origin);
+            Assert.Equal(-1, (double)direction.X, 6);
+            Assert.Equal(0, (double)direction.Y, 6);
+            Assert.Equal(0, (double)direction.Z, 6);
+            Assert.False(RotationGizmoMath.TryBuildCameraRay(camera, new float4(0, 0, double.NaN, 80), new int2(70, 70), out _, out _));
+        }
+
         /// <summary>
         /// Initializes a minimal core for viewport ray tests.
         /// </summary>

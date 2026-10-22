@@ -24,16 +24,7 @@ namespace helengine {
         /// </summary>
         public RuntimeMaterial[] Materials {
             get { return MaterialsBySlot; }
-            set {
-                if (value == null) {
-                    throw new ArgumentNullException(nameof(value));
-                }
-
-                RuntimeMaterial[] copiedMaterials = new RuntimeMaterial[value.Length];
-                Array.Copy(value, copiedMaterials, value.Length);
-                NativeOwnership.Release(ref MaterialsBySlot);
-                MaterialsBySlot = copiedMaterials;
-            }
+            set { SetMaterials(value); }
         }
 
         /// <summary>
@@ -65,8 +56,14 @@ namespace helengine {
         /// Replaces the runtime materials bound to each submesh slot.
         /// </summary>
         /// <param name="runtimeMaterials">Ordered runtime materials by submesh slot.</param>
-        public void SetMaterials(RuntimeMaterial[] runtimeMaterials) {
-            Materials = runtimeMaterials;
+        public void SetMaterials([NativeNoEscape] RuntimeMaterial[] runtimeMaterials) {
+            if (runtimeMaterials == null) {
+                throw new ArgumentNullException(nameof(runtimeMaterials));
+            }
+            RuntimeMaterial[] copiedMaterials = new RuntimeMaterial[runtimeMaterials.Length];
+            Array.Copy(runtimeMaterials, copiedMaterials, runtimeMaterials.Length);
+            NativeOwnership.Release(ref MaterialsBySlot);
+            MaterialsBySlot = copiedMaterials;
         }
 
         /// <summary>

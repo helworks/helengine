@@ -101,8 +101,8 @@ namespace helengine {
         /// Assigns packed constant-buffer data to the supplied binding name.
         /// </summary>
         /// <param name="bindingName">Constant-buffer binding name to update.</param>
-        /// <param name="data">Packed buffer payload whose size must match the binding size, or <c>null</c> to clear the binding.</param>
-        public void SetConstantBufferData(string bindingName, byte[] data) {
+        /// <param name="data">Borrowed payload copied into private storage; its size must match the binding, or <c>null</c> clears the binding.</param>
+        public void SetConstantBufferData(string bindingName, [NativeNoEscape] byte[] data) {
             int bindingIndex = LayoutValue.FindConstantBufferBindingIndex(bindingName);
             if (bindingIndex < 0) {
                 throw new InvalidOperationException($"Constant buffer binding '{bindingName}' was not found on the material layout.");
@@ -112,14 +112,15 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Assigns packed constant-buffer data to a constant-buffer binding index.
+        /// Assigns a private copy of packed constant-buffer data, releasing the previous owned payload only after the replacement is validated and copied.
         /// </summary>
         /// <param name="bindingIndex">Constant-buffer binding index to update.</param>
-        /// <param name="data">Packed buffer payload whose size must match the binding size, or <c>null</c> to clear the binding.</param>
-        public void SetConstantBufferData(int bindingIndex, byte[] data) {
+        /// <param name="data">Borrowed payload copied into private storage; its size must match the binding, or <c>null</c> clears the binding.</param>
+        public void SetConstantBufferData(int bindingIndex, [NativeNoEscape] byte[] data) {
             ValidateConstantBufferBindingIndex(bindingIndex);
 
             if (data == null) {
+                NativeOwnership.Delete(ConstantBufferValues[bindingIndex]);
                 ConstantBufferValues[bindingIndex] = null;
                 return;
             }
@@ -132,6 +133,7 @@ namespace helengine {
 
             byte[] copiedData = new byte[data.Length];
             Array.Copy(data, copiedData, data.Length);
+            NativeOwnership.Delete(ConstantBufferValues[bindingIndex]);
             ConstantBufferValues[bindingIndex] = copiedData;
         }
 

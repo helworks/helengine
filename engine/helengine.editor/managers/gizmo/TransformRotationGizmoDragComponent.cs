@@ -10,10 +10,6 @@ namespace helengine.editor {
         /// </summary>
         const double MinimumVectorLengthSquared = 0.000000000001;
         /// <summary>
-        /// Smallest denominator accepted by ray-plane intersection solving.
-        /// </summary>
-        const double MinimumPlaneIntersectionDenominator = 0.000000000001;
-        /// <summary>
         /// Scene camera used to convert mouse pointer positions into world-space rays.
         /// </summary>
         readonly CameraComponent SceneCamera;
@@ -228,14 +224,7 @@ namespace helengine.editor {
             }
 
             double resolvedAngle = ResolveActiveRotationAngle(input);
-            float3 rotationAxis = DragRotationAxis;
-            float4 deltaRotation;
-            float4.CreateFromAxisAngle(ref rotationAxis, resolvedAngle, out deltaRotation);
-            // float4's `*` operator is component-wise, not quaternion multiplication; the world-axis delta
-            // must concatenate onto the drag-start orientation.
-            float4 dragStartOrientation = DragStartEntityOrientation;
-            float4.Concatenate(ref dragStartOrientation, ref deltaRotation, out float4 newOrientation);
-            newOrientation.Normalize();
+            float4 newOrientation = RotationGizmoMath.Rotate(DragStartEntityOrientation, DragRotationAxis, resolvedAngle);
             if (!DraggedEntity.Orientation.Equals(newOrientation)) {
                 DraggedEntity.Orientation = newOrientation;
             }
@@ -379,16 +368,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            double denominator = (double)(float3.Dot(planeNormal, rayDirection));
-            if (Math.Abs(denominator) <= MinimumPlaneIntersectionDenominator) {
-                planePoint = float3.Zero;
-                return false;
-            }
-
-            float3 planeDelta = planeOrigin - rayOrigin;
-            double distanceAlongRay = (double)(float3.Dot(planeDelta, planeNormal) / denominator);
-            planePoint = rayOrigin + (rayDirection * distanceAlongRay);
-            return true;
+            return RotationGizmoMath.TryIntersectPlane(rayOrigin, rayDirection, planeOrigin, planeNormal, out planePoint);
         }
 
         /// <summary>
@@ -399,10 +379,7 @@ namespace helengine.editor {
         /// <param name="axis">Normalized rotation axis.</param>
         /// <returns>Signed angle in radians.</returns>
         double ComputeSignedAngle(float3 from, float3 to, float3 axis) {
-            double dot = RealMath.Clamp(float3.Dot(from, to), -1.0, 1.0).ToDouble();
-            float3 cross = float3.Cross(from, to);
-            double signedMagnitude = (double)(float3.Dot(cross, axis));
-            return Math.Atan2(signedMagnitude, dot);
+            return (double)RotationGizmoMath.ComputeSignedAngle(from, to, axis);
         }
 
         /// <summary>
@@ -427,20 +404,7 @@ namespace helengine.editor {
         /// <param name="axis">Axis around which the twist should be measured.</param>
         /// <returns>Signed twist angle in radians around the supplied axis.</returns>
         double ResolveAxisTwistAngle(float4 orientation, float3 axis) {
-            float3 normalizedAxis = NormalizeSafe(axis, float3.Zero);
-            if (normalizedAxis == float3.Zero) {
-                return 0.0;
-            }
-
-            float4 normalizedOrientation = orientation;
-            normalizedOrientation.Normalize();
-
-            float3 vectorPart = new float3(
-                normalizedOrientation.X,
-                normalizedOrientation.Y,
-                normalizedOrientation.Z);
-            double axisProjection = (double)(float3.Dot(vectorPart, normalizedAxis));
-            return 2.0 * Math.Atan2(axisProjection, (double)(normalizedOrientation.W));
+            return (double)RotationGizmoMath.ResolveAxisTwistAngle(orientation, axis);
         }
 
         /// <summary>

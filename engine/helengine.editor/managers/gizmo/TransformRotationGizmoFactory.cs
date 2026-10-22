@@ -116,9 +116,9 @@ namespace helengine.editor {
             EditorEntity snapPreviewEntity = CreateSnapPreviewEntity(snapPreviewMaterial, ownerCore);
             gizmoRoot.AddComponent(new TransformRotationGizmoFollowComponent(sceneCamera, render3D, gizmoRoot, gizmoMaterial, gizmoHighlightMaterial, snapPreviewEntity));
 
-            CreateRingEntity(gizmoRoot, "Transform Rotation Gizmo X", CreateXAxisOrientation(), xRingModel, gizmoMaterial);
+            CreateRingEntity(gizmoRoot, "Transform Rotation Gizmo X", RotationGizmoGeometry.GetAxisOrientation(0), xRingModel, gizmoMaterial);
             CreateRingEntity(gizmoRoot, "Transform Rotation Gizmo Y", float4.Identity, yRingModel, gizmoMaterial);
-            CreateRingEntity(gizmoRoot, "Transform Rotation Gizmo Z", CreateZAxisOrientation(), zRingModel, gizmoMaterial);
+            CreateRingEntity(gizmoRoot, "Transform Rotation Gizmo Z", RotationGizmoGeometry.GetAxisOrientation(2), zRingModel, gizmoMaterial);
             gizmoRoot.AddChild(snapPreviewEntity);
             return gizmoRoot;
         }
@@ -212,26 +212,6 @@ namespace helengine.editor {
             return previewEntity;
         }
 
-        /// <summary>
-        /// Creates the axis rotation that maps a local Y-normal ring into an X-normal ring.
-        /// </summary>
-        /// <returns>Quaternion rotating +Y to +X.</returns>
-        static float4 CreateXAxisOrientation() {
-            float3 zAxis = new float3(0f, 0f, 1f);
-            float4 orientation;
-            float4.CreateFromAxisAngle(ref zAxis, (float)(-Math.PI * 0.5), out orientation);
-            return orientation;
-        }
 
-        /// <summary>
-        /// Creates the axis rotation that maps a local Y-normal ring into a Z-normal ring.
-        /// </summary>
-        /// <returns>Quaternion rotating +Y to +Z.</returns>
-        static float4 CreateZAxisOrientation() {
-            float3 xAxis = new float3(1f, 0f, 0f);
-            float4 orientation;
-            float4.CreateFromAxisAngle(ref xAxis, (float)(Math.PI * 0.5), out orientation);
-            return orientation;
-        }
     }
 }
