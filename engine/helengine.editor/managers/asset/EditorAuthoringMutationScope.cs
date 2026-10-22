@@ -36,21 +36,21 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
         const int PosixReadOnly = 0;
         const int PosixWriteOnly = 1;
         const int PosixReadWrite = 2;
-        const int PosixCreate = 0x40;
-        const int PosixExclusive = 0x80;
-        const int PosixDirectory = 0x10000;
-        const int PosixNoFollow = 0x20000;
-        const int PosixCloseOnExec = 0x80000;
-        const int PosixNonBlock = 0x800;
-        const int PosixRenameNoReplace = 1;
-        const int PosixAtRemovedDirectory = 0x200;
-        const int PosixAtSymlinkNoFollow = 0x100;
+        static readonly int PosixCreate = OperatingSystem.IsMacOS() ? 0x200 : 0x40;
+        static readonly int PosixExclusive = OperatingSystem.IsMacOS() ? 0x800 : 0x80;
+        static readonly int PosixDirectory = OperatingSystem.IsMacOS() ? 0x100000 : 0x10000;
+        static readonly int PosixNoFollow = OperatingSystem.IsMacOS() ? 0x100 : 0x20000;
+        static readonly int PosixCloseOnExec = OperatingSystem.IsMacOS() ? 0x1000000 : 0x80000;
+        static readonly int PosixNonBlock = OperatingSystem.IsMacOS() ? 4 : 0x800;
+        static readonly uint PosixRenameNoReplace = OperatingSystem.IsMacOS() ? 4u : 1u;
+        static readonly int PosixAtRemovedDirectory = OperatingSystem.IsMacOS() ? 0x80 : 0x200;
+        static readonly int PosixAtSymlinkNoFollow = OperatingSystem.IsMacOS() ? 0x20 : 0x100;
         const int PosixFileTypeMask = 0xF000;
         const int PosixRegularFileType = 0x8000;
         const int PosixDirectoryFileType = 0x4000;
         const int PosixFGetFlags = 3;
         const int PosixFSetFlags = 4;
-        const int PosixFDupFdCloexec = 1030;
+        static readonly int PosixFDupFdCloexec = OperatingSystem.IsMacOS() ? 67 : 1030;
         const int PosixLockExclusive = 2;
         const int PosixLockNonBlocking = 4;
         const int PosixInterrupted = 4;
@@ -84,7 +84,7 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
             string path,
             string hookPoint) {
             InvokeMutationHook(hookPoint);
-            if (!OperatingSystem.IsLinux()) {
+            if (!IsSupportedPosixPlatform()) {
                 return;
             }
 
@@ -104,8 +104,8 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
         /// </summary>
         internal static string FilesystemBackendNameForTests => OperatingSystem.IsWindows()
             ? "windows"
-            : OperatingSystem.IsLinux() && IsSupportedLinuxArchitecture()
-                ? "linux"
+            : IsSupportedPosixPlatform()
+                ? OperatingSystem.IsMacOS() ? "macos" : "linux"
                 : "unsupported";
 
         EditorAuthoringMutationScope(
@@ -185,7 +185,7 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
                         EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(directory, projectRoot);
                         handles.Add(OpenAndVerifyWindowsDirectory(directory));
                     }
-                } else if (OperatingSystem.IsLinux()) {
+                } else if (IsSupportedPosixPlatform()) {
                     OpenPosixDirectoryChain(projectRoot, existingChain, missingDirectories, handles);
                 } else {
                     throw CreateUnsupportedPlatformException();
@@ -230,7 +230,7 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
             }
             SafeFileHandle handle = OperatingSystem.IsWindows()
                 ? OpenAndVerifyWindowsFile(fullPath, mode, access, share, includeDelete)
-                : OperatingSystem.IsLinux()
+                : IsSupportedPosixPlatform()
                     ? OpenAndVerifyPosixFile(Path.GetFileName(fullPath), mode, access)
                     : throw CreateUnsupportedPlatformException();
             try {
@@ -268,7 +268,7 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
                 file.Stream.Write(bytes, 0, bytes.Length);
                 file.Stream.Flush(true);
             }
-            if (OperatingSystem.IsLinux()) {
+            if (IsSupportedPosixPlatform()) {
                 FsyncDirectory(scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32(), parent);
             }
         }
@@ -368,7 +368,7 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
                     InvokeMutationHook("FixedRename.AfterSyscallBeforeFsync");
                     InvokeMutationHook($"FixedRename.AfterSyscallBeforeFsync:{Path.GetFileName(source)}->{Path.GetFileName(destination)}");
                     VerifyExpectedHash(sourceHandle, expectedSourceHash, "published destination");
-                } else if (OperatingSystem.IsLinux()) {
+                } else if (IsSupportedPosixPlatform()) {
                     int sourceParentFd = sourceScope.Handles[sourceScope.Handles.Count - 1].DangerousGetHandle().ToInt32();
                     int destinationParentFd = destinationScope.Handles[destinationScope.Handles.Count - 1].DangerousGetHandle().ToInt32();
                     string sourceName = Path.GetFileName(source);
@@ -502,7 +502,7 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
                     InvokeMutationHook("FixedRename.AfterSyscallBeforeFsync");
                     InvokeMutationHook($"FixedRename.AfterSyscallBeforeFsync:{Path.GetFileName(source)}->{Path.GetFileName(destination)}");
                     VerifyExpectedHash(sourceHandle, expectedSourceHash, "published destination");
-                } else if (OperatingSystem.IsLinux()) {
+                } else if (IsSupportedPosixPlatform()) {
                     int sourceParentFd = sourceScope.Handles[sourceScope.Handles.Count - 1].DangerousGetHandle().ToInt32();
                     int destinationParentFd = destinationScope.Handles[destinationScope.Handles.Count - 1].DangerousGetHandle().ToInt32();
                     string sourceName = Path.GetFileName(source);
@@ -647,7 +647,7 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
                 DeleteVerifiedWindowsLeaf(file);
                 InvokeMutationHook("FixedDelete.AfterSyscallBeforeFsync");
                 InvokeMutationHook($"FixedDelete.AfterSyscallBeforeFsync:{Path.GetFileName(fullPath)}");
-            } else if (OperatingSystem.IsLinux()) {
+            } else if (IsSupportedPosixPlatform()) {
                 int parentFd = scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32();
                 if (!TryGetLinuxEntry(parentFd, Path.GetFileName(fullPath), out LinuxPosixStat status)) {
                     return;
@@ -757,7 +757,7 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
 
         static void FixedDeleteDirectoryTreeCore(string projectRootPath, string fullPath, string containingRoot, string expectedIdentity = null) {
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, containingRoot);
-            if (OperatingSystem.IsLinux()) {
+            if (IsSupportedPosixPlatform()) {
                 string parentPath = Path.GetDirectoryName(fullPath);
                 using EditorAuthoringMutationScope parentScope = AcquireForMutation(projectRootPath, parentPath);
                 int parentFd = parentScope.Handles[parentScope.Handles.Count - 1].DangerousGetHandle().ToInt32();
@@ -859,7 +859,7 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
                     if (entry == IntPtr.Zero) {
                         break;
                     }
-                    string name = ReadLinuxDirectoryEntryName(entry);
+                    string name = OperatingSystem.IsMacOS() ? ReadDarwinDirectoryEntryName(entry) : ReadLinuxDirectoryEntryName(entry);
                     if (name == "." || name == "..") {
                         continue;
                     }
@@ -948,7 +948,7 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
                         throw new InvalidDataException($"The replacement destination '{destination}' failed identity verification.");
                     }
                 }
-            } else if (OperatingSystem.IsLinux()) {
+            } else if (IsSupportedPosixPlatform()) {
                 ReplaceLinuxLeaf(
                     Handles[Handles.Count - 1].DangerousGetHandle().ToInt32(),
                     Path.GetFileName(source),
@@ -1559,7 +1559,7 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
                 if (journal != null && !string.Equals(CaptureVerifiedIdentity(projectRootPath, destination), journal.ExpectedSourceIdentityValue, StringComparison.Ordinal)) {
                     throw new InvalidDataException($"The directory move destination '{destination}' failed identity verification.");
                 }
-            } else if (OperatingSystem.IsLinux()) {
+            } else if (IsSupportedPosixPlatform()) {
                 MoveLinuxDirectory(
                     scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32(),
                     Path.GetFileName(source),
@@ -1567,7 +1567,7 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
                     Path.GetFileName(destination),
                     source,
                     destination);
-            } else if (!OperatingSystem.IsLinux()) {
+            } else if (!IsSupportedPosixPlatform()) {
                 throw CreateUnsupportedPlatformException();
             }
         }
@@ -1645,6 +1645,31 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
             // The enumeration caller skips the mandatory '.' and '..' records.
             if (decoded.IndexOf('\0') >= 0 || decoded.IndexOf('/') >= 0) {
                 throw new InvalidDataException("The Linux authoring directory contained an invalid entry name.");
+            }
+            return decoded;
+        }
+
+        /// <summary>Reads the SDK-verified Darwin inode64 dirent layout, respecting both record and UTF-8 name lengths.</summary>
+        /// <param name="entry">Borrowed readdir result valid until the next enumeration call.</param>
+        /// <returns>The decoded leaf name, including dot entries for the caller to skip.</returns>
+        static string ReadDarwinDirectoryEntryName(IntPtr entry) {
+            const int nameOffset = 21;
+            int recordLength = unchecked((ushort)Marshal.ReadInt16(entry, 16));
+            int nameLength = unchecked((ushort)Marshal.ReadInt16(entry, 18));
+            if (nameLength == 0 || nameLength >= 1024 || nameOffset + nameLength >= recordLength
+                || Marshal.ReadByte(entry, nameOffset + nameLength) != 0) {
+                throw new InvalidDataException("The Darwin authoring directory contained an invalid entry name.");
+            }
+            byte[] bytes = new byte[nameLength];
+            Marshal.Copy(IntPtr.Add(entry, nameOffset), bytes, 0, nameLength);
+            string decoded;
+            try {
+                decoded = new UTF8Encoding(false, true).GetString(bytes);
+            } catch (DecoderFallbackException exception) {
+                throw new InvalidDataException("The Darwin authoring directory contained a non-UTF8 entry name.", exception);
+            }
+            if (decoded.IndexOf('\0') >= 0 || decoded.IndexOf('/') >= 0) {
+                throw new InvalidDataException("The Darwin authoring directory contained an invalid entry name.");
             }
             return decoded;
         }
@@ -1769,7 +1794,7 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
                     return DescribeWindowsHandle(entry);
                 }
 
-                if (OperatingSystem.IsLinux()) {
+                if (IsSupportedPosixPlatform()) {
                     if (!TryGetLinuxEntry(scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32(), Path.GetFileName(fullPath), out LinuxPosixStat status)) {
                         return "missing";
                     }
@@ -1933,7 +1958,7 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
             if (OperatingSystem.IsWindows()) {
                 return true;
             }
-            if (!OperatingSystem.IsLinux()) {
+            if (!IsSupportedPosixPlatform()) {
                 throw CreateUnsupportedPlatformException();
             }
 
@@ -1958,29 +1983,29 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
         }
 
         static void EnsureSupportedPlatform() {
-            if (!OperatingSystem.IsWindows() &&
-                (!OperatingSystem.IsLinux() || !IsSupportedLinuxArchitecture())) {
+            if (!OperatingSystem.IsWindows() && !IsSupportedPosixPlatform()) {
                 throw CreateUnsupportedPlatformException();
             }
         }
 
-        static bool IsSupportedLinuxArchitecture() {
-            // LinuxPosixStat below matches the Linux x64 ABI. Do not bind that
-            // layout to another architecture until its native offsets are
-            // supplied and verified.
-            return OperatingSystem.IsLinux() && RuntimeInformation.ProcessArchitecture == Architecture.X64;
+        /// <summary>Selects only host architectures whose native stat and dirent layouts are mapped explicitly.</summary>
+        /// <returns>Whether descriptor-relative authoring is implemented for the current native ABI.</returns>
+        static bool IsSupportedPosixPlatform() {
+            return OperatingSystem.IsLinux() && RuntimeInformation.ProcessArchitecture == Architecture.X64
+                || OperatingSystem.IsMacOS() && (RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+                    || RuntimeInformation.ProcessArchitecture == Architecture.X64);
         }
 
         static PlatformNotSupportedException CreateUnsupportedPlatformException() {
             return new PlatformNotSupportedException(
-                $"Secure editor authoring filesystem mutations are not implemented for '{RuntimeInformation.OSDescription}' on this architecture. Supported platforms are Windows and Linux x64.");
+                $"Secure editor authoring filesystem mutations are not implemented for '{RuntimeInformation.OSDescription}' on this architecture. Supported platforms are Windows, Linux x64, and macOS arm64/x64.");
         }
 
         static Exception CreatePosixRenameException(string destination) {
             int error = Marshal.GetLastWin32Error();
-            if (error == 38) {
+            if (error == (OperatingSystem.IsMacOS() ? 78 : 38)) {
                 return new PlatformNotSupportedException(
-                    "The Linux kernel does not expose renameat2; secure no-replace authoring moves are unavailable.");
+                    "The host does not expose secure no-replace descriptor-relative authoring moves.");
             }
             return new Win32Exception(error, $"Could not atomically move authoring entry to '{destination}'.");
         }
@@ -2330,7 +2355,9 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
 
         static int PosixOpen(string path, int flags, uint mode) {
             while (true) {
-                int result = EditorAuthoringNativeMethods.NativePosixOpen(path, flags, mode);
+                int result = OperatingSystem.IsMacOS()
+                    ? EditorAuthoringNativeMethods.NativeDarwinOpen(path, flags, mode)
+                    : EditorAuthoringNativeMethods.NativePosixOpen(path, flags, mode);
                 if (result >= 0) {
                     return NormalizePosixFileDescriptor(result);
                 }
@@ -2342,7 +2369,9 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
 
         static int PosixOpenAt(int directoryFd, string path, int flags, uint mode) {
             while (true) {
-                int result = EditorAuthoringNativeMethods.NativePosixOpenAt(directoryFd, path, flags, mode);
+                int result = OperatingSystem.IsMacOS()
+                    ? EditorAuthoringNativeMethods.NativeDarwinOpenAt(directoryFd, path, flags, mode)
+                    : EditorAuthoringNativeMethods.NativePosixOpenAt(directoryFd, path, flags, mode);
                 if (result >= 0) {
                     return NormalizePosixFileDescriptor(result);
                 }
@@ -2358,7 +2387,7 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
             }
             int duplicate;
             while (true) {
-                duplicate = EditorAuthoringNativeMethods.NativePosixFcntl(fileDescriptor, PosixFDupFdCloexec, 3);
+                duplicate = PosixFcntl(fileDescriptor, PosixFDupFdCloexec, 3);
                 if (duplicate >= 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
                     break;
                 }
@@ -2376,7 +2405,7 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
 
         static int PosixDup(int fileDescriptor) {
             while (true) {
-                int result = EditorAuthoringNativeMethods.NativePosixFcntl(fileDescriptor, PosixFDupFdCloexec, 3);
+                int result = PosixFcntl(fileDescriptor, PosixFDupFdCloexec, 3);
                 if (result >= 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
                     return result;
                 }
@@ -2421,14 +2450,16 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
         static int RenameAt2(int oldDirectoryFd, string oldPath, int newDirectoryFd, string newPath, uint flags) {
             try {
                 while (true) {
-                    int result = EditorAuthoringNativeMethods.NativeRenameAt2(oldDirectoryFd, oldPath, newDirectoryFd, newPath, flags);
+                    int result = OperatingSystem.IsMacOS()
+                        ? EditorAuthoringNativeMethods.NativeDarwinRenameAt(oldDirectoryFd, oldPath, newDirectoryFd, newPath, flags)
+                        : EditorAuthoringNativeMethods.NativeRenameAt2(oldDirectoryFd, oldPath, newDirectoryFd, newPath, flags);
                     if (result == 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
                         return result;
                     }
                 }
             } catch (EntryPointNotFoundException exception) {
                 throw new PlatformNotSupportedException(
-                    "The Linux kernel interface renameat2 is unavailable; secure authoring entry mutations cannot continue.",
+                    "The host descriptor-relative rename interface is unavailable; secure authoring entry mutations cannot continue.",
                     exception);
             }
         }
@@ -2453,7 +2484,16 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
 
         static int PosixFStatAt(int directoryFd, string path, out LinuxPosixStat status, int flags) {
             while (true) {
-                int result = EditorAuthoringNativeMethods.NativePosixFStatAt(directoryFd, path, out status, flags);
+                int result;
+                if (OperatingSystem.IsMacOS()) {
+                    EditorAuthoringNativeMethods.DarwinPosixStat nativeStatus;
+                    result = RuntimeInformation.ProcessArchitecture == Architecture.X64
+                        ? EditorAuthoringNativeMethods.NativeDarwinFStatAtInode64(directoryFd, path, out nativeStatus, flags)
+                        : EditorAuthoringNativeMethods.NativeDarwinFStatAt(directoryFd, path, out nativeStatus, flags);
+                    status = new LinuxPosixStat { Device = nativeStatus.Device, Inode = nativeStatus.Inode, Mode = nativeStatus.Mode };
+                } else {
+                    result = EditorAuthoringNativeMethods.NativePosixFStatAt(directoryFd, path, out status, flags);
+                }
                 if (result == 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
                     return result;
                 }
@@ -2462,7 +2502,16 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
 
         static int PosixFStat(int fileDescriptor, out LinuxPosixStat status) {
             while (true) {
-                int result = EditorAuthoringNativeMethods.NativePosixFStat(fileDescriptor, out status);
+                int result;
+                if (OperatingSystem.IsMacOS()) {
+                    EditorAuthoringNativeMethods.DarwinPosixStat nativeStatus;
+                    result = RuntimeInformation.ProcessArchitecture == Architecture.X64
+                        ? EditorAuthoringNativeMethods.NativeDarwinFStatInode64(fileDescriptor, out nativeStatus)
+                        : EditorAuthoringNativeMethods.NativeDarwinFStat(fileDescriptor, out nativeStatus);
+                    status = new LinuxPosixStat { Device = nativeStatus.Device, Inode = nativeStatus.Inode, Mode = nativeStatus.Mode };
+                } else {
+                    result = EditorAuthoringNativeMethods.NativePosixFStat(fileDescriptor, out status);
+                }
                 if (result == 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
                     return result;
                 }
@@ -2471,7 +2520,9 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
 
         static int PosixFcntl(int fileDescriptor, int command, int argument) {
             while (true) {
-                int result = EditorAuthoringNativeMethods.NativePosixFcntl(fileDescriptor, command, argument);
+                int result = OperatingSystem.IsMacOS()
+                    ? EditorAuthoringNativeMethods.NativeDarwinFcntl(fileDescriptor, command, argument)
+                    : EditorAuthoringNativeMethods.NativePosixFcntl(fileDescriptor, command, argument);
                 if (result >= 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
                     return result;
                 }
@@ -2481,7 +2532,9 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
         static IntPtr PosixReadDir(IntPtr directoryStream) {
             while (true) {
                 Marshal.SetLastPInvokeError(0);
-                IntPtr result = EditorAuthoringNativeMethods.NativePosixReadDir(directoryStream);
+                IntPtr result = OperatingSystem.IsMacOS() && RuntimeInformation.ProcessArchitecture == Architecture.X64
+                    ? EditorAuthoringNativeMethods.NativeDarwinReadDirInode64(directoryStream)
+                    : EditorAuthoringNativeMethods.NativePosixReadDir(directoryStream);
                 if (result != IntPtr.Zero) {
                     return result;
                 }

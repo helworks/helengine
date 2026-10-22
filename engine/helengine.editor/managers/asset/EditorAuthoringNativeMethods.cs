@@ -96,6 +96,53 @@ namespace helengine.editor {
     [DllImport("libc", EntryPoint = "fcntl", SetLastError = true)]
     internal static extern int NativePosixFcntl(int fileDescriptor, int command, int argument);
 
+    /// <summary>Uses the compiler-owned Darwin variadic ABI for open while exposing a fixed managed signature.</summary>
+    [DllImport("helengine.authoring.native", EntryPoint = "helengine_authoring_open", SetLastError = true)]
+    internal static extern int NativeDarwinOpen(string path, int flags, uint mode);
+
+    /// <summary>Uses the compiler-owned Darwin variadic ABI for descriptor-relative openat.</summary>
+    [DllImport("helengine.authoring.native", EntryPoint = "helengine_authoring_openat", SetLastError = true)]
+    internal static extern int NativeDarwinOpenAt(int directoryFd, string path, int flags, uint mode);
+
+    /// <summary>Uses the compiler-owned Darwin variadic ABI for descriptor duplication and status flags.</summary>
+    [DllImport("helengine.authoring.native", EntryPoint = "helengine_authoring_fcntl", SetLastError = true)]
+    internal static extern int NativeDarwinFcntl(int fileDescriptor, int command, int argument);
+
+    /// <summary>Uses Darwin's atomic no-replace rename flag without replacing the descriptor-relative ownership checks.</summary>
+    [DllImport("libc", EntryPoint = "renameatx_np", SetLastError = true)]
+    internal static extern int NativeDarwinRenameAt(int oldDirectoryFd, string oldPath, int newDirectoryFd, string newPath, uint flags);
+
+    /// <summary>Reads the arm64 Darwin stat ABI with the native plain-symbol entrypoint.</summary>
+    [DllImport("libc", EntryPoint = "fstat", SetLastError = true)]
+    internal static extern int NativeDarwinFStat(int fileDescriptor, out DarwinPosixStat status);
+
+    /// <summary>Reads the x64 Darwin inode64 stat ABI selected by the SDK headers.</summary>
+    [DllImport("libc", EntryPoint = "fstat$INODE64", SetLastError = true)]
+    internal static extern int NativeDarwinFStatInode64(int fileDescriptor, out DarwinPosixStat status);
+
+    /// <summary>Reads a no-follow leaf stat through the arm64 Darwin descriptor-relative entrypoint.</summary>
+    [DllImport("libc", EntryPoint = "fstatat", SetLastError = true)]
+    internal static extern int NativeDarwinFStatAt(int directoryFd, string path, out DarwinPosixStat status, int flags);
+
+    /// <summary>Reads a no-follow leaf stat through the x64 Darwin inode64 descriptor-relative entrypoint.</summary>
+    [DllImport("libc", EntryPoint = "fstatat$INODE64", SetLastError = true)]
+    internal static extern int NativeDarwinFStatAtInode64(int directoryFd, string path, out DarwinPosixStat status, int flags);
+
+    /// <summary>Enumerates the inode64 Darwin dirent ABI on x64; arm64 exports the same ABI under readdir.</summary>
+    [DllImport("libc", EntryPoint = "readdir$INODE64", SetLastError = true)]
+    internal static extern IntPtr NativeDarwinReadDirInode64(IntPtr directoryStream);
+
+    /// <summary>Preserves the complete 144-byte Darwin stat native buffer while exposing only the identity fields consumed by authoring.</summary>
+    [StructLayout(LayoutKind.Explicit, Size = 144)]
+    internal struct DarwinPosixStat {
+        /// <summary>Device identity at the SDK-verified native offset.</summary>
+        [FieldOffset(0)] public uint Device;
+        /// <summary>File kind and permissions at the SDK-verified native offset.</summary>
+        [FieldOffset(4)] public ushort Mode;
+        /// <summary>64-bit inode identity at the SDK-verified native offset.</summary>
+        [FieldOffset(8)] public ulong Inode;
+    }
+
     const int FileRenameInformation = 3;
     const int FileDispositionInformationEx = 21;
     const uint FileDispositionDelete = 0x00000001;

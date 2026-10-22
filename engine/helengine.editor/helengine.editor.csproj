@@ -36,6 +36,30 @@
     </None>
   </ItemGroup>
 
+  <!-- Native varargs require a compiler-owned ABI on Apple arm64. Keep the three
+       authoring wrappers universal, incremental, and inside the normal artifact root. -->
+  <Target Name="BuildDarwinAuthoringNativeShim"
+          Condition="$([MSBuild]::IsOSPlatform('OSX'))"
+          Inputs="$(MSBuildProjectDirectory)/native/darwin/authoring_posix.c;$(MSBuildProjectFullPath)"
+          Outputs="$(IntermediateOutputPath)native/libhelengine.authoring.native.dylib">
+    <MakeDir Directories="$(IntermediateOutputPath)native" />
+    <Exec Command="xcrun --sdk macosx clang -std=c11 -O2 -Wall -Wextra -Werror -fvisibility=hidden -dynamiclib -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 -Wl,-install_name,@rpath/libhelengine.authoring.native.dylib &quot;$(MSBuildProjectDirectory)/native/darwin/authoring_posix.c&quot; -o &quot;$(IntermediateOutputPath)native/libhelengine.authoring.native.dylib&quot;" />
+  </Target>
+
+  <!-- Register on every invocation, including when compilation is up to date,
+       so project references and dotnet publish carry the native dependency. -->
+  <Target Name="RegisterDarwinAuthoringNativeShim"
+          BeforeTargets="AssignTargetPaths"
+          DependsOnTargets="BuildDarwinAuthoringNativeShim"
+          Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <ItemGroup>
+      <Content Include="$(IntermediateOutputPath)native/libhelengine.authoring.native.dylib"
+               Link="libhelengine.authoring.native.dylib"
+               CopyToOutputDirectory="PreserveNewest"
+               CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+
   <!-- WriteOnlyWhenDifferent is required, not cosmetic. The emitted content is a constant path, but
        rewriting the file unconditionally gives it a new timestamp on every build, which makes CoreCompile
        see a newer input than the assembly and recompile this project every time. That cascades to the

@@ -26,6 +26,8 @@ public sealed class EditorAuthoringMutationScopeTests : IDisposable {
             ? "windows"
             : OperatingSystem.IsLinux() && RuntimeInformation.ProcessArchitecture == Architecture.X64
                 ? "linux"
+                : OperatingSystem.IsMacOS() && (RuntimeInformation.ProcessArchitecture == Architecture.Arm64 || RuntimeInformation.ProcessArchitecture == Architecture.X64)
+                    ? "macos"
                 : "unsupported";
 
         Assert.Equal(expected, EditorAuthoringMutationScope.FilesystemBackendNameForTests);
