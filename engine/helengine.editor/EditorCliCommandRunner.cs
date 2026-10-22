@@ -42,7 +42,7 @@ namespace helengine.editor {
             }
 
             EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(options.ProjectPath);
-            using DirectX11Renderer3D renderer3D = new DirectX11Renderer3D();
+            using EditorBuildRenderManager3D renderer3D = new EditorBuildRenderManager3D(ResolveHostShaderCompileTarget());
             using EditorCore core = new EditorCore(null);
             CoreInitializationOptions initializationOptions = new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(Path.Combine(bootstrap.ProjectRootPath, "assets"))
@@ -124,7 +124,10 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Nested editor commands must use the outer invocation project root.");
             }
 
-            ShaderCompileTarget runtimeTarget = ShaderCompileTarget.DirectX11;
+            if (core.RenderManager3D is not IShaderCompileTargetProvider targetProvider) {
+                throw new InvalidOperationException("Headless editor commands require a renderer with an explicit shader package target.");
+            }
+            ShaderCompileTarget runtimeTarget = targetProvider.ShaderCompileTarget;
             ShaderTargetBuildOptions targetOptions = new ShaderTargetBuildOptions(runtimeTarget, new ShaderModel(4, 0));
             ShaderPackageBuildOptions shaderPackageBuildOptions = new ShaderPackageBuildOptions(
                 new[] { targetOptions },
@@ -340,6 +343,19 @@ namespace helengine.editor {
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             platformCatalogService.RegisterShaderBackends(shaderBackendRegistry);
             return shaderBackendRegistry;
+        }
+
+        /// <summary>Resolves the native shader package API for standalone authoring commands on the current host.</summary>
+        /// <returns>Host-native package target without creating a graphics device.</returns>
+        internal static ShaderCompileTarget ResolveHostShaderCompileTarget() {
+            if (OperatingSystem.IsWindows()) {
+                return ShaderCompileTarget.DirectX11;
+            } else if (OperatingSystem.IsLinux()) {
+                return ShaderCompileTarget.Vulkan;
+            } else if (OperatingSystem.IsMacOS()) {
+                return ShaderCompileTarget.Metal;
+            }
+            throw new PlatformNotSupportedException("Headless editor commands require Windows, Linux, or macOS shader compilation support.");
         }
     }
 }

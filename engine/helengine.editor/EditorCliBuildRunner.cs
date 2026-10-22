@@ -41,7 +41,8 @@ namespace helengine.editor {
             }
 
             EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(options.ProjectPath);
-            using DirectX11Renderer3D renderer3D = new DirectX11Renderer3D();
+            ShaderCompileTarget runtimeTarget = ResolveShaderCompileTarget(options.PlatformId);
+            using EditorBuildRenderManager3D renderer3D = new EditorBuildRenderManager3D(runtimeTarget);
             using EditorCore core = new EditorCore(null);
             CoreInitializationOptions initializationOptions = new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(Path.Combine(bootstrap.ProjectRootPath, "assets"))
@@ -74,7 +75,6 @@ namespace helengine.editor {
             if (!prebuildResult.Succeeded) {
                 return prebuildResult;
             }
-            ShaderCompileTarget runtimeTarget = ResolveShaderCompileTarget(options.PlatformId);
             ShaderTargetBuildOptions targetOptions = new ShaderTargetBuildOptions(runtimeTarget, new ShaderModel(4, 0));
             ShaderPackageBuildOptions shaderPackageBuildOptions = new ShaderPackageBuildOptions(
                 new[] { targetOptions },
@@ -442,10 +442,15 @@ namespace helengine.editor {
         /// Resolves the shader compiler target required by one editor build platform.
         /// </summary>
         /// <param name="platformId">Stable platform identifier supplied by the editor build request.</param>
-        /// <returns>The explicit Xbox or PS Vita target, otherwise the existing DirectX 11 target.</returns>
+        /// <returns>The native target's shader package API, retaining existing legacy platform selection.</returns>
         internal static ShaderCompileTarget ResolveShaderCompileTarget(string platformId) {
             if (string.Equals(platformId, "xbox", StringComparison.OrdinalIgnoreCase)) {
                 return ShaderCompileTarget.Xbox;
+            } else if (string.Equals(platformId, "linux", StringComparison.OrdinalIgnoreCase)) {
+                return ShaderCompileTarget.Vulkan;
+            } else if (string.Equals(platformId, "macos", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(platformId, "ios", StringComparison.OrdinalIgnoreCase)) {
+                return ShaderCompileTarget.Metal;
             }
             return string.Equals(platformId, "psvita", StringComparison.OrdinalIgnoreCase)
                 ? ShaderCompileTarget.PsVita
