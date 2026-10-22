@@ -31,5 +31,5 @@ namespace helengine {
         /// </summary>
         JustPressed
     }
-#endif
 }
+#endif

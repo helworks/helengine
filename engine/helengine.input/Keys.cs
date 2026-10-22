@@ -652,5 +652,5 @@ namespace helengine {
         /// </summary>
         OemEnlW = 0xf4
     }
-#endif
 }
+#endif

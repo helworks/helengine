@@ -22,7 +22,9 @@
     $([System.String]::Copy('$(MSBuildProjectFullPath)').Contains('\engine\'))
     Or $([System.String]::Copy('$(MSBuildProjectFullPath)').Contains('/engine/'))">
     <BuildInParallel>false</BuildInParallel>
-    <DefineConstants Condition="'$(OS)' == 'Windows_NT'">$(DefineConstants);DESKTOP_PLATFORM</DefineConstants>
+    <!-- Managed authoring hosts expose the same input contract on every desktop OS.
+         Native conversion selects its own input features through the codegen profile. -->
+    <DefineConstants>$(DefineConstants);DESKTOP_PLATFORM</DefineConstants>
     <UseCommonOutputDirectory Condition="
       !$([System.String]::Copy('$(MSBuildProjectFullPath)').Contains('.tests\'))
       And !$([System.String]::Copy('$(MSBuildProjectFullPath)').Contains('.tests/'))">true</UseCommonOutputDirectory>
