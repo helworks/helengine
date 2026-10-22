@@ -44,8 +44,8 @@
 - [x] Fixar testes de seleção/capacidades, falhas de inicialização e resize/minimização.
 - [x] Implementar ownership de instance/device/filas/swapchain e submissão sincronizada.
 - [x] Compilar pelo checkout real no servidor e validar GPU/offscreen sem abrir desktop da usuária.
-- [ ] Implementar fila 2D e integração do core/menu; avançar para materiais, texturas e fila 3D exigidos pelas cenas.
-- [ ] Validar os perfis e registrar separadamente host mínimo, menu e cada cena; comunicar bloqueios de integração imediatamente.
+- [x] Implementar fila 2D e integração do core/menu; avançar para materiais, texturas e fila 3D exigidos pelas cenas.
+- [x] Validar os perfis e registrar separadamente host mínimo, menu e cada cena; comunicar bloqueios de integração imediatamente. Debug/Release/Profiler têm provas separadas; a captura Profiler usa escopos gerados e contadores de componentes/entidades.
 
 ### Task 3: Host Metal Apple (worker Apple)
 
@@ -55,7 +55,7 @@
 - [x] Fixar testes de lifecycle/drawable indisponível, ownership GPU e paths de recursos/sandbox.
 - [x] Implementar command queue/pipelines/buffers/texturas e teste real de render Metal offscreen com readback.
 - [x] Compilar no Mac real; verificar SDK iOS/device/simulator e build unsigned sem provisioning inventado.
-- [ ] Integrar core/menu, fila 2D, materiais e 3D; registrar limites por target em vez de afirmar paridade sem teste.
+- [x] Integrar core/menu, fila 2D, materiais e 3D; registrar limites por target em vez de afirmar paridade sem teste. As 14 cenas passaram em macOS; iOS tem compilação/link unsigned, sem execução validada.
 
 ### Task 4: Geração e contratos de targets (worker codegen)
 
@@ -74,13 +74,18 @@
 - [x] Reproduzir a dependência Windows com o grafo real e teste de execução Linux/Mac.
 - [x] Separar inicialização headless de renderer/GUI e registrar importadores compatíveis com os assets reais.
 - [x] Resolver binários/ferramentas por host sem `.exe` fixo; falhas continuam fatais e contextualizadas.
-- [ ] Buildar conteúdo e código por target usando o DemoDisc real; preservar todos os botões e seleção de cenas. Linux e macOS já geraram e cozinharam as 15 cenas; falta concluir o pacote completo iOS e a validação 3D.
+- [x] Buildar conteúdo e código por target usando o DemoDisc real; preservar todos os botões e seleção de cenas. Linux e macOS executaram as 14 cenas de rendering; iOS device completou cook/codegen/link unsigned. O Core de simulator também linkou unsigned; a troca de SDK no cache de shaders exige a decisão pendente abaixo. Nenhuma execução iOS é afirmada.
 
 ### Task 6: Integração e revisão
 
 **Files:** fixtures/testes de cada dono, catálogo e documentação de uso; sem testes artificiais que apenas espelham implementação.
 
-- [ ] Revisar mudanças por responsabilidade e executar verificações relevantes após cada integração.
+- [x] Revisar mudanças por responsabilidade e executar verificações relevantes após cada integração. Revisão final corrigiu a seleção vazia de escopos e a combinação de profiling sem linkage Tracy; também identificou o problema de identidade do SDK iOS no cache.
 - [ ] Verificar hashes/sincronização dos checkouts reais, outputs fixos e ausência de temporários abandonados.
-- [ ] Executar menu e matriz de cenas onde o runtime estiver pronto; classificar explicitamente compilado, offscreen, interativo e não validado.
-- [ ] Não declarar a criação do backend como paridade completa antes das evidências exigidas pelas specs.
+- [x] Executar menu e matriz de cenas onde o runtime estiver pronto; classificar explicitamente compilado, offscreen, interativo e não validado. São 14/14 cenas em Linux e macOS offscreen, 44 botões e input SDL real; macOS tem 28 retornos por teclado/controle, Linux tem roundtrip de uma cena também em Xvfb.
+- [x] Não declarar a criação do backend como paridade completa antes das evidências exigidas pelas specs. iOS continua sem execução, Wayland não foi validado e o profiler mede CPU, sem timestamps GPU.
+
+### Contexto do cook iOS aprovado
+
+- [x] Helena aprovou acrescentar um contexto de cook imutável que capture o SDK e participe da identidade do cache. O SDK selecionado por ambiente já chega ao compilador Metal e ao build nativo, mas não distingue a chave compartilhada do pacote de cenas.
+- [ ] Capturar e transportar explicitamente o contexto por build, incluir sua identidade no cache e validar a troca device/simulator usando a mesma DLL. Não contornar com limpeza do cache ou descrição de perfil.

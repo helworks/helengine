@@ -27,6 +27,18 @@ Builds e logs temporários usam `/tmp/helengine/macos` e `/tmp/helengine/ios` no
 
 A evidência distingue compilação, inicialização GPU, renderização offscreen, menu funcional e execução individual das cenas. Nenhum desses passos substitui os demais. Falhas do SDK, compilador, shader, asset ou runtime propagam mensagem contextual e código de saída.
 
+## Contexto imutável do cook
+
+Helena aprovou capturar o SDK no contexto do cook e na identidade do cache. A reprodução usou a mesma DLL: trocar simulator por device restaurou o pacote de cenas do cache, montando um aplicativo device com dez bibliotecas Metal de simulator. Limpar o cache não corrige essa identidade incompleta.
+
+O contrato compartilhado contém `PlatformCookContext`, com a plataforma e uma seleção opcional de SDK nativo. `PlatformNativeSdkSelection` registra toolchain, nome do SDK, versão e identidade da implementação do compilador. No Apple, essa identidade inclui o MVID da assembly compartilhada que implementa `MetalShaderBackend`, pois a assembly fina de registro do target não identifica mudanças internas do compilador. Os objetos são imutáveis e produzem uma identidade canônica de cache a partir desses campos.
+
+Um provider opcional captura a seleção uma única vez por build. O CLI transporta o mesmo contexto por executor, grafo, cook e request nativo; a entrada direta do grafo captura quando não recebeu contexto. O provider registra o compilador com o contexto capturado em uma biblioteca de shaders pertencente àquela execução. Não há troca de estado global, `AsyncLocal`, consulta posterior ao ambiente ou descarte de uma biblioteca emprestada da sessão.
+
+As duas passagens de chave do pacote de cenas e o fingerprint nativo recebem a mesma identidade. O compilador Metal e o executor Apple usam a mesma seleção para produzir e empacotar bibliotecas e aplicativo do SDK correto. Contexto ausente ou incompatível no consumidor Apple é erro explícito. Plataformas sem esse provider preservam a contribuição de shaders existente e não passam a exigir um SDK Apple.
+
+A validação exige testes de imutabilidade, chaves distintas por SDK/versão/compilador e propagação do mesmo contexto. No Mac, o pipeline real deve alternar device e simulator com a mesma DLL e sem limpar o cache, verificando os marcadores de SDK dos MTLBs do pacote e hits corretos ao voltar ao SDK anterior. Cada execução sobrescreve a saída iOS existente. Essa prova de cook/link não será apresentada como execução do aplicativo iOS.
+
 ## Fontes primárias
 
 - https://wiki.libsdl.org/SDL3/README-macos
