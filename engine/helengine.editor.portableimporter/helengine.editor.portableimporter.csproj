@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="14.13.0" />
+    <ProjectReference Include="..\helengine.editor\helengine.editor.csproj" />
+    <ProjectReference Include="..\helengine.editor.windows.magickimporter\helengine.editor.windows.magickimporter.csproj" />
+    <ProjectReference Include="..\helengine.editor.windows.pfimimporter\helengine.editor.windows.pfimimporter.csproj" />
+    <ProjectReference Include="..\helengine.editor.fbximporter\helengine.editor.assimp.csproj" />
+  </ItemGroup>
+</Project>

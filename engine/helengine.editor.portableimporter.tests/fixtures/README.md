@@ -1,0 +1,1 @@
+`Synthetic.ttf` is an authored test face containing rectangular `.notdef`, `M` and `i` glyphs plus a space. Units per em: 1000; ascent: 800; descent: -200; advances: 550, 850, 250 and 300 respectively. It contains no glyph outlines copied from another font and lets the importer tests verify real rasterization without a system font dependency.

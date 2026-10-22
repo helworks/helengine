@@ -116,6 +116,18 @@
       "url": "git@github.com:helworks/helengine-xbox360.git"
     },
     {
+      "id": "linux",
+      "name": "Linux Vulkan",
+      "directory": "helengine-linux",
+      "url": "git@github.com:helworks/helengine-linux.git"
+    },
+    {
+      "id": "apple",
+      "name": "Apple macOS and iOS Metal",
+      "directory": "helengine-apple",
+      "url": "git@github.com:helworks/helengine-apple.git"
+    },
+    {
       "id": "physics",
       "name": "HelPhysics (shared library)",
       "directory": "helengine-physics",
