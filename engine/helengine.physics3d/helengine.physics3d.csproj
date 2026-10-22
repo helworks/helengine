@@ -6,7 +6,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\helengine.bepu\helengine.bepu.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.core\helengine.core.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.physics\helengine.physics.csproj" SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
