@@ -147,6 +147,36 @@ namespace helengine.baseplatform.Requests {
             ExecutionScope = executionScope;
         }
 
+        /// <summary>Creates a package request carrying the exact immutable SDK snapshot already used by shader cooking.</summary>
+        public PlatformBuildRequest(
+            Builders.PlatformCookContext cookContext,
+            PlatformBuildManifest manifest,
+            PlatformBuildTargetVariant[] targetVariants,
+            PlatformCookProfile[] cookProfiles,
+            string outputRoot,
+            string workingRoot,
+            string selectedBuildProfileId,
+            string selectedGraphicsProfileId,
+            string selectedCodegenProfileId,
+            IReadOnlyDictionary<string, string> selectedBuildOptionValues,
+            IReadOnlyDictionary<string, string> selectedGraphicsOptionValues,
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
+            string generatedCoreCppRootPath = "",
+            string selectedMediaProfileId = "",
+            string selectedStorageProfileId = "",
+            string selectedEnvironmentId = "release",
+            string nativeObjectCacheRoot = "",
+            PlatformBuildExecutionScope executionScope = PlatformBuildExecutionScope.Full)
+            : this(manifest, targetVariants, cookProfiles, outputRoot, workingRoot, selectedBuildProfileId,
+                selectedGraphicsProfileId, selectedCodegenProfileId, selectedBuildOptionValues,
+                selectedGraphicsOptionValues, selectedCodegenOptionValues, generatedCoreCppRootPath,
+                selectedMediaProfileId, selectedStorageProfileId, selectedEnvironmentId, nativeObjectCacheRoot, executionScope) {
+            CookContext = cookContext ?? throw new ArgumentNullException(nameof(cookContext));
+        }
+
+        /// <summary>Gets the SDK snapshot shared with cooking; legacy callers without SDK-dependent builders leave it absent.</summary>
+        public Builders.PlatformCookContext CookContext { get; }
+
         /// <summary>
         /// Gets the fully resolved platform build manifest that the builder must process.
         /// </summary>

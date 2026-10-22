@@ -81,6 +81,7 @@ namespace helengine.editor {
                 cookedManifest.PlatformCookWorkItems,
                 cookedManifest.RuntimeFeatureManifest, cookedManifest.NumericPolicy);
             manifest.StandardPlatformInputConfiguration = cookedManifest.StandardPlatformInputConfiguration;
+            manifest.CookContext = cookedManifest.CookContext;
             return manifest;
         }
 

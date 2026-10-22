@@ -123,6 +123,9 @@ namespace helengine.baseplatform.Manifest {
         /// <summary>Gets the exact numeric ABI and cooked-storage identity captured by the build.</summary>
         public NumericPrecisionPolicy NumericPolicy { get; }
 
+        /// <summary>Gets or sets managed cook provenance so SDK-dependent builders can reject content cooked with another SDK snapshot; legacy manifests omit this value.</summary>
+        public Builders.PlatformCookContext CookContext { get; set; }
+
         /// <summary>
         /// Gets or sets the engine-owned standard platform action bindings that packaged runtimes should register during startup.
         /// </summary>

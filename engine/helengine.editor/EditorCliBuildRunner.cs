@@ -41,6 +41,7 @@ namespace helengine.editor {
             }
 
             EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(options.ProjectPath);
+            PlatformCookContext cookContext = EditorPlatformCookSession.CaptureContext(bootstrap.PlatformCatalogService.Resolve(options.PlatformId).Builder);
             ShaderCompileTarget runtimeTarget = ResolveShaderCompileTarget(options.PlatformId);
             using EditorBuildRenderManager3D renderer3D = new EditorBuildRenderManager3D(runtimeTarget);
             using EditorCore core = new EditorCore(null);
@@ -52,7 +53,7 @@ namespace helengine.editor {
             using EditorSessionInteractionServices interactionServices = new EditorSessionInteractionServices();
             using EditorCoreInteractionGraphBinding interactionGraphBinding = new EditorCoreInteractionGraphBinding(core, interactionServices);
             core.SetDefaultFontAssetForEditor(DefaultFontAsset);
-            ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService, options.PlatformId);
+            ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService, options.PlatformId, cookContext);
             using EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
             using EngineGeneratedModelCache generatedModelCache = new EngineGeneratedModelCache(core);
             using EngineGeneratedMaterialCache generatedMaterialCache = new EngineGeneratedMaterialCache(core, builtInShaderAssetLibrary);
@@ -166,7 +167,8 @@ namespace helengine.editor {
                     DefaultFontAsset,
                     null,
                     assemblyHost.ScriptTypeResolver,
-                    builtInShaderAssetLibrary);
+                    builtInShaderAssetLibrary,
+                    cookContext);
 
                 EditorBuildExecutionResult result = executor.Execute(queueItem);
                 if (result.Succeeded && options.UseCommonOutputDirectory) {
@@ -422,7 +424,7 @@ namespace helengine.editor {
         /// <param name="platformCatalogService">Dynamic platform catalog that can contribute additional shader backends from loaded platform builders.</param>
         /// <param name="platformId">Stable target platform identifier for the active headless build.</param>
         /// <returns>Registry populated with the desktop shader backends supported by the build runner.</returns>
-        static ShaderBackendRegistry CreateShaderBackendRegistry(EditorPlatformCatalogService platformCatalogService, string platformId) {
+        static ShaderBackendRegistry CreateShaderBackendRegistry(EditorPlatformCatalogService platformCatalogService, string platformId, PlatformCookContext cookContext) {
             if (platformCatalogService == null) {
                 throw new ArgumentNullException(nameof(platformCatalogService));
             } else if (string.IsNullOrWhiteSpace(platformId)) {
@@ -431,7 +433,7 @@ namespace helengine.editor {
 
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-            platformCatalogService.RegisterShaderBackends(shaderBackendRegistry, platformId);
+            platformCatalogService.RegisterShaderBackends(shaderBackendRegistry, platformId, cookContext);
             return shaderBackendRegistry;
         }
 

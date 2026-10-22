@@ -43,6 +43,8 @@ namespace helengine.editor {
         readonly EditorPlatformArtifactVariantResolver ArtifactVariantResolver;
         readonly IScriptTypeResolver ScriptTypeResolver;
         readonly EditorBuiltInShaderAssetLibrary BuiltInShaderAssetLibrary;
+        /// <summary>Retains the CLI's pre-registration SDK snapshot; direct graph callers capture at execution entry.</summary>
+        readonly PlatformCookContext InitialCookContext;
 
         /// <summary>
         /// Resolves the engine's own codegen executable for core regeneration and project module compilation.
@@ -81,7 +83,8 @@ namespace helengine.editor {
             EditorGeneratedCoreRegenerationService generatedCoreRegenerationService,
             IScriptTypeResolver scriptTypeResolver,
             EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary,
-            IEngineCodegenToolProvider codegenToolProvider)
+            IEngineCodegenToolProvider codegenToolProvider,
+            PlatformCookContext cookContext = null)
             : this(
                 projectRootPath,
                 requiredEngineVersion,
@@ -96,7 +99,8 @@ namespace helengine.editor {
                 null,
                 scriptTypeResolver,
                 builtInShaderAssetLibrary,
-                codegenToolProvider) {
+                codegenToolProvider,
+                cookContext) {
         }
 
         internal EditorPlatformBuildGraphRunner(
@@ -113,7 +117,8 @@ namespace helengine.editor {
             EditorRuntimeFeatureManifestService runtimeFeatureManifestService,
             IScriptTypeResolver scriptTypeResolver,
             EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary,
-            IEngineCodegenToolProvider codegenToolProvider) {
+            IEngineCodegenToolProvider codegenToolProvider,
+            PlatformCookContext cookContext = null) {
             ProjectRootPath = projectRootPath ?? throw new ArgumentNullException(nameof(projectRootPath));
             RequiredEngineVersion = requiredEngineVersion ?? throw new ArgumentNullException(nameof(requiredEngineVersion));
             ProjectId = projectId ?? throw new ArgumentNullException(nameof(projectId));
@@ -150,6 +155,7 @@ namespace helengine.editor {
             ScriptTypeResolver = scriptTypeResolver;
             BuiltInShaderAssetLibrary = builtInShaderAssetLibrary ?? throw new ArgumentNullException(nameof(builtInShaderAssetLibrary));
             CodegenToolProvider = codegenToolProvider ?? throw new ArgumentNullException(nameof(codegenToolProvider));
+            InitialCookContext = cookContext;
         }
 
         /// <summary>
@@ -161,6 +167,7 @@ namespace helengine.editor {
             }
 
             IPlatformAssetBuilder builder = BuilderLoader.Load(PlatformDescriptor.BuilderAssemblyPath);
+            using EditorPlatformCookSession cookSession = EditorPlatformCookSession.Create(builder, BuiltInShaderAssetLibrary, InitialCookContext);
             PlatformSettingsConfiguration runtimeSettings = EditorRuntimeSettingsAuthoringService.Load(ProjectRootPath, builder.Definition);
             queueItem.RuntimeSettingsFingerprint = Convert.ToHexString(SHA256.HashData(PlatformSettingsSerializer.WriteBytes(runtimeSettings)));
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(builder.Definition);
@@ -217,7 +224,8 @@ namespace helengine.editor {
                     selectedGraphicsProfileId,
                     queueItem,
                     workspace,
-                    temporaryGeneratedScenePathOverrides);
+                    temporaryGeneratedScenePathOverrides,
+                    cookSession);
             } finally {
                 DeleteTemporaryGeneratedSceneOverrides(temporaryGeneratedScenePathOverrides);
             }
@@ -270,7 +278,8 @@ namespace helengine.editor {
                 selectedCodegenProfileId,
                 effectiveCodegenOptionValues,
                 selectedMediaProfileId,
-                selectedStorageProfileId);
+                selectedStorageProfileId,
+                cookSession.Context);
             WritePhaseMarker(workspace, "platform-packaged");
             return FinalizeBuildExecution(selectionModel, queueItem, packageResult);
         }
@@ -292,6 +301,7 @@ namespace helengine.editor {
             }
 
             IPlatformAssetBuilder builder = BuilderLoader.Load(PlatformDescriptor.BuilderAssemblyPath);
+            using EditorPlatformCookSession cookSession = EditorPlatformCookSession.Create(builder, BuiltInShaderAssetLibrary, InitialCookContext);
             PlatformSettingsConfiguration runtimeSettings = EditorRuntimeSettingsAuthoringService.Load(ProjectRootPath, builder.Definition);
             queueItem.RuntimeSettingsFingerprint = Convert.ToHexString(SHA256.HashData(PlatformSettingsSerializer.WriteBytes(runtimeSettings)));
             PlatformPlayerCapability playerCapability = builder.Definition.PlayerCapability;
@@ -338,7 +348,8 @@ namespace helengine.editor {
                     selectedGraphicsProfileId,
                     queueItem,
                     workspace,
-                    temporaryGeneratedScenePathOverrides);
+                    temporaryGeneratedScenePathOverrides,
+                    cookSession);
             } finally {
                 DeleteTemporaryGeneratedSceneOverrides(temporaryGeneratedScenePathOverrides);
             }
@@ -367,6 +378,7 @@ namespace helengine.editor {
                 effectiveCodegenOptionValues,
                 selectedMediaProfileId,
                 selectedStorageProfileId,
+                cookSession.Context,
                 PlatformBuildExecutionScope.AssetsOnly);
             WritePhaseMarker(workspace, "platform-packaged");
             if (!packageResult.Succeeded) {
@@ -444,6 +456,7 @@ namespace helengine.editor {
                 manifest.PlatformCookWorkItems,
                 runtimeFeatureManifest, manifest.NumericPolicy);
             updatedManifest.StandardPlatformInputConfiguration = manifest.StandardPlatformInputConfiguration;
+            updatedManifest.CookContext = manifest.CookContext;
             return updatedManifest;
         }
 
@@ -718,7 +731,8 @@ namespace helengine.editor {
             string selectedGraphicsProfileId,
             EditorBuildQueueItemDocument queueItem,
             EditorPlatformBuildGraphWorkspace workspace,
-            IReadOnlyDictionary<string, string> scenePathOverrides) {
+            IReadOnlyDictionary<string, string> scenePathOverrides,
+            EditorPlatformCookSession cookSession) {
             return AssetCookService.Cook(
                 builderDefinition,
                 queueItem.SelectedSceneIds,
@@ -731,7 +745,9 @@ namespace helengine.editor {
                 queueItem.SelectedEnvironmentId,
                 queueItem.SelectedGraphicsOptionValues,
                 queueItem.PlayVideoMode,
-                queueItem.NumericPolicy);
+                queueItem.NumericPolicy,
+                cookSession.Context,
+                cookSession.ShaderLibrary);
         }
 
         /// <summary>
@@ -1305,6 +1321,7 @@ namespace helengine.editor {
                 cookedManifest.PlatformCookWorkItems,
                 cookedManifest.RuntimeFeatureManifest, cookedManifest.NumericPolicy);
             manifest.StandardPlatformInputConfiguration = cookedManifest.StandardPlatformInputConfiguration;
+            manifest.CookContext = cookedManifest.CookContext;
             return manifest;
         }
 
@@ -1509,6 +1526,7 @@ namespace helengine.editor {
             IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
             string selectedMediaProfileId,
             string selectedStorageProfileId,
+            PlatformCookContext cookContext,
             PlatformBuildExecutionScope executionScope = PlatformBuildExecutionScope.Full) {
             string builderWorkingRootPath = workspace.BuilderWorkingRootPath;
             if (executionScope == PlatformBuildExecutionScope.AssetsOnly) {
@@ -1525,7 +1543,8 @@ namespace helengine.editor {
                     string.Empty,
                     selectedStorageProfileId,
                     string.Empty,
-                    executionScope);
+                    executionScope,
+                    cookContext);
                 return RunBuilderPackage(builder, queueItem, workspace, assetsOnlyRequest, string.Empty);
             }
 
@@ -1549,7 +1568,8 @@ namespace helengine.editor {
                 selectedCodegenProfileId,
                 queueItem.SelectedEnvironmentId,
                 builder.Descriptor,
-                selectedCodegenOptionValues);
+                selectedCodegenOptionValues,
+                cookContext);
             string nativeObjectCacheRootPath = string.Equals(PlatformDescriptor.Id, "windows", StringComparison.OrdinalIgnoreCase)
                 ? new EditorBuildIsolationPathResolver(ProjectRootPath).ResolveNativeObjectCacheRootPath(
                     workspace.NativeObjectCacheRootPath, nativeCacheFingerprint)
@@ -1567,7 +1587,8 @@ namespace helengine.editor {
                 selectedMediaProfileId,
                 generatedCoreRootPath,
                 selectedStorageProfileId,
-                nativeObjectCacheRootPath);
+                nativeObjectCacheRootPath,
+                cookContext);
             string detectedFeatureSummary = BuildDetectedFeatureSummary(workspace.GeneratedCoreRootPath);
             return RunBuilderPackage(builder, queueItem, workspace, request, detectedFeatureSummary);
         }
@@ -1691,7 +1712,8 @@ namespace helengine.editor {
             string selectedMediaProfileId,
             string generatedCoreRootPath,
             string selectedStorageProfileId,
-            string nativeObjectCacheRootPath) {
+            string nativeObjectCacheRootPath,
+            PlatformCookContext cookContext) {
             return BuildScopedRequest(
                 queueItem,
                 cookedManifest,
@@ -1705,7 +1727,8 @@ namespace helengine.editor {
                 generatedCoreRootPath,
                 selectedStorageProfileId,
                 nativeObjectCacheRootPath,
-                PlatformBuildExecutionScope.Full);
+                PlatformBuildExecutionScope.Full,
+                cookContext);
         }
 
         /// <summary>
@@ -1726,7 +1749,8 @@ namespace helengine.editor {
             string generatedCoreRootPath,
             string selectedStorageProfileId,
             string nativeObjectCacheRootPath,
-            PlatformBuildExecutionScope executionScope) {
+            PlatformBuildExecutionScope executionScope,
+            PlatformCookContext cookContext) {
             if (cookedManifest == null) {
                 throw new ArgumentNullException(nameof(cookedManifest));
             }
@@ -1780,6 +1804,7 @@ namespace helengine.editor {
             manifest.Render2DTextCommandReuseMemoryBudgetBytes = cookedManifest.Render2DTextCommandReuseMemoryBudgetBytes;
             manifest.ShadowsEnabled = cookedManifest.ShadowsEnabled;
             manifest.PlatformSettingsConfiguration = cookedManifest.PlatformSettingsConfiguration;
+            manifest.CookContext = cookedManifest.CookContext;
             manifest.LoadingScreenSceneId = cookedManifest.LoadingScreenSceneId;
 
             PlatformBuildTargetVariant[] targetVariants = [
@@ -1803,6 +1828,7 @@ namespace helengine.editor {
             ];
 
             return new PlatformBuildRequest(
+                cookContext,
                 manifest,
                 targetVariants,
                 cookProfiles,
@@ -1840,7 +1866,8 @@ namespace helengine.editor {
             string codegenProfileId,
             string environmentId,
             PlatformBuilderDescriptor builderDescriptor,
-            IReadOnlyDictionary<string, string> codegenOptions) {
+            IReadOnlyDictionary<string, string> codegenOptions,
+            PlatformCookContext cookContext = null) {
             StringBuilder fingerprintInput = new();
             fingerprintInput.Append(platformId).Append('\n')
                 .Append(buildProfileId).Append('\n')
@@ -1851,6 +1878,7 @@ namespace helengine.editor {
             AppendFingerprintOptions(fingerprintInput, "build", queueItem.SelectedBuildOptionValues);
             AppendFingerprintOptions(fingerprintInput, "graphics", queueItem.SelectedGraphicsOptionValues);
             fingerprintInput.AppendLine("runtime-settings=" + queueItem.RuntimeSettingsFingerprint);
+            fingerprintInput.AppendLine("cook-context=" + (cookContext?.CacheIdentity ?? string.Empty));
             NumericPrecisionPolicy policy = queueItem.NumericPolicy ?? throw new InvalidOperationException("Native generation requires a captured numeric policy.");
             fingerprintInput.AppendLine(policy.Identity);
             Dictionary<string, string> canonicalOptions = codegenOptions == null ? new() : new(codegenOptions);
@@ -2196,6 +2224,7 @@ namespace helengine.editor {
                 manifest.PlatformCookWorkItems,
                 manifest.RuntimeFeatureManifest, manifest.NumericPolicy);
             updatedManifest.StandardPlatformInputConfiguration = manifest.StandardPlatformInputConfiguration;
+            updatedManifest.CookContext = manifest.CookContext;
             return updatedManifest;
         }
 

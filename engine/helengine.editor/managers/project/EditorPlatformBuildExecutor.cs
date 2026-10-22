@@ -37,7 +37,8 @@ namespace helengine.editor {
             FontAsset defaultFontAsset,
             EditorPlatformBuildGraphRunner buildGraphRunner,
             IScriptTypeResolver scriptTypeResolver,
-            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary) {
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary,
+            helengine.baseplatform.Builders.PlatformCookContext cookContext = null) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -78,7 +79,8 @@ namespace helengine.editor {
                 runtimeFeatureManifestService: null,
                 scriptTypeResolver: scriptTypeResolver,
                 builtInShaderAssetLibrary: builtInShaderAssetLibrary,
-                codegenToolProvider: new EngineCodegenToolProvider());
+                codegenToolProvider: new EngineCodegenToolProvider(),
+                cookContext: cookContext);
         }
 
         /// <summary>

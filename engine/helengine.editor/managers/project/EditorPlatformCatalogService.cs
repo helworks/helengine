@@ -102,6 +102,9 @@ namespace helengine.editor {
 
             IReadOnlyList<EditorLoadedPlatformBuilder> loadedBuilders = LoadBuilders();
             for (int index = 0; index < loadedBuilders.Count; index++) {
+                if (loadedBuilders[index].Builder is IContextualShaderBackendRegistryContributor) {
+                    continue;
+                }
                 loadedBuilders[index].RegisterShaderBackends(shaderBackendRegistry);
             }
         }
@@ -119,6 +122,13 @@ namespace helengine.editor {
             }
 
             Resolve(platformId).RegisterShaderBackends(shaderBackendRegistry);
+        }
+
+        /// <summary>Registers one platform's compiler against the exact SDK selection captured for this build.</summary>
+        public void RegisterShaderBackends(ShaderBackendRegistry shaderBackendRegistry, string platformId, PlatformCookContext cookContext) {
+            ArgumentNullException.ThrowIfNull(shaderBackendRegistry);
+            ArgumentException.ThrowIfNullOrWhiteSpace(platformId);
+            Resolve(platformId).RegisterShaderBackends(shaderBackendRegistry, cookContext);
         }
 
         /// <summary>

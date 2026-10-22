@@ -72,7 +72,9 @@ namespace helengine.editor {
             string selectedEnvironmentId = "",
             IReadOnlyDictionary<string, string> selectedGraphicsOptionValues = null,
             PlatformVideoMode playVideoMode = null,
-            NumericPrecisionPolicy numericPolicy = null) {
+            NumericPrecisionPolicy numericPolicy = null,
+            PlatformCookContext cookContext = null,
+            EditorBuiltInShaderAssetLibrary cookShaderLibrary = null) {
             numericPolicy ??= NumericPrecisionPolicy.Default;
             RealBinaryCodec.ValidatePolicy(numericPolicy);
             if (platformDefinition == null) {
@@ -91,6 +93,15 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(targetIds));
             }
 
+            if (materialBuilder is IPlatformCookContextProvider && (cookContext == null || cookShaderLibrary == null)) {
+                throw new InvalidOperationException("SDK-dependent asset cooking requires the captured context and its build-owned shader library.");
+            }
+            PlatformCookContext effectiveCookContext = cookContext ?? new PlatformCookContext(platformDefinition.PlatformId);
+            if (!string.Equals(effectiveCookContext.PlatformId, platformDefinition.PlatformId, StringComparison.Ordinal)) {
+                throw new InvalidOperationException("Asset cooking requires the selected platform's captured context.");
+            }
+            EditorBuiltInShaderAssetLibrary effectiveShaderLibrary = cookShaderLibrary ?? BuiltInShaderAssetLibrary;
+            Console.WriteLine("[cook] context=" + effectiveCookContext.CacheIdentity);
             string fullOutputRootPath = Path.GetFullPath(outputRootPath);
             string effectiveExecutionRootPath = ResolveCookExecutionRootPath(fullOutputRootPath);
             string effectiveCookRootPath = ResolveCookRootPath(fullOutputRootPath);
@@ -136,7 +147,7 @@ namespace helengine.editor {
                 Importers,
                 DefaultFontAsset,
                 ScriptTypeResolver,
-                BuiltInShaderAssetLibrary, layoutTarget, numericPolicy);
+                effectiveShaderLibrary, layoutTarget, numericPolicy, effectiveCookContext);
             long fingerprintMilliseconds = scenePackageTimer.ElapsedMilliseconds;
             int hashedInputCount = scenePackageCache.LastHashedInputCount;
             int reusedInputCount = scenePackageCache.LastReusedInputCount;
@@ -153,7 +164,7 @@ namespace helengine.editor {
                     effectiveMaterialBuilder,
                     selectedBuildProfileId,
                     selectedGraphicsProfileId,
-                    BuiltInShaderAssetLibrary,
+                    effectiveShaderLibrary,
                     ScriptTypeResolver,
                     selectedEnvironmentId);
                 packager.LayoutTarget = layoutTarget;
@@ -184,7 +195,7 @@ namespace helengine.editor {
                     Importers,
                     DefaultFontAsset,
                     ScriptTypeResolver,
-                    BuiltInShaderAssetLibrary, layoutTarget, numericPolicy);
+                    effectiveShaderLibrary, layoutTarget, numericPolicy, effectiveCookContext);
                 if (scenePackageKey.DiffersOnlyByCreatedIdentitySidecars(packagedKey)) {
                     scenePackageCache.Store(packagedKey.Key, effectiveExecutionRootPath, packagerResult);
                     Console.WriteLine("[cook] scene-package-cache stored-post-packaging-key (packaging created identity sidecars)");
@@ -201,7 +212,8 @@ namespace helengine.editor {
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
                 effectiveCookRootPath,
-                packagerResult);
+                packagerResult,
+                effectiveShaderLibrary);
             Console.WriteLine($"[cook] shader-artifacts-ms={cookStageTimer.ElapsedMilliseconds}");
 
             Console.WriteLine("[helengine-editor] build scene entries begin");
@@ -239,6 +251,7 @@ namespace helengine.editor {
                 platformCookWorkItems,
                 PlatformBuildRuntimeFeatureManifest.Empty, numericPolicy);
             manifest.StandardPlatformInputConfiguration = standardInputConfiguration;
+            manifest.CookContext = effectiveCookContext;
             return manifest;
         }
 
@@ -258,7 +271,8 @@ namespace helengine.editor {
             string selectedBuildProfileId,
             string selectedGraphicsProfileId,
             string cookRootPath,
-            EditorPlatformBuildScenePackagerResult packagerResult) {
+            EditorPlatformBuildScenePackagerResult packagerResult,
+            EditorBuiltInShaderAssetLibrary shaderLibrary) {
             if (packagerResult == null) {
                 throw new ArgumentNullException(nameof(packagerResult));
             }
@@ -284,10 +298,10 @@ namespace helengine.editor {
                 return declarations.ToArray();
             }
 
-            if (BuiltInShaderAssetLibrary == null) {
+            if (shaderLibrary == null) {
                 throw new InvalidOperationException("Shader source cooking requires the owning built-in shader library.");
             }
-            EditorProjectShaderSourceResolver sourceResolver = new(Path.Combine(ProjectRootPath, "assets"), BuiltInShaderAssetLibrary);
+            EditorProjectShaderSourceResolver sourceResolver = new(Path.Combine(ProjectRootPath, "assets"), shaderLibrary);
             IReadOnlyList<string> referencedShaderAssetIds = shaderDependencies
                 .Select(dependency => dependency.ShaderAssetId)
                 .Distinct(StringComparer.Ordinal)

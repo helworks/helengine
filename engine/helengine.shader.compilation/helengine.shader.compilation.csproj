@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\helengine.shader\helengine.shader.csproj" />
+    <ProjectReference Include="..\helengine.baseplatform\helengine.baseplatform.csproj" />
   </ItemGroup>
 
   <ItemGroup>

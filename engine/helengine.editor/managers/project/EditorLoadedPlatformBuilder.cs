@@ -59,5 +59,19 @@ namespace helengine.editor {
                 contributor.RegisterShaderBackends(shaderBackendRegistry);
             }
         }
+
+        /// <summary>Registers SDK-bound compilers using the build snapshot, retaining existing contributors for platforms without that capability.</summary>
+        public void RegisterShaderBackends(ShaderBackendRegistry shaderBackendRegistry, helengine.baseplatform.Builders.PlatformCookContext cookContext) {
+            ArgumentNullException.ThrowIfNull(shaderBackendRegistry);
+            ArgumentNullException.ThrowIfNull(cookContext);
+            if (!string.Equals(cookContext.PlatformId, Definition.PlatformId, StringComparison.Ordinal)) {
+                throw new InvalidOperationException("Shader registration requires the selected platform's captured cook context.");
+            }
+            if (Builder is IContextualShaderBackendRegistryContributor contributor) {
+                contributor.RegisterShaderBackends(shaderBackendRegistry, cookContext);
+            } else {
+                RegisterShaderBackends(shaderBackendRegistry);
+            }
+        }
     }
 }

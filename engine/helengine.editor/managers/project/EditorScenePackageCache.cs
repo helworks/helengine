@@ -86,7 +86,8 @@ namespace helengine.editor {
             IScriptTypeResolver scriptTypeResolver,
             EditorBuiltInShaderAssetLibrary shaderLibrary,
             PlatformLayoutTarget effectiveLayoutTarget = null,
-            NumericPrecisionPolicy numericPolicy = null) {
+            NumericPrecisionPolicy numericPolicy = null,
+            PlatformCookContext cookContext = null) {
             if (platformDefinition == null) {
                 throw new ArgumentNullException(nameof(platformDefinition));
             } else if (sceneIds == null) {
@@ -99,8 +100,16 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(importers));
             }
 
+            if (materialBuilder is IPlatformCookContextProvider && cookContext == null) {
+                throw new InvalidOperationException("SDK-dependent scene package caching requires a captured cook context.");
+            }
+            PlatformCookContext effectiveCookContext = cookContext ?? new PlatformCookContext(platformDefinition.PlatformId);
+            if (!string.Equals(effectiveCookContext.PlatformId, platformDefinition.PlatformId, StringComparison.Ordinal)) {
+                throw new InvalidOperationException("Scene package cache context must match the selected canonical platform.");
+            }
             using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            AppendText(hash, "scene-package-v9-numeric-policy");
+            AppendText(hash, "scene-package-v10-cook-context");
+            AppendText(hash, effectiveCookContext.CacheIdentity);
             AppendText(hash, (numericPolicy ?? NumericPrecisionPolicy.Default).Identity);
             AppendText(hash, ComputeLayoutFingerprint(effectiveLayoutTarget, ViewportLayoutCookProcessor.AlgorithmVersion));
             AppendText(hash, JsonSerializer.Serialize(platformDefinition));

@@ -236,7 +236,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                     "ps2-install-tree",
                     generatedCoreRootPath,
                     "disc-layout",
-                    Path.Combine(rootPath, "native-object-cache")
+                    Path.Combine(rootPath, "native-object-cache"),
+                    new helengine.baseplatform.Builders.PlatformCookContext(queueItem.PlatformId)
                 ]);
 
             Assert.Equal(generatedCoreRootPath, request.GeneratedCoreCppRootPath);
@@ -339,7 +340,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                     "windows-install-tree",
                     generatedCoreRootPath,
                     "loose",
-                    Path.Combine(rootPath, "native-object-cache")
+                    Path.Combine(rootPath, "native-object-cache"),
+                    new helengine.baseplatform.Builders.PlatformCookContext(queueItem.PlatformId)
                 ]);
 
             PlatformCookProfile cookProfile = Assert.Single(request.CookProfiles);
@@ -442,7 +444,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                     "wiiu-install-tree",
                     generatedCoreRootPath,
                     "loose",
-                    Path.Combine(rootPath, "native-object-cache")
+                    Path.Combine(rootPath, "native-object-cache"),
+                    new helengine.baseplatform.Builders.PlatformCookContext(queueItem.PlatformId)
                 ]);
 
             PlatformCookProfile cookProfile = Assert.Single(request.CookProfiles);
@@ -545,7 +548,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                     "switch-install-tree",
                     generatedCoreRootPath,
                     "loose",
-                    Path.Combine(rootPath, "native-object-cache")
+                    Path.Combine(rootPath, "native-object-cache"),
+                    new helengine.baseplatform.Builders.PlatformCookContext(queueItem.PlatformId)
                 ]);
 
             PlatformCookProfile cookProfile = Assert.Single(request.CookProfiles);
@@ -648,7 +652,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                     "ds-cartridge",
                     generatedCoreRootPath,
                     "nitrofs-package",
-                    Path.Combine(rootPath, "native-object-cache")
+                    Path.Combine(rootPath, "native-object-cache"),
+                    new helengine.baseplatform.Builders.PlatformCookContext(queueItem.PlatformId)
                 ]);
 
             PlatformCookProfile cookProfile = Assert.Single(request.CookProfiles);
@@ -976,7 +981,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 runtimeFeatureManifestService,
                 null,
                 TestGeneratedAssetGraph.CreateShaderLibrary(),
-                new FakeCodegenToolProvider()
+                new FakeCodegenToolProvider(),
+                null
             ],
             null);
         PlatformBuildManifest inputManifest = new(
@@ -1047,7 +1053,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 runtimeFeatureManifestService,
                 null,
                 TestGeneratedAssetGraph.CreateShaderLibrary(),
-                new FakeCodegenToolProvider()
+                new FakeCodegenToolProvider(),
+                null
             ],
             null);
         PlatformBuildManifest manifest = new(
