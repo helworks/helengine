@@ -27,6 +27,16 @@ namespace helengine.editor.tests.managers.project {
             }
         }
 
+        /// <summary>Published .NET apphosts require the platform's real executable name instead of a Windows-only extension.</summary>
+        /// <param name="isWindows">Whether the selected host uses Windows executable naming.</param>
+        /// <param name="expected">Executable basename produced by dotnet publish for that host.</param>
+        [Theory]
+        [InlineData(true, "codegen.exe")]
+        [InlineData(false, "codegen")]
+        public void ResolveToolFileName_UsesHostApphostName(bool isWindows, string expected) {
+            Assert.Equal(expected, EngineCodegenToolProvider.ResolveToolFileName(isWindows));
+        }
+
         /// <summary>
         /// Fake publisher that records calls and materialises the tool on publish.
         /// </summary>
@@ -47,7 +57,7 @@ namespace helengine.editor.tests.managers.project {
                 PublishCallCount++;
                 LastOutputDirectoryPath = outputDirectoryPath;
                 Directory.CreateDirectory(outputDirectoryPath);
-                File.WriteAllText(Path.Combine(outputDirectoryPath, "codegen.exe"), string.Empty);
+                File.WriteAllText(Path.Combine(outputDirectoryPath, EngineCodegenToolProvider.ToolFileName), string.Empty);
             }
         }
 
@@ -55,7 +65,7 @@ namespace helengine.editor.tests.managers.project {
         public void Resolve_WhenPublishedToolExists_ReturnsItWithoutPublishing() {
             string publishedDirectoryPath = Path.Combine(EditorBaseDirectoryPath, "codegen");
             Directory.CreateDirectory(publishedDirectoryPath);
-            string publishedToolPath = Path.Combine(publishedDirectoryPath, "codegen.exe");
+            string publishedToolPath = Path.Combine(publishedDirectoryPath, EngineCodegenToolProvider.ToolFileName);
             File.WriteAllText(publishedToolPath, string.Empty);
             FakePublisher publisher = new();
             EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, () => SubmoduleRootPath, CacheRootPath, publisher);
@@ -70,7 +80,7 @@ namespace helengine.editor.tests.managers.project {
         public void Resolve_WhenPublishedToolExists_DoesNotResolveSubmodule() {
             string publishedDirectoryPath = Path.Combine(EditorBaseDirectoryPath, "codegen");
             Directory.CreateDirectory(publishedDirectoryPath);
-            string publishedToolPath = Path.Combine(publishedDirectoryPath, "codegen.exe");
+            string publishedToolPath = Path.Combine(publishedDirectoryPath, EngineCodegenToolProvider.ToolFileName);
             File.WriteAllText(publishedToolPath, string.Empty);
             FakePublisher publisher = new();
             EngineCodegenToolProvider provider = new(
@@ -96,7 +106,7 @@ namespace helengine.editor.tests.managers.project {
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => provider.Resolve());
 
-            Assert.Contains(Path.Combine(EditorBaseDirectoryPath, "codegen", "codegen.exe"), exception.Message, StringComparison.Ordinal);
+            Assert.Contains(Path.Combine(EditorBaseDirectoryPath, "codegen", EngineCodegenToolProvider.ToolFileName), exception.Message, StringComparison.Ordinal);
             Assert.Same(resolverFailure, exception.InnerException);
         }
 
@@ -108,7 +118,7 @@ namespace helengine.editor.tests.managers.project {
             string resolvedPath = provider.Resolve();
 
             string expectedDirectoryPath = Path.Combine(CacheRootPath, "codegen", "deadbeef");
-            Assert.Equal(Path.Combine(expectedDirectoryPath, "codegen.exe"), resolvedPath);
+            Assert.Equal(Path.Combine(expectedDirectoryPath, EngineCodegenToolProvider.ToolFileName), resolvedPath);
             Assert.Equal(expectedDirectoryPath, publisher.LastOutputDirectoryPath);
             Assert.Equal(1, publisher.PublishCallCount);
             Assert.True(File.Exists(resolvedPath));
@@ -119,12 +129,12 @@ namespace helengine.editor.tests.managers.project {
             FakePublisher publisher = new() { Commit = "deadbeef" };
             string cachedDirectoryPath = Path.Combine(CacheRootPath, "codegen", "deadbeef");
             Directory.CreateDirectory(cachedDirectoryPath);
-            File.WriteAllText(Path.Combine(cachedDirectoryPath, "codegen.exe"), string.Empty);
+            File.WriteAllText(Path.Combine(cachedDirectoryPath, EngineCodegenToolProvider.ToolFileName), string.Empty);
             EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, () => SubmoduleRootPath, CacheRootPath, publisher);
 
             string resolvedPath = provider.Resolve();
 
-            Assert.Equal(Path.Combine(cachedDirectoryPath, "codegen.exe"), resolvedPath);
+            Assert.Equal(Path.Combine(cachedDirectoryPath, EngineCodegenToolProvider.ToolFileName), resolvedPath);
             Assert.Equal(0, publisher.PublishCallCount);
         }
 
@@ -137,7 +147,7 @@ namespace helengine.editor.tests.managers.project {
 
             string resolvedPath = provider.Resolve();
 
-            Assert.Equal(Path.Combine(CacheRootPath, "codegen", "new111", "codegen.exe"), resolvedPath);
+            Assert.Equal(Path.Combine(CacheRootPath, "codegen", "new111", EngineCodegenToolProvider.ToolFileName), resolvedPath);
             Assert.Equal(2, publisher.PublishCallCount);
         }
 
@@ -149,7 +159,7 @@ namespace helengine.editor.tests.managers.project {
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => provider.Resolve());
 
-            Assert.Contains(Path.Combine(EditorBaseDirectoryPath, "codegen", "codegen.exe"), exception.Message, StringComparison.Ordinal);
+            Assert.Contains(Path.Combine(EditorBaseDirectoryPath, "codegen", EngineCodegenToolProvider.ToolFileName), exception.Message, StringComparison.Ordinal);
             Assert.Contains(SubmoduleRootPath, exception.Message, StringComparison.Ordinal);
             Assert.Contains("git submodule update --init", exception.Message, StringComparison.Ordinal);
         }
@@ -162,7 +172,7 @@ namespace helengine.editor.tests.managers.project {
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => provider.Resolve());
 
             Assert.Contains("git", exception.Message, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains(Path.Combine(EditorBaseDirectoryPath, "codegen", "codegen.exe"), exception.Message, StringComparison.Ordinal);
+            Assert.Contains(Path.Combine(EditorBaseDirectoryPath, "codegen", EngineCodegenToolProvider.ToolFileName), exception.Message, StringComparison.Ordinal);
         }
 
         [Fact]
@@ -171,7 +181,7 @@ namespace helengine.editor.tests.managers.project {
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => provider.Resolve());
 
-            Assert.Contains(Path.Combine(CacheRootPath, "codegen", "abc123", "codegen.exe"), exception.Message, StringComparison.Ordinal);
+            Assert.Contains(Path.Combine(CacheRootPath, "codegen", "abc123", EngineCodegenToolProvider.ToolFileName), exception.Message, StringComparison.Ordinal);
         }
 
         sealed class NoOutputPublisher : IEngineCodegenToolPublisher {
@@ -191,7 +201,7 @@ namespace helengine.editor.tests.managers.project {
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => provider.Resolve());
 
-            Assert.Contains(Path.Combine(EditorBaseDirectoryPath, "codegen", "codegen.exe"), exception.Message, StringComparison.Ordinal);
+            Assert.Contains(Path.Combine(EditorBaseDirectoryPath, "codegen", EngineCodegenToolProvider.ToolFileName), exception.Message, StringComparison.Ordinal);
             Assert.Contains(Path.Combine(SubmoduleRootPath, "codegen", "codegen.csproj"), exception.Message, StringComparison.Ordinal);
             Assert.Same(publisher.Thrown, exception.InnerException);
         }

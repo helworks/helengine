@@ -9,9 +9,9 @@ namespace helengine.editor {
         public const string PublishedToolDirectoryName = "codegen";
 
         /// <summary>
-        /// Executable file name of the codegen tool.
+        /// Gets the native apphost file name produced by dotnet publish for the current host.
         /// </summary>
-        public const string ToolFileName = "codegen.exe";
+        public static string ToolFileName => ResolveToolFileName(OperatingSystem.IsWindows());
 
         /// <summary>
         /// Relative path of the codegen project inside the submodule.
@@ -129,6 +129,11 @@ namespace helengine.editor {
 
             return onDemandToolPath;
         }
+
+        /// <summary>Resolves the native apphost basename without changing published-tool or cache selection.</summary>
+        /// <param name="isWindows">Whether the target host uses the Windows executable suffix.</param>
+        /// <returns>The executable file name emitted by dotnet publish for that host.</returns>
+        internal static string ResolveToolFileName(bool isWindows) => isWindows ? "codegen.exe" : "codegen";
 
         /// <summary>
         /// Resolves the default on-demand cache root, honouring the same workspace override the editor's other isolated build state uses.
