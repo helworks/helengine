@@ -375,6 +375,9 @@ namespace helengine.editor {
             startInfo.ArgumentList.Add(solutionPath);
             startInfo.ArgumentList.Add("--configuration");
             startInfo.ArgumentList.Add(BuildConfigurationValue);
+            // Generated module descriptors own their external bin/obj paths through the
+            // invocation props. A host-wide artifacts layout must not redirect them.
+            startInfo.ArgumentList.Add("-p:UseArtifactsOutput=false");
             startInfo.ArgumentList.Add("--nologo");
             return startInfo;
         }
