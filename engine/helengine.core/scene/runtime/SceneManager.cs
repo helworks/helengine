@@ -519,6 +519,7 @@ namespace helengine {
                 LoadPreparedSceneImmediate(sceneId, loadMode);
                 succeeded = true;
             } finally {
+                ReleaseSceneContentPreparation(sceneId);
                 if (!succeeded && !LoadedSceneRecordsById.ContainsKey(sceneId)) { ReleaseScenePreparation(sceneId); }
             }
         }
@@ -706,6 +707,7 @@ namespace helengine {
                 // operation before deleting only the caller-owned result wrapper.
                 NativeOwnership.DisposeAndRelease(ref TransitionLoadOperation);
                 NativeOwnership.Delete(loadResult);
+                ReleaseSceneContentPreparation(TransitionTargetSceneIdValue);
             }
 
             ReleaseTransientSceneAsset(TransitionSceneAsset);
@@ -1357,16 +1359,22 @@ namespace helengine {
             return operation;
         }
 
-        /// <summary>Retires GPU work and retained content before releasing the code implementing scene resources and callbacks.</summary>
+        /// <summary>Ends the serialized read scope once preparation and loaded callbacks have consumed it; platform streams retain their own outstanding borrows.</summary>
+        /// <param name="sceneId">Scene whose content preparation scope has ended.</param>
+        void ReleaseSceneContentPreparation(string sceneId) {
+            if (ContentLeases != null && ContentLeases.TryGetValue(sceneId, out IRuntimeSceneContentLoadOperation content)) {
+                content.Dispose();
+                ContentLeases.Remove(sceneId);
+            }
+        }
+
+        /// <summary>Retires GPU work and any incomplete content preparation before releasing the code implementing scene resources and callbacks.</summary>
         /// <param name="sceneId">Scene whose objects and unload notifications have completed.</param>
         void ReleaseScenePreparation(string sceneId) {
             bool hasContent = ContentLeases != null && ContentLeases.ContainsKey(sceneId);
             bool hasModules = OwnerCore.SceneModuleManager != null && OwnerCore.SceneModuleManager.HasSceneLease(sceneId);
             if (hasContent || hasModules) { FlushReleasedAssets(); }
-            if (ContentLeases != null && ContentLeases.TryGetValue(sceneId, out IRuntimeSceneContentLoadOperation content)) {
-                content.Dispose();
-                ContentLeases.Remove(sceneId);
-            }
+            ReleaseSceneContentPreparation(sceneId);
             if (OwnerCore.SceneModuleManager != null && OwnerCore.SceneModuleManager.HasSceneLease(sceneId)) { OwnerCore.SceneModuleManager.ReleaseScene(sceneId); }
         }
     }

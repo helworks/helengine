@@ -1,5 +1,5 @@
 namespace helengine {
-    /// <summary>Retains prefetched content until scene unload, including later component reads and dynamic spawns; disposal also cancels incomplete preloads.</summary>
+    /// <summary>Retains serialized content through preparation and loaded callbacks. Disposal ends this read scope or cancels a pending preload; outstanding streams retain their own source bytes.</summary>
     public interface IRuntimeSceneContentLoadOperation : IDisposable {
         /// <summary>Gets whether every declared asset can be opened without starting or waiting for I/O.</summary>
         bool IsCompleted { get; }

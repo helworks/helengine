@@ -2,7 +2,7 @@ using System.IO;
 using helengine;
 
 namespace helengine.core.tests.scene.runtime {
-    /// <summary>Refuses content reads until its asynchronous preload is complete and retains cache access through scene unload.</summary>
+    /// <summary>Refuses reads outside completed preparation scopes and records byte release independently of scene unload.</summary>
     internal sealed class SceneModuleTestContent : IRuntimeSceneContentProvider, IContentStreamSource {
         /// <summary>Lifecycle evidence for cache preparation and release.</summary>
         public readonly List<string> Events = new List<string>();
@@ -18,7 +18,8 @@ namespace helengine.core.tests.scene.runtime {
         public IRuntimeSceneContentLoadOperation BeginPreloadScene(RuntimeSceneCatalogEntry entry) {
             Events.Add("preload:" + entry.SceneId);
             SceneModuleTestContentOperation operation = new SceneModuleTestContentOperation(this, entry.SceneId, AdvancesRequired);
-            Operations.Add(entry.SceneId, operation);
+            if (Operations.TryGetValue(entry.SceneId, out SceneModuleTestContentOperation previous)) { Assert.True(previous.Disposed); }
+            Operations[entry.SceneId] = operation;
             return operation;
         }
         /// <summary>Allows synchronous readers only when the corresponding cache remains retained.</summary>

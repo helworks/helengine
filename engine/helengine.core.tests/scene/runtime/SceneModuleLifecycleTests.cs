@@ -74,7 +74,7 @@ namespace helengine.core.tests.scene.runtime {
             Assert.Equal(0, core.SceneModuleManager.LoadedModuleCount);
         }
 
-        /// <summary>Runs the actual scene manager and materializer; factories precede component creation and caches survive later reads through unload notification.</summary>
+        /// <summary>Runs real materialization while code survives scene unload and consumed content ends at scene publication.</summary>
         [Fact]
         public void TransitionPreloadsBeforeMaterializationAndRetainsCodeThroughUnload() {
             SceneModuleTestProvider provider = new SceneModuleTestProvider { AdvancesRequired = 2 };
@@ -83,7 +83,7 @@ namespace helengine.core.tests.scene.runtime {
             InstallProcessor(core, "world");
             core.SceneManager.SceneUnloaded += (manager, args) => {
                 Assert.True(core.SceneRuntimeComponentRegistry.TryGet("module.world", out _));
-                Assert.False(content.Operations[args.SceneId].Disposed);
+                Assert.True(content.Operations[args.SceneId].Disposed);
                 provider.Events.Add("scene-unloaded:" + args.SceneId);
             };
             core.SceneManager.RequestSceneTransition("first");
@@ -96,12 +96,101 @@ namespace helengine.core.tests.scene.runtime {
             Assert.False(core.SceneManager.IsSceneTransitionActive);
             Assert.Single(core.SceneManager.LoadedScenes);
             Assert.True(provider.Events.IndexOf("register:world") < provider.Events.IndexOf("create:world"));
-            using (content.OpenRead("scenes/first.hasset")) { }
+            Assert.True(content.Operations["first"].Disposed);
             core.SceneManager.UnloadScene("first"); core.SceneManager.CommitPendingOperationsAtFrameBoundary();
             Assert.Equal(new[] { "component-dispose:world", "scene-unloaded:first", "unregister:world", "dispose:world" }, provider.Events.TakeLast(4));
             Assert.True(content.Operations["first"].Disposed);
             Assert.Empty(core.SceneManager.LoadedScenes);
             core.Dispose(); core.Dispose();
+        }
+
+        /// <summary>Keeps source bytes through loaded callbacks, then releases them independently of executable scene code.</summary>
+        /// <param name="incremental">Uses the frame-budgeted transition instead of immediate scene preparation.</param>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void CompletedContentEndsAfterLoadedCallbacks(bool incremental) {
+            SceneModuleTestProvider provider = new SceneModuleTestProvider();
+            SceneModuleTestContent content = new SceneModuleTestContent { AdvancesRequired = 1 };
+            Core core = CreateCore(provider, content, new[] { Entry("world") }, "world");
+            InstallProcessor(core, "world");
+            int callbacks = 0;
+            core.SceneManager.SceneLoaded += (manager, args) => {
+                Assert.False(content.Operations[args.SceneId].Disposed);
+                using (content.OpenRead("scenes/first.hasset")) { }
+                callbacks++;
+            };
+            if (incremental) { core.SceneManager.RequestSceneTransition("first"); }
+            else { core.SceneManager.LoadScene("first", SceneLoadMode.Additive); }
+            for (int step = 0; core.SceneManager.LoadedScenes.Count == 0 && step < 100; step++) {
+                core.SceneManager.CommitPendingOperationsAtFrameBoundary();
+            }
+            Assert.Single(core.SceneManager.LoadedScenes);
+            Assert.Equal(1, callbacks);
+            Assert.True(content.Operations["first"].Disposed);
+            Assert.True(core.SceneModuleManager.HasSceneLease("first"));
+            Assert.True(core.SceneRuntimeComponentRegistry.TryGet("module.world", out _));
+            Assert.Equal(1, content.Events.Count(value => value == "release:first"));
+            core.SceneManager.UnloadScene("first");
+            core.SceneManager.CommitPendingOperationsAtFrameBoundary();
+            Assert.Equal(1, content.Events.Count(value => value == "release:first"));
+            core.Dispose();
+        }
+
+        /// <summary>Ends consumed content even when a loaded callback throws after publication has already retained the scene code.</summary>
+        /// <param name="incremental">Selects asynchronous scene publication.</param>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void LoadedCallbackFailureReleasesContent(bool incremental) {
+            SceneModuleTestProvider provider = new SceneModuleTestProvider();
+            SceneModuleTestContent content = new SceneModuleTestContent { AdvancesRequired = 1 };
+            Core core = CreateCore(provider, content, new[] { Entry("world") }, "world");
+            InstallProcessor(core, "world");
+            core.SceneManager.SceneLoaded += (manager, args) => {
+                using (content.OpenRead("scenes/first.hasset")) { }
+                throw new InvalidOperationException("loaded callback failed");
+            };
+            if (incremental) { core.SceneManager.RequestSceneTransition("first"); }
+            else { core.SceneManager.LoadScene("first", SceneLoadMode.Additive); }
+            InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => {
+                for (int step = 0; step < 100; step++) { core.SceneManager.CommitPendingOperationsAtFrameBoundary(); }
+            });
+            Assert.Equal("loaded callback failed", failure.Message);
+            Assert.True(content.Operations["first"].Disposed);
+            Assert.True(core.SceneModuleManager.HasSceneLease("first"));
+            Assert.Equal(1, content.Events.Count(value => value == "release:first"));
+            core.Dispose();
+        }
+
+        /// <summary>Reacquires consumed source bytes for a second load of the same scene without reviving the disposed preparation scope.</summary>
+        /// <param name="incremental">Selects cooperative loading for both visits.</param>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void ReloadStartsFreshContentPreparation(bool incremental) {
+            SceneModuleTestProvider provider = new SceneModuleTestProvider();
+            SceneModuleTestContent content = new SceneModuleTestContent { AdvancesRequired = 1 };
+            Core core = CreateCore(provider, content, new[] { Entry("world") }, "world");
+            InstallProcessor(core, "world");
+            SceneModuleTestContentOperation previous = null;
+            for (int visit = 0; visit < 2; visit++) {
+                if (incremental) { core.SceneManager.RequestSceneTransition("first"); }
+                else { core.SceneManager.LoadScene("first", SceneLoadMode.Additive); }
+                for (int step = 0; core.SceneManager.LoadedScenes.Count == 0 && step < 100; step++) {
+                    core.SceneManager.CommitPendingOperationsAtFrameBoundary();
+                }
+                Assert.Single(core.SceneManager.LoadedScenes);
+                SceneModuleTestContentOperation current = content.Operations["first"];
+                Assert.NotSame(previous, current);
+                Assert.True(current.Disposed);
+                previous = current;
+                core.SceneManager.UnloadScene("first");
+                core.SceneManager.CommitPendingOperationsAtFrameBoundary();
+            }
+            Assert.Equal(2, content.Events.Count(value => value == "preload:first"));
+            Assert.Equal(2, content.Events.Count(value => value == "release:first"));
+            core.Dispose();
         }
 
         /// <summary>Rejects asynchronous content in synchronous loading and cancels already acquired code and the partial cache lease.</summary>

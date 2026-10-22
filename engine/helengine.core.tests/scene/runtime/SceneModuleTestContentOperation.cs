@@ -1,7 +1,7 @@
 using helengine;
 
 namespace helengine.core.tests.scene.runtime {
-    /// <summary>Models asynchronous content preparation followed by a live scene cache lease.</summary>
+    /// <summary>Models asynchronous content preparation whose byte lease ends after loaded callbacks.</summary>
     internal sealed class SceneModuleTestContentOperation : IRuntimeSceneContentLoadOperation {
         /// <summary>Borrowed cache recorder.</summary>
         readonly SceneModuleTestContent Owner;
