@@ -365,6 +365,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures an imported material texture keeps the source filename casing when enqueued for a platform cook.
+        /// </summary>
+        [Fact]
+        public void CopyReferencedTextureAsset_PreservesAuthoredSourceCasing() {
+            List<PlatformCookWorkItem> workItems = new List<PlatformCookWorkItem>();
+            SceneComponentPackagingTransformService service = CreateBuilderOwnedTextureService(workItems, new StubTextComponentSpriteBakeService());
+            string relativePath = "Textures/MixedCase.png";
+            string sourcePath = Path.Combine(ProjectRootPath, "assets", "Textures", "MixedCase.png");
+            Directory.CreateDirectory(Path.GetDirectoryName(sourcePath));
+            File.WriteAllBytes(sourcePath, [1, 2, 3]);
+            MethodInfo copyMethod = typeof(SceneComponentPackagingTransformService).GetMethod("CopyReferencedTextureAsset", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(copyMethod);
+
+            copyMethod.Invoke(service, ["material.hasset", relativePath, BuildRootPath]);
+
+            PlatformCookWorkItem workItem = Assert.Single(workItems);
+            Assert.Equal(sourcePath, workItem.SourceAssetPath, StringComparer.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures a stale imported texture path fails instead of being rewritten while preparing a builder cook request.
         /// </summary>
         [Fact]

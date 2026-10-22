@@ -2324,7 +2324,7 @@ namespace helengine.editor {
             if (!AssetImportManager.TryLoadOrCreateTextureImportSettings(importedTextureSourcePath, out settings) || settings == null) {
                 throw new InvalidOperationException($"Imported texture '{textureAssetId}' from source '{importedTextureSourcePath}' could not create import settings for builder-owned platform cooking.");
             }
-            RememberTextureCookWorkItem(NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, importedTextureSourcePath)), importedTextureSourcePath, cookedRelativePath, settings);
+            RememberTextureCookWorkItem(NormalizeSourceRelativePath(Path.GetRelativePath(AssetsRootPath, importedTextureSourcePath)), importedTextureSourcePath, cookedRelativePath, settings);
         }
 
         /// <summary>
