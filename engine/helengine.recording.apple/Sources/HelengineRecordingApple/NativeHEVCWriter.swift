@@ -24,8 +24,8 @@ final class NativeHEVCWriter: @unchecked Sendable {
     private let width: Int
     /// Enforces the fixed source buffer dimensions.
     private let height: Int
-    /// Counts asynchronous frames awaiting encoder callbacks.
-    private var pendingFrames = 0
+    /// Bounds native buffers and wakes submissions only after callback completion.
+    private let capacity = EncoderCapacity()
     /// Retains the first callback failure so later cleanup cannot mask it.
     private var callbackFailure: RecordingErrorInfo?
     /// Counts samples accepted by the MP4 writer.
@@ -121,22 +121,21 @@ final class NativeHEVCWriter: @unchecked Sendable {
     }
 
     /// Submits one native-sized buffer at its exact 60/1 timestamp with at most four in flight.
-    func append(_ pixelBuffer: CVPixelBuffer, slot: Int) throws {
+    func append(_ pixelBuffer: CVPixelBuffer, slot: Int, deadline: DispatchTime = .now() + .milliseconds(250)) throws {
         guard CVPixelBufferGetWidth(pixelBuffer) == width, CVPixelBufferGetHeight(pixelBuffer) == height else {
             throw RecordingErrorInfo(code: "window_resized", message: "Source dimensions changed during fixed-size recording.")
         }
+        try capacity.acquire(deadline: deadline)
         lock.lock()
-        if let callbackFailure { lock.unlock(); throw callbackFailure }
-        guard !finishing, let session else { lock.unlock(); throw RecordingErrorInfo(code: "encoder_closed", message: "Encoding has already ended.") }
-        guard pendingFrames < 4 else { lock.unlock(); throw RecordingErrorInfo(code: "encoder_backpressure", message: "The hardware encoder exceeded four pending frames.") }
-        pendingFrames += 1
+        if let callbackFailure { lock.unlock(); capacity.release(); throw callbackFailure }
+        guard !finishing, let session else { lock.unlock(); capacity.release(); throw RecordingErrorInfo(code: "encoder_closed", message: "Encoding has already ended.") }
         lock.unlock()
         var flags = VTEncodeInfoFlags()
         let status = VTCompressionSessionEncodeFrame(session, imageBuffer: pixelBuffer,
             presentationTimeStamp: CMTime(value: Int64(slot), timescale: 60), duration: CMTime(value: 1, timescale: 60),
             frameProperties: nil, sourceFrameRefcon: nil, infoFlagsOut: &flags)
         if status != noErr {
-            lock.lock(); pendingFrames -= 1; lock.unlock()
+            capacity.release()
             try check(status, operation: "encode HEVC frame")
         }
     }
@@ -230,8 +229,10 @@ final class NativeHEVCWriter: @unchecked Sendable {
     /// Appends compressed callback samples directly to MP4 while holding a bounded callback state.
     private func receive(status: OSStatus, flags: VTEncodeInfoFlags, sample: CMSampleBuffer?) {
         lock.lock()
-        defer { lock.unlock() }
-        pendingFrames = max(0, pendingFrames - 1)
+        defer {
+            capacity.release(failure: callbackFailure)
+            lock.unlock()
+        }
         guard callbackFailure == nil else { return }
         guard status == noErr, !flags.contains(.frameDropped), let sample, CMSampleBufferDataIsReady(sample) else {
             callbackFailure = RecordingErrorInfo(code: "encoder_callback_failed", message: "HEVC callback returned status \(status), dropped=\(flags.contains(.frameDropped)).")

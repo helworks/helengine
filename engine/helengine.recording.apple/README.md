@@ -48,3 +48,9 @@ existing-output and late-publication sentinels. They never start screen capture.
 Real-window ScreenCaptureKit behavior still requires the caller app's explicit
 Screen Recording permission and an authorized target window. This library never
 requests permission automatically and does not modify HelenUI or its TCC identity.
+
+### Bounded encoder backpressure
+
+The four-frame encoder capacity is released only after each VideoToolbox callback finishes appending its compressed sample. A due-slot batch waits for capacity using one shared monotonic 250 ms deadline; later frames do not renew that budget. Exhausting the deadline fails with `encoder_backpressure_timeout`, and an asynchronous callback failure wakes the waiter with the original error. No output frames are discarded and the native queue remains capped at four.
+
+On the tested Apple hardware HEVC encoder (`com.apple.videotoolbox.videoencoder.ave.hevc`), `MaxFrameDelayCount` reads as zero but setting either zero or three is rejected with OSStatus -12900. Real-time pacing passed at 912 x 1944 and 3420 x 2146, whereas an eight-slot catch-up burst previously exhausted the application capacity. The callback wait fixes that burst without changing codec, resolution, GOP, bitrate, frame rate, or the installed app's permission identity.

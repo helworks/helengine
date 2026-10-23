@@ -177,13 +177,14 @@ final class CaptureSession: NSObject, SCStreamOutput, SCStreamDelegate, @uncheck
         guard !stopping, let startHostTime else { return }
         do {
             let elapsed = Double(DispatchTime.now().uptimeNanoseconds - startHostTime) / 1_000_000_000
+            let deadline = DispatchTime.now() + .milliseconds(250)
             for slot in try timeline.takeDueSlots(elapsedSeconds: elapsed) {
                 let selectedSequence = try accounting.consumeSlot(slotSeconds: Double(slot) / 60)
                 if selectedSequence == accounting.sourceFrames { usedBuffer = latestBuffer }
                 guard let usedBuffer else {
                     throw RecordingErrorInfo(code: "eligible_frame_missing", message: "No observed source frame is eligible for this CFR slot.")
                 }
-                try writer.append(usedBuffer, slot: slot)
+                try writer.append(usedBuffer, slot: slot, deadline: deadline)
             }
             if timeline.nextSlot == timeline.targetFrames { requestStop(nil) }
         } catch { requestStop(issue(error, code: "recording_failed")) }
