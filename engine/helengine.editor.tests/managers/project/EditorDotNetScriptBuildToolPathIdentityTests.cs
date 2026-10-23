@@ -60,7 +60,14 @@ public sealed class EditorDotNetScriptBuildToolPathIdentityTests : IDisposable {
     public void Dispose() {
         foreach (string name in new[] { "alias", "dangling" }) {
             string path = Path.Combine(Root, name);
-            if (new DirectoryInfo(path).LinkTarget != null) { Directory.Delete(path); }
+            if (new DirectoryInfo(path).LinkTarget != null) {
+                if (OperatingSystem.IsWindows()) {
+                    Directory.Delete(path);
+                } else {
+                    // Unix directory symlinks are unlinked as files even when their target is missing.
+                    File.Delete(path);
+                }
+            }
         }
         Directory.Delete(Root, true);
     }
