@@ -13,14 +13,25 @@ final class EncoderCapacity: @unchecked Sendable {
     /// Reserves one buffer slot or fails within the caller's bounded monotonic interval.
     func acquire(deadline: DispatchTime) throws {
         if let failure = failure() { throw failure }
+        guard DispatchTime.now().uptimeNanoseconds < deadline.uptimeNanoseconds else { throw deadlineFailure() }
         guard available.wait(timeout: deadline) == .success else {
             if let failure = failure() { throw failure }
-            throw RecordingErrorInfo(code: "encoder_backpressure_timeout", message: "The hardware encoder did not release one of its four pending frames within the bounded submission deadline.")
+            throw deadlineFailure()
         }
         if let failure = failure() {
             available.signal()
             throw failure
         }
+        guard DispatchTime.now().uptimeNanoseconds < deadline.uptimeNanoseconds else {
+            available.signal()
+            throw deadlineFailure()
+        }
+    }
+
+    /// Preserves any callback error that raced with expiry before reporting the bounded-submission deadline.
+    private func deadlineFailure() -> RecordingErrorInfo {
+        if let failure = failure() { return failure }
+        return RecordingErrorInfo(code: "encoder_backpressure_timeout", message: "The hardware encoder could not accept a frame within the shared bounded submission deadline.")
     }
 
     /// Releases exactly one submitted frame after its callback finishes and exposes any original callback failure.
