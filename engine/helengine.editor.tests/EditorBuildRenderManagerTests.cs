@@ -72,17 +72,19 @@ namespace helengine.editor.tests {
             Assert.Equal(3, source.Indices16.Length);
         }
 
-        /// <summary>Preserves shader layouts, authored constants and render state, then refreshes CPU metadata after a shader invalidation.</summary>
+        /// <summary>Preserves authored material identity, shader layouts, constants and render state across CPU shader metadata refresh.</summary>
         [Fact]
         public void MaterialLayoutAndConstantsSurviveShaderRefresh() {
             using EditorBuildRenderManager3D renderer = new(ShaderCompileTarget.Vulkan);
             using ShaderMaterialAsset source = new() {
+                Id = "materials/cpu-authoring",
                 ShaderAssetId = "shader/test", VertexProgram = "VS", PixelProgram = "PS",
                 RenderState = new MaterialRenderState { BlendMode = MaterialBlendMode.AlphaBlend },
                 ConstantBuffers = [new MaterialConstantBufferAsset { Name = "Params", Data = new byte[16] }]
             };
             using ShaderAsset shader = CreateShader(0);
             ShaderRuntimeMaterial material = Assert.IsType<ShaderRuntimeMaterial>(renderer.BuildMaterialFromRaw(source, shader));
+            Assert.Equal("materials/cpu-authoring", material.ResolveRootMaterial().Id);
             Assert.Equal(MaterialBlendMode.AlphaBlend, material.RenderState.BlendMode);
             Assert.Equal("Params", Assert.Single(material.Layout.ConstantBufferBindings).Name);
             Assert.True(material.TryResolveConstantBufferData("Params", out byte[] constants));
@@ -90,6 +92,7 @@ namespace helengine.editor.tests {
             Assert.Equal(0, constants[0]);
             using ShaderAsset updated = CreateShader(2);
             renderer.InvalidateShaderResources("shader/test", updated);
+            Assert.Equal("materials/cpu-authoring", material.ResolveRootMaterial().Id);
             Assert.Equal(2, Assert.Single(material.Layout.ConstantBufferBindings).Slot);
             Assert.True(material.TryResolveConstantBufferData("Params", out byte[] refreshed));
             Assert.Equal(0, refreshed[0]);

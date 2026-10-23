@@ -52,6 +52,9 @@ namespace helengine.editor {
             ValidateShaderTarget(shaderAsset);
             ShaderRuntimeMaterial material = new();
             try {
+                if (!string.IsNullOrWhiteSpace(materialAsset.Id)) {
+                    material.SetId(materialAsset.Id);
+                }
                 material.SetLayout(MaterialLayoutBuilder.Build(materialAsset, shaderAsset));
                 material.SetRenderState(materialAsset.RenderState);
                 material.LightingModel = RuntimeMaterialLightingModel.MetalRoughPbr;
