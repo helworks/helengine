@@ -13,17 +13,16 @@ namespace helengine.editor.windows.gdiimporter.tests {
         public void ImportPreservesRasterCropBearingsAndPixels() {
             string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "trebuc.ttf");
             using FileStream source = File.OpenRead(path);
-            using FontAsset imported = new GdiFontImporter(null).ImportFont(source, new FontAssetProcessorSettings { PixelSize = 40 });
-            using System.Drawing.Text.PrivateFontCollection collection = new System.Drawing.Text.PrivateFontCollection();
-            collection.AddFontFile(path);
-            using Font font = new Font(collection.Families[0], 40, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Pixel);
+            using FontAsset imported = new GdiFontImporter(null).ImportFont(source, new FontAssetProcessorSettings { PixelSize = 40, Characters = FontCharacterSet.BasicLatin.Union(FontCharacterSet.PortugueseAccents) });
+            using GdiFontFileFixture fixture = new(path);
+            using Font font = fixture.CreateFont(40, System.Drawing.FontStyle.Regular);
             using Bitmap measureBitmap = new Bitmap(1, 1);
             using Graphics measure = Graphics.FromImage(measureBitmap);
             using System.Drawing.StringFormat format = new System.Drawing.StringFormat(System.Drawing.StringFormat.GenericTypographic);
             format.FormatFlags |= System.Drawing.StringFormatFlags.MeasureTrailingSpaces;
             int resolution = Math.Max(16, (int)Math.Ceiling(font.GetHeight(measure)));
             int offset = (int)(resolution * 0.1f);
-            Assert.Equal(112, imported.Characters.Count);
+            Assert.Equal(FontCharacterSet.BasicLatin.Union(FontCharacterSet.PortugueseAccents).RequireBmpCharacters(), imported.Characters.Keys.OrderBy(value => value));
             Assert.Equal(512, imported.AtlasWidth);
             Assert.Equal(256, imported.AtlasHeight);
             Assert.Equal(2f, imported.Characters['B'].BearingX);
@@ -47,7 +46,7 @@ namespace helengine.editor.windows.gdiimporter.tests {
                     for (int x = 0; x < crop.Width; x++) {
                         byte expectedAlpha = bitmap.GetPixel(crop.X + x, crop.Y + y).A;
                         int atlasByte = ((atlasY + y) * imported.AtlasWidth + atlasX + x) * 4;
-                        Assert.Equal(expectedAlpha, imported.SourceTextureAsset.Colors[atlasByte + 3]);
+                        Assert.True(expectedAlpha == imported.SourceTextureAsset.Colors[atlasByte + 3], $"Glyph U+{(int)character:X4} at {x},{y}: expected alpha {expectedAlpha}, actual {imported.SourceTextureAsset.Colors[atlasByte + 3]}.");
                         // The atlas local origin plus BearingX reconstructs the original raster-pen coordinate.
                         Assert.Equal(crop.X + x - offset, (int)glyph.BearingX + x);
                     }

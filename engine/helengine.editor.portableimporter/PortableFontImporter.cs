@@ -5,9 +5,8 @@ using ImageMagick.Drawing;
 namespace helengine.editor {
     /// <summary>Rasterizes source font bytes through ImageMagick/FreeType on Windows, Linux and macOS.</summary>
     public sealed class PortableFontImporter : IFontImporter {
-        /// <summary>Characters supported by the existing cooked UI atlas contract.</summary>
-        static readonly char[] Characters = Enumerable.Range(32, 95).Select(value => (char)value)
-            .Concat("àáãâäÀÁÃÂÄéêèëÉÊÈËíìîïÍÌÎÏóôõòöÓÔÕÒÖúùûüÚÙÛÜçÇ").Distinct().ToArray();
+        /// <summary>Serializes access to the process-owned temporary source face independently of character requests.</summary>
+        static readonly object SourceFileLock = new();
 
         /// <summary>Maximum atlas dimension supported by the shared font format.</summary>
         const int MaximumAtlasSize = 2048;
@@ -22,6 +21,7 @@ namespace helengine.editor {
             if (settings.PixelSize < 1 || settings.PixelSize > 256) {
                 throw new ArgumentOutOfRangeException(nameof(settings), "Portable font pixel size must be between 1 and 256.");
             }
+            settings.Characters.RequireBmpCharacters();
             using MemoryStream source = new MemoryStream();
             stream.CopyTo(source);
             byte[] bytes = source.ToArray();
@@ -33,7 +33,7 @@ namespace helengine.editor {
             Directory.CreateDirectory(directory);
             string file = Path.Combine(directory, identity + "-" + Environment.ProcessId + ".ttf");
             // Serialize imports within this process; separate processes never replace each other's face files.
-            lock (Characters) {
+            lock (SourceFileLock) {
                 if (!File.Exists(file)) {
                     File.WriteAllBytes(file, bytes);
                 }
@@ -70,11 +70,11 @@ namespace helengine.editor {
                 throw new InvalidDataException("The source face did not provide valid line metrics.");
             }
             List<PortableFontGlyph> glyphs = new List<PortableFontGlyph>();
-            foreach (char character in Characters) {
+            foreach (char character in settings.Characters.RequireBmpCharacters()) {
                 float advance = (float)measure.FontTypeMetrics(character.ToString()).TextWidth;
                 glyphs.Add(Rasterize(path, character, settings.PixelSize, (float)metrics.Ascent, advance));
             }
-            FontAsset font = PackAtlas(identity, glyphs, lineHeight);
+            FontAsset font = PackAtlas(identity, glyphs, lineHeight, (float)measure.FontTypeMetrics(" ").TextWidth);
             FontHorizontalMetricsProcessor.Apply(font, settings);
             return font;
         }
@@ -125,8 +125,9 @@ namespace helengine.editor {
         /// <param name="identity">Stable face identity.</param>
         /// <param name="glyphs">Cropped glyph images and metrics.</param>
         /// <param name="lineHeight">Measured line height.</param>
+        /// <param name="spaceWidth">Space advance measured independently of whether its glyph was requested.</param>
         /// <returns>Complete font and retained atlas pixels.</returns>
-        static FontAsset PackAtlas(string identity, List<PortableFontGlyph> glyphs, float lineHeight) {
+        static FontAsset PackAtlas(string identity, List<PortableFontGlyph> glyphs, float lineHeight, float spaceWidth) {
             for (int size = 32; size <= MaximumAtlasSize; size *= 2) {
                 int x = 1, y = 1, rowHeight = 0;
                 Dictionary<char, FontChar> characters = new Dictionary<char, FontChar>();
@@ -145,7 +146,7 @@ namespace helengine.editor {
                 }
                 if (characters.Count != glyphs.Count) { continue; }
                 TextureAsset texture = new TextureAsset { Width = (ushort)size, Height = (ushort)size, Colors = atlas };
-                return new FontAsset(new FontInfo(identity, (int)Math.Ceiling(lineHeight), characters[' '].AdvanceWidth),
+                return new FontAsset(new FontInfo(identity, (int)Math.Ceiling(lineHeight), spaceWidth),
                     new PortableFontRuntimeTexture { Width = size, Height = size }, characters, lineHeight, size, size) { SourceTextureAsset = texture };
             }
             throw new InvalidOperationException("The font glyphs do not fit the supported 2048-pixel atlas.");

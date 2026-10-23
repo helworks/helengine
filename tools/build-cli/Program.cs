@@ -33,7 +33,7 @@ namespace helengine.buildcli {
                 }
                 IReadOnlyList<IAssetImporterRegistration> importers = PortableImporterFactory.CreateDefault();
                 using FileStream face = File.OpenRead(fontSource);
-                using FontAsset defaultFont = new PortableFontImporter().ImportFont(face, new FontAssetProcessorSettings { PixelSize = 12 });
+                using FontAsset defaultFont = new PortableFontImporter().ImportFont(face, new FontAssetProcessorSettings { PixelSize = 12, Characters = FontCharacterSet.BasicLatin.Union(FontCharacterSet.PortugueseAccents) });
                 string[] commandArgs = forwarded.ToArray();
                 EditorBuildExecutionResult result;
                 if (EditorCliArgumentParser.IsBuildModeRequested(commandArgs)) {

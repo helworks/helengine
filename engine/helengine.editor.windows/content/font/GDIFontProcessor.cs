@@ -1,4 +1,4 @@
-﻿using System.Drawing.Imaging;
+using System.Drawing.Imaging;
 using System.Runtime.Versioning;
 using Bitmap = System.Drawing.Bitmap;
 using Brushes = System.Drawing.Brushes;
@@ -22,30 +22,6 @@ namespace helengine.editor {
         const int EditorClearTypeContrast = 0;
         // Extra transparent pixels around each glyph in the atlas to prevent bleeding
         private const int ATLAS_PADDING = 2;
-        static readonly char[] Characters = new char[]
-        {
-            'a', 'à', 'á', 'ã', 'b', 'c', 'd', 'e', 'é', 'ê',
-            'f', 'g', 'h', 'i', 'í', 'j',
-            'k', 'l', 'm', 'n', 'o', 'ó', 'ô', 'õ',
-            'p', 'q', 'r', 's', 't',
-            'u', 'ú', 'v', 'w', 'x', 'y', 'z',
-            'A', 'À', 'Á', 'Ã', 'B', 'C', 'D', 'E', 'É', 'Ê',
-            'F', 'G', 'H', 'I', 'Í', 'J',
-            'K', 'L', 'M', 'N', 'O', 'Ó', 'Ô', 'Õ',
-            'P', 'Q', 'R', 'S', 'T',
-            'U', 'Ú', 'V', 'W', 'X', 'Y', 'Z', 'Ç', 'ç',
-
-            // numbers
-            '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
-
-            // symbols
-            ' ',
-            '!', '@', '#', '$', '%', '^', '&', '*',
-            '(', ')', '-', '_', '=', '+', '?', ',', '.',
-            '/', @"\"[0], ':', ';', '|',
-            '{', '}', '~', '`', "'"[0]
-        };
-
         /// <summary>
         /// Generates a glyph bitmap and bounds for the specified character.
         /// </summary>
@@ -128,12 +104,15 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font to import.</param>
         /// <param name="renderManager2D">Session-owned renderer that receives the generated atlas, or null for a headless managed texture.</param>
+        /// <param name="characters">Exact shared glyph selection, validated before rasterization.</param>
         /// <param name="useClearType">Enables RGB coverage for runtime editor fonts rendered by a subpixel-aware backend; cooked fonts use grayscale coverage.</param>
         /// <returns>Constructed <see cref="FontAsset"/> containing atlas texture and metrics.</returns>
-        public static FontAsset ImportFont(Font font, RenderManager2D renderManager2D, bool useClearType = false) {
+        public static FontAsset ImportFont(Font font, RenderManager2D renderManager2D, FontCharacterSet characters, bool useClearType = false) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
+            ArgumentNullException.ThrowIfNull(characters);
+            char[] requestedCharacters = characters.RequireBmpCharacters();
             if (useClearType && renderManager2D != null && !renderManager2D.SupportsRgbFontCoverage) {
                 throw new NotSupportedException("ClearType font atlases require a renderer that supports RGB font coverage.");
             }
@@ -157,89 +136,81 @@ namespace helengine.editor {
             int res = Math.Max(16, (int)Math.Ceiling(lineHeightPx));
             int offset = (int)(res * 0.1f);
 
-            // Build glyph bitmaps and capture advance widths
-            for (int i = 0; i < Characters.Length; i++) {
-                char c = Characters[i];
+            try {
+                // Build glyph bitmaps and capture advance widths
+                for (int i = 0; i < requestedCharacters.Length; i++) {
+                    char c = requestedCharacters[i];
 
-                Bitmap bmp;
-                Rectangle rect;
-                GenerateChar(c, font, res * 2, offset, useClearType, out bmp, out rect);
+                    Bitmap bmp;
+                    Rectangle rect;
+                    GenerateChar(c, font, res * 2, offset, useClearType, out bmp, out rect);
 
-                // Measure advance width with typographic settings
-                float advanceWidth;
-                using (Bitmap bmpMeasure = new Bitmap(1, 1))
-                using (Graphics g = Graphics.FromImage(bmpMeasure))
-                using (var fmt = new StringFormat(StringFormat.GenericTypographic)) {
-                    fmt.FormatFlags |= StringFormatFlags.MeasureTrailingSpaces;
-                    advanceWidth = g.MeasureString(c.ToString(), font, PointF.Empty, fmt).Width;
+                    // Measure advance width with typographic settings
+                    float advanceWidth;
+                    using (Bitmap bmpMeasure = new Bitmap(1, 1))
+                    using (Graphics g = Graphics.FromImage(bmpMeasure))
+                    using (var fmt = new StringFormat(StringFormat.GenericTypographic)) {
+                        fmt.FormatFlags |= StringFormatFlags.MeasureTrailingSpaces;
+                        advanceWidth = g.MeasureString(c.ToString(), font, PointF.Empty, fmt).Width;
+                    }
+
+                    // Vertical offset from line-top to glyph-top in pixels
+                    float glyphOffsetY = rect.Y - offset;
+
+                    tempChars[c] = new TempFontChar(
+                        new int4(rect.X, rect.Y, rect.Width, rect.Height),
+                        bmp,
+                        glyphOffsetY,
+                        advanceWidth,
+                        rect.X - offset,   // Retain the cropped bitmap's horizontal origin, including its border.
+                        0                  // BearingY
+                    );
                 }
 
-                // Vertical offset from line-top to glyph-top in pixels
-                float glyphOffsetY = rect.Y - offset;
+                Dictionary<char, FontChar> packedChars;
+                using Bitmap atlasImg = GenerateAtlas(tempChars, out packedChars);
 
-                tempChars[c] = new TempFontChar(
-                    new int4(rect.X, rect.Y, rect.Width, rect.Height),
-                    bmp,
-                    glyphOffsetY,
-                    advanceWidth,
-                    rect.X - offset,   // Retain the cropped bitmap's horizontal origin, including its border.
-                    0                  // BearingY
+                LockBitmap locker = new LockBitmap(atlasImg);
+                locker.LockBits();
+                locker.UnlockBits(false);
+
+                byte[] colors = locker.Pixels;
+
+                // LockBits exposes BGRA. The renderer consumes RGBA, with straight alpha for grayscale fonts.
+                for (int i = 0; i < colors.Length; i += 4) {
+                    byte b = colors[i];
+                    byte g = colors[i + 1];
+                    byte r = colors[i + 2];
+                    byte a = colors[i + 3];
+
+                    colors[i] = useClearType ? r : byte.MaxValue;
+                    colors[i + 1] = useClearType ? g : byte.MaxValue;
+                    colors[i + 2] = useClearType ? b : byte.MaxValue;
+                    colors[i + 3] = useClearType ? (byte)((r + g + b + 1) / 3) : a;
+                }
+
+                TextureAsset rawTex = new TextureAsset();
+                rawTex.Colors = colors;
+                rawTex.Width = (ushort)atlasImg.Width;
+                rawTex.Height = (ushort)atlasImg.Height;
+
+                RuntimeTexture asset = CreateRuntimeTexture(rawTex, renderManager2D);
+                asset.UsesRgbFontCoverage = useClearType;
+
+                // Populate font asset with measured line height and space width
+                FontAsset fontAsset = new FontAsset(
+                    new FontInfo(font.Name, (int)Math.Ceiling(lineHeightPx), spaceWidth),
+                    asset,
+                    packedChars,
+                    lineHeightPx,
+                    atlasImg.Width,
+                    atlasImg.Height
                 );
+                fontAsset.SourceTextureAsset = rawTex;
+                return fontAsset;
+            } finally {
+                foreach (TempFontChar temporaryGlyph in tempChars.Values) { temporaryGlyph.Bitmap.Dispose(); }
             }
-
-            Dictionary<char, FontChar> packedChars;
-            Bitmap atlasImg = GenerateAtlas(tempChars, out packedChars);
-
-            LockBitmap locker = new LockBitmap(atlasImg);
-            locker.LockBits();
-            locker.UnlockBits(false);
-
-            byte[] colors = locker.Pixels;
-
-            // LockBits exposes BGRA. The renderer consumes RGBA, with straight alpha for grayscale fonts.
-            for (int i = 0; i < colors.Length; i += 4) {
-                byte b = colors[i];
-                byte g = colors[i + 1];
-                byte r = colors[i + 2];
-                byte a = colors[i + 3];
-
-                colors[i] = useClearType ? r : byte.MaxValue;
-                colors[i + 1] = useClearType ? g : byte.MaxValue;
-                colors[i + 2] = useClearType ? b : byte.MaxValue;
-                colors[i + 3] = useClearType ? (byte)((r + g + b + 1) / 3) : a;
-            }
-
-            // DEBUG: Save atlas to disk to inspect
-            try {
-                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                string safeName = new string(font.Name.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch).ToArray());
-                string file = Path.Combine(baseDir, $"font_atlas_{safeName}_{(int)Math.Ceiling(lineHeightPx)}.png");
-                atlasImg.Save(file, ImageFormat.Png);
-            } catch { /* ignore IO issues */ }
-
-            TextureAsset rawTex = new TextureAsset();
-            rawTex.Colors = colors;
-            rawTex.Width = (ushort)atlasImg.Width;
-            rawTex.Height = (ushort)atlasImg.Height;
-
-            RuntimeTexture asset = CreateRuntimeTexture(rawTex, renderManager2D);
-            asset.UsesRgbFontCoverage = useClearType;
-
-            // Populate font asset with measured line height and space width
-            FontAsset fontAsset = new FontAsset(
-                new FontInfo(font.Name, (int)Math.Ceiling(lineHeightPx), spaceWidth),
-                asset,
-                packedChars,
-                lineHeightPx,
-                atlasImg.Width,
-                atlasImg.Height
-            );
-            fontAsset.SourceTextureAsset = rawTex;
-            atlasImg.Dispose();
-            foreach (TempFontChar temporaryGlyph in tempChars.Values) {
-                temporaryGlyph.Bitmap.Dispose();
-            }
-            return fontAsset;
         }
 
         /// <summary>
@@ -323,10 +294,9 @@ namespace helengine.editor {
                 .ThenBy(c => c.w * c.h)           // Then by area
                 .FirstOrDefault();
 
-            // Fallback if no POT fits - use minimal possible
+            // Reject the entire request before any glyph can be clipped or assigned out-of-bounds UVs.
             if (best.w == 0) {
-                best = (maxSize, CalculateRequiredHeight(items, maxSize));
-                best.h = Math.Min(best.h, maxSize);
+                throw new InvalidOperationException("The requested font glyphs do not fit the supported 2048-pixel atlas.");
             }
 
             // Final safety check

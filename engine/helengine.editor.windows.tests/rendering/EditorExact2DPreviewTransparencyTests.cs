@@ -59,7 +59,7 @@ namespace helengine.editor.windows.tests.rendering {
             using EditorBuiltInShaderAssetLibrary shaderLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
 
             try {
-                FontAsset importedFontAsset = GDIFontProcessor.ImportFont(font, renderer.Render2D);
+                FontAsset importedFontAsset = GDIFontProcessor.ImportFont(font, renderer.Render2D, FontCharacterSet.BasicLatin);
                 RuntimeTexture runtimeFontTexture = renderer.Render2D.BuildTextureFromRaw(importedFontAsset.SourceTextureAsset);
                 FontAsset fontAsset = new FontAsset(
                     importedFontAsset.FontInfo,

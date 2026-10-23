@@ -1,1 +1,3 @@
 `Synthetic.ttf` is an authored test face containing rectangular `.notdef`, `M` and `i` glyphs plus a space. Units per em: 1000; ascent: 800; descent: -200; advances: 550, 850, 250 and 300 respectively. It contains no glyph outlines copied from another font and lets the importer tests verify real rasterization without a system font dependency.
+
+The explicit-character selection tests also use independently authored rectangular glyphs for digits 0–9, A, ã and ç (advance 550). The accented cells add a separate upper rectangle; no outlines are copied from installed fonts. This keeps glyph-coverage and digits-only tests independent of the host font registry.

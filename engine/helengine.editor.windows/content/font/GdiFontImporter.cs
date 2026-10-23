@@ -62,6 +62,8 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Font pixel size must be greater than zero.");
             }
 
+            settings.Characters.RequireBmpCharacters();
+
             using MemoryStream buffer = new MemoryStream();
             stream.CopyTo(buffer);
             byte[] bytes = buffer.ToArray();
@@ -82,7 +84,7 @@ namespace helengine.editor {
                     sourceStyle,
                     System.Drawing.GraphicsUnit.Pixel);
                 RenderManager2D atlasRenderer = Environment.CurrentManagedThreadId == RendererThreadId ? RenderManager2D : null;
-                FontAsset asset = GDIFontProcessor.ImportFont(font, atlasRenderer);
+                FontAsset asset = GDIFontProcessor.ImportFont(font, atlasRenderer, settings.Characters);
                 FontHorizontalMetricsProcessor.Apply(asset, settings);
                 return asset;
             } finally {
@@ -128,7 +130,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Font source stream must contain data.");
             }
 
-            string temporaryDirectoryPath = Path.Combine(Path.GetTempPath(), "helengine", "gdi-font-import");
+            string temporaryDirectoryPath = @"C:\temp\helengine\gdi-font-import";
             Directory.CreateDirectory(temporaryDirectoryPath);
             string temporaryFontFilePath = Path.Combine(temporaryDirectoryPath, Guid.NewGuid().ToString("N") + ".ttf");
             File.WriteAllBytes(temporaryFontFilePath, bytes);

@@ -19,10 +19,9 @@ namespace helengine.editor.windows.gdiimporter.tests {
         public void RealSourceFaceMatchesExplicitPrivateFont(string fileName, FontStyle style) {
             string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), fileName);
             Assert.Equal(style, ReadStyle(File.ReadAllBytes(path)));
-            using PrivateFontCollection collection = new PrivateFontCollection();
-            collection.AddFontFile(path);
-            using System.Drawing.Font font = new System.Drawing.Font(collection.Families[0], 34, style, GraphicsUnit.Pixel);
-            using FontAsset expected = GDIFontProcessor.ImportFont(font, null);
+            using GdiFontFileFixture fixture = new(path);
+            using System.Drawing.Font font = fixture.CreateFont(34, style);
+            using FontAsset expected = GDIFontProcessor.ImportFont(font, null, FontCharacterSet.BasicLatin);
             for (int iteration = 0; iteration < 3; iteration++) {
                 using FileStream stream = File.OpenRead(path);
                 using FontAsset actual = new GdiFontImporter(null).ImportFont(stream, new FontAssetProcessorSettings { PixelSize = 34 });

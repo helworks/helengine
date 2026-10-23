@@ -561,7 +561,7 @@ namespace helengine.editor.app {
             }
 
             using Font font = new Font("Consolas", metrics.UiFontPixelSize, FontStyle.Regular, GraphicsUnit.Pixel);
-            return GDIFontProcessor.ImportFont(font, renderManager2D, renderManager2D.SupportsRgbFontCoverage);
+            return GDIFontProcessor.ImportFont(font, renderManager2D, FontCharacterSet.BasicLatin.Union(FontCharacterSet.PortugueseAccents), renderManager2D.SupportsRgbFontCoverage);
         }
 
         /// <summary>
@@ -575,7 +575,7 @@ namespace helengine.editor.app {
             }
 
             using Font font = new Font("Consolas", metrics.SnapModifierFontPixelSize, FontStyle.Bold, GraphicsUnit.Pixel);
-            return GDIFontProcessor.ImportFont(font, renderManager2D, renderManager2D.SupportsRgbFontCoverage);
+            return GDIFontProcessor.ImportFont(font, renderManager2D, FontCharacterSet.BasicLatin.Union(FontCharacterSet.PortugueseAccents), renderManager2D.SupportsRgbFontCoverage);
         }
 
         /// <summary>

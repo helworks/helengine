@@ -14,7 +14,7 @@ namespace helengine.editor.windows.tests.content.font {
         public void ImportFont_WhenGeneratingAtlas_ProducesIntermediateAlphaCoverage() {
             using Font font = new Font(FontFamily.GenericSansSerif, 32f, FontStyle.Regular, GraphicsUnit.Pixel);
 
-            FontAsset fontAsset = GDIFontProcessor.ImportFont(font, null);
+            FontAsset fontAsset = GDIFontProcessor.ImportFont(font, null, FontCharacterSet.BasicLatin);
 
             Assert.NotNull(fontAsset);
             Assert.NotNull(fontAsset.SourceTextureAsset);
@@ -34,7 +34,7 @@ namespace helengine.editor.windows.tests.content.font {
         [Fact]
         public void ImportFont_WhenClearTypeEnabled_PreservesRgbCoverageAndGrayscaleAlpha() {
             using Font font = new Font("Consolas", 13f, FontStyle.Regular, GraphicsUnit.Pixel);
-            FontAsset fontAsset = GDIFontProcessor.ImportFont(font, null, true);
+            FontAsset fontAsset = GDIFontProcessor.ImportFont(font, null, FontCharacterSet.BasicLatin, true);
             Assert.True(fontAsset.Texture.UsesRgbFontCoverage);
             byte[] colors = fontAsset.SourceTextureAsset.Colors;
             bool foundSubpixelEdge = false;
@@ -79,12 +79,12 @@ namespace helengine.editor.windows.tests.content.font {
                     }
                 }
             }
-            FontAsset fontAsset = GDIFontProcessor.ImportFont(font, null, true);
+            FontAsset fontAsset = GDIFontProcessor.ImportFont(font, null, FontCharacterSet.BasicLatin, true);
             FontChar glyph = fontAsset.Characters[character];
-            int atlasX = (int)Math.Round(glyph.SourceRect.X * fontAsset.AtlasWidth);
-            int atlasY = (int)Math.Round(glyph.SourceRect.Y * fontAsset.AtlasHeight);
-            int width = (int)Math.Round(glyph.SourceRect.Z * fontAsset.AtlasWidth);
-            int height = (int)Math.Round(glyph.SourceRect.W * fontAsset.AtlasHeight);
+            int atlasX = (int)Math.Round((double)(glyph.SourceRect.X * fontAsset.AtlasWidth));
+            int atlasY = (int)Math.Round((double)(glyph.SourceRect.Y * fontAsset.AtlasHeight));
+            int width = (int)Math.Round((double)(glyph.SourceRect.Z * fontAsset.AtlasWidth));
+            int height = (int)Math.Round((double)(glyph.SourceRect.W * fontAsset.AtlasHeight));
             for (int y = 0; y < height; y++) {
                 for (int x = 0; x < width; x++) {
                     System.Drawing.Color expected = reference.GetPixel(left - 1 + x, top - 1 + y);
@@ -103,17 +103,17 @@ namespace helengine.editor.windows.tests.content.font {
         public void ImportFont_WhenUsingNintendoDsDebugFontPixelSize_ProducesRecognizableCapitalH() {
             using Font font = new Font("Consolas", 6f, FontStyle.Regular, GraphicsUnit.Pixel);
 
-            FontAsset fontAsset = GDIFontProcessor.ImportFont(font, null);
+            FontAsset fontAsset = GDIFontProcessor.ImportFont(font, null, FontCharacterSet.BasicLatin);
 
             Assert.NotNull(fontAsset);
             Assert.NotNull(fontAsset.SourceTextureAsset);
             Assert.NotNull(fontAsset.SourceTextureAsset.Colors);
             Assert.True(fontAsset.Characters.TryGetValue('H', out FontChar glyph));
 
-            int sourceX = (int)Math.Round(glyph.SourceRect.X * fontAsset.AtlasWidth);
-            int sourceY = (int)Math.Round(glyph.SourceRect.Y * fontAsset.AtlasHeight);
-            int sourceWidth = (int)Math.Round(glyph.SourceRect.Z * fontAsset.AtlasWidth);
-            int sourceHeight = (int)Math.Round(glyph.SourceRect.W * fontAsset.AtlasHeight);
+            int sourceX = (int)Math.Round((double)(glyph.SourceRect.X * fontAsset.AtlasWidth));
+            int sourceY = (int)Math.Round((double)(glyph.SourceRect.Y * fontAsset.AtlasHeight));
+            int sourceWidth = (int)Math.Round((double)(glyph.SourceRect.Z * fontAsset.AtlasWidth));
+            int sourceHeight = (int)Math.Round((double)(glyph.SourceRect.W * fontAsset.AtlasHeight));
 
             Assert.True(sourceWidth >= 3);
             Assert.True(sourceHeight >= 4);
@@ -163,7 +163,7 @@ namespace helengine.editor.windows.tests.content.font {
         public void ImportFont_WhenUsingNintendoDsDebugFontPixelSize_IncludesSpaceGlyphWithoutThrowing() {
             using Font font = new Font("Consolas", 8f, FontStyle.Regular, GraphicsUnit.Pixel);
 
-            FontAsset fontAsset = GDIFontProcessor.ImportFont(font, null);
+            FontAsset fontAsset = GDIFontProcessor.ImportFont(font, null, FontCharacterSet.BasicLatin);
 
             Assert.NotNull(fontAsset);
             Assert.True(fontAsset.Characters.TryGetValue(' ', out FontChar glyph));
