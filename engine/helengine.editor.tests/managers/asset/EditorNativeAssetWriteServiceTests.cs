@@ -58,8 +58,11 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
     }
 
     /// <summary>A readable version-25 blueprint is rewritten through the current serializer while preserving embedded identity and history.</summary>
-    [Fact]
-    public void WriteAsset_WhenBlueprintUsesSupportedPreviousFormat_RewritesCurrentPayloadAndPreservesIdentity() {
+    /// <param name="transactional">Whether the rewrite is staged through the same transaction path used by prebuild generators.</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void WriteAsset_WhenBlueprintUsesSupportedPreviousFormat_RewritesCurrentPayloadAndPreservesIdentity(bool transactional) {
         const string assetId = "00112233445566778899aabbccddeeff";
         const string formerId = "ffeeddccbbaa99887766554433221100";
         string fullPath = Path.Combine(ProjectRootPath, "assets", "blueprints", "Chrome.hblueprint");
@@ -77,9 +80,17 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
         }
         using IEditorProjectAuthoringSession session = CreateSession();
 
-        EditorAssetWriteResult result = session.WriteAsset("blueprints/Chrome.hblueprint", new BlueprintAsset {
+        BlueprintAsset replacement = new BlueprintAsset {
             Id = "Chrome", RootEntity = new SceneEntityAsset { Id = 1, Name = "Updated" }
-        });
+        };
+        EditorAssetWriteResult result;
+        if (transactional) {
+            using EditorAuthoringTransaction transaction = session.BeginTransaction();
+            result = transaction.WriteAsset("blueprints/Chrome.hblueprint", replacement);
+            transaction.Commit();
+        } else {
+            result = session.WriteAsset("blueprints/Chrome.hblueprint", replacement);
+        }
 
         Assert.True(result.PreservedExistingIdentity);
         Assert.Equal(assetId, result.AssetId);
