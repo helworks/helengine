@@ -14,6 +14,20 @@ namespace helengine.baseplatform.tests.Definitions;
 /// Verifies scene packaging rewrites material assets through the builder-owned material cook contract.
 /// </summary>
 public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposable {
+    /// <summary>Packaging a UI-only scene must not cook or report the unrelated engine Standard material.</summary>
+    [Fact]
+    public void Package_whenNoMaterialIsReferenced_doesNotCookStandardMaterial() {
+        const string sceneId = "Scenes/UiOnly.helen";
+        WriteEmptySceneAsset(sceneId);
+        using EditorBuiltInShaderAssetLibrary library = SeedBuiltInStandardShaderAsset(ShaderCompileTarget.DirectX11);
+        using EditorPlatformBuildScenePackager packager = new(ProjectRootPath, [], "windows",
+            new TestPlatformAssetBuilder(), "debug", "directx11", library);
+        EditorPlatformBuildScenePackagerResult result = packager.Package([sceneId], BuildRootPath);
+        Assert.Empty(result.ReferencedShaderDependencies);
+        Assert.DoesNotContain(result.CookedArtifactDeclarations, artifact => artifact.ArtifactKind == "material" || artifact.ArtifactKind == "shader");
+        Assert.False(File.Exists(Path.Combine(BuildRootPath, "cooked", "engine", "materials", "standard.hasset")));
+    }
+
     /// <summary>
     /// Temporary project root used for scene-packager tests.
     /// </summary>
@@ -79,7 +93,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
         Assert.Single(packagedMaterial.ConstantBuffers);
         Assert.Equal("BaseColorBuffer", packagedMaterial.ConstantBuffers[0].Name);
         Assert.Equal(16, packagedMaterial.ConstantBuffers[0].Data.Length);
-        Assert.Equal(new[] { "ForwardStandardShader", "CookedShader" }, result.ReferencedShaderDependencies.Select(dependency => dependency.ShaderAssetId));
+        Assert.Equal(new[] { "CookedShader" }, result.ReferencedShaderDependencies.Select(dependency => dependency.ShaderAssetId));
     }
 
     /// <summary>
@@ -89,7 +103,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
     public void Package_whenBuilderCooksMaterial_reportsExplicitMaterialOutput() {
         string sceneId = "Scenes/TestScene.helen";
         EditorBuiltInShaderAssetLibrary shaderLibrary = SeedBuiltInStandardShaderAsset(ShaderCompileTarget.DirectX11);
-        WriteEmptySceneAsset(sceneId);
+        WriteEmptySceneAsset(sceneId, EngineSceneAssetReferenceFactory.CreateStandardMaterial());
 
         IPlatformAssetBuilder builder = new TestPlatformAssetBuilder();
         EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
@@ -220,7 +234,8 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
     /// Writes one empty scene asset so packaging exercises generated asset output without component serialization dependencies.
     /// </summary>
     /// <param name="sceneId">Scene asset id to write.</param>
-    void WriteEmptySceneAsset(string sceneId) {
+    /// <param name="materialReference">Optional explicit dependency used by generated material tests.</param>
+    void WriteEmptySceneAsset(string sceneId, SceneAssetReference materialReference = null) {
         string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
 
@@ -228,6 +243,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
             Id = sceneId,
             AuthoringAssetId = "22222222222222222222222222222222",
             FormerAuthoringAssetIds = Array.Empty<string>(),
+            AssetReferences = materialReference == null ? [] : [materialReference],
             RootEntities = Array.Empty<SceneEntityAsset>()
         };
 

@@ -752,12 +752,8 @@ namespace helengine.editor {
             PlatformCookWorkItemIds.Clear();
             CookedArtifactDeclarations.Clear();
             CookedArtifactDeclarationsByPath.Clear();
-            // The initial Xbox shader subset has no ForwardStandardShader/PBR implementation.
-            // Do not add an unused desktop dependency; actual generated-material references
-            // still reach EnsureGeneratedStandardMaterialAssets and are rejected explicitly.
-            if (!UsesXboxAuthoredShaderSubset()) {
-                EnsureGeneratedStandardMaterialAssets(fullBuildRootPath);
-            }
+            // Generated material references package Standard through the normal reference walk.
+            // An unrelated Standard material must not enter UI-only scene dependencies.
 
             for (int index = 0; index < sceneIds.Count; index++) {
                 string sceneId = sceneIds[index];
