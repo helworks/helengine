@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable><UseCommonOutputDirectory>false</UseCommonOutputDirectory></PropertyGroup>
+  <ItemGroup><Compile Remove="tests/**/*.cs" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../engine/helengine.capture.linux/helengine.capture.linux.csproj" /><ProjectReference Include="../../engine/helengine.media.linux/helengine.media.linux.csproj" /></ItemGroup>
+</Project>
