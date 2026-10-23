@@ -118,10 +118,10 @@ namespace helengine.editor.windows.tests.rendering {
             float4x4 world = spriteEntity.WorldTransformMatrix;
             double angle = scalar ? degrees * Math.PI / 180d : 0d;
             double cosine = Math.Cos(angle), sine = Math.Sin(angle);
-            double rightX = cosine * world.M11 + sine * world.M21;
-            double rightY = cosine * world.M12 + sine * world.M22;
-            double downX = -sine * world.M11 + cosine * world.M21;
-            double downY = -sine * world.M12 + cosine * world.M22;
+            double rightX = (double)(cosine * world.M11 + sine * world.M21);
+            double rightY = (double)(cosine * world.M12 + sine * world.M22);
+            double downX = (double)(-sine * world.M11 + cosine * world.M21);
+            double downY = (double)(-sine * world.M12 + cosine * world.M22);
             if (scalar) {
                 origin.X -= (float)(rightX * SpriteWidth * 0.5 + downX * SpriteHeight * 0.5);
                 origin.Y -= (float)(rightY * SpriteWidth * 0.5 + downY * SpriteHeight * 0.5);
@@ -136,8 +136,8 @@ namespace helengine.editor.windows.tests.rendering {
             List<string> mismatches = new List<string>();
             for (int y = 0; y < TargetSize; y++) {
                 for (int x = 0; x < TargetSize; x++) {
-                    double offsetX = x + 0.5 - origin.X;
-                    double offsetY = y + 0.5 - origin.Y;
+                    double offsetX = (double)(x + 0.5 - origin.X);
+                    double offsetY = (double)(y + 0.5 - origin.Y);
                     double localX = (offsetX * downY - offsetY * downX) / determinant;
                     double localY = (offsetY * rightX - offsetX * rightY) / determinant;
                     bool nearEdge = Math.Abs(localX) < EdgeTolerance || Math.Abs(localX - SpriteWidth) < EdgeTolerance

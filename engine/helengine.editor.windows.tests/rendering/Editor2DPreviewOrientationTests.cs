@@ -160,8 +160,8 @@ namespace helengine.editor.windows.tests.rendering {
                 EditorViewportNavigationCubeGeometry geometry = new EditorViewportNavigationCubeGeometry { ProjectionMode = mode };
                 foreach (EditorViewportNavigationTarget face in geometry.GetVisibleFaceTargets(orientation)) {
                     IReadOnlyList<float2> vertices = geometry.GetFaceVertices(face, orientation, 64);
-                    int x = (int)vertices.Average(vertex => vertex.X);
-                    int y = (int)vertices.Average(vertex => vertex.Y);
+                    int x = (int)vertices.Average(vertex => (double)vertex.X);
+                    int y = (int)vertices.Average(vertex => (double)vertex.Y);
                     Assert.True(geometry.TryHit(new float2(x, y), orientation, 64, out EditorViewportNavigationCubeHit hit));
                     Assert.Equal(face, hit.Target);
                     Assert.Equal(face.Z == 1 ? blue : red, ReadPixel(cube.Target, renderer.Device, y, x));
