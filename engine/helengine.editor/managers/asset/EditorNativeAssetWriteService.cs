@@ -1049,7 +1049,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Validates that an existing destination is a current native asset of the requested type.
+        /// Validates that an existing destination has a readable authoring version and the requested native asset kind before its identity is loaded and preserved.
         /// </summary>
         /// <param name="fullPath">Existing destination path.</param>
         /// <param name="asset">Incoming asset payload.</param>
@@ -1061,9 +1061,9 @@ namespace helengine.editor {
             EditorAssetBinaryValueKind expectedValueKind = GetExpectedValueKind(asset);
             if (header.FormatId != global::helengine.files.EditorAssetBinarySerializer.FormatId ||
                 header.RecordKind != (ushort)EditorBinaryRecordKind.Asset ||
-                header.Version != global::helengine.files.EditorAssetBinarySerializer.CurrentVersion ||
+                !global::helengine.files.EditorAssetBinarySerializer.IsSupportedVersion(header.Version) ||
                 header.ValueKind != (ushort)expectedValueKind) {
-                throw new InvalidOperationException($"Native asset destination '{fullPath}' is not a current '{expectedValueKind}' payload.");
+                throw new InvalidOperationException($"Native asset destination '{fullPath}' is not a supported '{expectedValueKind}' payload.");
             }
         }
 

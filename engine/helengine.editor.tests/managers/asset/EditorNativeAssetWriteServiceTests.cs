@@ -57,6 +57,42 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
         Assert.Equal(result.AssetId, ReadModel(result.FullPath).AuthoringAssetId);
     }
 
+    /// <summary>A readable version-25 blueprint is rewritten through the current serializer while preserving embedded identity and history.</summary>
+    [Fact]
+    public void WriteAsset_WhenBlueprintUsesSupportedPreviousFormat_RewritesCurrentPayloadAndPreservesIdentity() {
+        const string assetId = "00112233445566778899aabbccddeeff";
+        const string formerId = "ffeeddccbbaa99887766554433221100";
+        string fullPath = Path.Combine(ProjectRootPath, "assets", "blueprints", "Chrome.hblueprint");
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+        BlueprintAsset original = new BlueprintAsset {
+            Id = "Chrome", AuthoringAssetId = assetId, FormerAuthoringAssetIds = [formerId],
+            RootEntity = new SceneEntityAsset { Id = 1, Name = "Original" }
+        };
+        using (FileStream stream = File.Create(fullPath)) {
+            helengine.files.EngineBinaryHeaderSerializer.Write(stream, new EngineBinaryHeader(EngineBinaryEndianness.LittleEndian, 25,
+                helengine.files.EditorAssetBinarySerializer.FormatId, (ushort)EditorBinaryRecordKind.Asset, (ushort)EditorAssetBinaryValueKind.BlueprintAsset));
+            using helengine.files.EngineBinaryWriter writer = helengine.files.EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian, true);
+            writer.NumericPolicy = NumericPrecisionPolicy.Default;
+            new helengine.files.BlueprintAssetPayloadSerializer().Write(writer, original);
+        }
+        using IEditorProjectAuthoringSession session = CreateSession();
+
+        EditorAssetWriteResult result = session.WriteAsset("blueprints/Chrome.hblueprint", new BlueprintAsset {
+            Id = "Chrome", RootEntity = new SceneEntityAsset { Id = 1, Name = "Updated" }
+        });
+
+        Assert.True(result.PreservedExistingIdentity);
+        Assert.Equal(assetId, result.AssetId);
+        using FileStream current = File.OpenRead(fullPath);
+        Assert.Equal(helengine.files.EditorAssetBinarySerializer.CurrentVersion, EngineBinaryHeaderSerializer.Read(current).Version);
+        current.Position = 0;
+        BlueprintAsset rewritten = Assert.IsType<BlueprintAsset>(helengine.files.AssetSerializer.Deserialize(current));
+        Assert.Equal(assetId, rewritten.AuthoringAssetId);
+        Assert.Equal(new[] { formerId }, rewritten.FormerAuthoringAssetIds);
+        Assert.Equal("Updated", rewritten.RootEntity.Name);
+        Assert.False(File.Exists(fullPath + ".hmeta"));
+    }
+
     /// <summary>
     /// Ensures a pre-opened session replays startup identity repairs through the exact-path publication marker.
     /// </summary>
