@@ -11,6 +11,10 @@ static class X11RgbaConverter {
         ValidateMask(redMask,bitsPerPixel);ValidateMask(greenMask,bitsPerPixel);ValidateMask(blueMask,bitsPerPixel);
         if((redMask&greenMask)!=0 || (redMask&blueMask)!=0 || (greenMask&blueMask)!=0) { throw new ArgumentException("XImage color masks overlap."); }
         var result=new byte[checked(width*height*4)];
+        if(bitsPerPixel==32 && byteOrder==0 && redMask==0xff0000 && greenMask==0xff00 && blueMask==0xff) {
+            ConvertBgrx32(source,result,width,height,stride);
+            return result;
+        }
         for(int y=0;y<height;y++) {
             for(int x=0;x<width;x++) {
                 int start=y*stride+x*bytesPerPixel;
@@ -24,6 +28,16 @@ static class X11RgbaConverter {
             }
         }
         return result;
+    }
+    /// <summary>Copies the usual little-endian desktop layout directly, avoiding mask scaling for already eight-bit channels.</summary>
+    static void ConvertBgrx32(byte[] source,byte[] target,int width,int height,int stride) {
+        for(int y=0;y<height;y++) {
+            int native=y*stride,rgba=y*width*4;
+            for(int x=0;x<width;x++) {
+                target[rgba]=source[native+2];target[rgba+1]=source[native+1];target[rgba+2]=source[native];target[rgba+3]=255;
+                native+=4;rgba+=4;
+            }
+        }
     }
     /// <summary>Rejects absent, noncontiguous or out-of-range TrueColor channel masks.</summary>
     static void ValidateMask(ulong mask,int bitsPerPixel) {
