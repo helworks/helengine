@@ -58,7 +58,7 @@ public sealed class PlatformShaderDependencyTests {
             "psvita",
             "debug",
             "psvita-default",
-            [dependency]);
+            [dependency], NumericPrecisionPolicy.Default);
 
         Assert.Same(dependency, Assert.Single(request.ShaderDependencies));
     }
@@ -81,8 +81,16 @@ public sealed class PlatformShaderDependencyTests {
             "debug",
             "psvita-default",
             [dependency],
-            [source]);
+            [source], new NumericPrecisionPolicy(64, 64));
 
         Assert.Same(source, Assert.Single(request.ShaderSources));
+        Assert.Equal("real-v1-s64-a64", request.NumericPolicy.Identity);
+    }
+
+    /// <summary>Requires an explicit captured policy instead of substituting the managed host representation.</summary>
+    [Fact]
+    public void ShaderArtifactCookRequest_rejects_missing_numeric_policy() {
+        Assert.Throws<ArgumentNullException>(() => new PlatformShaderArtifactCookRequest(
+            Path.GetTempPath(), "xbox", "debug", "xbox-shader", [], [], null));
     }
 }

@@ -213,7 +213,8 @@ namespace helengine.editor {
                 selectedGraphicsProfileId,
                 effectiveCookRootPath,
                 packagerResult,
-                effectiveShaderLibrary);
+                effectiveShaderLibrary,
+                numericPolicy);
             Console.WriteLine($"[cook] shader-artifacts-ms={cookStageTimer.ElapsedMilliseconds}");
 
             Console.WriteLine("[helengine-editor] build scene entries begin");
@@ -272,7 +273,8 @@ namespace helengine.editor {
             string selectedGraphicsProfileId,
             string cookRootPath,
             EditorPlatformBuildScenePackagerResult packagerResult,
-            EditorBuiltInShaderAssetLibrary shaderLibrary) {
+            EditorBuiltInShaderAssetLibrary shaderLibrary,
+            NumericPrecisionPolicy numericPolicy) {
             if (packagerResult == null) {
                 throw new ArgumentNullException(nameof(packagerResult));
             }
@@ -323,7 +325,8 @@ namespace helengine.editor {
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
                 shaderDependencies,
-                shaderSources);
+                shaderSources,
+                numericPolicy);
             PlatformShaderArtifactCookResult shaderResult = shaderArtifactBuilder.CookShaderArtifacts(shaderRequest)
                 ?? throw new InvalidOperationException("Platform shader artifact builders must return an explicit cook result.");
             declarations.AddRange(shaderResult.CookedArtifactDeclarations);

@@ -23,13 +23,15 @@ namespace helengine.baseplatform.Requests {
         /// <param name="buildProfileId">Selected build profile identifier.</param>
         /// <param name="graphicsProfileId">Selected graphics profile identifier.</param>
         /// <param name="shaderDependencies">Shader dependencies including material-selected program-pair keys.</param>
+        /// <param name="numericPolicy">Captured build numeric policy required by serialized shader package envelopes.</param>
         public PlatformShaderArtifactCookRequest(
             string cookRootPath,
             string platformId,
             string buildProfileId,
             string graphicsProfileId,
-            IReadOnlyList<PlatformShaderDependency> shaderDependencies)
-            : this(cookRootPath, platformId, buildProfileId, graphicsProfileId, shaderDependencies, Array.Empty<PlatformShaderArtifactCookSource>()) {
+            IReadOnlyList<PlatformShaderDependency> shaderDependencies,
+            NumericPrecisionPolicy numericPolicy)
+            : this(cookRootPath, platformId, buildProfileId, graphicsProfileId, shaderDependencies, Array.Empty<PlatformShaderArtifactCookSource>(), numericPolicy) {
         }
 
         /// <summary>
@@ -40,13 +42,17 @@ namespace helengine.baseplatform.Requests {
         /// <param name="buildProfileId">Selected build profile identifier.</param>
         /// <param name="graphicsProfileId">Selected graphics profile identifier.</param>
         /// <param name="shaderDependencies">Shader dependencies including material-selected program-pair keys.</param>
+        /// <param name="shaderSources">Resolved source snapshots for the requested shader dependencies.</param>
+        /// <param name="numericPolicy">Captured build numeric policy, independent of the host's scalar representation.</param>
         public PlatformShaderArtifactCookRequest(
             string cookRootPath,
             string platformId,
             string buildProfileId,
             string graphicsProfileId,
             IReadOnlyList<PlatformShaderDependency> shaderDependencies,
-            IReadOnlyList<PlatformShaderArtifactCookSource> shaderSources) {
+            IReadOnlyList<PlatformShaderArtifactCookSource> shaderSources,
+            NumericPrecisionPolicy numericPolicy) {
+            NumericPolicy = numericPolicy ?? throw new ArgumentNullException(nameof(numericPolicy));
             if (string.IsNullOrWhiteSpace(cookRootPath)) {
                 throw new ArgumentException("Cook root path is required.", nameof(cookRootPath));
             } else if (string.IsNullOrWhiteSpace(platformId)) {
@@ -105,6 +111,9 @@ namespace helengine.baseplatform.Requests {
         /// Gets the selected graphics profile identifier.
         /// </summary>
         public string GraphicsProfileId { get; }
+
+        /// <summary>Gets the immutable numeric contract captured by the consuming build.</summary>
+        public NumericPrecisionPolicy NumericPolicy { get; }
 
         /// <summary>
         /// Gets copied material-selected shader dependencies including program-pair lookup keys when available.

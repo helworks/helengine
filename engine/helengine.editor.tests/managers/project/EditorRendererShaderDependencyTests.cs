@@ -42,8 +42,10 @@ public sealed class EditorRendererShaderDependencyTests : IDisposable {
     }
 
     /// <summary>Checks opted-in renderer variants pass through source resolution into the real platform cook request.</summary>
-    [Fact]
-    public void Cook_includes_renderer_dependencies_without_material_dependencies_and_forwards_resolved_source() {
+    [Theory]
+    [InlineData(32)]
+    [InlineData(64)]
+    public void Cook_includes_renderer_dependencies_without_material_dependencies_and_forwards_resolved_source(int bits) {
         string projectRoot = Path.Combine(TestRootPath, "project");
         string outputRoot = Path.Combine(TestRootPath, "output");
         string assetsRoot = Path.Combine(projectRoot, "assets");
@@ -56,9 +58,11 @@ public sealed class EditorRendererShaderDependencyTests : IDisposable {
         RendererDependencyBuilder builder = new();
         EditorPlatformAssetCookService service = CreateService(projectRoot, shaderLibrary);
 
-        service.Cook(builder.Definition, ["Main"], outputRoot, ["ps3"], builder);
+        NumericPrecisionPolicy policy = new(bits, bits);
+        service.Cook(builder.Definition, ["Main"], outputRoot, ["ps3"], builder, numericPolicy: policy);
 
         PlatformShaderArtifactCookRequest request = Assert.IsType<PlatformShaderArtifactCookRequest>(builder.LastShaderRequest);
+        Assert.Same(policy, request.NumericPolicy);
         Assert.Equal(new[] { "Textured", "RoundedShape" }, request.ShaderDependencies.Select(dependency => dependency.VariantName));
         Assert.All(request.ShaderDependencies, dependency => {
             Assert.Equal(ShaderAssetId, dependency.ShaderAssetId);
