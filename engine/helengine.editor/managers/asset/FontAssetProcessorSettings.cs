@@ -8,6 +8,15 @@ namespace helengine.editor {
         /// </summary>
         public const int DefaultPixelSize = 32;
 
+        /// <summary>Immutable character request shared by all font generation backends.</summary>
+        FontCharacterSet CharacterSelection = FontCharacterSet.BasicLatin;
+
+        /// <summary>Gets or sets the exact requested glyph coverage. New requests contain printable Basic Latin only; callers opt into accents or other scalars explicitly.</summary>
+        public FontCharacterSet Characters {
+            get => CharacterSelection;
+            set => CharacterSelection = value ?? throw new ArgumentNullException(nameof(value));
+        }
+
         /// <summary>
         /// Gets or sets the requested font pixel size used during source font rasterization.
         /// </summary>

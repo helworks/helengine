@@ -9,9 +9,9 @@ namespace helengine.editor {
         const string GeneratedFolderName = "generated";
 
         /// <summary>
-        /// Cache-format version included in the settings hash; v5 rebuilds fonts whose cropped glyph origins previously lost their horizontal bearings.
+        /// Cache-format version included in the settings hash; v6 includes explicit character requests and rebuilds pre-selection font atlases.
         /// </summary>
-        const string CacheFormatVersion = "font-variant-cache-v5";
+        const string CacheFormatVersion = "font-variant-cache-v6";
 
         /// <summary>
         /// Folder name used for cached per-platform font variants.

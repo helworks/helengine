@@ -2845,12 +2845,17 @@ namespace helengine.editor {
                 throw new ArgumentException("Source checksum must be provided.", nameof(sourceChecksum));
             }
 
-            TextureAssetProcessorSettings textureProcessorSettings = GetTextureProcessorSettings(settings, platformId);
+            TextureAssetProcessorSettings textureProcessorSettings = GetFontAtlasTextureProcessorSettings(settings, platformId);
+            using MemoryStream requestStream = new MemoryStream();
+            using (EngineBinaryWriter requestWriter = EngineBinaryWriter.Create(requestStream, EngineBinaryEndianness.LittleEndian)) {
+                new FontAssetPlatformSettingsSectionDefinition().Serialize(requestWriter, GetFontProcessorSettings(settings, platformId));
+            }
             string fontIdentity = string.Concat(
                 "font", "\n",
                 sourceChecksum, "\n",
                 settings.Importer.ImporterId ?? string.Empty, "\n",
                 platformId, "\n",
+                Convert.ToHexString(requestStream.ToArray()), "\n",
                 textureProcessorSettings.MaxResolution.ToString(System.Globalization.CultureInfo.InvariantCulture), "\n",
                 textureProcessorSettings.ColorFormatId ?? string.Empty, "\n",
                 ((int)textureProcessorSettings.AlphaPrecision).ToString(System.Globalization.CultureInfo.InvariantCulture));

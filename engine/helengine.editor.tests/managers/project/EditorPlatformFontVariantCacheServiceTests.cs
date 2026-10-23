@@ -42,6 +42,28 @@ public sealed class EditorPlatformFontVariantCacheServiceTests : IDisposable {
         }
     }
 
+    /// <summary>Changing coverage invalidates the real disk cache while equivalent canonical requests reuse it.</summary>
+    [Fact]
+    public void CharacterCoverageParticipatesInVariantIdentity() {
+        string sourcePath = WriteSourceFont("Fonts/Selected.ttf");
+        AssetImportManager manager = CreateFontManager(new TestFontImporter());
+        AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+        settings.Processor.Platforms["gamecube"] = new AssetPlatformProcessorSettings();
+        settings.Processor.Platforms["gamecube"].Font.Characters = FontCharacterSet.FromText("AB");
+        manager.SaveImportSettings(sourcePath, settings);
+        EditorPlatformFontVariantCacheService service = new(manager);
+        EditorPlatformFontVariantCacheResult first = service.ResolveVariant(sourcePath, "gamecube");
+        settings.Processor.Platforms["gamecube"].Font.Characters = FontCharacterSet.FromText("BAAB");
+        manager.SaveImportSettings(sourcePath, settings);
+        EditorPlatformFontVariantCacheResult equivalent = service.ResolveVariant(sourcePath, "gamecube");
+        Assert.True(equivalent.IsCacheHit);
+        Assert.Equal(first.CachedFontAssetPath, equivalent.CachedFontAssetPath);
+        settings.Processor.Platforms["gamecube"].Font.Characters = FontCharacterSet.FromText("AB\u00e3");
+        manager.SaveImportSettings(sourcePath, settings);
+        EditorPlatformFontVariantCacheResult changed = service.ResolveVariant(sourcePath, "gamecube");
+        Assert.False(changed.IsCacheHit);
+        Assert.NotEqual(first.CachedFontAssetPath, changed.CachedFontAssetPath);
+    }
     /// <summary>
     /// Ensures the first platform-font request generates one cached font asset plus one cached atlas texture asset.
     /// </summary>

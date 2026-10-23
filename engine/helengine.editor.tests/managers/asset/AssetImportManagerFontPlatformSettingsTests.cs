@@ -6,6 +6,30 @@ namespace helengine.editor.tests.managers.asset {
     /// Verifies platform font settings are forwarded into font imports.
     /// </summary>
     public sealed class AssetImportManagerFontPlatformSettingsTests : IDisposable {
+        /// <summary>Cooked font identities include size, metric policy, canonical character coverage and the actual atlas texture policy.</summary>
+        [Fact]
+        public void FontIdentityIncludesTheCompleteGenerationRequest() {
+            ContentManager content = new(new HostFileSystemContentStreamSource(AssetsRootPath));
+            AssetImportManager manager = new(ProjectRootPath, content);
+            AssetImportSettings settings = new();
+            settings.Processor.Platforms["ps2"] = new AssetPlatformProcessorSettings();
+            FontAssetProcessorSettings font = settings.Processor.Platforms["ps2"].Font;
+            System.Reflection.MethodInfo method = typeof(AssetImportManager).GetMethod("BuildFontAssetId", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            string original = (string)method.Invoke(manager, new object[] { settings, "fixed-source-checksum", "ps2" });
+            font.PixelSize++;
+            string resized = (string)method.Invoke(manager, new object[] { settings, "fixed-source-checksum", "ps2" });
+            Assert.NotEqual(original, resized);
+            font.SnapHorizontalMetricsToPixels = true;
+            string snapped = (string)method.Invoke(manager, new object[] { settings, "fixed-source-checksum", "ps2" });
+            Assert.NotEqual(resized, snapped);
+            font.Characters = FontCharacterSet.FromText("AB");
+            string selected = (string)method.Invoke(manager, new object[] { settings, "fixed-source-checksum", "ps2" });
+            Assert.NotEqual(snapped, selected);
+            font.Characters = FontCharacterSet.FromText("BABA");
+            Assert.Equal(selected, (string)method.Invoke(manager, new object[] { settings, "fixed-source-checksum", "ps2" }));
+            settings.Processor.Platforms["ps2"].FontAtlasTexture.MaxResolution = 128;
+            Assert.NotEqual(selected, (string)method.Invoke(manager, new object[] { settings, "fixed-source-checksum", "ps2" }));
+        }
         /// <summary>The official platform build path retains the native horizontal policy through section cloning and importer dispatch.</summary>
         [Fact]
         public void BuildFontAssetForPlatformForwardsHorizontalPixelPolicy() {

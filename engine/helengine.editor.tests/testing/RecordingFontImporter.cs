@@ -23,7 +23,8 @@ namespace helengine.editor.tests.testing {
 
             LastSettings = new FontAssetProcessorSettings {
                 PixelSize = settings.PixelSize,
-                SnapHorizontalMetricsToPixels = settings.SnapHorizontalMetricsToPixels
+                SnapHorizontalMetricsToPixels = settings.SnapHorizontalMetricsToPixels,
+                Characters = settings.Characters
             };
 
             FontAsset fontAsset = new FontAsset(

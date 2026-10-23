@@ -1,14 +1,15 @@
 namespace helengine.editor.tests.serialization {
-    /// <summary>Verifies the opt-in font section extends old positive-size payloads without changing disabled bytes or neighboring section framing.</summary>
+    /// <summary>Verifies the opt-in font section extends old positive-size payloads while preserving legacy coverage and neighboring section framing.</summary>
     public sealed class FontHorizontalMetricSettingsTests {
-        /// <summary>Legacy four-byte positive pixel-size sections read with the policy disabled and serialize byte-identically.</summary>
+        /// <summary>Legacy four-byte sections migrate to explicit character coverage without enabling the metric policy.</summary>
         [Fact]
-        public void LegacyFontSectionRetainsItsExactBytes() {
+        public void LegacyFontSectionMigratesItsImplicitCoverage() {
             byte[] legacy = BitConverter.GetBytes(34);
             FontAssetProcessorSettings settings = ReadFontSection(legacy);
             Assert.Equal(34, settings.PixelSize);
             Assert.False(settings.SnapHorizontalMetricsToPixels);
-            Assert.Equal(legacy, WriteFontSection(settings));
+            Assert.Contains('ã', settings.Characters.RequireBmpCharacters());
+            Assert.Equal(settings.Characters, ReadFontSection(WriteFontSection(settings)).Characters);
         }
 
         /// <summary>Enabled settings round-trip through the explicit extension and participate in real registry clone/equality semantics.</summary>
@@ -16,7 +17,8 @@ namespace helengine.editor.tests.serialization {
         public void OptInSectionClonesAndComparesItsPolicy() {
             FontAssetProcessorSettings original = new FontAssetProcessorSettings { PixelSize = 34, SnapHorizontalMetricsToPixels = true };
             byte[] bytes = WriteFontSection(original);
-            Assert.Equal(10, bytes.Length);
+            Assert.Equal(14 + 4 * FontCharacterSet.BasicLatin.Count, bytes.Length);
+            Assert.Equal(2, bytes[4]);
             Assert.Equal(-1, BitConverter.ToInt32(bytes, 0));
             FontAssetProcessorSettings restored = ReadFontSection(bytes);
             Assert.Equal(34, restored.PixelSize);
@@ -52,7 +54,8 @@ namespace helengine.editor.tests.serialization {
             ps2.Font.SnapHorizontalMetricsToPixels = true;
             byte[] extended = WriteSidecar(settings);
             using (MemoryStream headerStream = new MemoryStream(extended)) { Assert.Equal(SectionedAssetImportSettingsBinarySerializer.CurrentVersion, EngineBinaryHeaderSerializer.Read(headerStream).Version); }
-            Assert.Equal(disabled.Length + 6, extended.Length);
+            Assert.Equal(disabled.Length, extended.Length);
+            Assert.NotEqual(disabled, extended);
             using MemoryStream updatedStream = new MemoryStream(extended);
             AssetImportSettings restored = SectionedAssetImportSettingsBinarySerializer.Deserialize(updatedStream);
             Assert.Equal(updatedStream.Length, updatedStream.Position);
@@ -86,7 +89,7 @@ namespace helengine.editor.tests.serialization {
         /// <param name="pixels">Declared positive pixel size.</param>
         /// <param name="flag">Declared boolean policy byte.</param>
         [Theory]
-        [InlineData(2, 34, 1)]
+        [InlineData(3, 34, 1)]
         [InlineData(1, 0, 1)]
         [InlineData(1, 34, 2)]
         public void MalformedExtensionsFailExplicitly(byte version, int pixels, byte flag) {
@@ -114,7 +117,7 @@ namespace helengine.editor.tests.serialization {
             Assert.Equal(stream.Length, stream.Position);
             return result;
         }
-        /// <summary>Writes the actual font-section codec, preserving its disabled legacy encoding.</summary>
+        /// <summary>Writes the actual font-section codec, using its versioned explicit character request.</summary>
         /// <param name="settings">Explicit font settings.</param>
         /// <returns>The production section bytes.</returns>
         static byte[] WriteFontSection(FontAssetProcessorSettings settings) {

@@ -11,8 +11,8 @@ namespace helengine.editor {
         /// <summary>Distinguishes an explicitly versioned extension from legacy positive pixel-size payloads.</summary>
         const int ExtendedPayloadMarker = -1;
 
-        /// <summary>Version of the optional horizontal-pixel policy extension.</summary>
-        const byte ExtendedPayloadVersion = 1;
+        /// <summary>Version storing pixel policy and canonical Unicode scalar coverage.</summary>
+        const byte ExtendedPayloadVersion = 2;
 
         /// <summary>
         /// Gets the registered section identifier.
@@ -41,7 +41,8 @@ namespace helengine.editor {
             FontAssetProcessorSettings source = RequireSettings(settings);
             return new FontAssetProcessorSettings {
                 PixelSize = source.PixelSize,
-                SnapHorizontalMetricsToPixels = source.SnapHorizontalMetricsToPixels
+                SnapHorizontalMetricsToPixels = source.SnapHorizontalMetricsToPixels,
+                Characters = source.Characters
             };
         }
 
@@ -55,7 +56,8 @@ namespace helengine.editor {
             FontAssetProcessorSettings leftSettings = RequireSettings(left);
             FontAssetProcessorSettings rightSettings = RequireSettings(right);
             return leftSettings.PixelSize == rightSettings.PixelSize
-                && leftSettings.SnapHorizontalMetricsToPixels == rightSettings.SnapHorizontalMetricsToPixels;
+                && leftSettings.SnapHorizontalMetricsToPixels == rightSettings.SnapHorizontalMetricsToPixels
+                && leftSettings.Characters.Equals(rightSettings.Characters);
         }
 
         /// <summary>
@@ -73,15 +75,13 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Font pixel size must be greater than zero.");
             }
 
-            if (fontSettings.SnapHorizontalMetricsToPixels) {
-                writer.WriteInt32(ExtendedPayloadMarker);
-                writer.WriteByte(ExtendedPayloadVersion);
-                writer.WriteInt32(fontSettings.PixelSize);
-                writer.WriteByte(1);
-            } else {
-                // Disabled policies retain exactly the original four-byte section encoding.
-                writer.WriteInt32(fontSettings.PixelSize);
-            }
+            writer.WriteInt32(ExtendedPayloadMarker);
+            writer.WriteByte(ExtendedPayloadVersion);
+            writer.WriteInt32(fontSettings.PixelSize);
+            writer.WriteByte(fontSettings.SnapHorizontalMetricsToPixels ? (byte)1 : (byte)0);
+            int[] characters = fontSettings.Characters.ToArray();
+            writer.WriteInt32(characters.Length);
+            foreach (int character in characters) { writer.WriteInt32(character); }
         }
 
         /// <summary>
@@ -96,17 +96,32 @@ namespace helengine.editor {
 
             int pixelSize = reader.ReadInt32();
             bool snapHorizontalMetrics = false;
+            FontCharacterSet characters = FontCharacterSet.Legacy;
             if (pixelSize == ExtendedPayloadMarker) {
                 byte version = reader.ReadByte();
-                if (version != ExtendedPayloadVersion) { throw new InvalidOperationException("Unsupported font settings extension version."); }
+                if (version != 1 && version != ExtendedPayloadVersion) { throw new InvalidOperationException("Unsupported font settings extension version."); }
                 pixelSize = reader.ReadInt32();
                 byte policy = reader.ReadByte();
                 if (policy > 1) { throw new InvalidOperationException("Font horizontal pixel policy must be a boolean byte."); }
                 snapHorizontalMetrics = policy == 1;
+                if (version == ExtendedPayloadVersion) {
+                    int count = reader.ReadInt32();
+                    if (count < 0 || count > 0x110000 - 0x800) { throw new InvalidOperationException("Font character count is outside the Unicode scalar range."); }
+                    int[] values = new int[count];
+                    for (int index = 0; index < count; index++) {
+                        int value = reader.ReadInt32();
+                        if (value < 0 || value > 0x10ffff || value >= 0xd800 && value <= 0xdfff || index > 0 && value <= values[index - 1]) {
+                            throw new InvalidOperationException("Persisted font characters must be valid, sorted, unique Unicode scalars.");
+                        }
+                        values[index] = value;
+                    }
+                    characters = FontCharacterSet.FromCodePoints(values);
+                }
             }
             FontAssetProcessorSettings fontSettings = new FontAssetProcessorSettings {
                 PixelSize = pixelSize,
-                SnapHorizontalMetricsToPixels = snapHorizontalMetrics
+                SnapHorizontalMetricsToPixels = snapHorizontalMetrics,
+                Characters = characters
             };
             if (fontSettings.PixelSize < 1) {
                 throw new InvalidOperationException("Font pixel size must be greater than zero.");
