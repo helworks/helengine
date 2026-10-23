@@ -11,7 +11,9 @@ public sealed class EaseOutBackCurveTests {
     }
     /// <summary>The executable composition schema accepts the curve name for keyframes.</summary>
     [Fact] public void CompositionSchemaListsTheCurve() {
-        string schema=File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"..","..","..","..","helengine.media","Schemas","helengine.media.composition.v1.schema.json"));
+        string schema=File.ReadAllText(SchemaPath());
         Assert.Contains("\"ease_out_back.v1\"",schema);
     }
+    /// <summary>Locates the checked-in schema beside the compiler-recorded test source, independent of build output redirection.</summary>
+    static string SchemaPath([System.Runtime.CompilerServices.CallerFilePath] string sourceFile="")=>Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourceFile),"..","helengine.media","Schemas","helengine.media.composition.v1.schema.json"));
 }

@@ -2,6 +2,14 @@ using helengine.media;
 namespace helengine.media.tests;
 /// <summary>Validates executable compositions and their serialization boundary.</summary>
 public sealed class CompositionContractTests {
+    /// <summary>Silent HEVC resolves as an opaque profile and rejects odd chroma dimensions.</summary>
+    [Fact] public void SilentHevcProfileRequiresEvenDimensions() {
+        var profile=OutputProfile.Resolve("mp4-hevc-silent.v1",1920,1080);
+        Assert.False(profile.PreserveAlpha);
+        Assert.Equal("mp4-hevc-silent.v1",profile.Id);
+        Assert.Throws<InvalidDataException>(()=>OutputProfile.Resolve("mp4-hevc-silent.v1",1919,1080));
+        Assert.Throws<InvalidDataException>(()=>OutputProfile.Resolve("mp4-hevc-silent.v1",1920,1079));
+    }
     /// <summary>Unsupported effects and absent sources never reach GPU execution.</summary>
     [Fact] public void RejectsUnknownEffectAndInvalidReference() {
         var document = Valid(); document.Layers[0].MediaId = "missing";
