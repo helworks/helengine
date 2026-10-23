@@ -9,6 +9,35 @@ public sealed class FfmpegCompositionEncoderTests {
     static string Executable=>Environment.GetEnvironmentVariable("HELENGINE_TEST_FFMPEG")??"ffmpeg";
     /// <summary>One fixed platform-specific scratch directory overwritten by this suite.</summary>
     static string Scratch=>OperatingSystem.IsWindows()?@"C:\temp\helengine\linux\encoder-fixture":"/tmp/helengine/linux/encoder-fixture";
+    /// <summary>Hardware claims remain false before successful preflight and after a failed explicit selection, with no software fallback.</summary>
+    [Fact] public async Task FailedHardwarePreflightDoesNotClaimHardwareOrPublish() {
+        string target=Target("unavailable-nvenc.mp4");
+        using var encoder=new FfmpegCompositionEncoder("helengine-intentionally-missing-ffmpeg","hevc_nvenc");
+        Assert.Empty(encoder.SelectedEncoder);Assert.False(encoder.IsHardwareAccelerated);
+        await Assert.ThrowsAsync<System.ComponentModel.Win32Exception>(()=>encoder.BeginAsync(Document(1),Profile(),target,CancellationToken.None));
+        Assert.Empty(encoder.SelectedEncoder);Assert.False(encoder.IsHardwareAccelerated);
+        Assert.False(File.Exists(target));Assert.False(File.Exists(target+".partial"));
+    }
+    /// <summary>Opt-in real NVIDIA encoding verifies the driver, explicit hardware identity and independent Main8/709/CFR60 MP4 metadata.</summary>
+    [NvencFact] public async Task ExplicitNvidiaEncoderPublishesVerifiedMainHevc() {
+        string target=Target("nvenc.mp4");
+        try {
+            using var encoder=new FfmpegCompositionEncoder(Executable,"hevc_nvenc");
+            var document=new CompositionDocument {Width=1280,Height=720,FrameRate=new(60,1),Duration=new(3,60),Audio=new(){Enabled=false}};
+            var profile=OutputProfile.Resolve("mp4-hevc-silent.v1",1280,720);
+            Assert.False(encoder.IsHardwareAccelerated);Assert.Empty(encoder.SelectedEncoder);
+            await encoder.BeginAsync(document,profile,target,CancellationToken.None);
+            Assert.Equal("hevc_nvenc",encoder.SelectedEncoder);Assert.True(encoder.IsHardwareAccelerated);
+            for(int index=0;index<3;index++) {
+                using var frame=new MediaVideoFrame(new(index,60),new(1,60),new RgbaTestSurface(1280,720,(byte)(40+80*index)));
+                await encoder.WriteVideoFrameAsync(frame,index,CancellationToken.None);
+            }
+            await encoder.CompleteAsync(CancellationToken.None);
+            Assert.True(File.Exists(target));Assert.False(File.Exists(target+".partial"));
+            byte[] decoded=await DecodeAsync(target);Assert.Equal(3*1280*720*4,decoded.Length);
+            await AssertMetadataAsync(target);
+        }finally {File.Delete(target);}
+    }
     /// <summary>Boundary validation runs before attempting to launch even a nonexistent executable.</summary>
     [Fact] public async Task RejectsAudioAndNonSixtyFpsBeforeStartingProcess() {
         using var encoder=new FfmpegCompositionEncoder("nonexistent-ffmpeg");var document=Document(1);document.Audio.Enabled=true;

@@ -6,6 +6,8 @@ namespace helengine.media.linux;
 public sealed class FfmpegCompositionEncoder : ICompositionEncoder {
     /// <summary>Host-selected executable; the backend never searches for downloads or installs codecs.</summary>
     readonly string Executable;
+    /// <summary>Explicit allowlisted encoder requested by the host, with no capability-based fallback.</summary>
+    readonly string RequestedEncoder;
     /// <summary>Upper bound for a stalled write, child exit, preflight or verification operation.</summary>
     readonly TimeSpan OperationTimeout;
     /// <summary>Rejects overlapping producers instead of retaining an unbounded queue of frames.</summary>
@@ -41,17 +43,22 @@ public sealed class FfmpegCompositionEncoder : ICompositionEncoder {
     /// <summary>Prevents any use after teardown.</summary>
     bool Disposed;
     /// <summary>Uses a thirty-second limit for stalled operations with no queued frame buffering.</summary>
-    public FfmpegCompositionEncoder(string executable):this(executable,TimeSpan.FromSeconds(30)) { }
+    public FfmpegCompositionEncoder(string executable):this(executable,FfmpegEncodeArguments.EncoderName,TimeSpan.FromSeconds(30)) { }
     /// <summary>Accepts a bounded host timeout, permitting shorter deadlines in lifecycle tests.</summary>
-    public FfmpegCompositionEncoder(string executable,TimeSpan operationTimeout) {
+    public FfmpegCompositionEncoder(string executable,TimeSpan operationTimeout):this(executable,FfmpegEncodeArguments.EncoderName,operationTimeout) { }
+    /// <summary>Selects software libx265 or NVIDIA HEVC explicitly, requiring an actual initialization preflight.</summary>
+    public FfmpegCompositionEncoder(string executable,string encoderName):this(executable,encoderName,TimeSpan.FromSeconds(30)) { }
+    /// <summary>Combines an explicit encoder selection with the bounded operation deadline used by lifecycle tests.</summary>
+    public FfmpegCompositionEncoder(string executable,string encoderName,TimeSpan operationTimeout) {
         if(string.IsNullOrWhiteSpace(executable)) {throw new ArgumentException("A trusted FFmpeg executable is required.",nameof(executable));}
         if(operationTimeout<=TimeSpan.Zero || operationTimeout>TimeSpan.FromMinutes(5)) {throw new ArgumentOutOfRangeException(nameof(operationTimeout));}
-        Executable=executable;OperationTimeout=operationTimeout;
+        FfmpegEncodeArguments.ValidateEncoder(encoderName);
+        Executable=executable;RequestedEncoder=encoderName;OperationTimeout=operationTimeout;
     }
-    /// <summary>Exact selected software encoder identity, populated only after an actual initialization preflight succeeds.</summary>
+    /// <summary>Exact selected encoder identity, populated only after an actual initialization preflight succeeds.</summary>
     public string SelectedEncoder {get;private set;}="";
-    /// <summary>This backend uses CPU libx265 and makes no hardware-acceleration claim.</summary>
-    public bool IsHardwareAccelerated=>false;
+    /// <summary>Reports hardware encoding only after the requested NVIDIA encoder has successfully initialized.</summary>
+    public bool IsHardwareAccelerated=>SelectedEncoder==FfmpegEncodeArguments.NvidiaEncoderName;
     /// <summary>Validates the silent profile, reserves a fixed partial, and preflights actual Main HEVC initialization.</summary>
     public async Task BeginAsync(CompositionDocument document,OutputProfile profile,string output,CancellationToken token) {
         if(Disposed || Lifetime!=null) {throw new InvalidOperationException("Encoder is disposed or already begun.");}
@@ -63,8 +70,8 @@ public sealed class FfmpegCompositionEncoder : ICompositionEncoder {
         Lifetime=CancellationTokenSource.CreateLinkedTokenSource(token);
         try {
             using(var reservation=new FileStream(Partial,FileMode.CreateNew,FileAccess.Write,FileShare.None)) {OwnsPartial=true;}
-            await PreflightAsync(document,profile,Lifetime.Token);SelectedEncoder=FfmpegEncodeArguments.EncoderName;
-            var start=StartInfo(FfmpegEncodeArguments.Build(document,profile,Partial),true);
+            await PreflightAsync(document,profile,Lifetime.Token);SelectedEncoder=RequestedEncoder;
+            var start=StartInfo(FfmpegEncodeArguments.Build(document,profile,Partial,RequestedEncoder),true);
             Child=Process.Start(start)??throw new IOException("Unable to start HEVC encoder.");
             ErrorDrain=Errors.DrainAsync(Child.StandardError);
             KillRegistration=Lifetime.Token.Register(KillOwnedChild);
@@ -129,9 +136,9 @@ public sealed class FfmpegCompositionEncoder : ICompositionEncoder {
         var start=new ProcessStartInfo(Executable){UseShellExecute=false,CreateNoWindow=true,RedirectStandardInput=input,RedirectStandardError=true,RedirectStandardOutput=!input};
         foreach(string arg in arguments) {start.ArgumentList.Add(arg);}return start;
     }
-    /// <summary>Actually initializes the exact software codec with one raw RGBA frame instead of trusting a name substring.</summary>
+    /// <summary>Actually initializes the requested codec and driver with one raw RGBA frame instead of trusting a listed name.</summary>
     async Task PreflightAsync(CompositionDocument document,OutputProfile profile,CancellationToken token) {
-        var arguments=FfmpegEncodeArguments.Build(document,profile,"-").ToList();
+        var arguments=FfmpegEncodeArguments.Build(document,profile,"-",RequestedEncoder).ToList();
         int container=arguments.IndexOf("-movflags");arguments.RemoveRange(container,arguments.Count-container);
         arguments.AddRange(["-frames:v","1","-f","null","-"]);
         await InspectAsync(arguments,new byte[checked(profile.Width*profile.Height*4)],true,token);

@@ -6,12 +6,13 @@ using helengine.media.linux;
 
 namespace helengine.tools.windowrecorderlinux;
 
-/// <summary>Records one validated owned X11 window through sequential CPU readback and software libx265 encoding.</summary>
+/// <summary>Records one validated owned X11 window through sequential CPU readback and an explicitly selected FFmpeg encoder.</summary>
 public sealed class RecorderApplication {
     /// <summary>Documents the fixed encoding contract and the explicit window/PID scope.</summary>
-    public const string Usage = "window-recorder-linux --window <decimal|0xID> --pid <owner PID> [--output /tmp/helengine/linux/menu.mp4] [--duration 30] [--ffmpeg /absolute/path/ffmpeg]\n" +
+    public const string Usage = "window-recorder-linux --window <decimal|0xID> --pid <owner PID> [--output /tmp/helengine/linux/menu.mp4] [--duration 30] [--ffmpeg /absolute/path/ffmpeg] [--encoder libx265|hevc_nvenc]\n" +
         "Captures only the supplied X11/Xwayland client window on DISPLAY; no desktop, input or focus changes.\n" +
-        "Output: silent MP4, software libx265 HEVC Main, CFR60, target 40M/max 60M, GOP120, no B frames, SDR BT.709.\n" +
+        "Output: silent MP4, HEVC Main, CFR60, target 40M/max 60M, GOP120, no B frames, SDR BT.709.\n" +
+        "Encoder defaults to software libx265; explicit hevc_nvenc requires a working NVIDIA driver. No automatic fallback.\n" +
         "Existing menu.mp4 or menu.mp4.partial is refused. Ctrl+C cancels and removes this invocation's unverified partial.\n" +
         "Capture samples and repeated output slots are reported separately; output FPS does not measure game FPS.";
 
@@ -25,9 +26,9 @@ public sealed class RecorderApplication {
         var profile = OutputProfile.Resolve(FfmpegEncodeArguments.ProfileId, capture.Width, capture.Height);
         var document = new CompositionDocument { Id = "linux-owned-window", Revision = 1, Width = capture.Width, Height = capture.Height,
             FrameRate = new MediaTime(60, 1), Duration = new MediaTime(options.FrameCount, 60), Audio = new CompositionAudioSettings { Enabled = false } };
-        using var encoder = new FfmpegCompositionEncoder(options.Ffmpeg);
+        using var encoder = new FfmpegCompositionEncoder(options.Ffmpeg, options.Encoder);
         await encoder.BeginAsync(document, profile, options.Output, token);
-        await errors.WriteLineAsync("Recording supplied window with software " + encoder.SelectedEncoder + "; capture samples and CFR repeats will be measured separately.");
+        await errors.WriteLineAsync("Recording supplied window with " + encoder.SelectedEncoder + " (hardware encoding: " + encoder.IsHardwareAccelerated + "); capture samples and CFR repeats will be measured separately.");
         var schedule = new FrameSchedule(options.FrameCount);
         var clock = Stopwatch.StartNew();
         long nextIndex = 0, captures = 0, repeats = 0;

@@ -10,6 +10,7 @@ public sealed class RecorderOptionsTests {
         Assert.Equal(123, options.ProcessId);
         Assert.Equal(1800, options.FrameCount);
         Assert.Equal(30, options.DurationSeconds);
+        Assert.Equal("libx265", options.Encoder);
         Assert.Equal("menu.mp4", Path.GetFileName(options.Output));
         Assert.True(Path.IsPathFullyQualified(options.Output));
     }
@@ -28,6 +29,8 @@ public sealed class RecorderOptionsTests {
     [InlineData("--window 1 --pid 1 --desktop 1")]
     [InlineData("--window 1 --pid 1 --pid 2")]
     [InlineData("--window 1 --pid")]
+    [InlineData("--window 1 --pid 1 --encoder automatic")]
+    [InlineData("--window 1 --pid 1 --encoder h264_nvenc")]
     public void RejectsUnsafeOrAmbiguousArguments(string arguments) {
         Assert.Throws<ArgumentException>(() => RecorderOptions.Parse(arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries)));
     }
@@ -36,10 +39,11 @@ public sealed class RecorderOptionsTests {
     [Fact]
     public void AcceptsExplicitOutputAndExactShortDuration() {
         string output = OperatingSystem.IsWindows() ? @"C:\temp\helengine\linux\menu.mp4" : "/tmp/helengine/linux/menu.mp4";
-        var options = RecorderOptions.Parse(["--window", "100", "--pid", "12", "--duration", "0.5", "--output", output, "--ffmpeg", "/usr/bin/ffmpeg"]);
+        var options = RecorderOptions.Parse(["--window", "100", "--pid", "12", "--duration", "0.5", "--output", output, "--ffmpeg", "/usr/bin/ffmpeg", "--encoder", "hevc_nvenc"]);
         Assert.Equal(30, options.FrameCount);
         Assert.Equal(Path.GetFullPath(output), options.Output);
         Assert.Equal("/usr/bin/ffmpeg", options.Ffmpeg);
+        Assert.Equal("hevc_nvenc", options.Encoder);
     }
 
     /// <summary>Allows usage inspection on a non-Linux host without opening capture or writing artifacts.</summary>
@@ -49,6 +53,7 @@ public sealed class RecorderOptionsTests {
         using var errors = new StringWriter();
         Assert.Equal(0, await new RecorderApplication().RunAsync(["--help"], output, errors, CancellationToken.None));
         Assert.Contains("libx265", output.ToString());
+        Assert.Contains("hevc_nvenc", output.ToString());
         Assert.Contains("does not measure game FPS", output.ToString());
         Assert.Empty(errors.ToString());
     }

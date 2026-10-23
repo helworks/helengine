@@ -1,4 +1,5 @@
 using System.Globalization;
+using helengine.media.linux;
 
 namespace helengine.tools.windowrecorderlinux;
 
@@ -12,6 +13,8 @@ public sealed class RecorderOptions {
     public string Output { get; init; }
     /// <summary>Selects a trusted installed FFmpeg executable without installing or downloading software.</summary>
     public string Ffmpeg { get; init; }
+    /// <summary>Selects one known software or hardware encoder explicitly; preflight failure never triggers fallback.</summary>
+    public string Encoder { get; init; }
     /// <summary>Counts the exact CFR60 output frames, with thirty seconds as the standard invocation.</summary>
     public long FrameCount { get; init; }
     /// <summary>Exposes exact frame-aligned duration in seconds for scheduling and receipts.</summary>
@@ -23,7 +26,7 @@ public sealed class RecorderOptions {
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
         for (int index = 0; index < args.Length; index += 2) {
             string key = args[index];
-            if (key is not ("--window" or "--pid" or "--output" or "--duration" or "--ffmpeg")) {
+            if (key is not ("--window" or "--pid" or "--output" or "--duration" or "--ffmpeg" or "--encoder")) {
                 throw new ArgumentException("Unknown argument: " + key);
             }
             if (index + 1 >= args.Length || string.IsNullOrWhiteSpace(args[index + 1]) || args[index + 1].StartsWith("--", StringComparison.Ordinal)) {
@@ -50,7 +53,9 @@ public sealed class RecorderOptions {
         if (!Path.IsPathFullyQualified(output) || !string.Equals(Path.GetFileName(output), "menu.mp4", StringComparison.Ordinal)) {
             throw new ArgumentException("--output requires an absolute path whose final filename is menu.mp4.");
         }
+        string encoder = values.GetValueOrDefault("--encoder", FfmpegEncodeArguments.EncoderName);
+        FfmpegEncodeArguments.ValidateEncoder(encoder);
         return new RecorderOptions { WindowId = windowId, ProcessId = processId, Output = Path.GetFullPath(output),
-            Ffmpeg = values.GetValueOrDefault("--ffmpeg", "ffmpeg"), FrameCount = (long)frames };
+            Ffmpeg = values.GetValueOrDefault("--ffmpeg", "ffmpeg"), Encoder = encoder, FrameCount = (long)frames };
     }
 }
