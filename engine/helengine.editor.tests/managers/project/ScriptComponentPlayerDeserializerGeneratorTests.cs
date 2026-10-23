@@ -291,9 +291,12 @@ namespace helengine.editor.tests.managers.project {
         /// Ensures native deserializers use the runtime's configurable string type and raise policy instead of
         /// hosted std::string and pointer throws, so the same emission compiles on freestanding console runtimes.
         /// </summary>
-        [Fact]
-        public void GenerateNativeDeserializer_UsesRuntimeStringTypeAndRaisePolicy() {
-            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(ClipRectComponent));
+        /// <param name="componentType">Built-in schema including collection members whose strings must keep managed runtime semantics.</param>
+        [Theory]
+        [InlineData(typeof(ClipRectComponent))]
+        [InlineData(typeof(SceneMapComponent))]
+        public void GenerateNativeDeserializer_UsesRuntimeStringTypeAndRaisePolicy(Type componentType) {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(componentType);
             ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
 
             string header = generator.GenerateNativeDeserializerHeader(schema);

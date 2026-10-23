@@ -992,7 +992,7 @@ namespace helengine.editor {
         /// <returns>Generated native value type name.</returns>
         static string BuildNativeValueTypeName(Type valueType) {
             if (valueType == typeof(string)) {
-                return "std::string";
+                return "HeCppString";
             }
             if (valueType == typeof(bool)) {
                 return "bool";
