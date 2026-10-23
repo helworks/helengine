@@ -363,16 +363,19 @@ namespace helengine.editor {
         /// <param name="workingDirectory">Directory the build runs in.</param>
         /// <returns>Process start description with redirected output and the build arguments.</returns>
         static ProcessStartInfo CreateBuildStartInfo(string solutionPath, string workingDirectory) {
+            // MSBuild resolves relative project references through the process's physical cwd.
+            // Its solution configuration must use that same identity, including linked ancestors.
+            string physicalSolutionPath = ResolvePhysicalBuildPath(solutionPath, false);
             ProcessStartInfo startInfo = new ProcessStartInfo {
                 FileName = DotNetExecutableName,
-                WorkingDirectory = workingDirectory,
+                WorkingDirectory = ResolvePhysicalBuildPath(workingDirectory, true),
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
             startInfo.ArgumentList.Add("build");
-            startInfo.ArgumentList.Add(solutionPath);
+            startInfo.ArgumentList.Add(physicalSolutionPath);
             startInfo.ArgumentList.Add("--configuration");
             startInfo.ArgumentList.Add(BuildConfigurationValue);
             // Generated module descriptors own their external bin/obj paths through the
@@ -380,6 +383,38 @@ namespace helengine.editor {
             startInfo.ArgumentList.Add("-p:UseArtifactsOutput=false");
             startInfo.ArgumentList.Add("--nologo");
             return startInfo;
+        }
+
+        /// <summary>
+        /// Resolves existing links in every path component so solution configuration and relative references share one
+        /// filesystem identity. Missing ordinary descendants keep their spelling; unresolved links remain failures.
+        /// </summary>
+        /// <param name="path">Solution or workspace path supplied by the caller.</param>
+        /// <param name="isDirectory">Whether the final component identifies the workspace directory.</param>
+        /// <returns>Absolute physical path without changing build parallelism or output-root validation.</returns>
+        static string ResolvePhysicalBuildPath(string path, bool isDirectory) {
+            string fullPath = Path.GetFullPath(path);
+            string root = Path.GetPathRoot(fullPath) ?? string.Empty;
+            string current = root;
+            string[] components = fullPath[root.Length..].Split(
+                new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+                StringSplitOptions.RemoveEmptyEntries);
+            for (int index = 0; index < components.Length; index++) {
+                string candidate = Path.Combine(current, components[index]);
+                FileSystemInfo entry = isDirectory || index < components.Length - 1
+                    ? new DirectoryInfo(candidate)
+                    : new FileInfo(candidate);
+                if (entry.LinkTarget != null) {
+                    FileSystemInfo resolved = entry.ResolveLinkTarget(true);
+                    if (resolved == null || !resolved.Exists) {
+                        throw new IOException($"Build path contains an unresolved filesystem link: {candidate}");
+                    }
+                    current = resolved.FullName;
+                } else {
+                    current = entry.FullName;
+                }
+            }
+            return current;
         }
 
         /// <summary>
