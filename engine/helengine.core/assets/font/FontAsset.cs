@@ -120,7 +120,14 @@ namespace helengine {
 
         /// <summary>Registers the existing atlas for the final debug marker without transferring ownership.</summary>
         /// <param name="renderer">Renderer owning the atlas; an atlas cannot be attached to another renderer.</param>
-        public void AttachRuntimeRenderer([NativeRetainsBorrow] RenderManager2D renderer) {
+        /// <remarks>Release builds keep no renderer reference, so the renderer is only borrowed for the call there.</remarks>
+        public void AttachRuntimeRenderer(
+#if HELENGINE_ENV_DEBUG
+            [NativeRetainsBorrow]
+#else
+            [NativeNoEscape]
+#endif
+            RenderManager2D renderer) {
             if (renderer == null) {
                 throw new ArgumentNullException(nameof(renderer));
             }

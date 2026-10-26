@@ -62,13 +62,19 @@ namespace helengine {
         }
 
         /// <summary>Registers an already-loaded font without transferring its atlas ownership or loading another asset.</summary>
-        internal void RegisterDebugBuildIndicatorFont([NativeRetainsBorrow] FontAsset font) {
+        /// <remarks>Release builds keep no marker, so the font is only borrowed for the call there.</remarks>
+        internal void RegisterDebugBuildIndicatorFont(
+#if HELENGINE_ENV_DEBUG
+            [NativeRetainsBorrow]
+#else
+            [NativeNoEscape]
+#endif
+            FontAsset font) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
 #if HELENGINE_ENV_DEBUG
             if (DebugBuildIndicatorValue == null) {
-                NativeOwnership.DisposeAndRelease(ref DebugBuildIndicatorValue);
                 DebugBuildIndicatorValue = new RuntimeDebugBuildIndicator(this);
             }
             DebugBuildIndicatorValue.RegisterFont(font);
@@ -266,9 +272,6 @@ namespace helengine {
         /// Releases resources owned by the render manager.
         /// </summary>
         public virtual void Dispose() {
-#if HELENGINE_ENV_DEBUG
-            NativeOwnership.DisposeAndRelease(ref DebugBuildIndicatorValue);
-#endif
             DisposeDefaultTextures();
         }
 
