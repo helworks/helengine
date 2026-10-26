@@ -62,10 +62,10 @@ namespace helengine.vfx {
             buffer[3] = 0f;
             Array.Copy(paramSlots, 0, buffer, HeaderFloatCount, ParamSlotCount);
             int pass = HeaderFloatCount + ParamSlotCount;
-            buffer[pass] = passConstants.X;
-            buffer[pass + 1] = passConstants.Y;
-            buffer[pass + 2] = passConstants.Z;
-            buffer[pass + 3] = passConstants.W;
+            buffer[pass] = passConstants.X.ToSingle();
+            buffer[pass + 1] = passConstants.Y.ToSingle();
+            buffer[pass + 2] = passConstants.Z.ToSingle();
+            buffer[pass + 3] = passConstants.W.ToSingle();
             buffer[pass + 4] = 1f / targetWidth;
             buffer[pass + 5] = 1f / targetHeight;
             buffer[pass + 6] = 1f / mainWidth;

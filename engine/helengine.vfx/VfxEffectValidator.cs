@@ -132,11 +132,11 @@ namespace helengine.vfx {
                 }
                 if (parameter.Type == EffectParameterType.Enum) {
                     int length = parameter.AllowedValues?.Length ?? 0;
-                    if (length == 0 || parameter.DefaultValue.X < 0 || parameter.DefaultValue.X >= length || parameter.DefaultValue.X != Math.Floor(parameter.DefaultValue.X)) {
+                    if (length == 0 || parameter.DefaultValue.X < 0 || parameter.DefaultValue.X >= length || parameter.DefaultValue.X != Math.Floor(parameter.DefaultValue.X.ToDouble())) {
                         throw new InvalidDataException($"Effect '{id}' enum parameter '{parameter.Name}' needs allowed values and a valid default index.");
                     }
                 } else {
-                    float[] defaults = { parameter.DefaultValue.X, parameter.DefaultValue.Y, parameter.DefaultValue.Z, parameter.DefaultValue.W };
+                    float[] defaults = { parameter.DefaultValue.X.ToSingle(), parameter.DefaultValue.Y.ToSingle(), parameter.DefaultValue.Z.ToSingle(), parameter.DefaultValue.W.ToSingle() };
                     for (int component = 0; component < count; component++) {
                         float value = defaults[component];
                         if (value < parameter.Minimum || value > parameter.Maximum || (VfxParameterLayout.IsWholeNumber(parameter.Type) && value != Math.Floor(value))) {

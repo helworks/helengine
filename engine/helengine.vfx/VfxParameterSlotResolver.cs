@@ -44,7 +44,7 @@ namespace helengine.vfx {
         /// <param name="parameter">Parameter whose default is used.</param>
         /// <returns>Default components, one per occupied slot.</returns>
         public static float[] Defaults(EffectParameterAsset parameter) {
-            float[] all = { parameter.DefaultValue.X, parameter.DefaultValue.Y, parameter.DefaultValue.Z, parameter.DefaultValue.W };
+            float[] all = { parameter.DefaultValue.X.ToSingle(), parameter.DefaultValue.Y.ToSingle(), parameter.DefaultValue.Z.ToSingle(), parameter.DefaultValue.W.ToSingle() };
             return all.Take(VfxParameterLayout.SlotCount(parameter.Type)).ToArray();
         }
 
