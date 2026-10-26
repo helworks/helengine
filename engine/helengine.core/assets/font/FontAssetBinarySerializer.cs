@@ -149,16 +149,20 @@ namespace helengine {
 
             if (sourceTexture.Width > 0 && sourceTexture.Height > 0 && sourceTexture.Colors != null && sourceTexture.Colors.Length > 0) {
                 RuntimeTexture texture = renderManager2D.BuildTextureFromRaw(sourceTexture);
-                return new FontAsset(fontInfo, texture, characters, lineHeight, atlasWidth, atlasHeight) {
+                FontAsset font = new FontAsset(fontInfo, texture, characters, lineHeight, atlasWidth, atlasHeight) {
                     SourceTextureAsset = sourceTexture,
                     CookedAtlasTextureRelativePath = cookedAtlasTextureRelativePath
                 };
+                font.AttachRuntimeRenderer(renderManager2D);
+                return font;
             }
 
             NativeOwnership.DisposeAndDelete(sourceTexture);
-            return new FontAsset(fontInfo, null, characters, lineHeight, atlasWidth, atlasHeight) {
+            FontAsset externalAtlasFont = new FontAsset(fontInfo, null, characters, lineHeight, atlasWidth, atlasHeight) {
                 CookedAtlasTextureRelativePath = cookedAtlasTextureRelativePath
             };
+            externalAtlasFont.AttachRuntimeRenderer(renderManager2D);
+            return externalAtlasFont;
         }
 
         /// <summary>

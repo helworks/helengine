@@ -12,6 +12,11 @@ namespace helengine {
         RuntimeTexture PixelTextureValue;
         RuntimeTexture BlackPixelTextureValue;
 
+#if HELENGINE_ENV_DEBUG
+        /// <summary>Debug-only final marker state; it borrows already-loaded fonts and owns no scene resources.</summary>
+        [NativeOwnedMember] RuntimeDebugBuildIndicator DebugBuildIndicatorValue;
+#endif
+
         /// <summary>
         /// Core that owns this renderer.
         /// </summary>
@@ -41,6 +46,51 @@ namespace helengine {
                 }
                 return BlackPixelTextureValue;
             }
+        }
+
+        /// <summary>Builds borrowed full-output commands for the final DEBUG pass; release environments never allocate or render a marker.</summary>
+        /// <param name="framebufferWidth">Physical output width in pixels, independent of camera viewports.</param>
+        /// <param name="framebufferHeight">Physical output height in pixels, independent of camera viewports.</param>
+        /// <returns>Commands to consume immediately after all cameras, or null without a debug environment, visible target or usable loaded font.</returns>
+        [NativeBorrowedReturn]
+        public RenderCommandList2D BuildDebugBuildIndicatorCommands(int framebufferWidth, int framebufferHeight) {
+#if HELENGINE_ENV_DEBUG
+            return DebugBuildIndicatorValue == null ? null : DebugBuildIndicatorValue.Build(framebufferWidth, framebufferHeight);
+#else
+            return null;
+#endif
+        }
+
+        /// <summary>Registers an already-loaded font without transferring its atlas ownership or loading another asset.</summary>
+        internal void RegisterDebugBuildIndicatorFont([NativeRetainsBorrow] FontAsset font) {
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+#if HELENGINE_ENV_DEBUG
+            if (DebugBuildIndicatorValue == null) {
+                NativeOwnership.DisposeAndRelease(ref DebugBuildIndicatorValue);
+                DebugBuildIndicatorValue = new RuntimeDebugBuildIndicator(this);
+            }
+            DebugBuildIndicatorValue.RegisterFont(font);
+#endif
+        }
+
+        /// <summary>Clears borrowed marker references before the registered font is disposed or deleted.</summary>
+        internal void UnregisterDebugBuildIndicatorFont([NativeNoEscape] FontAsset font) {
+#if HELENGINE_ENV_DEBUG
+            if (DebugBuildIndicatorValue != null) {
+                DebugBuildIndicatorValue.UnregisterFont(font);
+            }
+#endif
+        }
+
+        /// <summary>Invalidates cached marker geometry when a registered font receives a processed or cooked replacement atlas.</summary>
+        internal void InvalidateDebugBuildIndicatorFont() {
+#if HELENGINE_ENV_DEBUG
+            if (DebugBuildIndicatorValue != null) {
+                DebugBuildIndicatorValue.Invalidate();
+            }
+#endif
         }
 
         /// <summary>
@@ -216,6 +266,9 @@ namespace helengine {
         /// Releases resources owned by the render manager.
         /// </summary>
         public virtual void Dispose() {
+#if HELENGINE_ENV_DEBUG
+            NativeOwnership.DisposeAndRelease(ref DebugBuildIndicatorValue);
+#endif
             DisposeDefaultTextures();
         }
 
@@ -225,6 +278,9 @@ namespace helengine {
         /// still available.
         /// </summary>
         protected void DisposeDefaultTextures() {
+#if HELENGINE_ENV_DEBUG
+            NativeOwnership.DisposeAndRelease(ref DebugBuildIndicatorValue);
+#endif
             if (PixelTextureValue != null) {
                 ReleaseTexture(PixelTextureValue);
                 PixelTextureValue = null;

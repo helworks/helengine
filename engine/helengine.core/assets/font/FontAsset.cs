@@ -23,6 +23,11 @@ namespace helengine {
         /// </summary>
         static int LiveCharacterCountValue;
 
+#if HELENGINE_ENV_DEBUG
+        /// <summary>Borrowed renderer notified before native font destruction; absent from release builds.</summary>
+        RenderManager2D RuntimeRendererValue;
+#endif
+
         /// <summary>
         /// Initializes a new font asset with atlas texture, metrics, and glyph map.
         /// </summary>
@@ -113,6 +118,42 @@ namespace helengine {
         /// </summary>
         public bool IsDisposed { get; private set; }
 
+        /// <summary>Registers the existing atlas for the final debug marker without transferring ownership.</summary>
+        /// <param name="renderer">Renderer owning the atlas; an atlas cannot be attached to another renderer.</param>
+        public void AttachRuntimeRenderer([NativeRetainsBorrow] RenderManager2D renderer) {
+            if (renderer == null) {
+                throw new ArgumentNullException(nameof(renderer));
+            }
+            if (IsDisposed) {
+                throw new ObjectDisposedException(nameof(FontAsset));
+            }
+#if HELENGINE_ENV_DEBUG
+            if (RuntimeRendererValue != null && !ReferenceEquals(RuntimeRendererValue, renderer)) {
+                throw new InvalidOperationException("A font atlas cannot be registered with a foreign renderer.");
+            }
+            RuntimeRendererValue = renderer;
+            renderer.RegisterDebugBuildIndicatorFont(this);
+#endif
+        }
+
+        /// <summary>Clears the borrowed callback when a renderer is destroyed before this font.</summary>
+        internal void DetachRuntimeRenderer([NativeNoEscape] RenderManager2D renderer) {
+#if HELENGINE_ENV_DEBUG
+            if (ReferenceEquals(RuntimeRendererValue, renderer)) {
+                RuntimeRendererValue = null;
+            }
+#endif
+        }
+
+        /// <summary>Invalidates cached debug glyphs after atlas or metric replacement.</summary>
+        void InvalidateDebugBuildIndicator() {
+#if HELENGINE_ENV_DEBUG
+            if (RuntimeRendererValue != null) {
+                RuntimeRendererValue.InvalidateDebugBuildIndicatorFont();
+            }
+#endif
+        }
+
         /// <summary>
         /// Replaces the source atlas payload after import-time texture processing and rescales font metrics to match the processed atlas size.
         /// </summary>
@@ -167,6 +208,7 @@ namespace helengine {
                 Texture.Width = processedSourceTextureAsset.Width;
                 Texture.Height = processedSourceTextureAsset.Height;
             }
+            InvalidateDebugBuildIndicator();
         }
 
         /// <summary>
@@ -201,12 +243,19 @@ namespace helengine {
             if (runtimeTexture.Height > 0) {
                 AtlasHeight = runtimeTexture.Height;
             }
+            InvalidateDebugBuildIndicator();
         }
 
         /// <summary>
         /// Releases scene-owned references held by this font asset.
         /// </summary>
         public void Dispose() {
+#if HELENGINE_ENV_DEBUG
+            if (RuntimeRendererValue != null) {
+                RuntimeRendererValue.UnregisterDebugBuildIndicatorFont(this);
+                RuntimeRendererValue = null;
+            }
+#endif
             Dictionary<char, FontChar> characters = Characters;
             if (!IsDisposed) {
                 LiveInstanceCountValue--;
