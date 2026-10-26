@@ -1831,7 +1831,8 @@ namespace helengine.editor {
                 "NativeMigrationRequiredAttribute.cpp",
                 "runtime/runtime_startup_manifest.cpp",
                 "runtime/runtime_scene_catalog_manifest.cpp",
-                "runtime/runtime_code_module_manifest.cpp"
+                "runtime/runtime_code_module_manifest.cpp",
+                "runtime/player_settings.cpp"
             };
             AddDisabledFeatureRootSourceExclusions(generatedCoreRootPath, excludedSourceRelativePaths);
             AddUnusedCustomPhysics3DRuntimeSourceExclusions(generatedCoreRootPath, excludedSourceRelativePaths);

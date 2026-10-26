@@ -1179,6 +1179,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "runtime_startup_manifest.cpp"), "// exclude");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "runtime_scene_catalog_manifest.cpp"), "// exclude");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "runtime_code_module_manifest.cpp"), "// exclude");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "player_settings.cpp"), "// separately linked");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp"), "// old unity\n");
 
         EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(generatedCoreRootPath);
@@ -1192,6 +1193,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.DoesNotContain("runtime/runtime_startup_manifest.cpp", unitySource, StringComparison.Ordinal);
         Assert.DoesNotContain("runtime/runtime_scene_catalog_manifest.cpp", unitySource, StringComparison.Ordinal);
         Assert.DoesNotContain("runtime/runtime_code_module_manifest.cpp", unitySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("runtime/player_settings.cpp", unitySource, StringComparison.Ordinal);
     }
 
     /// <summary>
