@@ -22,7 +22,7 @@ namespace helengine.vulkan {
         /// Compiles the request through shaderc and returns the resulting SPIR-V bytecode.
         /// </summary>
         /// <param name="request">Shader compilation request.</param>
-        /// <param name="includeResolver">Resolver used for shader includes; shaderc resolves includes internally so it is unused here.</param>
+        /// <param name="includeResolver">Resolver registered with shaderc for compiler-controlled include preprocessing and error reporting.</param>
         /// <param name="diagnostics">Always an empty array because shaderc reports failures as exceptions rather than warnings.</param>
         /// <returns>Compiled SPIR-V bytecode.</returns>
         protected override byte[] CompileBytecode(
@@ -30,7 +30,7 @@ namespace helengine.vulkan {
             IShaderIncludeResolver includeResolver,
             out ShaderCompileDiagnostic[] diagnostics) {
             diagnostics = Array.Empty<ShaderCompileDiagnostic>();
-            return CompileSpirv(request);
+            return CompileSpirv(request, includeResolver);
         }
 
         /// <summary>
@@ -52,7 +52,8 @@ namespace helengine.vulkan {
         /// </summary>
         /// <param name="request">Compilation request containing source and compile options.</param>
         /// <returns>Compiled SPIR-V bytecode.</returns>
-        static unsafe byte[] CompileSpirv(ShaderCompileRequest request) {
+        /// <param name="includeResolver">Resolves include files through compiler-owned native callbacks.</param>
+        static unsafe byte[] CompileSpirv(ShaderCompileRequest request, IShaderIncludeResolver includeResolver) {
             Shaderc shaderc = Shaderc.GetApi();
 
             Compiler* compiler = shaderc.CompilerInitialize();
@@ -68,6 +69,7 @@ namespace helengine.vulkan {
 
             try {
                 ConfigureCompileOptions(shaderc, options, request);
+                using VulkanShaderIncludes includes = new(shaderc, options, includeResolver);
 
                 ShaderKind kind = GetShaderKind(request.Stage);
                 string sourcePath = request.Source.Path;
