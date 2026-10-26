@@ -230,8 +230,7 @@ namespace helengine.editor {
                 platformCookWorkItems,
                 cookedArtifactDeclarations,
                 effectiveExecutionRootPath,
-                platformDefinition.RuntimeGenerationContract.SupportsSceneCodeModules
-                    ? packagerResult.SceneCookedDependencies.Values.SelectMany(paths => paths).ToArray() : [], numericPolicy);
+                packagerResult.SceneCookedDependencies.Values.SelectMany(paths => paths).ToArray(), numericPolicy);
             Console.WriteLine("[helengine-editor] build cooked artifacts completed");
             Console.WriteLine($"[cook] artifact-manifest-ms={cookStageTimer.ElapsedMilliseconds}");
 
@@ -604,6 +603,18 @@ namespace helengine.editor {
             return string.Join(";", componentTypeIds);
         }
 
+        /// <summary>
+        /// Collects the final runtime dependency closure and explicit producer declarations without treating
+        /// intermediate files left by an earlier cook stage as additional runtime consumers.
+        /// </summary>
+        /// <param name="cookRootPath">Cooked-content root containing explicitly declared producer outputs.</param>
+        /// <param name="targetIds">Selected targets used to assign the shared artifact variant.</param>
+        /// <param name="platformCookWorkItems">Builder-owned outputs excluded until their owner produces them.</param>
+        /// <param name="cookedArtifactDeclarations">Explicit material and shader artifact identities.</param>
+        /// <param name="executionRootPath">Execution root containing the materialized selected runtime paths.</param>
+        /// <param name="selectedDependencyPaths">Union of the final dependencies of every selected scene.</param>
+        /// <param name="numericPolicy">Numeric encoding used to classify selected serialized assets.</param>
+        /// <returns>The final artifacts consumed by the selected scenes and declared platform producers.</returns>
         PlatformBuildArtifact[] BuildCookedArtifacts(
             string cookRootPath,
             IReadOnlyList<string> targetIds,
@@ -615,6 +626,8 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(platformCookWorkItems));
             } else if (cookedArtifactDeclarations == null) {
                 throw new ArgumentNullException(nameof(cookedArtifactDeclarations));
+            } else if (selectedDependencyPaths == null) {
+                throw new ArgumentNullException(nameof(selectedDependencyPaths));
             }
 
             string variantId = targetIds.Count == 1 && !string.IsNullOrWhiteSpace(targetIds[0])
@@ -622,25 +635,13 @@ namespace helengine.editor {
                 : "shared";
 
             EditorPlatformCookedArtifactPool artifactPool = new(ProjectRootPath, FileHasher);
-            string[] cookedFilePaths = Directory.GetFiles(cookRootPath, "*", SearchOption.AllDirectories);
-            Array.Sort(cookedFilePaths, StringComparer.OrdinalIgnoreCase);
             HashSet<string> builderOwnedOutputPaths = BuildBuilderOwnedOutputPathSet(platformCookWorkItems);
             HashSet<string> declaredOutputPaths = AddDeclaredCookedArtifacts(artifactPool, cookRootPath, cookedArtifactDeclarations);
-
-            for (int index = 0; index < cookedFilePaths.Length; index++) {
-                string fullPath = cookedFilePaths[index];
-                string relativePath = "cooked/" + NormalizeRelativePath(Path.GetRelativePath(cookRootPath, fullPath));
-                if (builderOwnedOutputPaths.Contains(relativePath) || declaredOutputPaths.Contains(relativePath)) {
-                    continue;
-                }
-
-                artifactPool.AddFile(fullPath, relativePath, ResolveArtifactKind(fullPath, relativePath, numericPolicy), variantId);
-            }
 
             string executionPrefix = Path.GetFullPath(executionRootPath) + Path.DirectorySeparatorChar;
             foreach (string selectedPath in selectedDependencyPaths.Distinct(StringComparer.Ordinal).OrderBy(path => path, StringComparer.Ordinal)) {
                 string relativePath = CanonicalPackagedAssetPath.Normalize(selectedPath);
-                if (relativePath.StartsWith("cooked/", StringComparison.Ordinal) || builderOwnedOutputPaths.Contains(relativePath)) continue;
+                if (builderOwnedOutputPaths.Contains(relativePath) || declaredOutputPaths.Contains(relativePath)) continue;
                 if (relativePath.StartsWith("generated/", StringComparison.Ordinal)) throw new InvalidOperationException("A runtime scene dependency points to a temporary generated cook input: " + relativePath);
                 string fullPath = Path.GetFullPath(Path.Combine(executionRootPath, relativePath));
                 if (!fullPath.StartsWith(executionPrefix, StringComparison.OrdinalIgnoreCase) || !File.Exists(fullPath)) {
@@ -653,12 +654,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Adds material and shader files whose producer declared their identity before directory scanning can inspect their paths or payloads.
+        /// Adds material and shader files whose producer explicitly declared their runtime identity and payload kind.
         /// </summary>
         /// <param name="artifactPool">Artifact pool that receives declared files.</param>
         /// <param name="cookRootPath">Absolute cooked-content root containing declared output paths.</param>
         /// <param name="cookedArtifactDeclarations">Material and shader declarations emitted by scene packaging or platform staging.</param>
-        /// <returns>Normalized runtime-relative paths that the directory scanner must skip.</returns>
+        /// <returns>Normalized runtime-relative paths already collected by their producer declarations.</returns>
         static HashSet<string> AddDeclaredCookedArtifacts(
             EditorPlatformCookedArtifactPool artifactPool,
             string cookRootPath,

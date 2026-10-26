@@ -37,6 +37,81 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         }
     }
 
+    /// <summary>
+    /// Exercises the real mesh cook and its cached replay so an intermediate sphere cannot re-enter the manifest,
+    /// while another scene's raw GPU consumer and an explicitly marked CPU consumer retain their own payloads.
+    /// </summary>
+    /// <param name="includeRawScene">Whether a second selected scene still consumes the original GPU sphere.</param>
+    /// <param name="includeCpuConsumer">Whether the first scene also needs the original CPU-readable sphere.</param>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Cook_manifest_keeps_selected_model_closure_without_reintroducing_reduction_intermediates(bool includeRawScene, bool includeCpuConsumer) {
+        const string rawPath = "cooked/engine/models/sphere.hasset";
+        SceneAssetReference sphere = SceneAssetReferenceTestFactory.CreateEngineSphereModel();
+        SceneAssetReference font = SceneAssetReferenceTestFactory.CreateEditorUiFont();
+        EditorTaggedSceneComponentFieldWriter writer = new();
+        writer.WriteField(nameof(MeshComponent.Model), field => SceneComponentBinaryFieldEncoding.WriteOptionalReference(field, sphere));
+        SceneComponentAssetRecord mesh = new() {
+            ComponentTypeId = "helengine.MeshComponent",
+            ComponentIndex = 0,
+            Payload = writer.BuildPayload()
+        };
+        EntityComponentSaveState state = new();
+        new MeshComponentModifierStackService().SetStack(state, "dc", [
+            new MeshComponentModifier(MeshComponentModifier.ReduceKind) {
+                MaximumVertices = 64,
+                MaximumIndices = 384,
+                SphereRings = 6,
+                SphereSectors = 8
+            }
+        ]);
+        state.GetOrCreatePlatformOverride("dc").Payload = mesh.Payload;
+        List<SceneComponentAssetRecord> components = [new ComponentPlatformOverridePayloadService().Wrap(mesh, state)];
+        DictionaryScriptTypeResolver resolver = new();
+        if (includeCpuConsumer) {
+            Type cpuType = typeof(SceneDependencyCpuModelComponent);
+            resolver.Register(AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(cpuType), cpuType);
+            components.Add(new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder()).SerializeComponent(
+                new SceneDependencyCpuModelComponent { GeneratedModel = sphere }, 1, null));
+        }
+        WriteSceneAsset("Scenes/Reduced.helen", components.ToArray(), [sphere, font]);
+        if (includeRawScene) {
+            WriteSceneAsset("Scenes/Raw.helen", [sphere]);
+        }
+        TestPlatformMaterialAssetBuilder builder = new("dc");
+        Assert.False(builder.Definition.RuntimeGenerationContract.SupportsSceneCodeModules);
+        EditorPlatformAssetCookService service = new(ProjectRootPath, "1.0.0-engine", "game", "1.0.0", [],
+            PackagedFontAssetFactory.Create(), resolver, null, BuiltInShaderAssetLibrary);
+        string[] selectedScenes = includeRawScene ? ["Reduced", "Raw"] : ["Reduced"];
+        string orphanPath = Path.Combine(BuildRootPath, "cooked", "unused.bin");
+        Directory.CreateDirectory(Path.GetDirectoryName(orphanPath));
+        File.WriteAllBytes(orphanPath, [1, 2, 3]);
+
+        for (int pass = 0; pass < 2; pass++) {
+            PlatformBuildManifest manifest = service.Cook(builder.Definition, selectedScenes, BuildRootPath, ["dc"], builder);
+            string[] reducedDependencies = System.Text.Json.JsonSerializer.Deserialize<string[]>(
+                manifest.Scenes[0].ResolvedMetadata.Single(entry => entry.Key == "cooked-dependency-paths").Value);
+            Assert.DoesNotContain(rawPath, reducedDependencies);
+            Assert.Equal(includeRawScene, manifest.CookedArtifacts.Any(artifact => artifact.RelativePath == rawPath));
+            Assert.DoesNotContain(manifest.CookedArtifacts, artifact => artifact.RelativePath == "cooked/unused.bin");
+            Assert.Contains(manifest.CookedArtifacts, artifact => artifact.RelativePath == "cooked/fonts/default.hefont");
+            PlatformBuildArtifact reduced = Assert.Single(manifest.CookedArtifacts, artifact => artifact.ArtifactKind == "model"
+                && artifact.RelativePath != rawPath && !artifact.RelativePath.StartsWith("cooked/cpu-models/", StringComparison.Ordinal));
+            using (FileStream stream = File.OpenRead(Path.Combine(BuildRootPath, reduced.RelativePath))) {
+                ModelAsset model = Assert.IsType<ModelAsset>(PackagedAssetBinarySerializer.Deserialize(stream, NumericPrecisionPolicy.Default));
+                Assert.InRange(model.Positions.Length, 1, 64);
+            }
+            Assert.Equal(includeCpuConsumer, manifest.CookedArtifacts.Any(artifact => artifact.RelativePath == "cooked/cpu-models/engine/sphere.hasset"));
+            if (includeCpuConsumer) {
+                using FileStream stream = File.OpenRead(Path.Combine(BuildRootPath, "cooked/cpu-models/engine/sphere.hasset"));
+                ModelAsset cpuModel = Assert.IsType<ModelAsset>(PackagedAssetBinarySerializer.Deserialize(stream, NumericPrecisionPolicy.Default));
+                Assert.Equal(325, cpuModel.Positions.Length);
+            }
+        }
+    }
+
     [Fact]
     public void Cook_scene_build_outputs_runtime_hasset_and_sets_startup_scene_from_order() {
         string startupScenePath = "Scenes/MainMenu.helen";
