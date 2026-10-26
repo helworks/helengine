@@ -75,6 +75,7 @@ namespace helengine {
             }
 #if HELENGINE_ENV_DEBUG
             if (DebugBuildIndicatorValue == null) {
+                NativeOwnership.DisposeAndRelease(ref DebugBuildIndicatorValue);
                 DebugBuildIndicatorValue = new RuntimeDebugBuildIndicator(this);
             }
             DebugBuildIndicatorValue.RegisterFont(font);
@@ -272,6 +273,9 @@ namespace helengine {
         /// Releases resources owned by the render manager.
         /// </summary>
         public virtual void Dispose() {
+#if HELENGINE_ENV_DEBUG
+            NativeOwnership.DisposeAndRelease(ref DebugBuildIndicatorValue);
+#endif
             DisposeDefaultTextures();
         }
 
