@@ -43,14 +43,20 @@ namespace helengine.editor {
         /// Stores the shader backend registry configured by bootstrap code for built-in shader compilation.
         /// </summary>
         readonly ShaderBackendRegistry ShaderBackendRegistry;
+        /// <summary>Registers optional host compilers only when this library must compile an uncached asset.</summary>
+        readonly Action EnsureShaderBackends;
         volatile bool IsDisposed;
 
         /// <summary>
         /// Creates an instance-bound built-in shader library. Compiled assets and
         /// backend selection belong to this owner and are never shared globally.
         /// </summary>
-        public EditorBuiltInShaderAssetLibrary(ShaderBackendRegistry shaderBackendRegistry) {
+        public EditorBuiltInShaderAssetLibrary(ShaderBackendRegistry shaderBackendRegistry) : this(shaderBackendRegistry, null) { }
+
+        /// <summary>Allows CLI authoring to defer an optional host compiler until an uncached shader is needed.</summary>
+        internal EditorBuiltInShaderAssetLibrary(ShaderBackendRegistry shaderBackendRegistry, Action ensureShaderBackends) {
             ShaderBackendRegistry = shaderBackendRegistry ?? throw new ArgumentNullException(nameof(shaderBackendRegistry));
+            EnsureShaderBackends = ensureShaderBackends;
         }
 
         /// <summary>
@@ -87,6 +93,7 @@ namespace helengine.editor {
                     return cachedShaderAsset;
                 }
 
+                EnsureShaderBackends?.Invoke();
                 ShaderAsset shaderAsset = CompileShaderAsset(target, shaderPath);
                 ShaderAssetsByKey[cacheKey] = shaderAsset;
                 return shaderAsset;

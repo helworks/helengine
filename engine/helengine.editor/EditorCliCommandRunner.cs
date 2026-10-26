@@ -1,6 +1,5 @@
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Requests;
-using helengine.directx11;
 using helengine.platforms;
 using helengine.projectfile;
 
@@ -42,7 +41,8 @@ namespace helengine.editor {
             }
 
             EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(options.ProjectPath);
-            using EditorBuildRenderManager3D renderer3D = new EditorBuildRenderManager3D(ResolveHostShaderCompileTarget());
+            EditorCliHostShaderBackend hostShaders = EditorCliShaderBackendFactory.CreateDeferredHost(bootstrap.PlatformCatalogService);
+            using EditorBuildRenderManager3D renderer3D = new EditorBuildRenderManager3D(hostShaders.Target);
             using EditorCore core = new EditorCore(null);
             CoreInitializationOptions initializationOptions = new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(Path.Combine(bootstrap.ProjectRootPath, "assets"))
@@ -52,8 +52,8 @@ namespace helengine.editor {
             using EditorSessionInteractionServices interactionServices = new EditorSessionInteractionServices();
             using EditorCoreInteractionGraphBinding interactionGraphBinding = new EditorCoreInteractionGraphBinding(core, interactionServices);
             core.SetDefaultFontAssetForEditor(DefaultFontAsset);
-            ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService);
-            using EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
+            ShaderBackendRegistry shaderBackendRegistry = hostShaders.Registry;
+            using EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry, hostShaders.EnsureRegistered);
             using EngineGeneratedModelCache generatedModelCache = new EngineGeneratedModelCache(core);
             using EngineGeneratedMaterialCache generatedMaterialCache = new EngineGeneratedMaterialCache(core, builtInShaderAssetLibrary);
             using EditorSessionRendererResources rendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory, core.SceneEntityIdAllocator, core.Input, () => core.FrameDeltaSeconds, DefaultFontAsset, interactionServices);
@@ -70,6 +70,7 @@ namespace helengine.editor {
                 generatedMaterialCache,
                 rendererResources);
             generatedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider(generatedModelCache, generatedMaterialCache));
+            hostShaders.EnsureRegistered();
             return RunInSessionGraph(bootstrap, options, authoring, shaderBackendRegistry, core, interactionServices, rendererResources, generatedAssetProviderRegistry);
         }
 
@@ -329,33 +330,10 @@ namespace helengine.editor {
             return Path.GetFullPath(projectRootPath);
         }
 
-        /// <summary>
-        /// Creates the shader backend registry required by the headless editor command runner.
-        /// </summary>
-        /// <param name="platformCatalogService">Dynamic platform catalog that can contribute additional shader backends from loaded platform builders.</param>
-        /// <returns>Registry populated with the desktop shader backends supported by the command runner.</returns>
-        static ShaderBackendRegistry CreateShaderBackendRegistry(EditorPlatformCatalogService platformCatalogService) {
-            if (platformCatalogService == null) {
-                throw new ArgumentNullException(nameof(platformCatalogService));
-            }
-
-            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
-            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-            platformCatalogService.RegisterShaderBackends(shaderBackendRegistry);
-            return shaderBackendRegistry;
-        }
-
         /// <summary>Resolves the native shader package API for standalone authoring commands on the current host.</summary>
         /// <returns>Host-native package target without creating a graphics device.</returns>
         internal static ShaderCompileTarget ResolveHostShaderCompileTarget() {
-            if (OperatingSystem.IsWindows()) {
-                return ShaderCompileTarget.DirectX11;
-            } else if (OperatingSystem.IsLinux()) {
-                return ShaderCompileTarget.Vulkan;
-            } else if (OperatingSystem.IsMacOS()) {
-                return ShaderCompileTarget.Metal;
-            }
-            throw new PlatformNotSupportedException("Headless editor commands require Windows, Linux, or macOS shader compilation support.");
+            return EditorPlatformShaderTargetResolver.Resolve(EditorCliShaderBackendFactory.ResolveHostPlatformId());
         }
     }
 }

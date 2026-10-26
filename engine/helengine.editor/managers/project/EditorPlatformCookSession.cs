@@ -42,7 +42,7 @@ namespace helengine.editor {
         }
 
         /// <summary>Rejects missing SDK snapshots and accidental reuse across different canonical target identities.</summary>
-        static void ValidateContext(IPlatformAssetBuilder builder, PlatformCookContext context) {
+        internal static void ValidateContext(IPlatformAssetBuilder builder, PlatformCookContext context) {
             if (context == null) { throw new InvalidOperationException("Platform cook context providers must return an immutable context."); }
             if (!string.Equals(context.PlatformId, builder.Definition.PlatformId, StringComparison.Ordinal)) {
                 throw new InvalidOperationException($"Cook context for '{context.PlatformId}' cannot cook target '{builder.Definition.PlatformId}'.");
