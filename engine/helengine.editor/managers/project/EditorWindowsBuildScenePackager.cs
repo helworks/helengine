@@ -2032,6 +2032,9 @@ namespace helengine.editor {
                 PlatformMaterialCookRequest cookRequest = BuildMaterialCookRequest(reference, materialAsset, materialSettings);
                 PlatformMaterialCookResult cookResult = MaterialBuilder.CookMaterial(cookRequest);
                 RememberReferencedShaderDependencies(cookResult.ReferencedShaderDependencies);
+                foreach (PlatformShaderDependency dependency in cookResult.ReferencedShaderDependencies) {
+                    if (string.Equals(dependency.ShaderAssetId, StandardShaderAssetId, StringComparison.Ordinal)) { EnsureStandardShaderAsset(buildRootPath); break; }
+                }
 
                 CopyReferencedDiffuseTextureAsset(fullPath, ResolveReferencedDiffuseTextureAssetId(materialAsset, cookRequest.FieldValues), buildRootPath);
                 CopyReferencedEmissiveTextureAsset(fullPath, ResolveReferencedEmissiveTextureAssetId(materialAsset, cookRequest.FieldValues), buildRootPath);
@@ -2052,6 +2055,7 @@ namespace helengine.editor {
                     materialAsset.VertexProgram,
                     materialAsset.PixelProgram,
                     materialAsset.Variant));
+                if (string.Equals(materialAsset.ShaderAssetId, StandardShaderAssetId, StringComparison.Ordinal)) { EnsureStandardShaderAsset(buildRootPath); }
             }
             CopyReferencedDiffuseTextureAsset(fullPath, materialAsset, buildRootPath);
             CopyReferencedEmissiveTextureAsset(fullPath, materialAsset, buildRootPath);
@@ -2779,16 +2783,7 @@ namespace helengine.editor {
             if (UsesXboxAuthoredShaderSubset()) {
                 throw new InvalidOperationException("Xbox shader profile requires an explicit authored material; generated ForwardStandardShader materials are not supported by the initial NV2A subset.");
             }
-            string shaderAssetId = StandardShaderAssetId;
-            if (ShouldWriteGeneratedStandardShaderAsset()) {
-                ShaderAsset shaderAsset = BuiltInShaderAssetLibrary.Load(EditorPlatformShaderTargetResolver.Resolve(TargetPlatformId), StandardShaderFileName);
-                shaderAssetId = shaderAsset.Id;
-                string shaderRelativePath = EditorPlatformShaderTargetResolver.ResolveStandardShaderRelativePath(TargetPlatformId);
-                WriteAsset(Path.Combine(buildRootPath, shaderRelativePath), shaderAsset);
-                RememberShaderOutput(shaderRelativePath, shaderAssetId);
-            } else if (MaterialBuilder == null) {
-                throw new InvalidOperationException("Generated standard materials for cooked-platform-owned builders require a material builder.");
-            }
+            string shaderAssetId = EnsureStandardShaderAsset(buildRootPath);
 
             if (MaterialBuilder == null) {
                 ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
@@ -2836,6 +2831,24 @@ namespace helengine.editor {
             RememberReferencedShaderDependencies(cookResult.ReferencedShaderDependencies);
             WriteBytes(Path.Combine(buildRootPath, StandardGeneratedMaterialRelativePath), cookResult.CookedMaterialBytes);
             RememberMaterialOutput(StandardGeneratedMaterialRelativePath, StandardGeneratedMaterialAssetId);
+        }
+
+        /// <summary>Emits and declares the target-specific builtin shader for generated or file-backed standard materials without creating an unrelated material.</summary>
+        /// <param name="buildRootPath">Cooked content root receiving the shared standard shader when the platform uses raw shader material resolution.</param>
+        /// <returns>The builtin shader identity used by generated standard materials.</returns>
+        string EnsureStandardShaderAsset(string buildRootPath) {
+            string shaderAssetId = StandardShaderAssetId;
+            if (ShouldWriteGeneratedStandardShaderAsset()) {
+                ShaderAsset shaderAsset = BuiltInShaderAssetLibrary.Load(EditorPlatformShaderTargetResolver.Resolve(TargetPlatformId), StandardShaderFileName);
+                shaderAssetId = shaderAsset.Id;
+                string shaderRelativePath = EditorPlatformShaderTargetResolver.ResolveStandardShaderRelativePath(TargetPlatformId);
+                WriteAsset(Path.Combine(buildRootPath, shaderRelativePath), shaderAsset);
+                RememberShaderOutput(shaderRelativePath, shaderAssetId);
+            } else if (MaterialBuilder == null) {
+                throw new InvalidOperationException("Generated standard materials for cooked-platform-owned builders require a material builder.");
+            }
+
+            return shaderAssetId;
         }
 
         /// <summary>

@@ -2164,6 +2164,9 @@ namespace helengine.editor {
                 PlatformMaterialCookRequest cookRequest = BuildMaterialCookRequest(reference, materialAsset, materialSettings);
                 PlatformMaterialCookResult cookResult = MaterialBuilder.CookMaterial(cookRequest);
                 RememberReferencedShaderDependencies(cookResult.ReferencedShaderDependencies);
+                foreach (PlatformShaderDependency dependency in cookResult.ReferencedShaderDependencies) {
+                    if (string.Equals(dependency.ShaderAssetId, StandardShaderAssetId, StringComparison.Ordinal)) { EnsureStandardShaderAsset(buildRootPath); break; }
+                }
 
                 CopyReferencedDiffuseTextureAsset(fullPath, ResolveReferencedDiffuseTextureAssetId(materialAsset, cookRequest.FieldValues), buildRootPath);
                 CopyReferencedEmissiveTextureAsset(fullPath, ResolveReferencedEmissiveTextureAssetId(materialAsset, cookRequest.FieldValues), buildRootPath);
@@ -2184,6 +2187,7 @@ namespace helengine.editor {
                     materialAsset.VertexProgram,
                     materialAsset.PixelProgram,
                     materialAsset.Variant));
+                if (string.Equals(materialAsset.ShaderAssetId, StandardShaderAssetId, StringComparison.Ordinal)) { EnsureStandardShaderAsset(buildRootPath); }
             }
             CopyReferencedDiffuseTextureAsset(fullPath, materialAsset, buildRootPath);
             CopyReferencedEmissiveTextureAsset(fullPath, materialAsset, buildRootPath);
@@ -2957,16 +2961,7 @@ namespace helengine.editor {
         /// <summary>Packages the original engine Standard material through the selected builder while preserving its declared shadow flags.</summary>
         /// <param name="buildRootPath">Root receiving the generated material and any shared shader payload.</param>
         void EnsureGeneratedStandardMaterialAssets(string buildRootPath) {
-            string shaderAssetId = StandardShaderAssetId;
-            if (ShouldWriteGeneratedStandardShaderAsset()) {
-                ShaderAsset shaderAsset = BuiltInShaderAssetLibrary.Load(EditorPlatformShaderTargetResolver.Resolve(TargetPlatformId), StandardShaderFileName);
-                shaderAssetId = shaderAsset.Id;
-                string shaderRelativePath = EditorPlatformShaderTargetResolver.ResolveStandardShaderRelativePath(TargetPlatformId);
-                WriteAsset(Path.Combine(buildRootPath, shaderRelativePath), shaderAsset);
-                ReportShaderOutput(shaderRelativePath, shaderAssetId);
-            } else if (MaterialBuilder == null) {
-                throw new InvalidOperationException("PS2 generated standard materials require a material builder.");
-            }
+            string shaderAssetId = EnsureStandardShaderAsset(buildRootPath);
 
             if (MaterialBuilder == null) {
                 ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
@@ -3013,6 +3008,23 @@ namespace helengine.editor {
             RememberReferencedShaderDependencies(cookResult.ReferencedShaderDependencies);
             WriteBytes(Path.Combine(buildRootPath, StandardGeneratedMaterialRelativePath), cookResult.CookedMaterialBytes);
             ReportMaterialOutput(StandardGeneratedMaterialRelativePath, StandardGeneratedMaterialAssetId);
+        }
+
+        /// <summary>Emits the shared target-specific builtin shader and reports its graph identity for generated or file-backed standard materials.</summary>
+        /// <param name="buildRootPath">Cooked content root receiving the shader only when the platform uses raw shader material resolution.</param>
+        /// <returns>The compiled builtin identity retained by generated standard material payloads.</returns>
+        string EnsureStandardShaderAsset(string buildRootPath) {
+            string shaderAssetId = StandardShaderAssetId;
+            if (ShouldWriteGeneratedStandardShaderAsset()) {
+                ShaderAsset shaderAsset = BuiltInShaderAssetLibrary.Load(EditorPlatformShaderTargetResolver.Resolve(TargetPlatformId), StandardShaderFileName);
+                shaderAssetId = shaderAsset.Id;
+                string shaderRelativePath = EditorPlatformShaderTargetResolver.ResolveStandardShaderRelativePath(TargetPlatformId);
+                WriteAsset(Path.Combine(buildRootPath, shaderRelativePath), shaderAsset);
+                ReportShaderOutput(shaderRelativePath, shaderAsset.Id);
+            } else if (MaterialBuilder == null) {
+                throw new InvalidOperationException("PS2 generated standard materials require a material builder.");
+            }
+            return shaderAssetId;
         }
 
         /// <summary>

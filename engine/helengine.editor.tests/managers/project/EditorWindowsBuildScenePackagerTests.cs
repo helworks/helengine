@@ -18,6 +18,31 @@ namespace helengine.editor.tests {
     /// Verifies Windows scene packaging collects referenced shader ids from packaged material assets.
     /// </summary>
     public class EditorPlatformBuildScenePackagerTests : IDisposable {
+        /// <summary>Packages a scene using only an authored standard material with its runtime-loadable builtin shader and explicit graph declaration.</summary>
+        [Fact]
+        public void Package_WhenOnlyFileBackedStandardMaterialIsReferenced_StagesItsBuiltinShader() {
+            const string sceneId = "Scenes/AuthoredStandardOnly.helen";
+            const string materialPath = "Materials/AuthoredClock.helmat";
+            const string shaderPath = "cooked/shaders/forwardstandardshader.dx11.hasset";
+            BuiltInShaderAssetLibrary.RegisterCompiledAsset(ShaderCompileTarget.DirectX11, "ForwardStandardShader.hlsl", new ShaderAsset {
+                Id = "ForwardStandardShader", Name = "ForwardStandardShader", TargetName = "dx11", Programs = [], Binaries = []
+            });
+            WriteBlankMaterialAsset(materialPath);
+            WriteSceneAsset(sceneId, materialPath);
+            byte[] authoredScene = File.ReadAllBytes(Path.Combine(ProjectRootPath, "assets", sceneId));
+            using EditorPlatformBuildScenePackager packager = new(ProjectRootPath, [], "windows", new TestPlatformMaterialAssetBuilder(), "debug", "directx11", BuiltInShaderAssetLibrary);
+            EditorPlatformBuildScenePackagerResult result = packager.Package([sceneId], BuildRootPath);
+            string fullShaderPath = Path.Combine(BuildRootPath, shaderPath);
+            Assert.True(File.Exists(fullShaderPath), "File-backed standard material dependency must emit its runtime shader without an unrelated generated material reference.");
+            using FileStream stream = File.OpenRead(fullShaderPath);
+            ShaderAsset shader = Assert.IsType<ShaderAsset>(AssetSerializer.Deserialize(stream));
+            Assert.Equal("ForwardStandardShader", shader.Id);
+            Assert.Equal("dx11", shader.TargetName);
+            Assert.Contains(result.CookedArtifactDeclarations, artifact => artifact.RelativePath == shaderPath && artifact.ArtifactKind == "shader" && artifact.LogicalArtifactId == "ForwardStandardShader");
+            Assert.False(File.Exists(Path.Combine(BuildRootPath, "cooked", "engine", "materials", "standard.hasset")));
+            Assert.Equal(authoredScene, File.ReadAllBytes(Path.Combine(ProjectRootPath, "assets", sceneId)));
+        }
+
         /// <summary>The real packager uses one numeric policy for layout and all emitted payloads without rewriting authored input.</summary>
         [Theory]
         [InlineData(32)]
@@ -704,8 +729,11 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>Preserves engine Standard shadow flags through both generated-material cook paths despite nonshadowing schema defaults.</summary>
-        [Fact]
-        public void Package_WhenGeneratedStandardSchemaDisablesShadows_PreservesEngineMaterialFlags() {
+        /// <param name="topLevel">Selects the explicit scene-table material writer instead of the serialized mesh-component transform.</param>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Package_WhenGeneratedStandardSchemaDisablesShadows_PreservesEngineMaterialFlags(bool topLevel) {
             const string sceneId = "Scenes/GeneratedStandardShadowFlags.helen";
             WriteSceneAsset(sceneId, CreateGeneratedStandardMaterialReference());
             RecordingMaterialBuilder builder = new RecordingMaterialBuilder(
@@ -714,11 +742,15 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath, [], "windows", builder, "debug", "directx11", BuiltInShaderAssetLibrary);
 
-            packager.Package([sceneId], BuildRootPath);
+            if (topLevel) {
+                MethodInfo generate = typeof(EditorPlatformBuildScenePackager).GetMethod("EnsureGeneratedStandardMaterialAssets", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.NotNull(generate);
+                generate.Invoke(packager, [BuildRootPath]);
+            } else { packager.Package([sceneId], BuildRootPath); }
 
             PlatformMaterialCookRequest[] requests = builder.MaterialCookRequests.Where(request =>
                 request.MaterialRelativePath == EngineGeneratedAssetProvider.StandardMaterialRelativePath).ToArray();
-            Assert.True(requests.Length >= 2, "The top-level and component-transform generated material paths must both be exercised.");
+            Assert.NotEmpty(requests);
             Assert.All(requests, request => {
                 Assert.Equal("true", request.FieldValues["casts-shadow"]);
                 Assert.Equal("true", request.FieldValues["receives-shadow"]);
