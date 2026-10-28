@@ -8,7 +8,7 @@ namespace helengine.directx11 {
     /// </summary>
     public class DirectX11MaterialBinder : IDisposable {
         /// <summary>
-        /// Device used to create the shared sampler and per-slot constant buffers.
+        /// Device used to create the shared sampler and immutable material constant buffers.
         /// </summary>
         readonly D3DDevice Device;
 
@@ -23,9 +23,12 @@ namespace helengine.directx11 {
         readonly SamplerState MaterialTextureSampler;
 
         /// <summary>
-        /// Cache of DirectX11 constant buffers keyed by shader slot for per-material payload uploads.
+        /// Prepared material bindings and shared immutable constant payload resources owned by this renderer.
         /// </summary>
-        readonly Dictionary<int, Buffer> MaterialConstantBuffersBySlot;
+        readonly DirectX11MaterialBindingCache<Buffer> MaterialBindings;
+
+        /// <summary>Shader identity last applied, checked separately from material identity during hot reload.</summary>
+        DirectX11ShaderResource ActiveShaderResource;
 
         /// <summary>
         /// Tracks the pixel-shader texture slots most recently assigned by material bindings so stale shader-resource views can be cleared deterministically.
@@ -53,7 +56,7 @@ namespace helengine.directx11 {
 
             Device = device;
             PipelineStateCache = pipelineStateCache;
-            MaterialConstantBuffersBySlot = new Dictionary<int, Buffer>();
+            MaterialBindings = new DirectX11MaterialBindingCache<Buffer>(CreateMaterialConstantBuffer);
             ActiveMaterialTextureSlots = new List<int>();
             MaterialTextureSampler = CreateMaterialTextureSampler();
         }
@@ -73,6 +76,7 @@ namespace helengine.directx11 {
         public void ResetActiveMaterial() {
             ClearActiveMaterialTextureBindings();
             ActiveMaterial = null;
+            ActiveShaderResource = null;
         }
 
         /// <summary>
@@ -105,26 +109,25 @@ namespace helengine.directx11 {
 
             DirectX11ShaderResource shaderResource = shaderMaterial.ShaderResource;
             DeviceContext context = Device.ImmediateContext;
-            if (!ReferenceEquals(ActiveMaterial, shaderMaterial)) {
+            if (!ReferenceEquals(ActiveMaterial, shaderMaterial) || !ReferenceEquals(ActiveShaderResource, shaderResource)) {
                 ClearActiveMaterialTextureBindings();
 
                 context.InputAssembler.InputLayout = shaderResource.InputLayout;
                 context.VertexShader.Set(shaderResource.VertexShader);
                 context.PixelShader.Set(shaderResource.PixelShader);
                 ActiveMaterial = shaderMaterial;
+                ActiveShaderResource = shaderResource;
             }
 
             PipelineStateCache.ApplyMaterialRenderState(context, material.RenderState);
-            ApplyMaterialConstantBufferBindings(material);
+            DirectX11PreparedMaterial<Buffer> prepared = MaterialBindings.Get(material);
+            ApplyPreparedConstantBuffers(prepared);
             ClearActiveMaterialTextureBindings();
-            if (material.Layout.TextureBindings.Length > 0) {
-                List<DirectX11MaterialTextureBinding> resolvedBindings = ResolveMaterialTextureBindings(material);
-                for (int bindingIndex = 0; bindingIndex < resolvedBindings.Count; bindingIndex++) {
-                    DirectX11MaterialTextureBinding binding = resolvedBindings[bindingIndex];
-                    context.PixelShader.SetShaderResource(binding.Slot, binding.ResourceView);
-                    context.PixelShader.SetSampler(binding.Slot, MaterialTextureSampler);
-                    TrackActiveMaterialTextureSlot(binding.Slot);
-                }
+            foreach (DirectX11PreparedTexture binding in prepared.Textures) {
+                int slot = ResolveDirectX11BindingSlot(binding.Binding);
+                context.PixelShader.SetShaderResource(slot, ResolveTextureResourceView(binding.Texture));
+                context.PixelShader.SetSampler(slot, MaterialTextureSampler);
+                TrackActiveMaterialTextureSlot(slot);
             }
         }
 
@@ -137,6 +140,7 @@ namespace helengine.directx11 {
             DeviceContext context = Device.ImmediateContext;
             ClearActiveMaterialTextureBindings();
             ActiveMaterial = null;
+            ActiveShaderResource = null;
             ShaderResourceView resourceView = null;
             if (material == null) {
                 context.Rasterizer.State = PipelineStateCache.DefaultRasterizerState;
@@ -153,7 +157,7 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
-        /// Applies per-material constant-buffer payloads for the current draw.
+        /// Binds retained per-material constant buffers, preparing and uploading only new payloads.
         /// </summary>
         /// <param name="material">Resolved runtime material instance that provides constant-buffer values.</param>
         public void ApplyMaterialConstantBufferBindings(ShaderRuntimeMaterial material) {
@@ -161,32 +165,23 @@ namespace helengine.directx11 {
                 throw new ArgumentNullException(nameof(material));
             }
 
+            ApplyPreparedConstantBuffers(MaterialBindings.Get(material));
+        }
+
+        /// <summary>Binds retained immutable constants, explicitly unbinding missing properties while leaving engine-owned slots untouched.</summary>
+        void ApplyPreparedConstantBuffers(DirectX11PreparedMaterial<Buffer> prepared) {
             DeviceContext context = Device.ImmediateContext;
-            MaterialLayoutBinding[] layoutBindings = material.Layout.ConstantBufferBindings;
-            for (int bindingIndex = 0; bindingIndex < layoutBindings.Length; bindingIndex++) {
-                MaterialLayoutBinding binding = layoutBindings[bindingIndex];
-                if (binding == null) {
-                    continue;
-                }
-
-                if (IsEngineManagedConstantBufferBinding(binding.Name)) {
-                    continue;
-                }
-
-                if (!material.TryResolveConstantBufferData(binding.Name, out _)) {
-                    context.VertexShader.SetConstantBuffer(binding.Slot, null);
-                    context.PixelShader.SetConstantBuffer(binding.Slot, null);
-                }
+            foreach (DirectX11PreparedConstant<Buffer> binding in prepared.Constants) {
+                Buffer buffer = binding.Content?.Resource;
+                context.VertexShader.SetConstantBuffer(binding.Slot, buffer);
+                context.PixelShader.SetConstantBuffer(binding.Slot, buffer);
             }
+        }
 
-            List<DirectX11MaterialConstantBufferBinding> resolvedBindings = ResolveMaterialConstantBufferBindings(material);
-            for (int bindingIndex = 0; bindingIndex < resolvedBindings.Count; bindingIndex++) {
-                DirectX11MaterialConstantBufferBinding binding = resolvedBindings[bindingIndex];
-                Buffer constantBuffer = GetOrCreateMaterialConstantBuffer(binding.Slot, binding.Data.Length);
-                context.UpdateSubresource(binding.Data, constantBuffer);
-                context.VertexShader.SetConstantBuffer(binding.Slot, constantBuffer);
-                context.PixelShader.SetConstantBuffer(binding.Slot, constantBuffer);
-            }
+        /// <summary>Releases a material's prepared state and all descendants that retained inherited values.</summary>
+        public void ReleaseMaterial(RuntimeMaterial material) {
+            MaterialBindings.Release(material);
+            ResetActiveMaterial();
         }
 
         /// <summary>
@@ -203,6 +198,9 @@ namespace helengine.directx11 {
             MaterialLayoutBinding[] layoutBindings = material.Layout.ConstantBufferBindings;
             for (int bindingIndex = 0; bindingIndex < layoutBindings.Length; bindingIndex++) {
                 MaterialLayoutBinding binding = layoutBindings[bindingIndex];
+                if (binding == null || IsEngineManagedConstantBufferBinding(binding.Name)) {
+                    continue;
+                }
                 if (!material.TryResolveConstantBufferData(binding.Name, out byte[] data)) {
                     continue;
                 }
@@ -227,7 +225,7 @@ namespace helengine.directx11 {
             MaterialLayoutBinding[] layoutBindings = material.Layout.TextureBindings;
             for (int bindingIndex = 0; bindingIndex < layoutBindings.Length; bindingIndex++) {
                 MaterialLayoutBinding binding = layoutBindings[bindingIndex];
-                if (!TryResolveMaterialTexture(material, binding.Name, out RuntimeTexture runtimeTexture)) {
+                if (binding == null || !TryResolveMaterialTexture(material, binding.Name, out RuntimeTexture runtimeTexture)) {
                     continue;
                 }
 
@@ -296,14 +294,18 @@ namespace helengine.directx11 {
                 throw new ArgumentNullException(nameof(runtimeTexture));
             }
 
+            if (runtimeTexture.IsDisposed) {
+                throw new ObjectDisposedException(nameof(runtimeTexture));
+            }
+
             if (runtimeTexture is DirectX11TextureResource textureResource) {
-                if (textureResource.Resource == null) {
+                if (textureResource.Resource == null || textureResource.Resource.IsDisposed) {
                     throw new InvalidOperationException("DirectX11 texture resources must expose a shader resource view.");
                 }
 
                 return textureResource.Resource;
             } else if (runtimeTexture is DirectX11RenderTargetResource renderTargetResource) {
-                if (renderTargetResource.ShaderResourceView == null) {
+                if (renderTargetResource.ShaderResourceView == null || renderTargetResource.ShaderResourceView.IsDisposed) {
                     throw new InvalidOperationException("DirectX11 render targets used as material textures must expose a shader resource view.");
                 }
 
@@ -330,17 +332,14 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
-        /// Releases the shared texture sampler and every cached per-slot material constant buffer.
+        /// Releases the shared texture sampler, prepared material entries and all pooled constant buffers.
         /// </summary>
         public void Dispose() {
-            foreach (KeyValuePair<int, Buffer> pair in MaterialConstantBuffersBySlot) {
-                pair.Value.Dispose();
-            }
-
-            MaterialConstantBuffersBySlot.Clear();
+            MaterialBindings.Dispose();
             MaterialTextureSampler.Dispose();
             ActiveMaterialTextureSlots.Clear();
             ActiveMaterial = null;
+            ActiveShaderResource = null;
         }
 
         /// <summary>
@@ -453,38 +452,19 @@ namespace helengine.directx11 {
             return false;
         }
 
-        /// <summary>
-        /// Resolves one cached DirectX11 constant buffer for a material shader slot.
-        /// </summary>
-        /// <param name="slot">DirectX11 constant-buffer slot to bind.</param>
-        /// <param name="sizeInBytes">Required constant-buffer size in bytes.</param>
-        /// <returns>Cached constant buffer that matches the requested slot and size.</returns>
-        Buffer GetOrCreateMaterialConstantBuffer(int slot, int sizeInBytes) {
-            if (slot < 0) {
-                throw new ArgumentOutOfRangeException(nameof(slot), "Constant-buffer slot cannot be negative.");
+        /// <summary>Creates and initializes one shared material constant buffer. Subsequent draws only bind this resource.</summary>
+        /// <param name="data">Retained immutable payload, required to satisfy the DirectX constant-buffer alignment.</param>
+        /// <returns>Initialized resource owned by the content cache.</returns>
+        Buffer CreateMaterialConstantBuffer(byte[] data) {
+            if (data.Length == 0 || data.Length % 16 != 0) {
+                throw new InvalidOperationException($"DirectX11 constant-buffer size must be positive and 16-byte aligned, but received {data.Length} bytes.");
             }
-
-            if (sizeInBytes <= 0) {
-                throw new ArgumentOutOfRangeException(nameof(sizeInBytes), "Constant-buffer size must be positive.");
+            using (var stream = new SharpDX.DataStream(data.Length, true, true)) {
+                stream.Write(data, 0, data.Length);
+                stream.Position = 0;
+                return new Buffer(Device, stream, new BufferDescription(data.Length, ResourceUsage.Immutable,
+                    BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0));
             }
-
-            if (sizeInBytes % 16 != 0) {
-                throw new InvalidOperationException($"DirectX11 constant-buffer size must be 16-byte aligned, but slot {slot} requested {sizeInBytes} bytes.");
-            }
-
-            if (MaterialConstantBuffersBySlot.TryGetValue(slot, out Buffer cachedBuffer)) {
-                if (cachedBuffer.Description.SizeInBytes == sizeInBytes) {
-                    return cachedBuffer;
-                }
-
-                cachedBuffer.Dispose();
-                MaterialConstantBuffersBySlot.Remove(slot);
-            }
-
-            Buffer constantBuffer = new Buffer(Device, sizeInBytes, ResourceUsage.Default,
-                BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
-            MaterialConstantBuffersBySlot.Add(slot, constantBuffer);
-            return constantBuffer;
         }
 
         /// <summary>
