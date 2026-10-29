@@ -93,8 +93,8 @@ namespace helengine.editor.tests.managers.gizmo {
 
             Assert.Equal(0, layout.FindTextureBindingIndex("LabelTexture"));
             Assert.Equal(0, layout.FindSamplerBindingIndex("LabelSampler"));
-            Assert.Single(layout.TextureBindings);
-            Assert.Single(layout.SamplerBindings);
+            Assert.Equal(1, layout.TextureBindings.Length);
+            Assert.Equal(1, layout.SamplerBindings.Length);
             Assert.Equal(expectedSet, layout.TextureBindings[0].Set);
             Assert.Equal(expectedSet, layout.SamplerBindings[0].Set);
         }

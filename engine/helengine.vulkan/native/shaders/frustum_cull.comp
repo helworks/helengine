@@ -1,0 +1,32 @@
+#version 450
+layout(local_size_x=64) in;
+struct Bounds { vec3 lower; uint indexCount; vec3 upper; uint firstIndex; };
+struct Command { uint indexCount; uint instanceCount; uint firstIndex; int vertexOffset; uint firstInstance; };
+layout(std430,set=0,binding=0) readonly buffer BoundsBuffer { Bounds bounds[]; };
+layout(std430,set=0,binding=1) buffer CommandBuffer { Command draws[]; };
+layout(push_constant) uniform Camera { mat4 worldViewProjection; uint count; } camera;
+void main() {
+    uint id=gl_GlobalInvocationID.x;
+    if(id>=camera.count)return;
+    bool outside[6]=bool[6](true,true,true,true,true,true);
+    bool uncertain=false;
+    for(uint corner=0;corner<8;++corner) {
+        vec3 p=vec3((corner&1u)!=0u?bounds[id].upper.x:bounds[id].lower.x,(corner&2u)!=0u?bounds[id].upper.y:bounds[id].lower.y,(corner&4u)!=0u?bounds[id].upper.z:bounds[id].lower.z);
+        vec4 clip=vec4(p,1.0)*camera.worldViewProjection;
+        uncertain=uncertain||any(isnan(clip))||any(isinf(clip));
+        // Bound dot-product cancellation as well as clip magnitude; uncertain edge cases remain visible.
+        vec4 magnitude=abs(vec4(p,1.0))*mat4(abs(camera.worldViewProjection[0]),abs(camera.worldViewProjection[1]),abs(camera.worldViewProjection[2]),abs(camera.worldViewProjection[3]));
+        float tolerance=0.00001*max(1.0,max(max(magnitude.x,magnitude.y),max(magnitude.z,magnitude.w)));
+        uncertain=uncertain||isnan(tolerance)||isinf(tolerance);
+        outside[0]=outside[0]&&(clip.x < -clip.w-tolerance);
+        outside[1]=outside[1]&&(clip.x > clip.w+tolerance);
+        outside[2]=outside[2]&&(clip.y < -clip.w-tolerance);
+        outside[3]=outside[3]&&(clip.y > clip.w+tolerance);
+        outside[4]=outside[4]&&(clip.z < -tolerance);
+        outside[5]=outside[5]&&(clip.z > clip.w+tolerance);
+    }
+    bool rejected=false;for(uint plane=0;plane<6;++plane)rejected=rejected||outside[plane];
+    // Regenerate the complete command from immutable metadata, including invisible slots.
+    // Never preserve partially written command fields from a prior visibility pass.
+    draws[id]=Command(bounds[id].indexCount,(uncertain||!rejected)?1u:0u,bounds[id].firstIndex,0,0u);
+}

@@ -195,7 +195,7 @@ namespace helengine.directx11 {
             }
 
             List<DirectX11MaterialConstantBufferBinding> resolvedBindings = new List<DirectX11MaterialConstantBufferBinding>();
-            MaterialLayoutBinding[] layoutBindings = material.Layout.ConstantBufferBindings;
+            MaterialLayoutBindings layoutBindings = material.Layout.ConstantBufferBindings;
             for (int bindingIndex = 0; bindingIndex < layoutBindings.Length; bindingIndex++) {
                 MaterialLayoutBinding binding = layoutBindings[bindingIndex];
                 if (binding == null || IsEngineManagedConstantBufferBinding(binding.Name)) {
@@ -222,7 +222,7 @@ namespace helengine.directx11 {
             }
 
             List<DirectX11MaterialTextureBinding> resolvedBindings = new List<DirectX11MaterialTextureBinding>();
-            MaterialLayoutBinding[] layoutBindings = material.Layout.TextureBindings;
+            MaterialLayoutBindings layoutBindings = material.Layout.TextureBindings;
             for (int bindingIndex = 0; bindingIndex < layoutBindings.Length; bindingIndex++) {
                 MaterialLayoutBinding binding = layoutBindings[bindingIndex];
                 if (binding == null || !TryResolveMaterialTexture(material, binding.Name, out RuntimeTexture runtimeTexture)) {

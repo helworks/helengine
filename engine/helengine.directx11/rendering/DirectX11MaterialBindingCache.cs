@@ -29,7 +29,8 @@ namespace helengine.directx11 {
                     prepared.Dependencies.Add(new DirectX11MaterialDependency(dependency));
                     dependency = dependency.ParentMaterial as ShaderRuntimeMaterial;
                 }
-                foreach (var binding in material.Layout.ConstantBufferBindings) {
+                for (int bindingIndex = 0; bindingIndex < material.Layout.ConstantBufferBindings.Length; bindingIndex++) {
+                    var binding = material.Layout.ConstantBufferBindings[bindingIndex];
                     if (binding == null || IsEngineManaged(binding.Name)) {
                         continue;
                     }
@@ -39,7 +40,8 @@ namespace helengine.directx11 {
                     }
                     prepared.Constants.Add(new DirectX11PreparedConstant<T>(binding.Slot, content));
                 }
-                foreach (var binding in material.Layout.TextureBindings) {
+                for (int bindingIndex = 0; bindingIndex < material.Layout.TextureBindings.Length; bindingIndex++) {
+                    var binding = material.Layout.TextureBindings[bindingIndex];
                     if (binding == null) {
                         continue;
                     }

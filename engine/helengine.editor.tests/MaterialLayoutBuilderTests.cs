@@ -24,9 +24,9 @@ namespace helengine.editor.tests {
             Assert.Equal(materialAsset.PixelProgram, layout.PixelProgram);
             Assert.Equal(materialAsset.Variant, layout.Variant);
             Assert.Equal(MaterialBlendMode.AlphaBlend, layout.RenderState.BlendMode);
-            Assert.Single(layout.TextureBindings);
-            Assert.Single(layout.ConstantBufferBindings);
-            Assert.Single(layout.SamplerBindings);
+            Assert.Equal(1, layout.TextureBindings.Length);
+            Assert.Equal(1, layout.ConstantBufferBindings.Length);
+            Assert.Equal(1, layout.SamplerBindings.Length);
             Assert.Equal("DiffuseTexture", layout.TextureBindings[0].Name);
             Assert.Equal("MaterialParams", layout.ConstantBufferBindings[0].Name);
             Assert.Equal("DiffuseSampler", layout.SamplerBindings[0].Name);
@@ -51,7 +51,7 @@ namespace helengine.editor.tests {
 
             MaterialLayout layout = MaterialLayoutBuilder.Build(materialAsset, shaderAsset);
 
-            Assert.Single(layout.TextureBindings);
+            Assert.Equal(1, layout.TextureBindings.Length);
             Assert.Equal("DiffuseTexture", layout.TextureBindings[0].Name);
         }
 
