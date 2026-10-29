@@ -463,6 +463,15 @@ namespace helengine.editor {
                 throw new ArgumentException("Codegen tool path must be provided.", nameof(toolPath));
             }
 
+            // Fresh synthetic module projects have no assets file yet. Without restore Roslyn can load
+            // engine metadata while missing System.Runtime, which changes external structs into reference types.
+            for (int index = 0; index < arguments.Count - 1; index++) {
+                if (string.Equals(arguments[index], "--project", StringComparison.Ordinal)) {
+                    Run("dotnet", ["restore", arguments[index + 1], "--nologo"], workingDirectory);
+                    break;
+                }
+            }
+
             ProcessStartInfo startInfo = new() {
                 FileName = toolPath,
                 WorkingDirectory = workingDirectory,

@@ -2313,6 +2313,7 @@ namespace helengine.editor {
             string cookedRelativePath = BuildImportedTextureCookedRelativePath(textureAssetId);
             if (!SupportsBuilderOwnedPlatformCookKind("texture")) {
                 WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), textureAsset);
+                CookedPathSelectionSink?.Invoke(cookedRelativePath);
             }
             if (!SupportsBuilderOwnedPlatformCookKind("texture")) {
                 return;

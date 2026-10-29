@@ -402,7 +402,7 @@ namespace helengine {
         /// Releases one runtime material previously created by this renderer and assumes ownership for final destruction timing.
         /// </summary>
         /// <param name="material">Runtime material that should release any renderer-owned resources and be disposed when safe.</param>
-        public virtual void ReleaseMaterial(RuntimeMaterial material) {
+        public virtual void ReleaseMaterial([NativeTakesOwnership] RuntimeMaterial material) {
             if (material == null) {
                 throw new ArgumentNullException(nameof(material));
             }

@@ -684,16 +684,19 @@ namespace helengine.editor {
                 }
 
                 string relativeCookPath = NormalizeCookedRelativePath(declaration.RelativePath);
+                string runtimeRelativePath = "cooked/" + relativeCookPath;
                 string fullArtifactPath = Path.GetFullPath(Path.Combine(fullCookRootPath, relativeCookPath));
                 if (!fullArtifactPath.StartsWith(fullCookRootPrefix, StringComparison.OrdinalIgnoreCase)) {
                     throw new InvalidOperationException($"Declared cooked artifact '{declaration.RelativePath}' resolves outside cook root '{fullCookRootPath}'.");
                 } else if (!File.Exists(fullArtifactPath)) {
                     throw new FileNotFoundException($"Declared cooked artifact '{declaration.RelativePath}' was not written before manifest collection.", fullArtifactPath);
-                } else if (!declaredOutputPaths.Add(declaration.RelativePath)) {
+                } else if (!declaredOutputPaths.Add(runtimeRelativePath)) {
                     throw new InvalidOperationException($"Cooked artifact '{declaration.RelativePath}' was declared more than once.");
                 }
 
-                artifactPool.AddDeclaredFile(fullArtifactPath, declaration);
+                PlatformCookedArtifactDeclaration runtimeDeclaration = new(
+                    runtimeRelativePath, declaration.LogicalArtifactId, declaration.ArtifactKind, declaration.VariantId);
+                artifactPool.AddDeclaredFile(fullArtifactPath, runtimeDeclaration);
             }
 
             return declaredOutputPaths;

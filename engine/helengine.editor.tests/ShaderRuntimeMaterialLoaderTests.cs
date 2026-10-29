@@ -51,6 +51,36 @@ namespace helengine.editor.tests {
             }
         }
 
+        /// <summary>Keeps the consuming release contract visible to native callers compiled against renderer assembly metadata.</summary>
+        [Fact]
+        public void ReleaseMaterial_ExportsNativeOwnershipTransferToMetadataConsumers() {
+            System.Reflection.ParameterInfo parameter = typeof(RenderManager3D).GetMethod(nameof(RenderManager3D.ReleaseMaterial)).GetParameters().Single();
+            Assert.Single(parameter.GetCustomAttributes(typeof(NativeTakesOwnershipAttribute), false));
+        }
+
+        /// <summary>Releases the renderer-owned material once when a required texture is absent, preserving the original read failure.</summary>
+        [Theory]
+        [InlineData("diffuse")]
+        [InlineData("emissive")]
+        [InlineData("roughness")]
+        public void BuildMaterialFromRawAsset_WhenImportedTextureIsMissing_ReleasesMaterialAndRethrows(string channel) {
+            WriteShaderPackage();
+            Directory.CreateDirectory(Path.Combine(ContentRootPath, "cooked", "imported"));
+            WriteMaterialAsset(channel == "diffuse" ? "MissingTexture" : string.Empty,
+                channel == "emissive" ? "MissingTexture" : string.Empty,
+                channel == "roughness" ? "MissingTexture" : string.Empty);
+            using ContentManager content = new ContentManager(new HostFileSystemContentStreamSource(ContentRootPath));
+            int previousReleases = RenderManager3DValue.ReleasedMaterials.Count;
+
+            FileNotFoundException failure = Assert.Throws<FileNotFoundException>(() => RenderManager3DValue.BuildMaterialFromRawAsset(
+                content, Path.Combine(ContentRootPath, "cooked", "materials", "testmaterial.hasset")));
+
+            Assert.Contains("missingtexture", failure.FileName);
+            Assert.Equal(previousReleases + 1, RenderManager3DValue.ReleasedMaterials.Count);
+            Assert.Single(RenderManager3DValue.BuiltMaterialAssets);
+            Assert.IsAssignableFrom<ShaderRuntimeMaterial>(RenderManager3DValue.ReleasedMaterials.Last());
+        }
+
         /// <summary>
         /// Ensures packaged shader-backed materials rebuild their imported diffuse texture binding from the packaged imported texture asset path.
         /// </summary>
@@ -64,7 +94,7 @@ namespace helengine.editor.tests {
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ContentRootPath));
             RuntimeMaterial runtimeMaterial = RenderManager3DValue.BuildMaterialFromRawAsset(
                 contentManager,
-                Path.Combine(ContentRootPath, "cooked", "materials", "TestMaterial.hasset"));
+                Path.Combine(ContentRootPath, "cooked", "materials", "testmaterial.hasset"));
 
             RuntimeTexture runtimeTexture = ShaderRuntimeMaterialAccess.Require(runtimeMaterial).ResolveTexture();
 
@@ -89,7 +119,7 @@ namespace helengine.editor.tests {
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ContentRootPath));
             RuntimeMaterial runtimeMaterial = RenderManager3DValue.BuildMaterialFromRawAsset(
                 contentManager,
-                Path.Combine(ContentRootPath, "cooked", "materials", "TestMaterial.hasset"));
+                Path.Combine(ContentRootPath, "cooked", "materials", "testmaterial.hasset"));
 
             ShaderRuntimeMaterial shaderRuntimeMaterial = ShaderRuntimeMaterialAccess.Require(runtimeMaterial);
             int diffuseBindingIndex = shaderRuntimeMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
@@ -118,7 +148,7 @@ namespace helengine.editor.tests {
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ContentRootPath));
             RuntimeMaterial runtimeMaterial = RenderManager3DValue.BuildMaterialFromRawAsset(
                 contentManager,
-                Path.Combine(ContentRootPath, "cooked", "materials", "TestMaterial.hasset"));
+                Path.Combine(ContentRootPath, "cooked", "materials", "testmaterial.hasset"));
 
             ShaderRuntimeMaterial shaderRuntimeMaterial = ShaderRuntimeMaterialAccess.Require(runtimeMaterial);
             int emissiveBindingIndex = shaderRuntimeMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.EmissiveTextureBindingName);
@@ -133,7 +163,7 @@ namespace helengine.editor.tests {
         /// Writes one packaged shader asset exposing the standard diffuse texture binding required by the runtime loader.
         /// </summary>
         void WriteShaderPackage() {
-            string shaderPath = Path.Combine(ContentRootPath, "cooked", "shaders", "ForwardStandardShader.vulkan.hasset");
+            string shaderPath = Path.Combine(ContentRootPath, "cooked", "shaders", "forwardstandardshader.vulkan.hasset");
             string shaderDirectoryPath = Path.GetDirectoryName(shaderPath);
             if (string.IsNullOrWhiteSpace(shaderDirectoryPath)) {
                 throw new InvalidOperationException("Could not resolve a shader directory path for the packaged shader test payload.");
@@ -166,7 +196,7 @@ namespace helengine.editor.tests {
         /// <param name="emissiveTextureAssetId">Imported emissive texture asset id that should be rebound by the runtime loader.</param>
         /// <param name="roughnessTextureAssetId">Imported roughness texture asset id that should be rebound by the runtime loader.</param>
         void WriteMaterialAsset(string diffuseTextureAssetId, string emissiveTextureAssetId, string roughnessTextureAssetId) {
-            string materialPath = Path.Combine(ContentRootPath, "cooked", "materials", "TestMaterial.hasset");
+            string materialPath = Path.Combine(ContentRootPath, "cooked", "materials", "testmaterial.hasset");
             string materialDirectoryPath = Path.GetDirectoryName(materialPath);
             if (string.IsNullOrWhiteSpace(materialDirectoryPath)) {
                 throw new InvalidOperationException("Could not resolve a material directory path for the packaged material test payload.");
@@ -199,7 +229,7 @@ namespace helengine.editor.tests {
         /// <param name="width">Authored width used by the packaged texture payload.</param>
         /// <param name="height">Authored height used by the packaged texture payload.</param>
         void WriteImportedTextureAsset(string textureAssetId, int width = 4, int height = 2) {
-            string texturePath = Path.Combine(ContentRootPath, "cooked", "imported", textureAssetId);
+            string texturePath = Path.Combine(ContentRootPath, ShaderRuntimeMaterialLoader.ResolveImportedTexturePackagePath(textureAssetId));
             string textureDirectoryPath = Path.GetDirectoryName(texturePath);
             if (string.IsNullOrWhiteSpace(textureDirectoryPath)) {
                 throw new InvalidOperationException("Could not resolve a texture directory path for the packaged imported texture test payload.");
