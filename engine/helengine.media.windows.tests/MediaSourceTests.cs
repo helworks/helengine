@@ -50,6 +50,22 @@ public sealed class MediaSourceTests {
         using var repeated=first.ReadVideoFrame(new(1,5));
         Assert.Equal(expected,repeated.Surface.ReadRgba().ToArray());
     }
+    /// <summary>A far forward request seeks instead of decoding every frame on the way, and returns the same frame.</summary>
+    [Fact] public void FarForwardRequestsSeekAndMatchSequentialDecode() {
+        using var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport);
+        using var resolver=new WindowsMediaSourceResolver(Root,device);
+        using var sequential=resolver.Open(Reference("bframes.mp4","video",64,48));
+        MediaVideoFrame? last=null;
+        for(int step=1;step<=9;step+=2){last?.Dispose();last=sequential.ReadVideoFrame(new(step,5));}
+        using var expected=last!;var pixels=expected.Surface.ReadRgba().ToArray();
+        using var jumping=resolver.Open(Reference("bframes.mp4","video",64,48));
+        using var early=jumping.ReadVideoFrame(new(1,5));
+        using var jumped=jumping.ReadVideoFrame(new(9,5));
+        using var fresh=resolver.Open(Reference("bframes.mp4","video",64,48));
+        using var direct=fresh.ReadVideoFrame(new(9,5));
+        Assert.Equal(expected.Timestamp,jumped.Timestamp);Assert.Equal(expected.Timestamp,direct.Timestamp);
+        Assert.Equal(pixels,jumped.Surface.ReadRgba().ToArray());Assert.Equal(pixels,direct.Surface.ReadRgba().ToArray());
+    }
     /// <summary>Embedded sound is indexed against the same normalized video origin.</summary>
     [Fact] public void VideoAudioUsesSameSourceOrigin() {
         using var device=new Device(DriverType.Warp,DeviceCreationFlags.BgraSupport);

@@ -1,6 +1,8 @@
 namespace helengine.media.windows;
 /// <summary>Samples video by presentation timestamps and embeds a separate aligned PCM cursor.</summary>
 public sealed class VideoMediaSource : IMediaSource {
+    /// <summary>Forward gap beyond which seeking beats decoding every frame in between (cursor at the start included).</summary>
+    static readonly TimeSpan ForwardSeekDistance=TimeSpan.FromSeconds(1);
     /// <summary>Verified immutable media file lease.</summary>
     readonly OwnedMediaFile File;
     /// <summary>Graphics device borrowed from the render session.</summary>
@@ -26,7 +28,10 @@ public sealed class VideoMediaSource : IMediaSource {
         if(Disposed) {throw new ObjectDisposedException(nameof(VideoMediaSource));}
         sourceTime.Validate();var time=TimeSpan.FromSeconds(sourceTime.ToSeconds());
         if(time<TimeSpan.Zero || time>=Decoder.StreamInfo.Duration) {throw new InvalidDataException("Requested video time is outside the source.");}
-        if(Current!=null && time<Current.Timestamp) {ReleaseHeld();Decoder.Seek(time);}
+        // Seek backward, and forward when the target is far ahead; the native seek lands on the previous keyframe and the
+        // loop below decodes up to the requested instant, so the returned frame is the same either way.
+        var position=Next?.Timestamp ?? Current?.Timestamp ?? TimeSpan.Zero;
+        if((Current!=null && time<Current.Timestamp) || time-position>ForwardSeekDistance) {ReleaseHeld();Decoder.Seek(time);}
         if(Current==null && !Decoder.TryGetNextFrame(out Current)) {throw new InvalidDataException("Video source has no frame at the requested instant.");}
         while(true) {
             if(Next==null && !Decoder.TryGetNextFrame(out Next)) {break;}
