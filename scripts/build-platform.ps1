@@ -18,6 +18,15 @@ param(
     [Parameter()]
     [string]$EditorProject = "",
 
+    # Published host assembly stem; the desktop editor remains the default.
+    [Parameter()]
+    [ValidatePattern("^[A-Za-z0-9_.-]+$")]
+    [string]$EditorAssemblyName = "helengine.editor.app",
+
+    # Explicit font face required by the existing portable build CLI.
+    [Parameter()]
+    [string]$DefaultFontSource = "",
+
     [Parameter()]
     [string]$CacheRoot = "",
 
@@ -398,6 +407,8 @@ try {
     [Environment]::SetEnvironmentVariable("HELENGINE_BUILD_CACHE_ROOT", $Layout.CacheRootPath, [EnvironmentVariableTarget]::Process)
     [Environment]::SetEnvironmentVariable("HELENGINE_BUILD_CONFIGURATION", $Configuration.ToLowerInvariant(), [EnvironmentVariableTarget]::Process)
     [Environment]::SetEnvironmentVariable("HELENGINE_BUILD_PROFILE", $ResolvedBuildProfile, [EnvironmentVariableTarget]::Process)
+    # Roslyn workspaces in the host and codegen must see the assets restored below.
+    [Environment]::SetEnvironmentVariable("ArtifactsPath", $EditorArtifactsPath, [EnvironmentVariableTarget]::Process)
 
     $DotNetSharedPropertyArguments = @(
         "--artifacts-path",
@@ -435,6 +446,14 @@ try {
         "--output",
         $ResolvedOutputPath
     )
+
+    if (-not [string]::IsNullOrWhiteSpace($DefaultFontSource)) {
+        $ResolvedDefaultFontSource = [IO.Path]::GetFullPath($DefaultFontSource)
+        if (-not (Test-Path -LiteralPath $ResolvedDefaultFontSource -PathType Leaf)) {
+            throw "Default font source was not found at '$ResolvedDefaultFontSource'."
+        }
+        $EditorRunArguments += @("--default-font-source", $ResolvedDefaultFontSource)
+    }
 
     if ($AdditionalArgs.Count -gt 0) {
         $EditorRunArguments += $AdditionalArgs
@@ -476,7 +495,7 @@ try {
         exit $DotNetBuildExitCode
     }
 
-    $EditorAssemblyPath = Join-Path $EditorPublishPath "helengine.editor.app.dll"
+    $EditorAssemblyPath = Join-Path $EditorPublishPath ($EditorAssemblyName + ".dll")
     if (-not (Test-Path -LiteralPath $EditorAssemblyPath -PathType Leaf)) {
         [Console]::Error.WriteLine("Editor app assembly was not found at '$EditorAssemblyPath'.")
         $BuildTerminalExitCode = 5
@@ -523,7 +542,8 @@ try {
         exit $CodegenPublishExitCode
     }
 
-    $CodegenToolPath = Join-Path $CodegenPublishPath "codegen.exe"
+    $CodegenToolFileName = if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { "codegen.exe" } else { "codegen" }
+    $CodegenToolPath = Join-Path $CodegenPublishPath $CodegenToolFileName
     if (-not (Test-Path -LiteralPath $CodegenToolPath -PathType Leaf)) {
         [Console]::Error.WriteLine("Published codegen tool was not found at '$CodegenToolPath'.")
         $BuildTerminalExitCode = 6

@@ -45,25 +45,30 @@ namespace helengine {
             string shaderPackagePath = ResolveShaderPackagePath(materialAsset.ShaderAssetId, renderManager3D.ShaderCompileTarget);
             ShaderAsset shaderAsset = assetContentManager.Load<ShaderAsset>(shaderPackagePath, ShaderRuntimeContentProcessorIds.ShaderAsset);
             RuntimeMaterial runtimeMaterial = renderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
-            ApplyImportedTexture(
-                assetContentManager,
-                materialAsset.DiffuseTextureAssetId,
-                runtimeMaterial,
-                StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName,
-                ownerCore.RenderManager2D);
-            ApplyImportedTexture(
-                assetContentManager,
-                materialAsset.EmissiveTextureAssetId,
-                runtimeMaterial,
-                StandardMaterialTextureBindingDefaults.EmissiveTextureBindingName,
-                ownerCore.RenderManager2D);
-            ApplyImportedTexture(
-                assetContentManager,
-                materialAsset.RoughnessTextureAssetId,
-                runtimeMaterial,
-                StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName,
-                ownerCore.RenderManager2D);
-            return runtimeMaterial;
+            try {
+                ApplyImportedTexture(
+                    assetContentManager,
+                    materialAsset.DiffuseTextureAssetId,
+                    runtimeMaterial,
+                    StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName,
+                    ownerCore.RenderManager2D);
+                ApplyImportedTexture(
+                    assetContentManager,
+                    materialAsset.EmissiveTextureAssetId,
+                    runtimeMaterial,
+                    StandardMaterialTextureBindingDefaults.EmissiveTextureBindingName,
+                    ownerCore.RenderManager2D);
+                ApplyImportedTexture(
+                    assetContentManager,
+                    materialAsset.RoughnessTextureAssetId,
+                    runtimeMaterial,
+                    StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName,
+                    ownerCore.RenderManager2D);
+                return runtimeMaterial;
+            } catch {
+                ownerCore.RenderManager3D.ReleaseMaterial(runtimeMaterial);
+                throw;
+            }
         }
 
         /// <summary>

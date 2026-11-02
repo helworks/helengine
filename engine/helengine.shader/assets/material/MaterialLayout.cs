@@ -36,17 +36,17 @@ namespace helengine {
         /// <summary>
         /// Texture bindings exposed by the selected shader programs.
         /// </summary>
-        MaterialLayoutBinding[] TextureBindingsValue;
+        MaterialLayoutBindings TextureBindingsValue;
 
         /// <summary>
         /// Constant-buffer bindings exposed by the selected shader programs.
         /// </summary>
-        MaterialLayoutBinding[] ConstantBufferBindingsValue;
+        MaterialLayoutBindings ConstantBufferBindingsValue;
 
         /// <summary>
         /// Sampler bindings exposed by the selected shader programs.
         /// </summary>
-        MaterialLayoutBinding[] SamplerBindingsValue;
+        MaterialLayoutBindings SamplerBindingsValue;
 
         /// <summary>
         /// Initializes a new material layout.
@@ -73,9 +73,18 @@ namespace helengine {
             PixelProgramValue = pixelProgram ?? throw new ArgumentNullException(nameof(pixelProgram));
             VariantValue = variant ?? throw new ArgumentNullException(nameof(variant));
             RenderStateValue = renderState ?? throw new ArgumentNullException(nameof(renderState));
-            TextureBindingsValue = textureBindings ?? throw new ArgumentNullException(nameof(textureBindings));
-            ConstantBufferBindingsValue = constantBufferBindings ?? throw new ArgumentNullException(nameof(constantBufferBindings));
-            SamplerBindingsValue = samplerBindings ?? throw new ArgumentNullException(nameof(samplerBindings));
+            if (textureBindings == null) {
+                throw new ArgumentNullException(nameof(textureBindings));
+            }
+            if (constantBufferBindings == null) {
+                throw new ArgumentNullException(nameof(constantBufferBindings));
+            }
+            if (samplerBindings == null) {
+                throw new ArgumentNullException(nameof(samplerBindings));
+            }
+            TextureBindingsValue = new MaterialLayoutBindings(textureBindings);
+            ConstantBufferBindingsValue = new MaterialLayoutBindings(constantBufferBindings);
+            SamplerBindingsValue = new MaterialLayoutBindings(samplerBindings);
         }
 
         /// <summary>
@@ -88,7 +97,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Shared empty material layout.</returns>
         static MaterialLayout CreateEmptyValue() {
-            return new MaterialLayout(
+            MaterialLayout layout = new MaterialLayout(
                 string.Empty,
                 string.Empty,
                 string.Empty,
@@ -97,6 +106,10 @@ namespace helengine {
                 Array.Empty<MaterialLayoutBinding>(),
                 Array.Empty<MaterialLayoutBinding>(),
                 Array.Empty<MaterialLayoutBinding>());
+            layout.TextureBindingsValue.PreserveSharedLifetime();
+            layout.ConstantBufferBindingsValue.PreserveSharedLifetime();
+            layout.SamplerBindingsValue.PreserveSharedLifetime();
+            return layout;
         }
 
         /// <summary>
@@ -127,17 +140,17 @@ namespace helengine {
         /// <summary>
         /// Gets the texture bindings exposed by the selected shader programs.
         /// </summary>
-        public MaterialLayoutBinding[] TextureBindings => TextureBindingsValue;
+        public MaterialLayoutBindings TextureBindings => TextureBindingsValue;
 
         /// <summary>
         /// Gets the constant-buffer bindings exposed by the selected shader programs.
         /// </summary>
-        public MaterialLayoutBinding[] ConstantBufferBindings => ConstantBufferBindingsValue;
+        public MaterialLayoutBindings ConstantBufferBindings => ConstantBufferBindingsValue;
 
         /// <summary>
         /// Gets the sampler bindings exposed by the selected shader programs.
         /// </summary>
-        public MaterialLayoutBinding[] SamplerBindings => SamplerBindingsValue;
+        public MaterialLayoutBindings SamplerBindings => SamplerBindingsValue;
 
         /// <summary>
         /// Releases layout-owned native containers for bindings and render state.
@@ -191,7 +204,7 @@ namespace helengine {
         /// <param name="bindings">Binding array to inspect.</param>
         /// <param name="bindingName">Binding name to resolve.</param>
         /// <returns>Binding index when found; otherwise <c>-1</c>.</returns>
-        static int FindBindingIndex(MaterialLayoutBinding[] bindings, string bindingName) {
+        static int FindBindingIndex(MaterialLayoutBindings bindings, string bindingName) {
             if (bindings == null) {
                 throw new ArgumentNullException(nameof(bindings));
             }
@@ -214,16 +227,10 @@ namespace helengine {
             return -1;
         }
 
-        /// <summary>
-        /// Releases one binding array unless it points at the shared framework empty-array singleton.
-        /// </summary>
-        /// <param name="bindings">Binding array to release.</param>
-        static void ReleaseBindings(ref MaterialLayoutBinding[] bindings) {
-            if (!ReferenceEquals(bindings, Array.Empty<MaterialLayoutBinding>())) {
-                NativeOwnership.DeleteItemsAndRelease(ref bindings);
-            }
-
-            bindings = null;
+        /// <summary>Disposes one owned binding collection and clears its native reference.</summary>
+        /// <param name="bindings">Binding collection to release.</param>
+        static void ReleaseBindings(ref MaterialLayoutBindings bindings) {
+            NativeOwnership.DisposeAndRelease(ref bindings);
         }
     }
 }

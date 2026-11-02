@@ -14,6 +14,12 @@ namespace helengine {
         [NativeOwnedMember]
         MaterialPropertyBlock PropertiesValue;
 
+        /// <summary>Distinguishes property-block replacements even when a native allocator reuses the previous address.</summary>
+        ulong LayoutRevisionValue;
+
+        /// <summary>Gets the generation of the resolved layout/property-block association, including interrupted replacements and disposal.</summary>
+        public ulong LayoutRevision => LayoutRevisionValue;
+
         /// <summary>
         /// Initializes a new shader runtime material with an empty layout and an empty property block.
         /// </summary>
@@ -50,6 +56,7 @@ namespace helengine {
         /// Releases shader-runtime-material-owned native resources and nested containers.
         /// </summary>
         public override void Dispose() {
+            InvalidateLayoutRevision();
             if (OwnsLayout(LayoutValue)) {
                 NativeOwnership.DisposeAndDelete(LayoutValue);
             }
@@ -177,6 +184,7 @@ namespace helengine {
         /// </summary>
         /// <param name="layout">Resolved material layout to apply.</param>
         void ApplyResolvedLayout(MaterialLayout layout) {
+            InvalidateLayoutRevision();
             MaterialLayout previousLayout = Layout;
             MaterialPropertyBlock replacementProperties = new MaterialPropertyBlock(layout);
             RestoreTextureBindings(layout, previousLayout, PropertiesValue, replacementProperties);
@@ -184,6 +192,15 @@ namespace helengine {
             NativeOwnership.DisposeAndRelease(ref PropertiesValue);
             LayoutValue = layout;
             PropertiesValue = replacementProperties;
+        }
+
+        /// <summary>Invalidates before replacement/disposal can partially release state, rejecting wrap rather than allowing an ABA cache hit.</summary>
+        void InvalidateLayoutRevision() {
+            if (LayoutRevisionValue == ulong.MaxValue) {
+                throw new OverflowException("Material layout revision exhausted.");
+            }
+
+            LayoutRevisionValue++;
         }
 
         /// <summary>

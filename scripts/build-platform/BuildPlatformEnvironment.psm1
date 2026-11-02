@@ -5,7 +5,8 @@ $BuildPlatformEnvironmentVariableNames = @(
     "HELENGINE_BUILD_CACHE_ROOT",
     "HELENGINE_BUILD_CONFIGURATION",
     "HELENGINE_BUILD_PROFILE",
-    "HELENGINE_SOURCE_ROOT"
+    "HELENGINE_SOURCE_ROOT",
+    "ArtifactsPath"
 )
 
 function Save-BuildPlatformEnvironmentState {

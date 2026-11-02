@@ -86,14 +86,16 @@ namespace helengine.editor.tests {
             ShaderRuntimeMaterial material = Assert.IsType<ShaderRuntimeMaterial>(renderer.BuildMaterialFromRaw(source, shader));
             Assert.Equal("materials/cpu-authoring", material.ResolveRootMaterial().Id);
             Assert.Equal(MaterialBlendMode.AlphaBlend, material.RenderState.BlendMode);
-            Assert.Equal("Params", Assert.Single(material.Layout.ConstantBufferBindings).Name);
+            Assert.Equal(1, material.Layout.ConstantBufferBindings.Length);
+            Assert.Equal("Params", material.Layout.ConstantBufferBindings[0].Name);
             Assert.True(material.TryResolveConstantBufferData("Params", out byte[] constants));
             source.ConstantBuffers[0].Data[0] = 255;
             Assert.Equal(0, constants[0]);
             using ShaderAsset updated = CreateShader(2);
             renderer.InvalidateShaderResources("shader/test", updated);
             Assert.Equal("materials/cpu-authoring", material.ResolveRootMaterial().Id);
-            Assert.Equal(2, Assert.Single(material.Layout.ConstantBufferBindings).Slot);
+            Assert.Equal(1, material.Layout.ConstantBufferBindings.Length);
+            Assert.Equal(2, material.Layout.ConstantBufferBindings[0].Slot);
             Assert.True(material.TryResolveConstantBufferData("Params", out byte[] refreshed));
             Assert.Equal(0, refreshed[0]);
             renderer.ReleaseMaterial(material);

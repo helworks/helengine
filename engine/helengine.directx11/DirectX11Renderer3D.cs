@@ -734,6 +734,8 @@ namespace helengine.directx11 {
                 throw new ArgumentNullException(nameof(material));
             }
 
+            MaterialBinder.ReleaseMaterial(material);
+
             if (material is DirectX11MaterialResource directX11Material) {
                 UnregisterMaterial(directX11Material);
                 if (MaterialBinder.IsActiveMaterial(directX11Material)) {

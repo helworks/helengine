@@ -1015,6 +1015,49 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         Assert.Equal("audio", artifactKind);
     }
 
+    /// <summary>Verifies material-only raw texture dependencies survive manifest collection and scene-package cache replay.</summary>
+    /// <param name="textureFieldId">Standard material texture binding that selects the source texture.</param>
+    /// <param name="useSourcePath">Whether the material keeps the authored asset-relative path instead of its imported id.</param>
+    [Theory]
+    [InlineData("texture-id", false)]
+    [InlineData("texture-id", true)]
+    [InlineData("emissive-texture-id", false)]
+    [InlineData("emissive-texture-id", true)]
+    [InlineData("roughness-texture-id", false)]
+    [InlineData("roughness-texture-id", true)]
+    public void Cook_raw_material_texture_is_selected_manifest_dependency_on_fresh_and_cached_packaging(string textureFieldId, bool useSourcePath) {
+        const string sceneId = "Scenes/RawTexture.helen";
+        const string materialPath = "Materials/RawTexture.hasset";
+        const string sourcePath = "Maps/Textures/Authored.png";
+        string importedAssetId = WriteSourceTextureAssetAndReturnAssetId(sourcePath, ".png", "windows");
+        string textureAssetId = useSourcePath ? sourcePath : importedAssetId;
+        WriteCityStyleStandardMaterialAsset(materialPath, textureAssetId, textureFieldId);
+        WriteSceneAssetWithMaterial(sceneId, materialPath);
+        TestPlatformMaterialAssetBuilder builder = new();
+        ShaderBackendRegistry backends = new();
+        backends.Register(new PackagingTestShaderBackend());
+        using EditorBuiltInShaderAssetLibrary shaderLibrary = new(backends);
+        EditorPlatformAssetCookService service = new(ProjectRootPath, "1.0.0-engine", "game", "1.0.0",
+            [new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"])],
+            PackagedFontAssetFactory.Create(), null, null, shaderLibrary);
+        string runtimeTexturePath = ShaderRuntimeMaterialLoader.ResolveImportedTexturePackagePath(textureAssetId);
+
+        for (int pass = 0; pass < 3; pass++) {
+            PlatformBuildManifest manifest = service.Cook(builder.Definition, ["RawTexture"], BuildRootPath, ["windows"], builder, "debug", "directx11");
+            string texturePath = Path.Combine(BuildRootPath, runtimeTexturePath.Replace('/', Path.DirectorySeparatorChar));
+            Assert.True(File.Exists(texturePath));
+            using FileStream stream = File.OpenRead(texturePath);
+            TextureAsset texture = Assert.IsType<TextureAsset>(PackagedAssetBinarySerializer.Deserialize(stream, NumericPrecisionPolicy.Default));
+            Assert.Equal(new byte[] {255, 128, 64, 255}, texture.Colors);
+            string[] dependencies = System.Text.Json.JsonSerializer.Deserialize<string[]>(
+                Assert.Single(manifest.Scenes).ResolvedMetadata.Single(entry => entry.Key == "cooked-dependency-paths").Value);
+            Assert.Contains(runtimeTexturePath, dependencies);
+            PlatformBuildArtifact artifact = Assert.Single(manifest.CookedArtifacts, candidate => candidate.RelativePath == runtimeTexturePath);
+            Assert.Equal("asset", artifact.ArtifactKind);
+            Assert.Empty(manifest.PlatformCookWorkItems);
+        }
+    }
+
     /// <summary>
     /// Verifies builder-owned GameCube texture capabilities are emitted as manifest work items and removed from cooked artifacts.
     /// </summary>
@@ -1259,7 +1302,8 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     /// </summary>
     /// <param name="materialRelativePath">Project-relative material path to write.</param>
     /// <param name="diffuseTextureAssetId">Optional imported texture asset id referenced by the material.</param>
-    void WriteCityStyleStandardMaterialAsset(string materialRelativePath, string diffuseTextureAssetId = "") {
+    /// <param name="textureFieldId">Material field that should receive the imported texture identity.</param>
+    void WriteCityStyleStandardMaterialAsset(string materialRelativePath, string diffuseTextureAssetId = "", string textureFieldId = "texture-id") {
         string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(materialPath)!);
 
@@ -1275,7 +1319,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             SchemaId = "standard-shader",
             FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
                 ["use-custom-shader"] = "false",
-                ["texture-id"] = diffuseTextureAssetId ?? string.Empty,
+                [textureFieldId] = diffuseTextureAssetId ?? string.Empty,
                 ["casts-shadow"] = "true",
                 ["receives-shadow"] = "true",
                 ["base-color"] = "#FF4040FF"

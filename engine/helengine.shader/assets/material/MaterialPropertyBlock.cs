@@ -18,6 +18,12 @@ namespace helengine {
         /// </summary>
         byte[][] ConstantBufferValues;
 
+        /// <summary>Monotonic invalidation stamp advanced before any potentially partial mutation of owned values.</summary>
+        ulong RevisionValue;
+
+        /// <summary>Gets the current property revision without exposing or borrowing private constant-buffer storage.</summary>
+        public ulong Revision => RevisionValue;
+
         /// <summary>
         /// Initializes a new property block for the supplied material layout.
         /// </summary>
@@ -37,6 +43,7 @@ namespace helengine {
         /// Releases property-block-owned native containers while leaving referenced textures under renderer or scene-manager ownership.
         /// </summary>
         public void Dispose() {
+            InvalidateRevision();
             NativeOwnership.DeleteItemsAndRelease(ref ConstantBufferValues);
             NativeOwnership.Release(ref TextureValues);
             LayoutValue = null;
@@ -63,6 +70,7 @@ namespace helengine {
         /// <param name="texture">Texture value to assign, or <c>null</c> to clear the binding.</param>
         public void SetTexture(int bindingIndex, RuntimeTexture texture) {
             ValidateTextureBindingIndex(bindingIndex);
+            InvalidateRevision();
             TextureValues[bindingIndex] = texture;
         }
 
@@ -120,6 +128,7 @@ namespace helengine {
             ValidateConstantBufferBindingIndex(bindingIndex);
 
             if (data == null) {
+                InvalidateRevision();
                 NativeOwnership.Delete(ConstantBufferValues[bindingIndex]);
                 ConstantBufferValues[bindingIndex] = null;
                 return;
@@ -133,6 +142,7 @@ namespace helengine {
 
             byte[] copiedData = new byte[data.Length];
             Array.Copy(data, copiedData, data.Length);
+            InvalidateRevision();
             NativeOwnership.Delete(ConstantBufferValues[bindingIndex]);
             ConstantBufferValues[bindingIndex] = copiedData;
         }
@@ -166,6 +176,15 @@ namespace helengine {
 
             CopyMatchingTextureValuesFrom(source);
             CopyMatchingConstantBufferValuesFrom(source);
+        }
+
+        /// <summary>Refuses wrap before mutation so no old immutable snapshot can become current again after counter exhaustion.</summary>
+        void InvalidateRevision() {
+            if (RevisionValue == ulong.MaxValue) {
+                throw new OverflowException("Material property revision exhausted.");
+            }
+
+            RevisionValue++;
         }
 
         /// <summary>
@@ -205,7 +224,7 @@ namespace helengine {
                     continue;
                 }
 
-                TextureValues[textureIndex] = sourceTexture;
+                SetTexture(textureIndex, sourceTexture);
             }
         }
 
@@ -231,6 +250,8 @@ namespace helengine {
                     continue;
                 }
 
+                InvalidateRevision();
+                NativeOwnership.Delete(ConstantBufferValues[constantBufferIndex]);
                 ConstantBufferValues[constantBufferIndex] = sourceData;
             }
         }
