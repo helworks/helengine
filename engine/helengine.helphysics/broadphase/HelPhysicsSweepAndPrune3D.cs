@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Generates deterministic collision candidates by insertion-sorting persistent X-axis endpoints and sweeping a fixed active set.
     /// </summary>
-    public sealed class HelPhysicsSweepAndPrune3D {
+    public sealed class HelPhysicsSweepAndPrune3D : IDisposable {
         /// <summary>
         /// Stores the minimum number of proxy and candidate slots accepted by this broadphase.
         /// </summary>
@@ -11,17 +11,20 @@ namespace helengine {
         /// <summary>
         /// Stores body metadata and bounds in permanently allocated proxy slots.
         /// </summary>
-        readonly HelPhysicsBroadphaseProxy3D[] Proxies;
+        [NativeOwnedMember]
+        HelPhysicsBroadphaseProxy3D[] Proxies;
 
         /// <summary>
         /// Stores two persistent X-axis endpoints for every occupied proxy slot.
         /// </summary>
-        readonly HelPhysicsSweepEndpoint3D[] Endpoints;
+        [NativeOwnedMember]
+        HelPhysicsSweepEndpoint3D[] Endpoints;
 
         /// <summary>
         /// Stores body indices whose X intervals currently overlap the sweep position.
         /// </summary>
-        readonly int[] ActiveBodyIndices;
+        [NativeOwnedMember]
+        int[] ActiveBodyIndices;
 
         /// <summary>
         /// Stores the maximum number of candidates this broadphase may emit in one build.
@@ -427,6 +430,12 @@ namespace helengine {
             }
 
             throw new InvalidOperationException("A sweep maximum endpoint does not match an active interval.");
+        }
+        /// <summary>Releases the native storage exclusively owned by this internal physics resource.</summary>
+        public void Dispose() {
+            NativeOwnership.Release(ref Proxies);
+            NativeOwnership.Release(ref Endpoints);
+            NativeOwnership.Release(ref ActiveBodyIndices);
         }
     }
 }

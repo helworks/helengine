@@ -2,15 +2,11 @@ namespace helengine {
     /// <summary>
     /// Owns one deterministic fixed-capacity scalar box/sphere world and executes its simulation in a fixed twelve-phase order.
     /// </summary>
-    public sealed partial class HelPhysicsWorld3D : IPhysicsRuntime
+    public sealed partial class HelPhysicsWorld3D : IPhysicsRuntime, IDisposable
 #if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
         , IPhysicsRuntimeProfilerMetricsProvider
 #endif
         {
-        /// <summary>
-        /// Stores the process-local monotonic ownership allocator that permanently rejects token wraparound.
-        /// </summary>
-        static readonly HelPhysicsWorldIdAllocator3D WorldIdAllocator = new HelPhysicsWorldIdAllocator3D();
 
         /// <summary>
         /// Stores the conservative collision skin added to every world-space shape bound.
@@ -25,153 +21,183 @@ namespace helengine {
         /// <summary>
         /// Stores all fixed hot and cold body slots, including reservations waiting for activation.
         /// </summary>
-        readonly HelPhysicsBodyPool3D Bodies;
+        [NativeOwnedMember]
+        HelPhysicsBodyPool3D Bodies;
 
         /// <summary>
         /// Stores the separately generated shape allocation owned by every reserved body.
         /// </summary>
-        readonly HelPhysicsShapePool3D Shapes;
+        [NativeOwnedMember]
+        HelPhysicsShapePool3D Shapes;
 
         /// <summary>
         /// Stores persistent sweep endpoints and fixed broadphase proxy metadata.
         /// </summary>
-        readonly HelPhysicsSweepAndPrune3D Broadphase;
+        [NativeOwnedMember]
+        HelPhysicsSweepAndPrune3D Broadphase;
 
         /// <summary>
         /// Stores contact geometry, lifetimes, and warm-start impulses across fixed steps.
         /// </summary>
-        readonly HelPhysicsManifoldCache3D ManifoldCache;
+        [NativeOwnedMember]
+        HelPhysicsManifoldCache3D ManifoldCache;
 
         /// <summary>
         /// Stores deterministic current and prior dynamic-island publications.
         /// </summary>
-        readonly HelPhysicsIslandBuilder3D IslandBuilder;
+        [NativeOwnedMember]
+        HelPhysicsIslandBuilder3D IslandBuilder;
 
         /// <summary>
         /// Stores aggressive whole-island sleep state and current-step wake diagnostics.
         /// </summary>
-        readonly HelPhysicsIslandSleeper3D IslandSleeper;
+        [NativeOwnedMember]
+        HelPhysicsIslandSleeper3D IslandSleeper;
 
         /// <summary>
         /// Integrates gravity, external force, torque, and damping into awake dynamic velocity.
         /// </summary>
-        readonly HelPhysicsBodyIntegrator3D BodyIntegrator;
+        [NativeOwnedMember]
+        HelPhysicsBodyIntegrator3D BodyIntegrator;
 
         /// <summary>
         /// Stores fixed contact constraints and executes warm starting, velocity solving, and penetration correction.
         /// </summary>
-        readonly HelPhysicsContactSolver3D ContactSolver;
+        [NativeOwnedMember]
+        HelPhysicsContactSolver3D ContactSolver;
 
         /// <summary>
         /// Integrates solved awake dynamic velocities into world-space poses.
         /// </summary>
-        readonly HelPhysicsPoseIntegrator3D PoseIntegrator;
+        [NativeOwnedMember]
+        HelPhysicsPoseIntegrator3D PoseIntegrator;
 
         /// <summary>
         /// Stores reusable face-clipping buffers for box manifold construction.
         /// </summary>
-        readonly HelPhysicsBoxCollisionScratch3D CollisionScratch;
+        [NativeOwnedMember]
+        HelPhysicsBoxCollisionScratch3D CollisionScratch;
 
         /// <summary>
         /// Stores commands accepted between steps in exact public insertion order.
         /// </summary>
-        readonly HelPhysicsDeferredCommand3D[] DeferredCommands;
+        [NativeOwnedMember]
+        HelPhysicsDeferredCommand3D[] DeferredCommands;
 
         /// <summary>
         /// Stores the acceptance order of each general command so fixed removal storage can merge without reordering mutations.
         /// </summary>
-        readonly long[] DeferredCommandOrders;
+        [NativeOwnedMember]
+        long[] DeferredCommandOrders;
 
         /// <summary>
         /// Stores one exact-generation removal identity per body slot independently from general command capacity.
         /// </summary>
-        readonly HelPhysicsBodyHandle3D[] DeferredRemovalHandles;
+        [NativeOwnedMember]
+        HelPhysicsBodyHandle3D[] DeferredRemovalHandles;
 
         /// <summary>
         /// Stores the acceptance order parallel to each fixed removal identity.
         /// </summary>
-        readonly long[] DeferredRemovalOrders;
+        [NativeOwnedMember]
+        long[] DeferredRemovalOrders;
 
         /// <summary>
         /// Marks reservations that have passed phase-one activation and may participate in simulation.
         /// </summary>
-        readonly bool[] BodyIsActive;
+        [NativeOwnedMember]
+        bool[] BodyIsActive;
 
         /// <summary>
         /// Marks active body slots whose broadphase metadata or velocity-dependent bounds require publication before comparison can skip them.
         /// </summary>
-        readonly bool[] ProxyIsDirty;
+        [NativeOwnedMember]
+        bool[] ProxyIsDirty;
 
         /// <summary>
         /// Marks active body slots that currently own a published broadphase proxy and comparable pose snapshot.
         /// </summary>
-        readonly bool[] ProxyIsRegistered;
+        [NativeOwnedMember]
+        bool[] ProxyIsRegistered;
 
         /// <summary>
         /// Stores each registered proxy's last exact body position for allocation-free moved-state detection.
         /// </summary>
-        readonly PhysicsVector3[] ProxyPositions;
+        [NativeOwnedMember]
+        PhysicsVector3[] ProxyPositions;
 
         /// <summary>
         /// Stores each registered proxy's last exact body orientation for allocation-free moved-state detection.
         /// </summary>
-        readonly PhysicsQuaternion[] ProxyOrientations;
+        [NativeOwnedMember]
+        PhysicsQuaternion[] ProxyOrientations;
 
         /// <summary>
         /// Stores each registered proxy's last awake-or-moving activity flag for wake and sleep transition detection.
         /// </summary>
-        readonly bool[] ProxyActivityStates;
+        [NativeOwnedMember]
+        bool[] ProxyActivityStates;
 
         /// <summary>
         /// Stores each registered proxy's last scalar linear-velocity expansion so velocity-only bound changes cannot remain stale.
         /// </summary>
-        readonly PhysicsScalar[] ProxyVelocityExpansions;
+        [NativeOwnedMember]
+        PhysicsScalar[] ProxyVelocityExpansions;
 
         /// <summary>
         /// Marks body identities that already own one accepted deferred removal command.
         /// </summary>
-        readonly bool[] BodyRemovalQueued;
+        [NativeOwnedMember]
+        bool[] BodyRemovalQueued;
 
         /// <summary>
         /// Stores each pending reservation's authored body mode until its activation command executes.
         /// </summary>
-        readonly BodyKind3D[] PendingBodyKinds;
+        [NativeOwnedMember]
+        BodyKind3D[] PendingBodyKinds;
 
         /// <summary>
         /// Stores each pending dynamic reservation's authored initial awake state until activation.
         /// </summary>
-        readonly bool[] PendingInitialAwakeStates;
+        [NativeOwnedMember]
+        bool[] PendingInitialAwakeStates;
 
         /// <summary>
         /// Stores the final broadphase candidates for the step currently being assembled.
         /// </summary>
-        readonly HelPhysicsCandidatePair3D[] CandidatePairs;
+        [NativeOwnedMember]
+        HelPhysicsCandidatePair3D[] CandidatePairs;
 
         /// <summary>
         /// Stores current narrow-phase pair keys in deterministic order and parallel to active manifolds.
         /// </summary>
-        readonly HelPhysicsPairKey3D[] ActivePairs;
+        [NativeOwnedMember]
+        HelPhysicsPairKey3D[] ActivePairs;
 
         /// <summary>
         /// Stores current narrow-phase manifolds in deterministic order and parallel to active pairs.
         /// </summary>
-        readonly HelPhysicsContactManifold3D[] ActiveManifolds;
+        [NativeOwnedMember]
+        HelPhysicsContactManifold3D[] ActiveManifolds;
 
         /// <summary>
         /// Stores active and retained sleeping pair keys used only to preserve complete island connectivity.
         /// </summary>
-        readonly HelPhysicsPairKey3D[] IslandPairs;
+        [NativeOwnedMember]
+        HelPhysicsPairKey3D[] IslandPairs;
 
         /// <summary>
         /// Stores active and retained sleeping manifolds parallel to the island pair array.
         /// </summary>
-        readonly HelPhysicsContactManifold3D[] IslandManifolds;
+        [NativeOwnedMember]
+        HelPhysicsContactManifold3D[] IslandManifolds;
 
 #if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
         /// <summary>
         /// Stores the single reusable outer-profiler sample returned without allocation.
         /// </summary>
-        readonly HelPhysicsRuntimeProfilerMetrics3D RuntimeProfilerMetrics;
+        [NativeOwnedMember]
+        HelPhysicsRuntimeProfilerMetrics3D RuntimeProfilerMetrics;
 #endif
 
         /// <summary>
@@ -239,8 +265,8 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            Settings = settings;
-            WorldId = WorldIdAllocator.Allocate();
+            SettingsValue = settings;
+            WorldId = HelPhysicsProcessWorldIds3D.Allocate();
             Bodies = new HelPhysicsBodyPool3D(settings.BodyCapacity);
             Shapes = new HelPhysicsShapePool3D(settings.ShapeCapacity);
             Broadphase = new HelPhysicsSweepAndPrune3D(settings.BodyCapacity, settings.CandidatePairCapacity);
@@ -266,7 +292,11 @@ namespace helengine {
             PendingBodyKinds = new BodyKind3D[settings.BodyCapacity];
             PendingInitialAwakeStates = new bool[settings.BodyCapacity];
             CandidatePairs = new HelPhysicsCandidatePair3D[settings.CandidatePairCapacity];
-            InitializeTriggerStorage();
+            CurrentTriggerPairs = new HelPhysicsTriggerPairKey3D[Settings.CandidatePairCapacity * 2];
+            PreviousTriggerPairs = new HelPhysicsTriggerPairKey3D[Settings.CandidatePairCapacity * 2];
+            TriggerEventCapacity = Settings.CandidatePairCapacity * 4;
+            TriggerEventsValue = new List<HelPhysicsTriggerEvent3D>(TriggerEventCapacity);
+            TriggerEventsView = TriggerEventsValue.AsReadOnly();
             ActivePairs = new HelPhysicsPairKey3D[settings.ManifoldCapacity];
             ActiveManifolds = new HelPhysicsContactManifold3D[settings.ManifoldCapacity];
             IslandPairs = new HelPhysicsPairKey3D[settings.ManifoldCapacity];
@@ -280,7 +310,7 @@ namespace helengine {
         /// <summary>
         /// Gets the validated fixed allocation and solve profile owned by this world.
         /// </summary>
-        public HelPhysicsWorldSettings3D Settings { get; }
+        public HelPhysicsWorldSettings3D Settings => SettingsValue;
 
         /// <summary>
         /// Gets an immutable copy of every counter published by the most recently completed fixed step.
@@ -780,6 +810,7 @@ namespace helengine {
         /// </summary>
         /// <exception cref="InvalidOperationException">Thrown when this world can no longer guarantee coherent mutable simulation state.</exception>
         void ThrowIfFaulted() {
+            if (IsDisposedValue) { throw new ObjectDisposedException(nameof(HelPhysicsWorld3D)); }
             if (IsFaulted) {
                 throw new InvalidOperationException("The HelPhysics world is faulted and cannot accept further simulation work.");
             }
@@ -1732,5 +1763,57 @@ namespace helengine {
 
             return first.SecondBodyIndex < second.SecondBodyIndex;
         }
+        /// <summary>Owns the immutable settings transferred into this world constructor.</summary>
+        [NativeOwnedMember]
+        HelPhysicsWorldSettings3D SettingsValue;
+
+        /// <summary>Rejects simulation after its native storage has been released.</summary>
+        bool IsDisposedValue;
+
+        /// <summary>Releases world-owned storage after its borrowing scene binder has detached.</summary>
+        public void Dispose() {
+            if (SceneBinderOwner != null) {
+                throw new InvalidOperationException("Dispose the borrowing scene binder before releasing its world.");
+            }
+            IsDisposedValue = true;
+            NativeOwnership.DisposeAndRelease(ref Bodies);
+            NativeOwnership.DisposeAndRelease(ref Shapes);
+            NativeOwnership.DisposeAndRelease(ref Broadphase);
+            NativeOwnership.DisposeAndRelease(ref ManifoldCache);
+            NativeOwnership.DisposeAndRelease(ref IslandBuilder);
+            NativeOwnership.DisposeAndRelease(ref IslandSleeper);
+            NativeOwnership.Release(ref BodyIntegrator);
+            NativeOwnership.DisposeAndRelease(ref ContactSolver);
+            NativeOwnership.Release(ref PoseIntegrator);
+            NativeOwnership.DisposeAndRelease(ref CollisionScratch);
+            NativeOwnership.Release(ref DeferredCommands);
+            NativeOwnership.Release(ref DeferredCommandOrders);
+            NativeOwnership.Release(ref DeferredRemovalHandles);
+            NativeOwnership.Release(ref DeferredRemovalOrders);
+            NativeOwnership.Release(ref BodyIsActive);
+            NativeOwnership.Release(ref ProxyIsDirty);
+            NativeOwnership.Release(ref ProxyIsRegistered);
+            NativeOwnership.Release(ref ProxyPositions);
+            NativeOwnership.Release(ref ProxyOrientations);
+            NativeOwnership.Release(ref ProxyActivityStates);
+            NativeOwnership.Release(ref ProxyVelocityExpansions);
+            NativeOwnership.Release(ref BodyRemovalQueued);
+            NativeOwnership.Release(ref PendingBodyKinds);
+            NativeOwnership.Release(ref PendingInitialAwakeStates);
+            NativeOwnership.Release(ref CandidatePairs);
+            NativeOwnership.Release(ref ActivePairs);
+            NativeOwnership.Release(ref ActiveManifolds);
+            NativeOwnership.Release(ref IslandPairs);
+            NativeOwnership.Release(ref IslandManifolds);
+            NativeOwnership.Release(ref TriggerEventsView);
+            NativeOwnership.Release(ref TriggerEventsValue);
+            NativeOwnership.Release(ref CurrentTriggerPairs);
+            NativeOwnership.Release(ref PreviousTriggerPairs);
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
+            NativeOwnership.Release(ref RuntimeProfilerMetrics);
+#endif
+            NativeOwnership.Release(ref SettingsValue);
+        }
+
     }
 }

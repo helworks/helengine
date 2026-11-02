@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Builds deterministic dynamic-body contact islands into transactionally published fixed-capacity indexed arrays.
     /// </summary>
-    sealed class HelPhysicsIslandBuilder3D {
+    sealed class HelPhysicsIslandBuilder3D : IDisposable {
         /// <summary>
         /// Stores the minimum supported fixed body or island capacity.
         /// </summary>
@@ -56,27 +56,32 @@ namespace helengine {
         /// <summary>
         /// Stores constructor-owned union-find parents for occupied dynamic body slots and negative one for all other slots.
         /// </summary>
-        readonly int[] Parents;
+        [NativeOwnedMember]
+        int[] Parents;
 
         /// <summary>
         /// Stores constructor-owned union-by-rank depth estimates parallel to <see cref="Parents"/>.
         /// </summary>
-        readonly byte[] Ranks;
+        [NativeOwnedMember]
+        byte[] Ranks;
 
         /// <summary>
         /// Maps each current union root to its deterministic staging island index during construction.
         /// </summary>
-        readonly int[] RootToIslandIndices;
+        [NativeOwnedMember]
+        int[] RootToIslandIndices;
 
         /// <summary>
         /// Stores the staged member count accumulated for each deterministic island before ranges are assigned.
         /// </summary>
-        readonly int[] StagingIslandMemberCounts;
+        [NativeOwnedMember]
+        int[] StagingIslandMemberCounts;
 
         /// <summary>
         /// Stores the next flat member destination for each staging island during ascending body traversal.
         /// </summary>
-        readonly int[] StagingIslandWriteIndices;
+        [NativeOwnedMember]
+        int[] StagingIslandWriteIndices;
 
         /// <summary>
         /// Stores how many leading published island ranges are current.
@@ -103,14 +108,22 @@ namespace helengine {
                 throw new ArgumentOutOfRangeException(nameof(islandCapacity), "Island capacity must be positive and cannot exceed body capacity.");
             }
 
-            Islands = new HelPhysicsIsland3D[islandCapacity];
-            StagingIslands = new HelPhysicsIsland3D[islandCapacity];
-            BodyIndices = new int[bodyCapacity];
-            StagingBodyIndices = new int[bodyCapacity];
-            BodyHandles = new HelPhysicsBodyHandle3D[bodyCapacity];
-            StagingBodyHandles = new HelPhysicsBodyHandle3D[bodyCapacity];
-            BodyToIslandIndices = new int[bodyCapacity];
-            StagingBodyToIslandIndices = new int[bodyCapacity];
+            OwnedIslands = new HelPhysicsIsland3D[islandCapacity];
+            Islands = OwnedIslands;
+            OwnedStagingIslands = new HelPhysicsIsland3D[islandCapacity];
+            StagingIslands = OwnedStagingIslands;
+            OwnedBodyIndices = new int[bodyCapacity];
+            BodyIndices = OwnedBodyIndices;
+            OwnedStagingBodyIndices = new int[bodyCapacity];
+            StagingBodyIndices = OwnedStagingBodyIndices;
+            OwnedBodyHandles = new HelPhysicsBodyHandle3D[bodyCapacity];
+            BodyHandles = OwnedBodyHandles;
+            OwnedStagingBodyHandles = new HelPhysicsBodyHandle3D[bodyCapacity];
+            StagingBodyHandles = OwnedStagingBodyHandles;
+            OwnedBodyToIslandIndices = new int[bodyCapacity];
+            BodyToIslandIndices = OwnedBodyToIslandIndices;
+            OwnedStagingBodyToIslandIndices = new int[bodyCapacity];
+            StagingBodyToIslandIndices = OwnedStagingBodyToIslandIndices;
             Parents = new int[bodyCapacity];
             Ranks = new byte[bodyCapacity];
             RootToIslandIndices = new int[bodyCapacity];
@@ -481,6 +494,62 @@ namespace helengine {
             }
 
             return rootBodyIndex;
+        }
+        /// <summary>Owns the original Islands allocation independently of its active/staging role.</summary>
+        [NativeOwnedMember]
+        HelPhysicsIsland3D[] OwnedIslands;
+
+        /// <summary>Owns the original StagingIslands allocation independently of its active/staging role.</summary>
+        [NativeOwnedMember]
+        HelPhysicsIsland3D[] OwnedStagingIslands;
+
+        /// <summary>Owns the original BodyIndices allocation independently of its active/staging role.</summary>
+        [NativeOwnedMember]
+        int[] OwnedBodyIndices;
+
+        /// <summary>Owns the original StagingBodyIndices allocation independently of its active/staging role.</summary>
+        [NativeOwnedMember]
+        int[] OwnedStagingBodyIndices;
+
+        /// <summary>Owns the original BodyHandles allocation independently of its active/staging role.</summary>
+        [NativeOwnedMember]
+        HelPhysicsBodyHandle3D[] OwnedBodyHandles;
+
+        /// <summary>Owns the original StagingBodyHandles allocation independently of its active/staging role.</summary>
+        [NativeOwnedMember]
+        HelPhysicsBodyHandle3D[] OwnedStagingBodyHandles;
+
+        /// <summary>Owns the original BodyToIslandIndices allocation independently of its active/staging role.</summary>
+        [NativeOwnedMember]
+        int[] OwnedBodyToIslandIndices;
+
+        /// <summary>Owns the original StagingBodyToIslandIndices allocation independently of its active/staging role.</summary>
+        [NativeOwnedMember]
+        int[] OwnedStagingBodyToIslandIndices;
+
+        /// <summary>Releases the native storage exclusively owned by this internal physics resource.</summary>
+        public void Dispose() {
+            Islands = null;
+            StagingIslands = null;
+            BodyIndices = null;
+            StagingBodyIndices = null;
+            BodyHandles = null;
+            StagingBodyHandles = null;
+            BodyToIslandIndices = null;
+            StagingBodyToIslandIndices = null;
+            NativeOwnership.Release(ref OwnedIslands);
+            NativeOwnership.Release(ref OwnedStagingIslands);
+            NativeOwnership.Release(ref OwnedBodyIndices);
+            NativeOwnership.Release(ref OwnedStagingBodyIndices);
+            NativeOwnership.Release(ref OwnedBodyHandles);
+            NativeOwnership.Release(ref OwnedStagingBodyHandles);
+            NativeOwnership.Release(ref OwnedBodyToIslandIndices);
+            NativeOwnership.Release(ref OwnedStagingBodyToIslandIndices);
+            NativeOwnership.Release(ref Parents);
+            NativeOwnership.Release(ref Ranks);
+            NativeOwnership.Release(ref RootToIslandIndices);
+            NativeOwnership.Release(ref StagingIslandMemberCounts);
+            NativeOwnership.Release(ref StagingIslandWriteIndices);
         }
     }
 }

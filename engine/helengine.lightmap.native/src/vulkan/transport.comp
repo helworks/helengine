@@ -1,0 +1,386 @@
+#version 460
+#extension GL_EXT_ray_query : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
+/// <summary>Evaluate one independently seeded occupied atlas texel per invocation.</summary>
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+/// <summary>Immutable source geometry in BLAS primitive order, with original UV0 and material ownership.</summary>
+struct GpuTriangle {
+    /// <summary>First world-space corner; the fourth lane is unused.</summary>
+    vec4 A;
+    /// <summary>Second world-space corner; the fourth lane is unused.</summary>
+    vec4 B;
+    /// <summary>Third world-space corner; the fourth lane is unused.</summary>
+    vec4 C;
+    /// <summary>First imported world-space shading normal.</summary>
+    vec4 Na;
+    /// <summary>Second imported world-space shading normal.</summary>
+    vec4 Nb;
+    /// <summary>Third imported world-space shading normal.</summary>
+    vec4 Nc;
+    /// <summary>First and second original UV0 coordinates in xy and zw.</summary>
+    vec4 Uv01;
+    /// <summary>Third original UV0 coordinate in xy.</summary>
+    vec4 Uv2;
+    /// <summary>Material index in x; remaining lanes are reserved.</summary>
+    uvec4 Metadata;
+};
+
+/// <summary>Diffuse linear-RGB tint and optional tightly packed repeating texture.</summary>
+struct GpuMaterial {
+    /// <summary>Linear-RGB surface reflectance; alpha is unused.</summary>
+    vec4 Albedo;
+    /// <summary>Metallic fraction and perceptual GGX roughness.</summary>
+    vec4 Surface;
+    /// <summary>Texture width, height and first pixel offset; zero dimensions mean no texture.</summary>
+    uvec4 Texture;
+};
+
+/// <summary>One occupied texel referencing the ordered CPU coverage list and original random-stream identity.</summary>
+struct GpuTexel {
+    /// <summary>First coverage, coverage count and original linear atlas pixel index.</summary>
+    uvec4 Metadata;
+};
+
+/// <summary>Exact CPU-clipped coverage converted to source-triangle barycentrics for GPU sampling.</summary>
+struct GpuCoverage {
+    /// <summary>Source primitive index and number of convex polygon vertices.</summary>
+    uvec4 Metadata;
+    /// <summary>Stored CPU coverage weight and total original UV triangle-fan area.</summary>
+    vec4 Measures;
+    /// <summary>Barycentric u/v in xy; z at i stores the original UV area of fan (0,i,i+1).</summary>
+    vec4 Points[12];
+};
+
+/// <summary>Two-sided opaque scene acceleration structure, sharing the triangle buffer's primitive order.</summary>
+layout(set = 0, binding = 0) uniform accelerationStructureEXT Scene;
+/// <summary>Original geometry and shading attributes uploaded once for the entire bake.</summary>
+layout(std430, set = 0, binding = 1) readonly buffer TriangleBuffer { GpuTriangle Triangles[]; };
+/// <summary>Immutable diffuse material descriptors.</summary>
+layout(std430, set = 0, binding = 2) readonly buffer MaterialBuffer { GpuMaterial Materials[]; };
+/// <summary>Concatenated linear-RGB texture pixels, with one vec4 per source texel.</summary>
+layout(std430, set = 0, binding = 3) readonly buffer TextureBuffer { vec4 Pixels[]; };
+/// <summary>Occupied texels for this bounded dispatch.</summary>
+layout(std430, set = 0, binding = 4) readonly buffer TexelBuffer { GpuTexel Texels[]; };
+/// <summary>Ordered coverage polygons referenced by this batch's texels.</summary>
+layout(std430, set = 0, binding = 5) readonly buffer CoverageBuffer { GpuCoverage Coverages[]; };
+/// <summary>Unclamped HDR irradiance with alpha one, or nonfinite values rejected by the host.</summary>
+layout(std430, set = 0, binding = 6) writeonly buffer OutputBuffer { vec4 Irradiance[]; };
+
+/// <summary>Fixed 64-byte dispatch contract, preserving the original 64-bit bake seed.</summary>
+layout(push_constant) uniform Parameters {
+    /// <summary>Normalized direction toward the sun in xyz and positive world-space ray epsilon in w.</summary>
+    vec4 Sun;
+    /// <summary>Linear HDR normal-incidence irradiance in xyz; one minus the cap half-angle cosine in w.</summary>
+    vec4 Radiance;
+    /// <summary>Samples per coverage, maximum diffuse bounces, occupied texel count and positive-angular-diameter flag.</summary>
+    uvec4 Settings;
+    /// <summary>Low and high 32-bit words of the original CPU seed.</summary>
+    uvec4 Seed;
+} Options;
+
+/// <summary>Return an unmistakable error payload instead of substituting a valid-looking black result.</summary>
+vec3 InvalidValue() {
+    return vec3(uintBitsToFloat(0x7fc00000u));
+}
+
+/// <summary>Check all vector lanes before invalid attributes can influence ray-query control flow.</summary>
+bool Finite(vec3 value) {
+    return !any(isnan(value)) && !any(isinf(value));
+}
+
+/// <summary>Normalize with scaled FP32 arithmetic, rejecting the CPU's invalid tiny shading vectors.</summary>
+vec3 Unit(vec3 value) {
+    float scale = max(max(abs(value.x), abs(value.y)), abs(value.z));
+    if (!Finite(value) || !(scale > 0.0))
+        return InvalidValue();
+    vec3 scaled = value / scale;
+    float magnitude = sqrt(dot(scaled, scaled));
+    if (!(scale > 1e-20 / magnitude))
+        return InvalidValue();
+    return scaled / magnitude;
+}
+
+/// <summary>Recover the winding normal without squaring tiny world-space triangle areas in FP32.</summary>
+vec3 GeometricNormal(GpuTriangle triangle) {
+    vec3 first = triangle.B.xyz - triangle.A.xyz;
+    vec3 second = triangle.C.xyz - triangle.A.xyz;
+    float firstScale = max(max(abs(first.x), abs(first.y)), abs(first.z));
+    float secondScale = max(max(abs(second.x), abs(second.y)), abs(second.z));
+    if (!Finite(first) || !Finite(second) || !(firstScale > 0.0) || !(secondScale > 0.0))
+        return InvalidValue();
+    vec3 winding = cross(first / firstScale, second / secondScale);
+    float windingScale = max(max(abs(winding.x), abs(winding.y)), abs(winding.z));
+    if (!Finite(winding) || !(windingScale > 0.0))
+        return InvalidValue();
+    // The host validates the actual world-space area; scaled cross products need only remain nonzero.
+    return Unit(winding / windingScale);
+}
+
+/// <summary>Interpolate positions and shading normals in the same original-corner order as the CPU.</summary>
+vec3 Interpolate(vec3 a, vec3 b, vec3 c, vec2 barycentric) {
+    return a * (1.0 - barycentric.x - barycentric.y) + (b * barycentric.x + c * barycentric.y);
+}
+
+/// <summary>Advance the CPU SplitMix64 stream and convert its upper 53 bits to a half-open FP32 sample.</summary>
+float Next(inout uint64_t state) {
+    state += 0x9e3779b97f4a7c15ul;
+    uint64_t value = state;
+    value = (value ^ (value >> 30)) * 0xbf58476d1ce4e5b9ul;
+    value = (value ^ (value >> 27)) * 0x94d049bb133111ebul;
+    value ^= value >> 31;
+    // Conversion can round the largest 53-bit fractions to one; keep the half-open CPU contract.
+    return min(float(value >> 11) * (1.0 / 9007199254740992.0), uintBitsToFloat(0x3f7fffffu));
+}
+
+/// <summary>Consume three CPU-equivalent random values to sample the original UV-area-weighted polygon fan.</summary>
+vec2 SamplePolygon(GpuCoverage coverage, inout uint64_t state) {
+    float choice = Next(state) * coverage.Measures.y;
+    uint selected = coverage.Metadata.y - 2u;
+    for (uint i = 1u; i + 1u < coverage.Metadata.y; ++i) {
+        float area = coverage.Points[i].z;
+        if (choice <= area) {
+            selected = i;
+            break;
+        }
+        choice -= area;
+    }
+    float u = sqrt(Next(state));
+    float v = Next(state);
+    vec2 barycentric = coverage.Points[0].xy * (1.0 - u)
+        + coverage.Points[selected].xy * u * (1.0 - v)
+        + coverage.Points[selected + 1u].xy * u * v;
+    barycentric.x = clamp(barycentric.x, 0.0, 1.0);
+    barycentric.y = clamp(barycentric.y, 0.0, 1.0 - barycentric.x);
+    return barycentric;
+}
+
+/// <summary>Sample the shading hemisphere with cosine-over-pi density and the CPU's tangent orientation.</summary>
+vec3 CosineDirection(vec3 normal, inout uint64_t state) {
+    float radius = sqrt(Next(state));
+    float angle = 6.28318530717958647692 * Next(state);
+    vec3 tangent = Unit(cross(abs(normal.z) < 0.9 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0), normal));
+    vec3 bitangent = cross(normal, tangent);
+    return Unit(tangent * (radius * cos(angle)) + bitangent * (radius * sin(angle))
+        + normal * sqrt(max(0.0, 1.0 - radius * radius)));
+}
+
+/// <summary>Trace opaque two-sided geometry, stopping at the first directional-light blocker.</summary>
+bool Occluded(vec3 origin, vec3 direction) {
+    rayQueryEXT query;
+    rayQueryInitializeEXT(query, Scene, gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT,
+        0xffu, origin, Options.Sun.w * 0.1, direction, 3.402823466e+38);
+    while (rayQueryProceedEXT(query)) { }
+    return rayQueryGetIntersectionTypeEXT(query, true) == gl_RayQueryCommittedIntersectionTriangleEXT;
+}
+
+/// <summary>Find the closest opaque two-sided primitive and its original-corner barycentrics.</summary>
+bool Intersect(vec3 origin, vec3 direction, out uint triangleIndex, out vec2 barycentric) {
+    rayQueryEXT query;
+    rayQueryInitializeEXT(query, Scene, gl_RayFlagsOpaqueEXT, 0xffu,
+        origin, Options.Sun.w * 0.1, direction, 3.402823466e+38);
+    while (rayQueryProceedEXT(query)) { }
+    if (rayQueryGetIntersectionTypeEXT(query, true) != gl_RayQueryCommittedIntersectionTriangleEXT)
+        return false;
+    triangleIndex = rayQueryGetIntersectionPrimitiveIndexEXT(query, true);
+    barycentric = rayQueryGetIntersectionBarycentricsEXT(query, true);
+    return true;
+}
+
+/// <summary>Sample a uniform solid-angle sun cap with the CPU random sequence and tangent orientation.</summary>
+vec3 SunDirection(inout uint64_t state) {
+    if (Options.Settings.w == 0u)
+        return Options.Sun.xyz;
+    float offset = Options.Radiance.w * Next(state);
+    float angle = 6.28318530717958647692 * Next(state);
+    float sine = sqrt(offset * (2.0 - offset));
+    vec3 sun = Options.Sun.xyz;
+    vec3 tangent = Unit(cross(abs(sun.z) < 0.9 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0), sun));
+    vec3 bitangent = cross(sun, tangent);
+    return Unit(tangent * (sine * cos(angle)) + bitangent * (sine * sin(angle)) + sun * (1.0 - offset));
+}
+/// <summary>Evaluate unclamped visible sun irradiance only above both surface hemispheres.</summary>
+vec3 Direct(vec3 position, vec3 normal, vec3 geometric, inout uint64_t state) {
+    vec3 sun = SunDirection(state);
+    float cosine = dot(normal, sun);
+    if (cosine <= 0.0 || dot(geometric, sun) <= 0.0)
+        return vec3(0.0);
+    if (Occluded(position + geometric * Options.Sun.w, sun))
+        return vec3(0.0);
+    if (Options.Radiance.w > 0.0)
+        cosine /= 1.0 - Options.Radiance.w * 0.5;
+    return Options.Radiance.xyz * cosine;
+}
+
+/// <summary>Wrap signed bilinear neighbor indices onto one repeating source-texture axis.</summary>
+uint Wrap(int index, uint size) {
+    int wrapped = index % int(size);
+    return uint(wrapped < 0 ? wrapped + int(size) : wrapped);
+}
+
+/// <summary>Filter original UV0 in repeating linear RGB and apply albedo only at secondary diffuse hits.</summary>
+vec3 Reflectance(GpuTriangle triangle, vec2 barycentric) {
+    GpuMaterial material = Materials[triangle.Metadata.x];
+    uint width = material.Texture.x;
+    uint height = material.Texture.y;
+    if (width == 0u && height == 0u)
+        return material.Albedo.xyz;
+    if (width == 0u || height == 0u)
+        return InvalidValue();
+    vec2 uv = triangle.Uv01.xy * (1.0 - barycentric.x - barycentric.y)
+        + triangle.Uv01.zw * barycentric.x + triangle.Uv2.xy * barycentric.y;
+    vec2 pixel = fract(uv) * vec2(width, height) - 0.5;
+    ivec2 lower = ivec2(floor(pixel));
+    vec2 fraction = pixel - floor(pixel);
+    uint offset = material.Texture.z;
+    vec3 p00 = Pixels[offset + Wrap(lower.y, height) * width + Wrap(lower.x, width)].xyz;
+    vec3 p10 = Pixels[offset + Wrap(lower.y, height) * width + Wrap(lower.x + 1, width)].xyz;
+    vec3 p01 = Pixels[offset + Wrap(lower.y + 1, height) * width + Wrap(lower.x, width)].xyz;
+    vec3 p11 = Pixels[offset + Wrap(lower.y + 1, height) * width + Wrap(lower.x + 1, width)].xyz;
+    return material.Albedo.xyz * ((p00 * (1.0 - fraction.x) + p10 * fraction.x) * (1.0 - fraction.y)
+        + (p01 * (1.0 - fraction.x) + p11 * fraction.x) * fraction.y);
+}
+
+/// <summary>Normalized GGX normal distribution with perceptual roughness squared into alpha.</summary>
+float Distribution(float nh, float roughness) {
+    float alpha=pow(max(0.04,roughness),2.0), a2=alpha*alpha;
+    float denominator=nh*nh*(a2-1.0)+1.0;
+    return a2/(3.14159265358979323846*denominator*denominator);
+}
+/// <summary>Exact Smith masking for one isotropic GGX direction.</summary>
+float Masking(float cosine,float roughness) {
+    float alpha=pow(max(0.04,roughness),2.0);
+    return 2.0*cosine/(cosine+sqrt(alpha*alpha+(1.0-alpha*alpha)*cosine*cosine));
+}
+/// <summary>Evaluate energy-conserving diffuse and GGX/Smith/Schlick specular material response.</summary>
+vec3 Brdf(vec3 base,float metallic,float roughness,vec3 n,vec3 outgoing,vec3 incoming) {
+    float nv=dot(n,outgoing),nl=dot(n,incoming);
+    if (nv<=0.0 || nl<=0.0) return vec3(0.0);
+    vec3 h=Unit(outgoing+incoming);
+    float nh=clamp(dot(n,h),0.0,1.0),vh=clamp(dot(outgoing,h),0.0,1.0);
+    vec3 f0=mix(vec3(0.04),base,metallic);
+    vec3 fresnel=f0+(vec3(1.0)-f0)*pow(1.0-vh,5.0);
+    float specular=Distribution(nh,roughness)*Masking(nv,roughness)*Masking(nl,roughness)/(4.0*nv*nl);
+    // Match the CPU reciprocal interface attenuation rather than half-vector-only diffuse coupling.
+    vec3 transmissionView=(vec3(1.0)-f0)*(1.0-pow(1.0-clamp(nv,0.0,1.0),5.0));
+    vec3 transmissionLight=(vec3(1.0)-f0)*(1.0-pow(1.0-clamp(nl,0.0,1.0),5.0));
+    return transmissionView*transmissionLight*base*((1.0-metallic)/3.14159265358979323846)+fresnel*specular;
+}
+/// <summary>Sample the same normalized GGX-NDF and diffuse mixture as the CPU, returning f*cos/pdf.</summary>
+vec3 SampleBrdf(vec3 base,float metallic,float roughness,vec3 n,vec3 outgoing,inout uint64_t state,out vec3 weight) {
+    weight=vec3(0.0);
+    float probability=0.25+0.75*metallic;
+    bool specular=Next(state)<probability;
+    vec3 incoming;
+    if (specular) {
+        float first=Next(state),second=Next(state);
+        float alpha=pow(max(0.04,roughness),2.0);
+        float cosine=sqrt((1.0-first)/(1.0+(alpha*alpha-1.0)*first));
+        float sine=sqrt(max(0.0,1.0-cosine*cosine)),angle=6.28318530717958647692*second;
+        vec3 tangent=Unit(cross(abs(n.z)<0.9?vec3(0,0,1):vec3(0,1,0),n));
+        vec3 h=Unit(tangent*(sine*cos(angle))+cross(n,tangent)*(sine*sin(angle))+n*cosine);
+        incoming=2.0*dot(outgoing,h)*h-outgoing;
+    } else incoming=CosineDirection(n,state);
+    float nl=dot(n,incoming),nv=dot(n,outgoing);
+    if (nl<=0.0 || nv<=0.0) return incoming;
+    vec3 h=Unit(outgoing+incoming);
+    float nh=clamp(dot(n,h),0.0,1.0),vh=abs(dot(outgoing,h));
+    if (vh<=0.0) return incoming;
+    float pdf=probability*Distribution(nh,roughness)*nh/(4.0*vh)+(1.0-probability)*nl/3.14159265358979323846;
+    if (pdf>0.0) weight=Brdf(base,metallic,roughness,n,outgoing,incoming)*(nl/pdf);
+    return incoming;
+}
+/// <summary>Trace material-reflected radiance with sun next-event estimation at each hit; all misses are black.</summary>
+vec3 RadianceSample(vec3 position,vec3 direction,uint surfaces,inout uint64_t state) {
+    vec3 result=vec3(0.0),throughput=vec3(1.0);
+    for (uint bounce=0u;bounce<surfaces;++bounce) {
+        uint hitTriangle;
+        vec2 hitBarycentric;
+        if (!Intersect(position,direction,hitTriangle,hitBarycentric)) break;
+        GpuTriangle triangle=Triangles[hitTriangle];
+        position=Interpolate(triangle.A.xyz,triangle.B.xyz,triangle.C.xyz,hitBarycentric);
+        vec3 normal=Unit(Interpolate(triangle.Na.xyz,triangle.Nb.xyz,triangle.Nc.xyz,hitBarycentric));
+        vec3 geometric=GeometricNormal(triangle);
+        if (!Finite(position)||!Finite(normal)||!Finite(geometric)) return InvalidValue();
+        if (dot(geometric,direction)>0.0) geometric=-geometric;
+        if (dot(normal,geometric)<0.0) normal=-normal;
+        if (dot(normal,direction)>=0.0) normal=geometric;
+        vec3 outgoing=-direction,base=Reflectance(triangle,hitBarycentric);
+        GpuMaterial material=Materials[triangle.Metadata.x];
+        vec3 sun=SunDirection(state);
+        float cosine=dot(normal,sun);
+        if (cosine>0.0 && dot(geometric,sun)>0.0 && !Occluded(position+geometric*Options.Sun.w,sun)) {
+            vec3 reflected=Brdf(base,material.Surface.x,material.Surface.y,normal,outgoing,sun);
+            result+=throughput*reflected*Options.Radiance.xyz*(cosine/(1.0-Options.Radiance.w*0.5));
+        }
+        if (bounce+1u==surfaces) break;
+        vec3 weight;
+        direction=SampleBrdf(base,material.Surface.x,material.Surface.y,normal,outgoing,state,weight);
+        if (!Finite(weight)||!Finite(direction)) return InvalidValue();
+        if (dot(direction,geometric)<=0.0 || max(max(weight.x,weight.y),weight.z)<=0.0) break;
+        throughput*=weight;
+        position+=geometric*Options.Sun.w;
+    }
+    return result;
+}
+/// <summary>Estimate material-independent receiver irradiance with one cosine primary ray and metallic secondary transport.</summary>
+vec3 IrradianceSample(uint triangleIndex,vec2 barycentric,inout uint64_t state) {
+    GpuTriangle triangle=Triangles[triangleIndex];
+    vec3 position=Interpolate(triangle.A.xyz,triangle.B.xyz,triangle.C.xyz,barycentric);
+    vec3 normal=Unit(Interpolate(triangle.Na.xyz,triangle.Nb.xyz,triangle.Nc.xyz,barycentric));
+    vec3 geometric=GeometricNormal(triangle);
+    if (!Finite(position)||!Finite(normal)||!Finite(geometric)) return InvalidValue();
+    if (dot(geometric,normal)<0.0) geometric=-geometric;
+    vec3 result=Direct(position,normal,geometric,state);
+    if (Options.Settings.y==0u) return result;
+    vec3 direction=CosineDirection(normal,state);
+    if (dot(direction,geometric)<=0.0) return result;
+    return result+3.14159265358979323846*RadianceSample(position+geometric*Options.Sun.w,direction,Options.Settings.y,state);
+}
+
+/// <summary>Accumulate each CPU coverage in order, preserving area weighting and per-atlas-pixel random identity.</summary>
+void main() {
+    uint index = gl_GlobalInvocationID.x;
+    if (index >= Options.Settings.z)
+        return;
+    GpuTexel texel = Texels[index];
+    if (texel.Metadata.y == 0u || Options.Settings.x == 0u) {
+        Irradiance[index] = vec4(InvalidValue(), 1.0);
+        return;
+    }
+    uint64_t state = (uint64_t(Options.Seed.y) << 32) | uint64_t(Options.Seed.x);
+    state ^= uint64_t(texel.Metadata.z) * 0xd6e8feb86659fd93ul;
+    if (Options.Seed.z==1u) {
+        GpuCoverage ray=Coverages[texel.Metadata.x];
+        vec3 radiance=vec3(0.0);
+        for (uint sampleIndex=0u;sampleIndex<Options.Settings.x;++sampleIndex)
+            radiance+=RadianceSample(ray.Points[0].xyz,ray.Points[1].xyz,Options.Settings.y,state);
+        radiance/=float(Options.Settings.x);
+        if (!Finite(radiance)||any(lessThan(radiance,vec3(0.0)))) radiance=InvalidValue();
+        Irradiance[index]=vec4(radiance,1.0);
+        return;
+    }
+    vec3 sum = vec3(0.0);
+    float weight = 0.0;
+    for (uint i = 0u; i < texel.Metadata.y; ++i) {
+        GpuCoverage coverage = Coverages[texel.Metadata.x + i];
+        if (coverage.Metadata.y < 3u || coverage.Metadata.y > 12u
+            || !(coverage.Measures.x > 0.0) || !(coverage.Measures.y > 0.0)) {
+            Irradiance[index] = vec4(InvalidValue(), 1.0);
+            return;
+        }
+        vec3 value = vec3(0.0);
+        for (uint sampleIndex = 0u; sampleIndex < Options.Settings.x; ++sampleIndex) {
+            vec2 barycentric = SamplePolygon(coverage, state);
+            value += IrradianceSample(coverage.Metadata.x, barycentric, state);
+        }
+        sum += value * (coverage.Measures.x / float(Options.Settings.x));
+        weight += coverage.Measures.x;
+    }
+    vec3 result = sum / weight;
+    if (!Finite(result) || any(lessThan(result, vec3(0.0))))
+        result = InvalidValue();
+    Irradiance[index] = vec4(result, 1.0);
+}
+

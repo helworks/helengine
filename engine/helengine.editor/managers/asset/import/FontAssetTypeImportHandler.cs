@@ -216,7 +216,9 @@ namespace helengine.editor {
                 asset.AtlasWidth,
                 asset.AtlasHeight) {
                 SourceTextureAsset = asset.SourceTextureAsset,
-                CookedAtlasTextureRelativePath = asset.CookedAtlasTextureRelativePath
+                CookedAtlasTextureRelativePath = asset.CookedAtlasTextureRelativePath,
+                Pages = FontPage.Copy(asset.Pages),
+                PageBudgetBytes = asset.PageBudgetBytes
             };
             return restoredAsset;
         }

@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Owns fixed-capacity parallel hot and cold body storage guarded by generational handles.
     /// </summary>
-    sealed class HelPhysicsBodyPool3D {
+    sealed class HelPhysicsBodyPool3D : IDisposable {
         /// <summary>
         /// Stores the minimum number of addressable body slots a pool may own.
         /// </summary>
@@ -16,22 +16,26 @@ namespace helengine {
         /// <summary>
         /// Stores mutable hot state indexed by fixed body slot.
         /// </summary>
-        readonly HelPhysicsBodyState3D[] States;
+        [NativeOwnedMember]
+        HelPhysicsBodyState3D[] States;
 
         /// <summary>
         /// Stores cold metadata parallel to <see cref="States"/>.
         /// </summary>
-        readonly HelPhysicsBodyColdState3D[] ColdStates;
+        [NativeOwnedMember]
+        HelPhysicsBodyColdState3D[] ColdStates;
 
         /// <summary>
         /// Stores the current generation for each fixed body slot.
         /// </summary>
-        readonly ushort[] Generations;
+        [NativeOwnedMember]
+        ushort[] Generations;
 
         /// <summary>
         /// Stores reusable body-slot indices as a stack.
         /// </summary>
-        readonly ushort[] FreeIndices;
+        [NativeOwnedMember]
+        ushort[] FreeIndices;
 
         /// <summary>
         /// Stores the number of currently available entries in <see cref="FreeIndices"/>.
@@ -239,6 +243,13 @@ namespace helengine {
             if (!States[handle.Index].IsOccupied) {
                 throw new InvalidOperationException("The body handle refers to a released slot.");
             }
+        }
+        /// <summary>Releases the native storage exclusively owned by this internal physics resource.</summary>
+        public void Dispose() {
+            NativeOwnership.Release(ref States);
+            NativeOwnership.Release(ref ColdStates);
+            NativeOwnership.Release(ref Generations);
+            NativeOwnership.Release(ref FreeIndices);
         }
     }
 }

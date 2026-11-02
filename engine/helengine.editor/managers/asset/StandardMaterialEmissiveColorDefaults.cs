@@ -22,6 +22,18 @@ namespace helengine.editor {
         /// <param name="value">Float4 emissive tint where alpha acts as emissive strength.</param>
         /// <returns>Sixteen-byte packed constant-buffer payload.</returns>
         public static byte[] CreateConstantBufferData(float4 value) {
+            return CreateConstantBufferData(value, 1f);
+        }
+
+        /// <summary>Packs HDR emission without changing surface opacity; legacy color alpha remains an emission multiplier.</summary>
+        /// <param name="value">Linear emission tint and legacy strength.</param>
+        /// <param name="intensity">Finite nonnegative radiance multiplier, independent of the base-color alpha.</param>
+        /// <returns>The unchanged float4 shader contract with scaled emission strength.</returns>
+        public static byte[] CreateConstantBufferData(float4 value, float intensity) {
+            if (!float.IsFinite(intensity) || intensity < 0) {
+                throw new ArgumentOutOfRangeException(nameof(intensity), "Emissive intensity must be finite and nonnegative.");
+            }
+            value.W *= intensity;
             byte[] data = new byte[16];
             Array.Copy(BitConverter.GetBytes(value.X.ToSingle()), 0, data, 0, 4);
             Array.Copy(BitConverter.GetBytes(value.Y.ToSingle()), 0, data, 4, 4);

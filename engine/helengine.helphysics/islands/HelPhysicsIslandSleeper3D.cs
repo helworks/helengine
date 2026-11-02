@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Evaluates aggressive whole-island sleeping and propagates explicit contact-driven wakes through fixed indexed islands.
     /// </summary>
-    sealed class HelPhysicsIslandSleeper3D {
+    sealed class HelPhysicsIslandSleeper3D : IDisposable {
         /// <summary>
         /// Stores the minimum supported fixed body capacity.
         /// </summary>
@@ -16,12 +16,14 @@ namespace helengine {
         /// <summary>
         /// Marks body slots belonging to an island that received a wake condition during the current fixed step.
         /// </summary>
-        readonly bool[] WakeOccurredThisStep;
+        [NativeOwnedMember]
+        bool[] WakeOccurredThisStep;
 
         /// <summary>
         /// Stores one initiating reason for every actual asleep-to-awake island transition in the current step.
         /// </summary>
-        readonly HelPhysicsWakeReason3D[] WakeEventReasons;
+        [NativeOwnedMember]
+        HelPhysicsWakeReason3D[] WakeEventReasons;
 
         /// <summary>
         /// Stores how many leading wake-reason entries contain current-step events.
@@ -669,6 +671,11 @@ namespace helengine {
                 throw new InvalidOperationException("Moving kinematic wake contacts require an active one-through-four-contact manifold.");
             }
 
+        }
+        /// <summary>Releases the native storage exclusively owned by this internal physics resource.</summary>
+        public void Dispose() {
+            NativeOwnership.Release(ref WakeOccurredThisStep);
+            NativeOwnership.Release(ref WakeEventReasons);
         }
     }
 }

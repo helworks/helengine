@@ -27,6 +27,16 @@ namespace helengine.editor.tests.managers.asset {
             }
         }
 
+        /// <summary>Serialized font atlases must participate in font reference resolution just like imported font sources.</summary>
+        [Theory]
+        [InlineData("caption.hefont")]
+        [InlineData("caption.HEFONT")]
+        [InlineData("caption.ttf")]
+        [InlineData("caption.otf")]
+        public void Classify_FontSourceOrSerializedAtlas_ReturnsFont(string filename) {
+            EditorAssetPathClassifier classifier = new EditorAssetPathClassifier(TempRootPath);
+            Assert.Equal(AssetEntryKind.Font, classifier.Classify(Path.Combine(TempRootPath, "assets", filename)));
+        }
         /// <summary>
         /// Ensures a .hasset file that does not start with the HELE magic is classified without any exception being thrown and caught.
         /// </summary>

@@ -81,7 +81,7 @@ namespace helengine.editor {
         /// <summary>
         /// Current snapshot format version. Bump when the classifier or identity rules change.
         /// </summary>
-        public const int CurrentVersion = 1;
+        public const int CurrentVersion = 2;
 
         /// <summary>
         /// Snapshot file name inside cache/editor.

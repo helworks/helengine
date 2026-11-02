@@ -3,6 +3,8 @@ namespace helengine {
     /// Represents a font atlas and glyph metrics used for rendering text.
     /// </summary>
     public class FontAsset : IDisposable {
+        /// <summary>Owns the optional runtime page cache, initialized only for paged fonts.</summary>
+        [NativeOwnedMember] FontPageCache PageCache;
         /// <summary>
         /// Tracks how many font asset instances are currently alive in native runtime builds.
         /// </summary>
@@ -69,6 +71,25 @@ namespace helengine {
         /// Gets how many glyph dictionary entries are currently owned by live font assets.
         /// </summary>
         public static int LiveCharacterCount => LiveCharacterCountValue;
+
+        /// <summary>Gets or sets optional page metadata; existing fonts leave it null.</summary>
+        [NativeOwnedMember] public FontPage[] Pages { get; set; }
+        /// <summary>Gets or sets the additional RGBA residency budget; the base atlas is always resident.</summary>
+        public long PageBudgetBytes { get; set; } = 8 * 1024 * 1024;
+        /// <summary>Attaches lazy page loading without reading any page pixels.</summary>
+        public void ConfigurePageCache(ContentManager content, RenderManager2D renderer) {
+            if (Pages == null || Pages.Length == 0) { return; }
+            if (PageCache != null) { throw new InvalidOperationException("Font page cache is already configured."); }
+            NativeOwnership.DisposeAndRelease(ref PageCache);
+            PageCache = new FontPageCache(Pages, content, renderer, PageBudgetBytes);
+        }
+        /// <summary>Resolves a borrowed atlas texture for a glyph without changing its metrics.</summary>
+        [NativeBorrowedReturn]
+        public RuntimeTexture ResolvePageTexture(int pageIndex) {
+            if (pageIndex == 0) { return Texture; }
+            if (PageCache == null) { throw new InvalidOperationException("Paged font requires its content-backed cache before drawing."); }
+            return PageCache.Resolve(pageIndex - 1);
+        }
 
         /// <summary>
         /// Gets the basic font metrics.
@@ -178,6 +199,9 @@ namespace helengine {
             RealEvaluation scaleY = (RealEvaluation)processedSourceTextureAsset.Height / originalAtlasHeight;
             bool atlasWasResized = originalAtlasWidth != processedSourceTextureAsset.Width || originalAtlasHeight != processedSourceTextureAsset.Height;
 
+            if (atlasWasResized && Pages != null && Pages.Length > 0) {
+                throw new InvalidOperationException("Paged fonts require native-size atlases; export all pages at the target font size.");
+            }
             if (atlasWasResized) {
                 AtlasWidth = processedSourceTextureAsset.Width;
                 AtlasHeight = processedSourceTextureAsset.Height;
@@ -196,6 +220,7 @@ namespace helengine {
                     for (int keyIndex = 0; keyIndex < keys.Count; keyIndex++) {
                         char key = keys[keyIndex];
                         FontChar glyph = Characters[key];
+                        if (glyph.PageIndex != 0) { continue; }
                         glyph.OffsetY = (float)(glyph.OffsetY * scaleY);
                         glyph.AdvanceWidth = (float)(glyph.AdvanceWidth * scaleX);
                         glyph.BearingX = (float)(glyph.BearingX * scaleX);
@@ -257,6 +282,11 @@ namespace helengine {
         /// Releases scene-owned references held by this font asset.
         /// </summary>
         public void Dispose() {
+            NativeOwnership.DisposeAndRelease(ref PageCache);
+            if (Pages != null) {
+                for (int index = 0; index < Pages.Length; index++) { NativeOwnership.Delete(Pages[index]); }
+            }
+            NativeOwnership.Delete(Pages); Pages = null;
 #if HELENGINE_ENV_DEBUG
             if (RuntimeRendererValue != null) {
                 RuntimeRendererValue.UnregisterDebugBuildIndicatorFont(this);

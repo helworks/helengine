@@ -90,7 +90,7 @@ namespace helengine.editor {
             if (new HashSet<string>(new[] { ".json", ".xml", ".yaml", ".yml" }, StringComparer.OrdinalIgnoreCase).Contains(extension)) {
                 return AssetEntryKind.Config;
             }
-            if (new HashSet<string>(new[] { ".ttf", ".otf" }, StringComparer.OrdinalIgnoreCase).Contains(extension)) {
+            if (new HashSet<string>(new[] { ".ttf", ".otf", ".hefont" }, StringComparer.OrdinalIgnoreCase).Contains(extension)) {
                 return AssetEntryKind.Font;
             }
 

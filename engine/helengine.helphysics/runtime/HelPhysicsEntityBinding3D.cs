@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Associates one engine entity and its exact authored component pair with the generation-safe body identity reserved in a HelPhysics world.
     /// </summary>
-    public sealed class HelPhysicsEntityBinding3D {
+    public sealed class HelPhysicsEntityBinding3D : IDisposable {
         /// <summary>
         /// Stores the world that owns the generation-safe body handle.
         /// </summary>
@@ -36,7 +36,7 @@ namespace helengine {
             SphereCollider = null;
             BodyHandle = bodyHandle;
             BindingId = bindingId;
-            Description = description ?? throw new ArgumentNullException(nameof(description));
+            DescriptionValue = description ?? throw new ArgumentNullException(nameof(description));
             Lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
             IsValid = true;
             KinematicMotion = FindKinematicMotion(entity, rigidBody.BodyKind);
@@ -69,7 +69,7 @@ namespace helengine {
             BoxCollider = null;
             BodyHandle = bodyHandle;
             BindingId = bindingId;
-            Description = description ?? throw new ArgumentNullException(nameof(description));
+            DescriptionValue = description ?? throw new ArgumentNullException(nameof(description));
             Lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
             IsValid = true;
             KinematicMotion = FindKinematicMotion(entity, rigidBody.BodyKind);
@@ -94,10 +94,10 @@ namespace helengine {
             SphereCollider = null;
             BodyHandle = bodyHandle;
             BindingId = bindingId;
-            Description = description ?? throw new ArgumentNullException(nameof(description));
+            DescriptionValue = description ?? throw new ArgumentNullException(nameof(description));
             Lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
             IsValid = true;
-            ControllerResolver = new HelPhysicsCharacterController3D(Entity, Controller, BoxCollider);
+            ControllerResolverValue = new HelPhysicsCharacterController3D(Entity, Controller, BoxCollider);
         }
         /// <summary>
         /// Gets the engine entity represented by this binding.
@@ -123,7 +123,7 @@ namespace helengine {
         public CharacterController3DComponent Controller { get; }
 
         /// <summary>Stores the cached resolver for controller fixed-step motion.</summary>
-        internal HelPhysicsCharacterController3D ControllerResolver { get; }
+        internal HelPhysicsCharacterController3D ControllerResolver => ControllerResolverValue;
 
         /// <summary>Stores vertical velocity between controller fixed steps.</summary>
         internal float ControllerVerticalVelocity { get; set; }
@@ -160,7 +160,7 @@ namespace helengine {
         /// <summary>
         /// Gets the complete immutable creation data translated from the authored entity for inspection and diagnostics.
         /// </summary>
-        public HelPhysicsBodyDescription3D Description { get; }
+        public HelPhysicsBodyDescription3D Description => DescriptionValue;
 
         /// <summary>
         /// Gets the entity lifecycle observer owned exclusively by this binding.
@@ -195,5 +195,20 @@ namespace helengine {
 
             IsValid = false;
         }
+        /// <summary>Owns the immutable creation description transferred by the binding factory.</summary>
+        [NativeOwnedMember]
+        HelPhysicsBodyDescription3D DescriptionValue;
+
+        /// <summary>Owns the optional controller resolver; its entity and component references remain borrowed.</summary>
+        [NativeOwnedMember]
+        HelPhysicsCharacterController3D ControllerResolverValue;
+
+        /// <summary>Releases only binding-owned native objects and preserves the entity-owned lifecycle observer.</summary>
+        public void Dispose() {
+            IsValid = false;
+            NativeOwnership.Release(ref ControllerResolverValue);
+            NativeOwnership.Release(ref DescriptionValue);
+        }
+
     }
 }

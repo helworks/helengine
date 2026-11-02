@@ -55,7 +55,7 @@ public sealed class ShaderArtifactTestPlatformMaterialAssetBuilder : IPlatformAs
     /// <returns>Explicit declaration for the written test bundle.</returns>
     public PlatformShaderArtifactCookResult CookShaderArtifacts(PlatformShaderArtifactCookRequest request) {
         LastShaderArtifactCookRequest = request ?? throw new ArgumentNullException(nameof(request));
-        string relativePath = "cooked/shaders/psvita/shaders.psvb";
+        string relativePath = "shaders/psvita/shaders.psvb";
         string fullPath = Path.Combine(request.CookRootPath, "shaders", "psvita", "shaders.psvb");
         string directoryPath = Path.GetDirectoryName(fullPath) ?? throw new InvalidOperationException("Shader bundle directory path is required.");
         Directory.CreateDirectory(directoryPath);

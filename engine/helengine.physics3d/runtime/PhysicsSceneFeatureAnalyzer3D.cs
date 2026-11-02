@@ -74,15 +74,26 @@ namespace helengine {
         /// <param name="sceneAsset">Serialized scene asset to analyze.</param>
         /// <returns>Required scene feature flags inferred from the serialized scene records.</returns>
         public static PhysicsSceneFeatureFlags3D Analyze(SceneAsset sceneAsset) {
+            return Analyze(sceneAsset, RealRepresentation.Policy);
+        }
+
+        /// <summary>
+        /// Analyzes one serialized scene using the exact numeric policy selected for its component payloads.
+        /// </summary>
+        /// <param name="sceneAsset">Serialized scene to analyze.</param>
+        /// <param name="numericPolicy">Required numeric policy of every serialized physics component payload.</param>
+        /// <returns>Required scene feature flags inferred from the serialized scene records.</returns>
+        public static PhysicsSceneFeatureFlags3D Analyze(SceneAsset sceneAsset, NumericPrecisionPolicy numericPolicy) {
             if (sceneAsset == null) {
                 throw new ArgumentNullException(nameof(sceneAsset));
             }
+            RealBinaryCodec.ValidatePolicy(numericPolicy);
 
             PhysicsSceneFeatureCounterState3D counterState = new PhysicsSceneFeatureCounterState3D();
             try {
                 SceneEntityAsset[] rootEntityAssets = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
                 for (int index = 0; index < rootEntityAssets.Length; index++) {
-                    AccumulateEntityAssetFeatures(rootEntityAssets[index], counterState);
+                    AccumulateEntityAssetFeatures(rootEntityAssets[index], counterState, numericPolicy);
                 }
 
                 return BuildFeatureFlags(counterState);
@@ -97,14 +108,25 @@ namespace helengine {
         /// <param name="rootEntityAssets">Serialized root entities that own the authored scene hierarchy.</param>
         /// <returns>Required scene feature flags inferred from the serialized scene records.</returns>
         public static PhysicsSceneFeatureFlags3D Analyze(IReadOnlyList<SceneEntityAsset> rootEntityAssets) {
+            return Analyze(rootEntityAssets, RealRepresentation.Policy);
+        }
+
+        /// <summary>
+        /// Analyzes one serialized hierarchy using the exact numeric policy selected for its component payloads.
+        /// </summary>
+        /// <param name="rootEntityAssets">Serialized hierarchy to analyze.</param>
+        /// <param name="numericPolicy">Required numeric policy of every serialized physics component payload.</param>
+        /// <returns>Required scene feature flags inferred from the serialized scene records.</returns>
+        public static PhysicsSceneFeatureFlags3D Analyze(IReadOnlyList<SceneEntityAsset> rootEntityAssets, NumericPrecisionPolicy numericPolicy) {
             if (rootEntityAssets == null) {
                 throw new ArgumentNullException(nameof(rootEntityAssets));
             }
+            RealBinaryCodec.ValidatePolicy(numericPolicy);
 
             PhysicsSceneFeatureCounterState3D counterState = new PhysicsSceneFeatureCounterState3D();
             try {
                 for (int index = 0; index < rootEntityAssets.Count; index++) {
-                    AccumulateEntityAssetFeatures(rootEntityAssets[index], counterState);
+                    AccumulateEntityAssetFeatures(rootEntityAssets[index], counterState, numericPolicy);
                 }
 
                 return BuildFeatureFlags(counterState);
@@ -140,7 +162,8 @@ namespace helengine {
         /// </summary>
         /// <param name="entityAsset">Current serialized entity being analyzed.</param>
         /// <param name="counterState">Mutable counter state that collects scene capabilities.</param>
-        static void AccumulateEntityAssetFeatures(SceneEntityAsset entityAsset, [NativeNoEscape] PhysicsSceneFeatureCounterState3D counterState) {
+        /// <param name="numericPolicy">Required numeric policy of the serialized physics component payload.</param>
+        static void AccumulateEntityAssetFeatures(SceneEntityAsset entityAsset, [NativeNoEscape] PhysicsSceneFeatureCounterState3D counterState, NumericPrecisionPolicy numericPolicy) {
             if (entityAsset == null) {
                 throw new ArgumentNullException(nameof(entityAsset));
             }
@@ -164,21 +187,21 @@ namespace helengine {
             SceneComponentAssetRecord[] componentRecords = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
             for (int index = 0; index < componentRecords.Length; index++) {
                 SceneComponentAssetRecord record = componentRecords[index];
-                if (TryReadRigidBodyKind(record, out BodyKind3D readBodyKind)) {
+                if (TryReadRigidBodyKind(record, numericPolicy, out BodyKind3D readBodyKind)) {
                     hasRigidBody = true;
                     bodyKind = readBodyKind;
                 } else if (IsSceneComponentType(record, BoxCollider3DComponentTypeId)) {
                     hasBoxCollider = true;
-                    boxIsTrigger = ReadColliderIsTrigger(record);
+                    boxIsTrigger = ReadColliderIsTrigger(record, numericPolicy);
                 } else if (IsSceneComponentType(record, SphereCollider3DComponentTypeId)) {
                     hasSphereCollider = true;
-                    sphereIsTrigger = ReadColliderIsTrigger(record);
+                    sphereIsTrigger = ReadColliderIsTrigger(record, numericPolicy);
                 } else if (IsSceneComponentType(record, CapsuleCollider3DComponentTypeId)) {
                     hasCapsuleCollider = true;
-                    capsuleIsTrigger = ReadColliderIsTrigger(record);
+                    capsuleIsTrigger = ReadColliderIsTrigger(record, numericPolicy);
                 } else if (IsSceneComponentType(record, StaticMeshCollider3DComponentTypeId)) {
                     hasStaticMeshCollider = true;
-                    staticMeshIsTrigger = ReadColliderIsTrigger(record);
+                    staticMeshIsTrigger = ReadColliderIsTrigger(record, numericPolicy);
                 } else if (IsSceneComponentType(record, CharacterController3DComponentTypeId)) {
                     hasCharacterController = true;
                 } else if (IsSceneComponentType(record, KinematicMotion3DComponentTypeId)) {
@@ -208,7 +231,7 @@ namespace helengine {
 
             SceneEntityAsset[] childEntityAssets = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
             for (int index = 0; index < childEntityAssets.Length; index++) {
-                AccumulateEntityAssetFeatures(childEntityAssets[index], counterState);
+                AccumulateEntityAssetFeatures(childEntityAssets[index], counterState, numericPolicy);
             }
         }
 
@@ -609,8 +632,9 @@ namespace helengine {
         /// </summary>
         /// <param name="record">Serialized scene component record to inspect.</param>
         /// <param name="bodyKind">Decoded rigid-body participation mode when the record is a rigid body.</param>
+        /// <param name="numericPolicy">Required numeric policy of the serialized physics component payload.</param>
         /// <returns>True when the record encodes a rigid body; otherwise false.</returns>
-        static bool TryReadRigidBodyKind(SceneComponentAssetRecord record, out BodyKind3D bodyKind) {
+        static bool TryReadRigidBodyKind(SceneComponentAssetRecord record, NumericPrecisionPolicy numericPolicy, out BodyKind3D bodyKind) {
             if (!IsSceneComponentType(record, RigidBody3DComponentTypeId)) {
                 bodyKind = BodyKind3D.Static;
                 return false;
@@ -626,7 +650,7 @@ namespace helengine {
                         $"Unsupported rigid body component payload received version '{version}'; current version '{CurrentPhysicsComponentPayloadVersion}' is required. Regenerate/rebuild the asset in the current format.");
                 }
 
-                RequireCurrentAutomaticMemberCount(reader, AutomaticRigidBodyMemberCount, "rigid body");
+                RequireCurrentAutomaticMemberCount(reader, AutomaticRigidBodyMemberCount, "rigid body", numericPolicy);
                 reader.ReadReal3();
                 int serializedBodyKind = reader.ReadInt32();
                 if (!Enum.IsDefined(typeof(BodyKind3D), serializedBodyKind)) {
@@ -652,20 +676,21 @@ namespace helengine {
         /// Reads the trigger flag from one serialized collider scene component record.
         /// </summary>
         /// <param name="record">Serialized collider scene component record to inspect.</param>
+        /// <param name="numericPolicy">Required numeric policy of the serialized physics component payload.</param>
         /// <returns>True when the collider is configured as a trigger; otherwise false.</returns>
-        static bool ReadColliderIsTrigger(SceneComponentAssetRecord record) {
+        static bool ReadColliderIsTrigger(SceneComponentAssetRecord record, NumericPrecisionPolicy numericPolicy) {
             if (record == null) {
                 throw new ArgumentNullException(nameof(record));
             }
 
             if (IsSceneComponentType(record, BoxCollider3DComponentTypeId)) {
-                return ReadBoxColliderIsTrigger(record);
+                return ReadBoxColliderIsTrigger(record, numericPolicy);
             } else if (IsSceneComponentType(record, SphereCollider3DComponentTypeId)) {
-                return ReadSphereColliderIsTrigger(record);
+                return ReadSphereColliderIsTrigger(record, numericPolicy);
             } else if (IsSceneComponentType(record, CapsuleCollider3DComponentTypeId)) {
-                return ReadCapsuleColliderIsTrigger(record);
+                return ReadCapsuleColliderIsTrigger(record, numericPolicy);
             } else if (IsSceneComponentType(record, StaticMeshCollider3DComponentTypeId)) {
-                return ReadStaticMeshColliderIsTrigger(record);
+                return ReadStaticMeshColliderIsTrigger(record, numericPolicy);
             }
 
             throw new InvalidOperationException($"Collider trigger analysis does not support component type '{record.ComponentTypeId}'.");
@@ -675,8 +700,9 @@ namespace helengine {
         /// Reads the trigger flag from one serialized box-collider scene component record.
         /// </summary>
         /// <param name="record">Serialized box-collider scene component record.</param>
+        /// <param name="numericPolicy">Required numeric policy of the serialized physics component payload.</param>
         /// <returns>True when the collider is configured as a trigger; otherwise false.</returns>
-        static bool ReadBoxColliderIsTrigger(SceneComponentAssetRecord record) {
+        static bool ReadBoxColliderIsTrigger(SceneComponentAssetRecord record, NumericPrecisionPolicy numericPolicy) {
             byte[] payload = record.Payload ?? Array.Empty<byte>();
             using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
@@ -687,7 +713,7 @@ namespace helengine {
                         $"Unsupported box collider component payload received version '{version}'; current version '{CurrentPhysicsComponentPayloadVersion}' is required. Regenerate/rebuild the asset in the current format.");
                 }
 
-                RequireCurrentAutomaticMemberCount(reader, AutomaticBoxColliderMemberCount, "box collider");
+                RequireCurrentAutomaticMemberCount(reader, AutomaticBoxColliderMemberCount, "box collider", numericPolicy);
                 reader.ReadUInt16();
                 reader.ReadUInt16();
                 reader.ReadDouble();
@@ -706,8 +732,9 @@ namespace helengine {
         /// Reads the trigger flag from one serialized sphere-collider scene component record.
         /// </summary>
         /// <param name="record">Serialized sphere-collider scene component record.</param>
+        /// <param name="numericPolicy">Required numeric policy of the serialized physics component payload.</param>
         /// <returns>True when the collider is configured as a trigger; otherwise false.</returns>
-        static bool ReadSphereColliderIsTrigger(SceneComponentAssetRecord record) {
+        static bool ReadSphereColliderIsTrigger(SceneComponentAssetRecord record, NumericPrecisionPolicy numericPolicy) {
             byte[] payload = record.Payload ?? Array.Empty<byte>();
             using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
@@ -718,7 +745,7 @@ namespace helengine {
                         $"Unsupported sphere collider component payload received version '{version}'; current version '{CurrentPhysicsComponentPayloadVersion}' is required. Regenerate/rebuild the asset in the current format.");
                 }
 
-                RequireCurrentAutomaticMemberCount(reader, AutomaticSphereColliderMemberCount, "sphere collider");
+                RequireCurrentAutomaticMemberCount(reader, AutomaticSphereColliderMemberCount, "sphere collider", numericPolicy);
                 reader.ReadUInt16();
                 reader.ReadUInt16();
                 reader.ReadDouble();
@@ -737,8 +764,9 @@ namespace helengine {
         /// Reads the trigger flag from one serialized capsule-collider scene component record.
         /// </summary>
         /// <param name="record">Serialized capsule-collider scene component record.</param>
+        /// <param name="numericPolicy">Required numeric policy of the serialized physics component payload.</param>
         /// <returns>True when the collider is configured as a trigger; otherwise false.</returns>
-        static bool ReadCapsuleColliderIsTrigger(SceneComponentAssetRecord record) {
+        static bool ReadCapsuleColliderIsTrigger(SceneComponentAssetRecord record, NumericPrecisionPolicy numericPolicy) {
             byte[] payload = record.Payload ?? Array.Empty<byte>();
             using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
@@ -749,7 +777,7 @@ namespace helengine {
                         $"Unsupported capsule collider component payload received version '{version}'; current version '{CurrentPhysicsComponentPayloadVersion}' is required. Regenerate/rebuild the asset in the current format.");
                 }
 
-                RequireCurrentAutomaticMemberCount(reader, AutomaticCapsuleColliderMemberCount, "capsule collider");
+                RequireCurrentAutomaticMemberCount(reader, AutomaticCapsuleColliderMemberCount, "capsule collider", numericPolicy);
                 reader.ReadUInt16();
                 reader.ReadUInt16();
                 reader.ReadDouble();
@@ -771,7 +799,8 @@ namespace helengine {
         /// <param name="reader">Reader positioned immediately after the payload version.</param>
         /// <param name="expectedMemberCount">Expected current reflected member count.</param>
         /// <param name="componentLabel">Human-readable component label used in the failure message.</param>
-        static void RequireCurrentAutomaticMemberCount(EngineBinaryReader reader, int expectedMemberCount, string componentLabel) {
+        /// <param name="numericPolicy">Required numeric policy of the serialized physics component payload.</param>
+        static void RequireCurrentAutomaticMemberCount(EngineBinaryReader reader, int expectedMemberCount, string componentLabel, NumericPrecisionPolicy numericPolicy) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
@@ -779,7 +808,7 @@ namespace helengine {
                 throw new ArgumentException("Component label must be provided.", nameof(componentLabel));
             }
 
-            reader.NumericPolicy = RealBinaryCodec.ReadAndValidatePolicy(reader, RealRepresentation.Policy);
+            reader.NumericPolicy = RealBinaryCodec.ReadAndValidatePolicy(reader, numericPolicy);
             int memberCount = reader.ReadInt32();
             if (memberCount != expectedMemberCount) {
                 throw new InvalidOperationException(
@@ -791,8 +820,9 @@ namespace helengine {
         /// Reads the trigger flag from one serialized static-mesh-collider scene component record.
         /// </summary>
         /// <param name="record">Serialized static-mesh-collider scene component record.</param>
+        /// <param name="numericPolicy">Required numeric policy of the serialized physics component payload.</param>
         /// <returns>True when the collider is configured as a trigger; otherwise false.</returns>
-        static bool ReadStaticMeshColliderIsTrigger(SceneComponentAssetRecord record) {
+        static bool ReadStaticMeshColliderIsTrigger(SceneComponentAssetRecord record, NumericPrecisionPolicy numericPolicy) {
             byte[] payload = record.Payload ?? Array.Empty<byte>();
             using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
@@ -803,7 +833,7 @@ namespace helengine {
                         $"Unsupported static mesh collider component payload received version '{version}'; current version '{CurrentPhysicsComponentPayloadVersion}' is required. Regenerate/rebuild the asset in the current format.");
                 }
 
-                RequireCurrentAutomaticMemberCount(reader, AutomaticStaticMeshColliderMemberCount, "static mesh collider");
+                RequireCurrentAutomaticMemberCount(reader, AutomaticStaticMeshColliderMemberCount, "static mesh collider", numericPolicy);
                 SkipAutomaticStaticMeshCollisionData(reader);
                 reader.ReadUInt16();
                 reader.ReadUInt16();

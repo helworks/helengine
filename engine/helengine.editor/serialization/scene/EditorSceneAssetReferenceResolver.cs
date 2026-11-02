@@ -871,7 +871,8 @@ namespace helengine.editor {
         FontAsset ResolveFileSystemFont(SceneAssetReference reference) {
             string fullPath = ResolveFileSystemAssetPath(reference, AssetEntryKind.Font);
             BeforePayloadLoadForTests?.Invoke();
-            if (FileSystemFontResolver != null) {
+            // Serialized font atlases are already processed; only source fonts require importing.
+            if (FileSystemFontResolver != null && !string.Equals(Path.GetExtension(fullPath), ".hefont", StringComparison.OrdinalIgnoreCase)) {
                 FontAsset resolvedFont = FileSystemFontResolver.ResolveFontAsset(fullPath);
                 TrackOwnedFont(resolvedFont);
                 return resolvedFont;

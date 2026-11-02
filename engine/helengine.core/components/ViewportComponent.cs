@@ -269,7 +269,7 @@ namespace helengine {
         public Real DensityScale {
             get {
                 if (UsesPreparedSinglePassBounds()) { return (RealEvaluation)CurrentMetrics.ScaleX; }
-                string tag = ActiveCameraComponentValue == null || ActiveCameraComponentValue.OutputWindowTag.Length == 0
+                string tag = IsEditorAuthoring() || ActiveCameraComponentValue == null || ActiveCameraComponentValue.OutputWindowTag.Length == 0
                     ? "main" : ActiveCameraComponentValue.OutputWindowTag;
                 return (RealEvaluation)(OwnerCore.RenderManager3D.GetWindowDensityDpi(tag) / (PixelsPerCentimeterValue * 2.54d) * UiScaleValue);
             }
@@ -761,7 +761,8 @@ namespace helengine {
                 return OwnerCore.RenderManager3D.MainWindowPixelAspect;
             } else if (BindingModeValue == AncestorCameraBindingMode || BindingModeValue == ExplicitCameraBindingMode) {
                 CameraComponent cameraComponent = ResolveBoundCameraComponent();
-                return cameraComponent != null ? OwnerCore.RenderManager3D.GetCameraPixelAspect(cameraComponent) : RenderManager3D.SquarePixelAspect;
+                return IsEditorAuthoring() ? OwnerCore.RenderManager3D.MainWindowPixelAspect
+                    : cameraComponent != null ? OwnerCore.RenderManager3D.GetCameraPixelAspect(cameraComponent) : RenderManager3D.SquarePixelAspect;
             }
 
             return RenderManager3D.SquarePixelAspect;
@@ -813,7 +814,9 @@ namespace helengine {
                 return viewport;
             }
 
-            int2 mainWindowSize = OwnerCore.RenderManager3D.GetCameraLayoutSize(cameraComponent);
+            // Authoring presents all cameras in the editor workspace; host output tags apply only at runtime.
+            int2 mainWindowSize = IsEditorAuthoring() ? OwnerCore.RenderManager3D.MainWindowSize
+                : OwnerCore.RenderManager3D.GetCameraLayoutSize(cameraComponent);
             if (mainWindowSize.X <= 0 || mainWindowSize.Y <= 0) {
                 return viewport;
             }

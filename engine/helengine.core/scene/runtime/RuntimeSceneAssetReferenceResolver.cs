@@ -592,6 +592,7 @@ namespace helengine {
             if (fontAsset == null) {
                 throw new ArgumentNullException(nameof(fontAsset));
             }
+            fontAsset.ConfigurePageCache(AssetContentManager, RequireRenderManager2D());
             if (string.IsNullOrWhiteSpace(fontAsset.CookedAtlasTextureRelativePath)) {
                 return;
             }

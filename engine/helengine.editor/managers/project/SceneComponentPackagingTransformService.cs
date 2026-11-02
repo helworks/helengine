@@ -1890,6 +1890,25 @@ namespace helengine.editor {
             return CreateFileSystemReference(cookedRelativePath);
         }
 
+        /// <summary>Packages only page files referenced by the font; does not embed their pixels in its metadata.</summary>
+        void CopyFontPages(FontAsset font, string buildRootPath) {
+            if (font.Pages == null || font.Pages.Length == 0) { return; }
+            if (!string.Equals(TargetPlatformId, "windows", StringComparison.OrdinalIgnoreCase)) {
+                throw new NotSupportedException("Optional font pages currently require the Windows renderer; export a single-page font for this target.");
+            }
+            FontPage[] pages = new FontPage[font.Pages.Length];
+            for (int index = 0; index < pages.Length; index++) {
+                FontPage page = font.Pages[index];
+                string source = ResolveProjectAssetPath(page.TexturePath);
+                string relative = "cooked/" + page.TexturePath;
+                string target = Path.Combine(buildRootPath, relative.Replace('/', Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(Path.GetDirectoryName(target));
+                File.Copy(source, target, true);
+                pages[index] = new FontPage(ResolveRuntimeReferencePath(relative), page.Width, page.Height);
+            }
+            font.Pages = pages;
+        }
+
         /// <summary>
         /// Rewrites one file-backed source font reference into a cooked packaged font reference.
         /// </summary>
@@ -1903,6 +1922,7 @@ namespace helengine.editor {
                 string cookedAtlasTextureRelativePath = BuildCookedFontAtlasTextureRelativePath(reference.RelativePath);
                 if (string.Equals(Path.GetExtension(reference.RelativePath), ".hefont", StringComparison.OrdinalIgnoreCase)) {
                     FontAsset sourceFontAsset = LoadPackagedFontAssetForPackaging(sourcePath);
+                    CopyFontPages(sourceFontAsset, buildRootPath);
                     string generatedAtlasSourceFullPath = WriteGeneratedPackagedFontAtlasSource(buildRootPath, reference.RelativePath, sourceFontAsset);
                     FontAsset packagedFontAsset = PrepareFontAssetForExternalCookedAtlas(sourceFontAsset, cookedAtlasTextureRelativePath);
                     WriteFontAsset(Path.Combine(buildRootPath, cookedRelativePath), packagedFontAsset);
@@ -1916,6 +1936,7 @@ namespace helengine.editor {
                 AssetImportSettings settings = AssetImportManager.LoadOrCreateImportSettings(sourcePath);
                 EditorPlatformFontVariantCacheResult fontVariant = PlatformFontVariantCacheService.ResolveVariant(sourcePath, TargetPlatformId);
                 FontAsset cachedFontAsset = LoadPackagedFontAssetForPackaging(fontVariant.CachedFontAssetPath);
+                CopyFontPages(cachedFontAsset, buildRootPath);
                 FontAsset cachedPackagedFontAsset = PrepareFontAssetForExternalCookedAtlas(cachedFontAsset, cookedAtlasTextureRelativePath);
                 WriteFontAsset(Path.Combine(buildRootPath, cookedRelativePath), cachedPackagedFontAsset);
                 RememberFontCookWorkItem(fontVariant.CachedAtlasTextureAssetPath, cookedAtlasTextureRelativePath, settings, AssetImportManager.ProjectRootPath);
@@ -1923,11 +1944,16 @@ namespace helengine.editor {
             }
 
             if (string.Equals(Path.GetExtension(reference.RelativePath), ".hefont", StringComparison.OrdinalIgnoreCase)) {
-                CopyFile(sourcePath, Path.Combine(buildRootPath, cookedRelativePath));
+                using FontAsset storedFont = LoadPackagedFontAssetForPackaging(sourcePath);
+                if (storedFont.Pages != null && storedFont.Pages.Length > 0) {
+                    CopyFontPages(storedFont, buildRootPath);
+                    WriteFontAsset(Path.Combine(buildRootPath, cookedRelativePath), storedFont);
+                } else { CopyFile(sourcePath, Path.Combine(buildRootPath, cookedRelativePath)); }
                 return CreateFontFileReference(cookedRelativePath);
             }
 
             FontAsset fontAsset = LoadImportedFontAssetForPackaging(reference, sourcePath);
+            CopyFontPages(fontAsset, buildRootPath);
             WriteFontAsset(Path.Combine(buildRootPath, cookedRelativePath), fontAsset);
             return CreateFontFileReference(cookedRelativePath);
         }
@@ -2012,7 +2038,9 @@ namespace helengine.editor {
                 fontAsset.AtlasWidth,
                 fontAsset.AtlasHeight) {
                     SourceTextureAsset = null,
-                CookedAtlasTextureRelativePath = ResolveRuntimeReferencePath(cookedAtlasTextureRelativePath)
+                CookedAtlasTextureRelativePath = ResolveRuntimeReferencePath(cookedAtlasTextureRelativePath),
+                    Pages = FontPage.Copy(fontAsset.Pages),
+                    PageBudgetBytes = fontAsset.PageBudgetBytes
             };
         }
 
@@ -2961,9 +2989,8 @@ namespace helengine.editor {
         /// <summary>Packages the original engine Standard material through the selected builder while preserving its declared shadow flags.</summary>
         /// <param name="buildRootPath">Root receiving the generated material and any shared shader payload.</param>
         void EnsureGeneratedStandardMaterialAssets(string buildRootPath) {
-            string shaderAssetId = EnsureStandardShaderAsset(buildRootPath);
-
             if (MaterialBuilder == null) {
+                string shaderAssetId = EnsureStandardShaderAsset(buildRootPath);
                 ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
                     Id = "Engine.Materials.Standard.material",
                     ShaderAssetId = shaderAssetId,
@@ -3005,6 +3032,14 @@ namespace helengine.editor {
                 SelectedGraphicsProfileId,
                 standardMaterialSettings.SchemaId,
                 standardMaterialFieldValues, NumericPolicy));
+            // Platform-owned materials need no generic shader. Only materialize the
+            // built-in shader when the producer actually declares it as a dependency.
+            foreach (PlatformShaderDependency dependency in cookResult.ReferencedShaderDependencies) {
+                if (dependency != null && string.Equals(dependency.ShaderAssetId, StandardShaderAssetId, StringComparison.Ordinal)) {
+                    EnsureStandardShaderAsset(buildRootPath);
+                    break;
+                }
+            }
             RememberReferencedShaderDependencies(cookResult.ReferencedShaderDependencies);
             WriteBytes(Path.Combine(buildRootPath, StandardGeneratedMaterialRelativePath), cookResult.CookedMaterialBytes);
             ReportMaterialOutput(StandardGeneratedMaterialRelativePath, StandardGeneratedMaterialAssetId);

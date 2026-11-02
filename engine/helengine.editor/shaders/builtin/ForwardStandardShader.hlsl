@@ -71,7 +71,7 @@ cbuffer EmissiveColorBuffer : register(b7)
     float4 emissiveColorValue;
 };
 
-#if defined(HEL_API_WEBGPU)
+#if defined(HEL_API_WEBGPU) || defined(HEL_API_PS3)
 Texture2D<float> shadowAtlasTexture : register(t1);
 SamplerComparisonState shadowAtlasSampler : register(s1);
 #else
@@ -264,7 +264,7 @@ float3 EvaluateForwardLight(
                 {
                     float2 atlasUv = shadowAtlasRect.xy + (shadowUv * shadowAtlasRect.zw);
                     float shadowBias = 0.0015f;
-#if defined(HEL_API_WEBGPU)
+#if defined(HEL_API_WEBGPU) || defined(HEL_API_PS3)
                     float shadowVisibility = shadowAtlasTexture.SampleCmpLevelZero(shadowAtlasSampler, atlasUv, shadowNdc.z - shadowBias);
 #else
                     float sampledDepth = shadowAtlasTexture.SampleLevel(shadowAtlasSampler, atlasUv, 0.0f).r;

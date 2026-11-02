@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Owns fixed-capacity primitive-shape storage guarded by generational handles.
     /// </summary>
-    sealed class HelPhysicsShapePool3D {
+    sealed class HelPhysicsShapePool3D : IDisposable {
         /// <summary>
         /// Stores the minimum number of addressable shape slots a pool may own.
         /// </summary>
@@ -16,32 +16,38 @@ namespace helengine {
         /// <summary>
         /// Stores box shape values indexed by their permanent fixed slot.
         /// </summary>
-        readonly HelPhysicsBoxShape3D[] Boxes;
+        [NativeOwnedMember]
+        HelPhysicsBoxShape3D[] Boxes;
 
         /// <summary>
         /// Stores sphere shape values indexed by their permanent fixed slot.
         /// </summary>
-        readonly HelPhysicsSphereShape3D[] Spheres;
+        [NativeOwnedMember]
+        HelPhysicsSphereShape3D[] Spheres;
 
         /// <summary>
         /// Stores the primitive kind occupying each fixed shape slot.
         /// </summary>
-        readonly HelPhysicsShapeKind3D[] Kinds;
+        [NativeOwnedMember]
+        HelPhysicsShapeKind3D[] Kinds;
 
         /// <summary>
         /// Stores whether each corresponding entry in <see cref="Boxes"/> currently belongs to a live handle.
         /// </summary>
-        readonly bool[] IsOccupied;
+        [NativeOwnedMember]
+        bool[] IsOccupied;
 
         /// <summary>
         /// Stores the current generation for each fixed shape slot.
         /// </summary>
-        readonly ushort[] Generations;
+        [NativeOwnedMember]
+        ushort[] Generations;
 
         /// <summary>
         /// Stores reusable shape-slot indices as a stack.
         /// </summary>
-        readonly ushort[] FreeIndices;
+        [NativeOwnedMember]
+        ushort[] FreeIndices;
 
         /// <summary>
         /// Stores the number of currently available entries in <see cref="FreeIndices"/>.
@@ -207,6 +213,15 @@ namespace helengine {
             if (!IsOccupied[handle.Index]) {
                 throw new InvalidOperationException("The shape handle refers to a released slot.");
             }
+        }
+        /// <summary>Releases the native storage exclusively owned by this internal physics resource.</summary>
+        public void Dispose() {
+            NativeOwnership.Release(ref Boxes);
+            NativeOwnership.Release(ref Spheres);
+            NativeOwnership.Release(ref Kinds);
+            NativeOwnership.Release(ref IsOccupied);
+            NativeOwnership.Release(ref Generations);
+            NativeOwnership.Release(ref FreeIndices);
         }
     }
 }

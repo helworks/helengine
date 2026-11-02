@@ -1900,11 +1900,16 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Standard material emissive color must use #RRGGBB or #RRGGBBAA.");
             }
 
+            float intensity = 1f;
+            if (fieldValues.TryGetValue("emissive-intensity", out string serializedIntensity)
+                && !float.TryParse(serializedIntensity, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out intensity)) {
+                throw new InvalidOperationException("Standard material emissive intensity must be a finite nonnegative number.");
+            }
             return StandardMaterialEmissiveColorDefaults.CreateConstantBufferData(new float4(
                 parsedColor.X / 255f,
                 parsedColor.Y / 255f,
                 parsedColor.Z / 255f,
-                parsedColor.W / 255f));
+                parsedColor.W / 255f), intensity);
         }
 
 

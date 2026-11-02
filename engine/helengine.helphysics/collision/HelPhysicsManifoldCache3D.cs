@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Persists fixed-size contact manifolds by canonical body pair so sequential simulation steps can warm-start solver impulses.
     /// </summary>
-    sealed class HelPhysicsManifoldCache3D {
+    sealed class HelPhysicsManifoldCache3D : IDisposable {
         /// <summary>
         /// Represents an unused table slot that terminates an unsuccessful linear probe.
         /// </summary>
@@ -26,7 +26,8 @@ namespace helengine {
         /// <summary>
         /// Stores the constructor-owned power-of-two slot array used for bounded linear probing.
         /// </summary>
-        readonly HelPhysicsManifoldCacheEntry3D[] Entries;
+        [NativeOwnedMember]
+        HelPhysicsManifoldCacheEntry3D[] Entries;
 
         /// <summary>
         /// Stores the bit mask that wraps each deterministic hash-table probe index.
@@ -488,6 +489,10 @@ namespace helengine {
         /// <returns><see langword="true"/> when <paramref name="value"/> is a positive power of two; otherwise <see langword="false"/>.</returns>
         static bool IsPositivePowerOfTwo(int value) {
             return value > 0 && (value & (value - 1)) == 0;
+        }
+        /// <summary>Releases the native storage exclusively owned by this internal physics resource.</summary>
+        public void Dispose() {
+            NativeOwnership.Release(ref Entries);
         }
     }
 }

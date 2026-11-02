@@ -17,6 +17,10 @@ namespace helengine {
         /// Serializer version for the current packaged font payload layout.
         /// </summary>
         public const byte CurrentVersion = 5;
+        /// <summary>Optional layout carrying glyph page indices and external atlas descriptors.</summary>
+        public const byte PagedVersion = 6;
+        /// <summary>Preserves the byte layout of fonts without optional pages.</summary>
+        public const byte SinglePageVersion = 5;
 
         /// <summary>
         /// Value kind used for serialized packaged font payloads.
@@ -82,7 +86,7 @@ namespace helengine {
                 FormatId,
                 (ushort)RecordKind,
                 ValueKind,
-                CurrentVersion,
+                header.Version == PagedVersion ? PagedVersion : CurrentVersion,
                 FormatIdMismatchSubject,
                 RecordMismatchSubject,
                 VersionMismatchSubject,
@@ -144,14 +148,18 @@ namespace helengine {
                     reader.ReadSingle(),
                     reader.ReadSingle(),
                     reader.ReadSingle());
+                if (header.Version == PagedVersion) { fontChar.PageIndex = reader.ReadInt32(); }
                 characters.Add(character, fontChar);
             }
+
+            FontPage[] pages = header.Version == PagedVersion ? FontPageBinary.Read(reader, characters) : null;
 
             if (sourceTexture.Width > 0 && sourceTexture.Height > 0 && sourceTexture.Colors != null && sourceTexture.Colors.Length > 0) {
                 RuntimeTexture texture = renderManager2D.BuildTextureFromRaw(sourceTexture);
                 FontAsset font = new FontAsset(fontInfo, texture, characters, lineHeight, atlasWidth, atlasHeight) {
                     SourceTextureAsset = sourceTexture,
-                    CookedAtlasTextureRelativePath = cookedAtlasTextureRelativePath
+                    CookedAtlasTextureRelativePath = cookedAtlasTextureRelativePath,
+                    Pages = pages
                 };
                 font.AttachRuntimeRenderer(renderManager2D);
                 return font;
@@ -159,7 +167,8 @@ namespace helengine {
 
             NativeOwnership.DisposeAndDelete(sourceTexture);
             FontAsset externalAtlasFont = new FontAsset(fontInfo, null, characters, lineHeight, atlasWidth, atlasHeight) {
-                CookedAtlasTextureRelativePath = cookedAtlasTextureRelativePath
+                CookedAtlasTextureRelativePath = cookedAtlasTextureRelativePath,
+                    Pages = pages
             };
             externalAtlasFont.AttachRuntimeRenderer(renderManager2D);
             return externalAtlasFont;

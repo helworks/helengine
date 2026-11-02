@@ -3,6 +3,8 @@ namespace helengine {
     /// Represents glyph metrics and UV data for a single character.
     /// </summary>
     public struct FontChar {
+        /// <summary>Zero selects the base atlas; positive indices select optional font pages.</summary>
+        public int PageIndex;
         /// <summary>
         /// UV coordinates in the texture atlas (x, y, width, height).
         /// </summary>
@@ -37,6 +39,7 @@ namespace helengine {
         /// <param name="bearingX">Horizontal bearing.</param>
         /// <param name="bearingY">Vertical bearing.</param>
         public FontChar(float4 sourceRect, float offsetY, float advanceWidth, float bearingX, float bearingY) {
+            PageIndex = 0;
             SourceRect = sourceRect;
             OffsetY = offsetY;
             AdvanceWidth = advanceWidth;

@@ -604,6 +604,13 @@ namespace helengine {
             }
         }
 
+        /// <summary>Removes one owned component, completes its detach callbacks, then disposes and releases that detached native object.</summary>
+        /// <param name="comp">Component currently owned by this entity; attachment and identity are validated by RemoveComponent.</param>
+        public void RemoveAndDisposeComponent(Component comp) {
+            RemoveComponent(comp);
+            NativeOwnership.DisposeAndDelete(comp);
+        }
+
         /// <summary>
         /// Removes one component from the entity and triggers its detach callback.
         /// </summary>

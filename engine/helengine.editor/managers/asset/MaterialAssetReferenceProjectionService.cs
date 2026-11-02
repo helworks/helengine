@@ -57,6 +57,7 @@ namespace helengine.editor {
             if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
                 return reference.AssetId ?? string.Empty;
             }
+            if (fieldId.EndsWith("texture-id", StringComparison.OrdinalIgnoreCase)) { return reference.RelativePath ?? string.Empty; }
             if (IsPathDerivedAssetIdField(fieldId)) {
                 string withoutExtension = Path.ChangeExtension(reference.RelativePath, null) ?? string.Empty;
                 return withoutExtension.Replace('/', '.').Replace('\\', '.');
@@ -66,8 +67,7 @@ namespace helengine.editor {
 
         /// <summary>Returns whether one builder field consumes a path-derived imported asset id.</summary>
         static bool IsPathDerivedAssetIdField(string fieldId) {
-            return fieldId.EndsWith("texture-id", StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(fieldId, "shader-asset-id", StringComparison.OrdinalIgnoreCase);
+            return string.Equals(fieldId, "shader-asset-id", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

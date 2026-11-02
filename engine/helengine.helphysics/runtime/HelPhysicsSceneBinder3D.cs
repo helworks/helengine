@@ -16,20 +16,26 @@ namespace helengine {
         /// <summary>
         /// Stores bindings in deterministic hierarchy traversal order.
         /// </summary>
-        readonly List<HelPhysicsEntityBinding3D> BindingsValue;
+        [NativeOwnedMember]
+        List<HelPhysicsEntityBinding3D> BindingsValue;
 
         /// <summary>
         /// Stores the immutable public view over the mutable deterministic binding list.
         /// </summary>
-        readonly IReadOnlyList<HelPhysicsEntityBinding3D> BindingsView;
+        [NativeOwnedMember]
+        IReadOnlyList<HelPhysicsEntityBinding3D> BindingsView;
 
         /// <summary>Stores entity identities for active and recently removed body generations.</summary>
-        readonly Dictionary<HelPhysicsBodyHandle3D, Entity> EntitiesByBodyHandleValue;
+        [NativeOwnedMember]
+        Dictionary<HelPhysicsBodyHandle3D, Entity> EntitiesByBodyHandleValue;
 
         /// <summary>Stores translated trigger transitions from the latest world step.</summary>
-        readonly List<TriggerEvent3D> TriggerEventsValue;
-        readonly IReadOnlyList<TriggerEvent3D> TriggerEventsView;
-        readonly List<HelPhysicsBodyHandle3D> RetiredBodyHandlesValue;
+        [NativeOwnedMember]
+        List<TriggerEvent3D> TriggerEventsValue;
+        [NativeOwnedMember]
+        IReadOnlyList<TriggerEvent3D> TriggerEventsView;
+        [NativeOwnedMember]
+        List<HelPhysicsBodyHandle3D> RetiredBodyHandlesValue;
 
         /// <summary>Owns the fixed-step synchronizer and its preflight buffers for this binder lifetime.</summary>
         [NativeOwnedMember]
@@ -61,7 +67,7 @@ namespace helengine {
         /// <param name="world">Explicit HelPhysics world owned by the standalone runtime flow.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="world"/> is null.</exception>
         /// <exception cref="InvalidOperationException">Thrown when <paramref name="world"/> already has an owner or contains prior generic-world state.</exception>
-        public HelPhysicsSceneBinder3D(HelPhysicsWorld3D world)
+        public HelPhysicsSceneBinder3D([NativeRetainsBorrow] HelPhysicsWorld3D world)
             : this(world, false) {
         }
 
@@ -70,7 +76,7 @@ namespace helengine {
         /// </summary>
         /// <param name="world">Explicit HelPhysics world owned by this binder.</param>
         /// <param name="allowExistingLifecycleComponents">Whether replacement preflight may observe the prior binder lifecycle component.</param>
-        internal HelPhysicsSceneBinder3D(HelPhysicsWorld3D world, bool allowExistingLifecycleComponents) {
+        internal HelPhysicsSceneBinder3D([NativeRetainsBorrow] HelPhysicsWorld3D world, bool allowExistingLifecycleComponents) {
             World = world ?? throw new ArgumentNullException(nameof(world));
             AllowExistingLifecycleComponents = allowExistingLifecycleComponents;
             AllowedPreviousBinder = null;
@@ -90,7 +96,7 @@ namespace helengine {
         /// </summary>
         /// <param name="world">Explicit HelPhysics world owned by this binder.</param>
         /// <param name="previousBinder">Exact binder being replaced, or null for a fresh scene.</param>
-        internal HelPhysicsSceneBinder3D(HelPhysicsWorld3D world, HelPhysicsSceneBinder3D previousBinder) {
+        internal HelPhysicsSceneBinder3D([NativeRetainsBorrow] HelPhysicsWorld3D world, HelPhysicsSceneBinder3D previousBinder) {
             World = world ?? throw new ArgumentNullException(nameof(world));
             AllowExistingLifecycleComponents = previousBinder != null;
             AllowedPreviousBinder = previousBinder;
@@ -467,24 +473,28 @@ namespace helengine {
         /// </summary>
         public void Dispose() {
             NativeOwnership.DisposeAndRelease(ref SynchronizerValue);
-            if (IsDisposedValue) {
-                return;
-            }
-
-            IsDisposedValue = true;
-            for (int bindingIndex = BindingsValue.Count - 1; bindingIndex >= 0; bindingIndex--) {
-                HelPhysicsEntityBinding3D binding = BindingsValue[bindingIndex];
-                binding.Invalidate();
-                if (ReferenceEquals(binding.Lifecycle.Parent, binding.Entity)) {
-                    binding.Entity.RemoveComponent(binding.Lifecycle);
-                    binding.Lifecycle.Dispose();
+            if (!IsDisposedValue) {
+                IsDisposedValue = true;
+                for (int bindingIndex = BindingsValue.Count - 1; bindingIndex >= 0; bindingIndex--) {
+                    HelPhysicsEntityBinding3D binding = BindingsValue[bindingIndex];
+                    binding.Invalidate();
+                    if (ReferenceEquals(binding.Lifecycle.Parent, binding.Entity)) {
+                        binding.Entity.RemoveAndDisposeComponent(binding.Lifecycle);
+                    }
+                    binding.Dispose();
                 }
+                BindingsValue.Clear();
+                EntitiesByBodyHandleValue.Clear();
+                RetiredBodyHandlesValue.Clear();
+                TriggerEventsValue.Clear();
+                World.DisposeForSceneBinder(this);
             }
-            BindingsValue.Clear();
-            EntitiesByBodyHandleValue.Clear();
-            RetiredBodyHandlesValue.Clear();
-            TriggerEventsValue.Clear();
-            World.DisposeForSceneBinder(this);
+            NativeOwnership.Release(ref BindingsView);
+            NativeOwnership.Release(ref TriggerEventsView);
+            NativeOwnership.Release(ref BindingsValue);
+            NativeOwnership.Release(ref EntitiesByBodyHandleValue);
+            NativeOwnership.Release(ref TriggerEventsValue);
+            NativeOwnership.Release(ref RetiredBodyHandlesValue);
         }
 
         /// <summary>
@@ -585,11 +595,13 @@ namespace helengine {
         /// <param name="detachLifecycle">Whether the lifecycle component is still attached and must be removed explicitly.</param>
         void InvalidateBinding(int bindingIndex, bool detachLifecycle) {
             HelPhysicsEntityBinding3D binding = BindingsValue[bindingIndex];
-            BindingsValue.RemoveAt(bindingIndex);
+            Entity entity = binding.Entity;
+            HelPhysicsEntityBindingLifecycle3D lifecycle = binding.Lifecycle;
             binding.Invalidate();
-            if (detachLifecycle && ReferenceEquals(binding.Lifecycle.Parent, binding.Entity)) {
-                binding.Entity.RemoveComponent(binding.Lifecycle);
-                binding.Lifecycle.Dispose();
+            binding.Dispose();
+            BindingsValue.RemoveAt(bindingIndex);
+            if (detachLifecycle && ReferenceEquals(lifecycle.Parent, entity)) {
+                entity.RemoveAndDisposeComponent(lifecycle);
             }
         }
 
@@ -675,7 +687,8 @@ namespace helengine {
                 }
 
                 ValidateEffectiveBoxSize(entity, boxCollider);
-                _ = CreateControllerBodyDescription(entity, boxCollider, 1);
+                HelPhysicsBodyDescription3D controllerValidation = CreateControllerBodyDescription(entity, boxCollider, 1);
+                NativeOwnership.Release(ref controllerValidation);
                 requiredBodyCount = 1;
             } else if (rigidBodyCount != 0 || colliderCount != 0) {
                 if (rigidBodyCount != 1) {
@@ -687,10 +700,12 @@ namespace helengine {
                 } else {
                     if (boxColliderCount == 1) {
                         ValidateEffectiveBoxSize(entity, boxCollider);
-                        _ = CreateBodyDescription(entity, rigidBody, boxCollider, 1);
+                        HelPhysicsBodyDescription3D boxValidation = CreateBodyDescription(entity, rigidBody, boxCollider, 1);
+                        NativeOwnership.Release(ref boxValidation);
                     } else {
                         ValidateEffectiveSphereRadius(entity, sphereCollider);
-                        _ = CreateBodyDescription(entity, rigidBody, sphereCollider, 1);
+                        HelPhysicsBodyDescription3D sphereValidation = CreateBodyDescription(entity, rigidBody, sphereCollider, 1);
+                        NativeOwnership.Release(ref sphereValidation);
                     }
                     requiredBodyCount = 1;
                 }

@@ -35,7 +35,7 @@ namespace helengine.core.tests.assets.font {
         /// <param name="version">Unsupported packaged font header version.</param>
         [Theory]
         [InlineData(4)]
-        [InlineData(6)]
+        [InlineData(7)]
         public void Deserialize_WhenHeaderVersionIsNotCurrent_ThrowsRegenerationGuidance(byte version) {
             using MemoryStream stream = CreateHeaderOnlyStream(version);
 

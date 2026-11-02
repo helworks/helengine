@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Prepares fixed-capacity scalar contacts, solves coupled manifold normals and sequential friction, and writes solved impulses back.
     /// </summary>
-    sealed class HelPhysicsContactSolver3D {
+    sealed class HelPhysicsContactSolver3D : IDisposable {
         /// <summary>
         /// Stores the exact incoming normal-speed boundary below which restitution becomes active.
         /// </summary>
@@ -26,47 +26,56 @@ namespace helengine {
         /// <summary>
         /// Stores the dedicated split-correction pass that consumes prepared contact pose data.
         /// </summary>
-        readonly HelPhysicsPenetrationCorrector3D PenetrationCorrector;
+        [NativeOwnedMember]
+        HelPhysicsPenetrationCorrector3D PenetrationCorrector;
 
         /// <summary>
         /// Stores the current manifold's dense four-by-four normal velocity response matrix in row-major order.
         /// </summary>
-        readonly PhysicsScalar[] NormalBlockMatrix;
+        [NativeOwnedMember]
+        PhysicsScalar[] NormalBlockMatrix;
 
         /// <summary>
         /// Stores the current normal LCP constant term after removing already accumulated normal impulses.
         /// </summary>
-        readonly PhysicsScalar[] NormalBlockConstants;
+        [NativeOwnedMember]
+        PhysicsScalar[] NormalBlockConstants;
 
         /// <summary>
         /// Stores the accumulated normal impulses applied when the current block solve begins.
         /// </summary>
-        readonly PhysicsScalar[] NormalBlockOldImpulses;
+        [NativeOwnedMember]
+        PhysicsScalar[] NormalBlockOldImpulses;
 
         /// <summary>
         /// Stores the candidate non-negative total impulse vector selected by active-set enumeration.
         /// </summary>
-        readonly PhysicsScalar[] NormalBlockCandidateImpulses;
+        [NativeOwnedMember]
+        PhysicsScalar[] NormalBlockCandidateImpulses;
 
         /// <summary>
         /// Stores active contact indices compressed for one candidate complementarity subset.
         /// </summary>
-        readonly int[] NormalBlockActiveIndices;
+        [NativeOwnedMember]
+        int[] NormalBlockActiveIndices;
 
         /// <summary>
         /// Stores the compressed coefficient matrix used by deterministic Gaussian elimination.
         /// </summary>
-        readonly PhysicsScalar[] NormalBlockWorkingMatrix;
+        [NativeOwnedMember]
+        PhysicsScalar[] NormalBlockWorkingMatrix;
 
         /// <summary>
         /// Stores the compressed right-hand side used by deterministic Gaussian elimination.
         /// </summary>
-        readonly PhysicsScalar[] NormalBlockWorkingRightHandSide;
+        [NativeOwnedMember]
+        PhysicsScalar[] NormalBlockWorkingRightHandSide;
 
         /// <summary>
         /// Stores the compressed active impulse solution returned by deterministic Gaussian elimination.
         /// </summary>
-        readonly PhysicsScalar[] NormalBlockWorkingSolution;
+        [NativeOwnedMember]
+        PhysicsScalar[] NormalBlockWorkingSolution;
 
         /// <summary>
         /// Stores how many leading entries of <see cref="Constraints"/> were prepared for the current step.
@@ -93,8 +102,10 @@ namespace helengine {
                 throw new ArgumentOutOfRangeException(nameof(contactCapacity), "Contact solver capacity must be positive.");
             }
 
-            Constraints = new HelPhysicsContactConstraint3D[contactCapacity];
-            StagingConstraints = new HelPhysicsContactConstraint3D[contactCapacity];
+            OwnedConstraints = new HelPhysicsContactConstraint3D[contactCapacity];
+            Constraints = OwnedConstraints;
+            OwnedStagingConstraints = new HelPhysicsContactConstraint3D[contactCapacity];
+            StagingConstraints = OwnedStagingConstraints;
             PenetrationCorrector = new HelPhysicsPenetrationCorrector3D();
             NormalBlockMatrix = new PhysicsScalar[MaximumManifoldContactCount * MaximumManifoldContactCount];
             NormalBlockConstants = new PhysicsScalar[MaximumManifoldContactCount];
@@ -1080,6 +1091,30 @@ namespace helengine {
                 bodyB.AngularVelocity += constraint.WorldInverseInertiaB.Transform(
                     PhysicsVector3.Cross(constraint.LeverArmB, impulse));
             }
+        }
+        /// <summary>Owns the original Constraints allocation independently of its active/staging role.</summary>
+        [NativeOwnedMember]
+        HelPhysicsContactConstraint3D[] OwnedConstraints;
+
+        /// <summary>Owns the original StagingConstraints allocation independently of its active/staging role.</summary>
+        [NativeOwnedMember]
+        HelPhysicsContactConstraint3D[] OwnedStagingConstraints;
+
+        /// <summary>Releases the native storage exclusively owned by this internal physics resource.</summary>
+        public void Dispose() {
+            Constraints = null;
+            StagingConstraints = null;
+            NativeOwnership.Release(ref OwnedConstraints);
+            NativeOwnership.Release(ref OwnedStagingConstraints);
+            NativeOwnership.Release(ref PenetrationCorrector);
+            NativeOwnership.Release(ref NormalBlockMatrix);
+            NativeOwnership.Release(ref NormalBlockConstants);
+            NativeOwnership.Release(ref NormalBlockOldImpulses);
+            NativeOwnership.Release(ref NormalBlockCandidateImpulses);
+            NativeOwnership.Release(ref NormalBlockActiveIndices);
+            NativeOwnership.Release(ref NormalBlockWorkingMatrix);
+            NativeOwnership.Release(ref NormalBlockWorkingRightHandSide);
+            NativeOwnership.Release(ref NormalBlockWorkingSolution);
         }
     }
 }

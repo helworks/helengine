@@ -53,23 +53,25 @@ namespace helengine {
         /// <summary>Builds a replacement scene binding and releases the previous binding only after success.</summary>
         public void BindScene(IReadOnlyList<Entity> rootEntities) {
             ThrowIfDisposed();
-            if (rootEntities == null) {
-                throw new ArgumentNullException("rootEntities");
-            }
+            if (rootEntities == null) { throw new ArgumentNullException("rootEntities"); }
             int bodyCount = HelPhysicsSceneRuntimeSizing3D.CountPotentialBodies(rootEntities);
             HelPhysicsWorldSettings3D settings = HelPhysicsSceneRuntimeSizing3D.CreateSettings(bodyCount, FixedStepSeconds);
-            HelPhysicsSceneBinder3D previous = BinderValue;
-            HelPhysicsSceneBinder3D replacement = new HelPhysicsSceneBinder3D(new HelPhysicsWorld3D(settings), previous);
+            HelPhysicsWorld3D replacementWorld = new HelPhysicsWorld3D(settings);
+            HelPhysicsSceneBinder3D replacement = null;
             bool replacementBound = false;
             try {
+                replacement = new HelPhysicsSceneBinder3D(replacementWorld, BinderValue);
                 replacement.BindScene(rootEntities);
                 replacementBound = true;
             } finally {
                 if (!replacementBound) {
-                    replacement.Dispose();
+                    if (replacement != null) { replacement.Dispose(); }
+                    replacementWorld.Dispose();
                 }
             }
             NativeOwnership.DisposeAndRelease(ref BinderValue);
+            NativeOwnership.DisposeAndRelease(ref OwnedWorldValue);
+            OwnedWorldValue = replacementWorld;
             BinderValue = replacement;
         }
 
@@ -115,10 +117,9 @@ namespace helengine {
 
         /// <summary>Releases the scene binder and prevents subsequent simulation or synchronization.</summary>
         public void Dispose() {
-            if (!IsDisposedValue) {
-                IsDisposedValue = true;
-            }
+            IsDisposedValue = true;
             NativeOwnership.DisposeAndRelease(ref BinderValue);
+            NativeOwnership.DisposeAndRelease(ref OwnedWorldValue);
         }
 
         /// <summary>Requires a bound scene before resolving component synchronization services.</summary>
@@ -135,6 +136,10 @@ namespace helengine {
                 throw new InvalidOperationException("HelPhysicsRuntime3D has been disposed.");
             }
         }
+        /// <summary>Owns the world created by this adapter; the public binder only borrows it.</summary>
+        [NativeOwnedMember]
+        HelPhysicsWorld3D OwnedWorldValue;
+
     }
 
 

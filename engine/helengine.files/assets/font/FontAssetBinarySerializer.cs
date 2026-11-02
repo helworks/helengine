@@ -19,6 +19,10 @@ namespace helengine.files {
         /// Serializer version for the current packaged font payload layout.
         /// </summary>
         public const byte CurrentVersion = 5;
+        /// <summary>Optional layout carrying glyph page indices and external atlas descriptors.</summary>
+        public const byte PagedVersion = 6;
+        /// <summary>Preserves the byte layout of fonts without optional pages.</summary>
+        public const byte SinglePageVersion = 5;
 
         /// <summary>
         /// Value kind used for serialized packaged font payloads.
@@ -69,9 +73,17 @@ namespace helengine.files {
                 throw new InvalidOperationException("Packaged font assets must include raw atlas texture data or an external cooked atlas texture path.");
             }
 
+            int pageCount = asset.Pages == null ? 0 : asset.Pages.Length;
+            if (pageCount > 1024) { throw new InvalidOperationException("A font cannot reference more than 1024 optional pages."); }
+            if (asset.Characters != null) {
+                foreach (FontChar glyph in asset.Characters.Values) {
+                    if (glyph.PageIndex < 0 || glyph.PageIndex > pageCount) { throw new InvalidOperationException("Font glyph references an invalid atlas page."); }
+                }
+            }
+
             EngineBinaryHeader header = new EngineBinaryHeader(
                 PayloadEndianness,
-                CurrentVersion,
+                asset.Pages != null && asset.Pages.Length > 0 ? PagedVersion : CurrentVersion,
                 FormatId,
                 (ushort)RecordKind,
                 ValueKind);
@@ -122,7 +134,15 @@ namespace helengine.files {
                 writer.WriteSingle(character.Value.AdvanceWidth);
                 writer.WriteSingle(character.Value.BearingX);
                 writer.WriteSingle(character.Value.BearingY);
+                if (header.Version == PagedVersion) { writer.WriteInt32(character.Value.PageIndex); }
             }
+            if (header.Version == PagedVersion) {
+                writer.WriteInt32(asset.Pages.Length);
+                foreach (FontPage page in asset.Pages) {
+                    writer.WriteString(page.TexturePath); writer.WriteInt32(page.Width); writer.WriteInt32(page.Height);
+                }
+            }
+
         }
 
         /// <summary>
@@ -152,7 +172,7 @@ namespace helengine.files {
                 FormatId,
                 (ushort)RecordKind,
                 ValueKind,
-                CurrentVersion,
+                header.Version == PagedVersion ? PagedVersion : CurrentVersion,
                 FormatIdMismatchSubject,
                 RecordMismatchSubject,
                 VersionMismatchSubject,
@@ -186,17 +206,21 @@ namespace helengine.files {
                     reader.ReadSingle(),
                     reader.ReadSingle(),
                     reader.ReadSingle());
+                if (header.Version == PagedVersion) { fontChar.PageIndex = reader.ReadInt32(); }
                 characters.Add(character, fontChar);
             }
 
             TextureAsset storedSourceTextureAsset = null;
+            FontPage[] pages = header.Version == PagedVersion ? FontPageBinary.Read(reader, characters) : null;
+
             if (sourceTexture.Width > 0 && sourceTexture.Height > 0 && sourceTexture.Colors != null && sourceTexture.Colors.Length > 0) {
                 storedSourceTextureAsset = sourceTexture;
             }
 
             return new FontAsset(fontInfo, null, characters, lineHeight, atlasWidth, atlasHeight) {
                 SourceTextureAsset = storedSourceTextureAsset,
-                CookedAtlasTextureRelativePath = cookedAtlasTextureRelativePath
+                CookedAtlasTextureRelativePath = cookedAtlasTextureRelativePath,
+                    Pages = pages
             };
         }
 

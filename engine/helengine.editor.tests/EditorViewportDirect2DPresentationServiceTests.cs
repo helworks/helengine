@@ -11,7 +11,7 @@ namespace helengine.editor.tests {
         /// Initializes the core services required by direct 2D presentation tests.
         /// </summary>
         public EditorViewportDirect2DPresentationServiceTests() {
-            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            Core core = new EditorCore(null);
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
@@ -144,6 +144,35 @@ namespace helengine.editor.tests {
             AssertFloat3ApproximatelyEqual(sourceEntity.Position, restoredWorldPosition, 0.001f);
         }
 
+        /// <summary>Named player cameras share the editor workspace for presentation without changing their output routing.</summary>
+        [Theory]
+        [InlineData("main")]
+        [InlineData("glass")]
+        public void ResolvePresentedWorldSize_NamedCamera_UsesWorkspaceWithoutRegisteringPlayerWindow(string tag) {
+            Core core = Core.Instance;
+            Assert.IsType<TestRenderManager3D>(core.RenderManager3D).OnWindowResize(IntPtr.Zero, 1600, 900);
+            Entity cameraEntity = new Entity(core);
+            cameraEntity.InitComponents();
+            cameraEntity.InitChildren();
+            CameraComponent camera = new CameraComponent { OutputWindowTag = tag, Viewport = new float4(0, 0, 0.5f, 1) };
+            cameraEntity.AddComponent(camera);
+            Entity viewportEntity = new Entity(core);
+            viewportEntity.InitComponents();
+            viewportEntity.InitChildren();
+            cameraEntity.AddChild(viewportEntity);
+            ViewportComponent viewport = new ViewportComponent { BindingMode = ViewportComponent.AncestorCameraBindingMode };
+            viewportEntity.AddComponent(viewport);
+
+            int2 size = EditorViewportDirect2DPresentationService.ResolvePresentedWorldSize(viewportEntity, viewport);
+
+            viewport.ReapplyLayout();
+            Assert.Equal(800, viewport.ResolvedViewportSize.X);
+            Assert.Equal(900, viewport.ResolvedViewportSize.Y);
+            Assert.Equal(800, size.X);
+            Assert.Equal(900, size.Y);
+            Assert.Equal(tag, camera.OutputWindowTag);
+            Assert.Null(camera.RenderTarget);
+        }
         /// <summary>
         /// Verifies two vectors are equal within one small tolerance on every axis.
         /// </summary>

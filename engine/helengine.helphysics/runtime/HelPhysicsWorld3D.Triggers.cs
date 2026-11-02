@@ -2,12 +2,16 @@ namespace helengine {
     /// <summary>Owns fixed trigger overlap state and owner checked scene mutations for HelPhysicsWorld3D.</summary>
     public sealed partial class HelPhysicsWorld3D {
         /// <summary>Stores current directional trigger pairs in fixed storage.</summary>
+        [NativeOwnedMember]
         HelPhysicsTriggerPairKey3D[] CurrentTriggerPairs;
         /// <summary>Stores the prior completed directional trigger pair batch.</summary>
+        [NativeOwnedMember]
         HelPhysicsTriggerPairKey3D[] PreviousTriggerPairs;
         /// <summary>Stores published trigger events in a valid prefix.</summary>
+        [NativeOwnedMember]
         List<HelPhysicsTriggerEvent3D> TriggerEventsValue;
         /// <summary>Provides the reusable public view over published trigger events.</summary>
+        [NativeOwnedMember]
         IReadOnlyList<HelPhysicsTriggerEvent3D> TriggerEventsView;
         /// <summary>Stores the current directional pair count.</summary>
         int CurrentTriggerPairCount;
@@ -18,14 +22,7 @@ namespace helengine {
         /// <summary>Stores the fixed maximum number of trigger events published per step.</summary>
         int TriggerEventCapacity;
 
-        /// <summary>Allocates fixed trigger storage sized from the world's candidate profile.</summary>
-        void InitializeTriggerStorage() {
-            CurrentTriggerPairs = new HelPhysicsTriggerPairKey3D[Settings.CandidatePairCapacity * 2];
-            PreviousTriggerPairs = new HelPhysicsTriggerPairKey3D[Settings.CandidatePairCapacity * 2];
-            TriggerEventCapacity = Settings.CandidatePairCapacity * 4;
-            TriggerEventsValue = new List<HelPhysicsTriggerEvent3D>(TriggerEventCapacity);
-            TriggerEventsView = TriggerEventsValue.AsReadOnly();
-        }
+
 
         /// <summary>Gets valid trigger transitions from the most recent completed step.</summary>
         public IReadOnlyList<HelPhysicsTriggerEvent3D> TriggerEvents =>
