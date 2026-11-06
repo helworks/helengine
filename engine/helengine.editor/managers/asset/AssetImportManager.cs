@@ -783,10 +783,12 @@ namespace helengine.editor {
             using EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(projectRootPath);
             HashSet<string> producedPaths = new HashSet<string>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
             string processedAssetId = settings.Importer.ProcessedAssetId;
+            string blueprintFileName = Path.GetFileNameWithoutExtension(sourcePath) + BlueprintAsset.FileExtension;
             ImportedSceneOutput output = new ImportedSceneOutput(
                 scene,
                 folderRelativePath,
                 processedAssetId,
+                blueprintFileName,
                 (file, kind) => PublishSceneGeneratedFile(referenceResolver, folderPath, Path.GetDirectoryName(sourcePath), processedAssetId, processorSettings, file, kind, producedPaths));
 
             IReadOnlyList<IImportedSceneContributor> contributors = ImporterRegistryInstance.GetSceneContributors();
@@ -795,7 +797,6 @@ namespace helengine.editor {
             }
 
             output.PublishRemainingFiles();
-            string blueprintFileName = Path.GetFileNameWithoutExtension(sourcePath) + BlueprintAsset.FileExtension;
             BlueprintAsset blueprint = new BlueprintAsset {
                 Id = folderRelativePath + "/" + blueprintFileName,
                 RootEntity = output.GetNodeEntity(string.Empty),
@@ -890,18 +891,41 @@ namespace helengine.editor {
         /// <returns>Lowercase 32-character hexadecimal asset id.</returns>
         string ResolveGeneratedSceneAssetId(string fullPath, string processedAssetId, string relativePathInFolder) {
             if (File.Exists(fullPath)) {
+                string existingId;
                 try {
-                    string existingId = new AssetIdentityMetadataService(projectRootPath).Load(fullPath).AssetId;
-                    if (!string.IsNullOrWhiteSpace(existingId)) {
-                        return existingId;
-                    }
-                } catch (InvalidOperationException) {
-                    // An unreadable earlier file is replaced, so its identity falls back to the derived id.
+                    existingId = new AssetIdentityMetadataService(projectRootPath).Load(fullPath).AssetId;
+                } catch (InvalidOperationException exception) {
+                    throw new InvalidOperationException(
+                        $"The identity of the existing generated file '{fullPath}' could not be read, so it cannot be reimported without breaking references. Delete the file to regenerate it.",
+                        exception);
                 }
+                if (string.IsNullOrWhiteSpace(existingId)) {
+                    throw new InvalidOperationException($"The existing generated file '{fullPath}' has no asset id. Delete the file to regenerate it.");
+                }
+
+                return existingId;
             }
 
             byte[] hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(processedAssetId + "\n" + relativePathInFolder));
             return Convert.ToHexString(hash, 0, 16).ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Determines whether a file is a platform override sidecar of a produced material. The material settings service writes them as
+        /// "material path" + "." + platform + optional "." + environment + the settings extension, next to the material.
+        /// </summary>
+        /// <param name="existingPath">Absolute path of the file found in the generated folder.</param>
+        /// <param name="producedPath">Absolute path of a file the current import produced.</param>
+        /// <param name="comparison">Path comparison for the current platform.</param>
+        /// <returns>True when the file follows the override sidecar naming of the produced file.</returns>
+        static bool IsPlatformOverrideSidecar(string existingPath, string producedPath, StringComparison comparison) {
+            if (!existingPath.StartsWith(producedPath + ".", comparison) || !existingPath.EndsWith(SettingsExtension, comparison)
+                || existingPath.Length <= producedPath.Length + 1 + SettingsExtension.Length) {
+                return false;
+            }
+
+            string qualifiers = existingPath.Substring(producedPath.Length + 1, existingPath.Length - producedPath.Length - 1 - SettingsExtension.Length);
+            return qualifiers.IndexOfAny(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }) < 0;
         }
 
         /// <summary>
@@ -919,7 +943,7 @@ namespace helengine.editor {
             foreach (string existingPath in Directory.EnumerateFiles(folderPath, "*", SearchOption.AllDirectories).ToArray()) {
                 bool produced = false;
                 foreach (string producedPath in producedPaths) {
-                    if (string.Equals(existingPath, producedPath, comparison) || existingPath.StartsWith(producedPath + ".", comparison)) {
+                    if (string.Equals(existingPath, producedPath, comparison) || IsPlatformOverrideSidecar(existingPath, producedPath, comparison)) {
                         produced = true;
                         break;
                     }

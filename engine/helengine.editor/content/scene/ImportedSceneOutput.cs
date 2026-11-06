@@ -51,6 +51,16 @@ namespace helengine.editor {
         readonly int MaterialCount;
 
         /// <summary>
+        /// Number of entries in the scene material list, which bounds valid material indices.
+        /// </summary>
+        readonly int MaterialIndexCount;
+
+        /// <summary>
+        /// Path inside the generated folder that the importer reserves for the blueprint.
+        /// </summary>
+        readonly string ReservedRelativePath;
+
+        /// <summary>
         /// Number of meshes in the source scene.
         /// </summary>
         readonly int MeshCount;
@@ -61,11 +71,13 @@ namespace helengine.editor {
         /// <param name="scene">Neutral scene data being imported; only its counts are kept.</param>
         /// <param name="generatedFolderRelativePath">Assets-relative path of the generated folder.</param>
         /// <param name="processedAssetId">Processed asset id of the source; generated asset ids derive from it.</param>
+        /// <param name="reservedRelativePath">Path inside the generated folder owned by the importer (the blueprint); contributors cannot add a file there.</param>
         /// <param name="publisher">Writes one generated file and returns its reference.</param>
         public ImportedSceneOutput(
             ImportedSceneData scene,
             string generatedFolderRelativePath,
             string processedAssetId,
+            string reservedRelativePath,
             Func<ImportedSceneGeneratedFile, AssetEntryKind, SceneAssetReference> publisher) {
             if (scene == null) {
                 throw new ArgumentNullException(nameof(scene));
@@ -75,6 +87,12 @@ namespace helengine.editor {
                 throw new ArgumentException("Processed asset id must be provided.", nameof(processedAssetId));
             }
 
+            if (string.IsNullOrWhiteSpace(reservedRelativePath)) {
+                throw new ArgumentException("Reserved path must be provided.", nameof(reservedRelativePath));
+            }
+
+            ReservedRelativePath = reservedRelativePath;
+            MaterialIndexCount = scene.Materials.Length;
             GeneratedFolderRelativePath = generatedFolderRelativePath;
             ProcessedAssetId = processedAssetId;
             Publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
@@ -103,7 +121,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="nodePath">Unique node path, empty for the root.</param>
         /// <param name="entity">Entity created for the node.</param>
-        public void RegisterNodeEntity(string nodePath, SceneEntityAsset entity) {
+        internal void RegisterNodeEntity(string nodePath, SceneEntityAsset entity) {
             if (nodePath == null) {
                 throw new ArgumentNullException(nameof(nodePath));
             } else if (entity == null) {
@@ -146,6 +164,8 @@ namespace helengine.editor {
             } else if (relativePathInFolder.Contains('\\') || relativePathInFolder.StartsWith("/", StringComparison.Ordinal)
                 || Array.IndexOf(relativePathInFolder.Split('/'), "..") >= 0) {
                 throw new ArgumentException($"Generated file path '{relativePathInFolder}' must be a forward-slash path inside the generated folder.", nameof(relativePathInFolder));
+            } else if (string.Equals(relativePathInFolder, ReservedRelativePath, StringComparison.OrdinalIgnoreCase)) {
+                throw new ArgumentException($"Generated file path '{relativePathInFolder}' is reserved for the blueprint.", nameof(relativePathInFolder));
             } else if (FilesByPath.ContainsKey(relativePathInFolder)) {
                 throw new InvalidOperationException($"A generated file already exists at '{relativePathInFolder}'.");
             }
@@ -190,7 +210,7 @@ namespace helengine.editor {
         /// <summary>
         /// Writes every added file that nothing referenced yet.
         /// </summary>
-        public void PublishRemainingFiles() {
+        internal void PublishRemainingFiles() {
             for (int index = 0; index < Files.Count; index++) {
                 ImportedSceneGeneratedFile file = Files[index];
                 if (!file.IsPublished) {
@@ -204,7 +224,7 @@ namespace helengine.editor {
         /// Gets every reference handed out so far, in the order the files were added.
         /// </summary>
         /// <returns>References for the blueprint's asset reference table.</returns>
-        public SceneAssetReference[] GetReferences() {
+        internal SceneAssetReference[] GetReferences() {
             List<SceneAssetReference> references = new List<SceneAssetReference>();
             for (int index = 0; index < Files.Count; index++) {
                 if (Files[index].Reference != null) {
@@ -220,6 +240,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="animationIndex">Index into the scene animations.</param>
         public void MarkAnimationConsumed(int animationIndex) {
+            EnsureIndexInRange(animationIndex, AnimationCount, nameof(animationIndex));
             ConsumedAnimations.Add(animationIndex);
         }
 
@@ -228,6 +249,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="materialIndex">Index into the scene materials.</param>
         public void MarkMaterialConsumed(int materialIndex) {
+            EnsureIndexInRange(materialIndex, MaterialIndexCount, nameof(materialIndex));
             ConsumedMaterials.Add(materialIndex);
         }
 
@@ -236,6 +258,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="meshIndex">Index into the scene meshes.</param>
         public void MarkMeshConsumed(int meshIndex) {
+            EnsureIndexInRange(meshIndex, MeshCount, nameof(meshIndex));
             ConsumedMeshes.Add(meshIndex);
         }
 
@@ -259,6 +282,18 @@ namespace helengine.editor {
             }
 
             return lines;
+        }
+
+        /// <summary>
+        /// Rejects an index outside the valid range of a scene list.
+        /// </summary>
+        /// <param name="index">Index to check.</param>
+        /// <param name="count">Number of entries in the list.</param>
+        /// <param name="parameterName">Name of the offending parameter.</param>
+        static void EnsureIndexInRange(int index, int count, string parameterName) {
+            if (index < 0 || index >= count) {
+                throw new ArgumentOutOfRangeException(parameterName, index, $"Index must be in [0, {count}).");
+            }
         }
 
         /// <summary>

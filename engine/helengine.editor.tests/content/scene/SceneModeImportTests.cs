@@ -148,6 +148,8 @@ namespace helengine.editor.tests {
             File.Copy(Path.Combine(folder, "mesh", "Tri.hasset"), stale);
             string staleMaterial = Path.Combine(folder, "materials", "Old.hasset");
             File.WriteAllText(staleMaterial, "old");
+            string lookalike = Path.Combine(folder, "materials", "Paint.hasset.notes.txt");
+            File.WriteAllText(lookalike, "not an override");
             string outside = Path.Combine(AssetsRootPath, "keep.txt");
             File.WriteAllText(outside, "keep");
 
@@ -156,8 +158,74 @@ namespace helengine.editor.tests {
 
             Assert.False(File.Exists(stale));
             Assert.False(File.Exists(staleMaterial));
+            Assert.False(File.Exists(lookalike));
             Assert.True(File.Exists(Path.Combine(folder, "mesh", "Tri.hasset")));
             Assert.True(File.Exists(outside));
+        }
+
+        /// <summary>
+        /// Ensures one glTF mesh with two primitives and two materials becomes two mesh components with different material references.
+        /// </summary>
+        [Fact]
+        public void NodeWithTwoPrimitives_getsTwoMeshComponentsWithDifferentMaterials() {
+            string sourcePath = CopyFixture("two_primitives.gltf");
+            AssetImportManager manager = CreateManager();
+            SetMode(manager, sourcePath, ModelImportMode.Scene);
+
+            manager.ImportModel(sourcePath);
+
+            string folder = Path.Combine(AssetsRootPath, "two_primitives.gltf.generated");
+            BlueprintAsset blueprint = (BlueprintAsset)ReadAsset(Path.Combine(folder, "two_primitives.hblueprint"));
+            SceneEntityAsset node = blueprint.RootEntity.Children[0];
+            Assert.Equal("Two", node.Name);
+            Assert.Equal(2, node.Components.Length);
+            Assert.Equal(0, node.Components[0].ComponentIndex);
+            Assert.Equal(1, node.Components[1].ComponentIndex);
+            Assert.All(node.Components, component => Assert.Equal("helengine.MeshComponent", component.ComponentTypeId));
+            Assert.Equal(2, Directory.GetFiles(Path.Combine(folder, "materials")).Count(f => !f.Contains(".hasset.")));
+            Assert.Equal(2, Directory.GetFiles(Path.Combine(folder, "mesh")).Length);
+            string[] materialPaths = blueprint.AssetReferences.Where(reference => reference.RelativePath.Contains("/materials/")).Select(reference => reference.RelativePath).ToArray();
+            Assert.Equal(2, materialPaths.Length);
+            Assert.NotEqual(materialPaths[0], materialPaths[1]);
+            string first = System.Text.Encoding.UTF8.GetString(node.Components[0].Payload);
+            string second = System.Text.Encoding.UTF8.GetString(node.Components[1].Payload);
+            Assert.NotEqual(first, second);
+            Assert.Single(materialPaths, path => first.Contains(path));
+            Assert.Single(materialPaths, path => second.Contains(path));
+            Assert.NotEqual(materialPaths.Single(path => first.Contains(path)), materialPaths.Single(path => second.Contains(path)));
+        }
+
+        /// <summary>
+        /// Ensures a contributor cannot take the blueprint path and consumed indices are range checked.
+        /// </summary>
+        [Fact]
+        public void Output_rejectsReservedPathAndOutOfRangeIndices() {
+            ImportedSceneNode root = new ImportedSceneNode("Root", string.Empty, float3.Zero, float4.Identity, float3.One, Array.Empty<int>(), Array.Empty<ImportedSceneNode>());
+            ImportedSceneData scene = new ImportedSceneData(root, Array.Empty<ImportedSceneMesh>(), Array.Empty<ImportedSceneMaterial>(), Array.Empty<ImportedSceneAnimation>(), string.Empty);
+            ImportedSceneOutput output = new ImportedSceneOutput(scene, "a.gltf.generated", "id", "a.hblueprint", (file, kind) => null);
+
+            Assert.Throws<ArgumentException>(() => output.AddGeneratedFile("a.hblueprint", new ModelAsset()));
+            Assert.Throws<ArgumentOutOfRangeException>(() => output.MarkAnimationConsumed(0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => output.MarkMeshConsumed(-1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => output.MarkMaterialConsumed(0));
+        }
+
+        /// <summary>
+        /// Ensures an existing generated file whose identity cannot be read fails the import and names the file.
+        /// </summary>
+        [Fact]
+        public void UnreadableExistingIdentity_failsNamingTheFile() {
+            string sourcePath = CopyFixture();
+            AssetImportManager manager = CreateManager();
+            SetMode(manager, sourcePath, ModelImportMode.Scene);
+            manager.ImportModel(sourcePath);
+            string model = Path.Combine(AssetsRootPath, GeneratedFolder, "mesh", "Tri.hasset");
+            File.WriteAllText(model, "corrupt");
+            File.AppendAllText(sourcePath, " ");
+
+            Exception exception = Assert.ThrowsAny<Exception>(() => manager.ImportModel(sourcePath));
+
+            Assert.Contains("Tri.hasset", exception.Message);
         }
 
         /// <summary>
@@ -346,8 +414,17 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Absolute path to the copied source.</returns>
         string CopyFixture() {
-            string destination = Path.Combine(AssetsRootPath, "hinged_box.gltf");
-            File.Copy(Path.Combine(AppContext.BaseDirectory, "fixtures", "scene", "hinged_box.gltf"), destination);
+            return CopyFixture("hinged_box.gltf");
+        }
+
+        /// <summary>
+        /// Copies a scene fixture into the temporary assets folder.
+        /// </summary>
+        /// <param name="fileName">Fixture file name.</param>
+        /// <returns>Absolute path to the copied source.</returns>
+        string CopyFixture(string fileName) {
+            string destination = Path.Combine(AssetsRootPath, fileName);
+            File.Copy(Path.Combine(AppContext.BaseDirectory, "fixtures", "scene", fileName), destination);
             return destination;
         }
 
