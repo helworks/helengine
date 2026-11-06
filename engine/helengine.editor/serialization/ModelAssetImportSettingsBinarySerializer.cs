@@ -9,11 +9,17 @@ namespace helengine.editor {
         public const EditorBinaryRecordKind RecordKind = EditorBinaryRecordKind.AssetImportSettings;
 
         /// <summary>
-        /// Serializer version for the current model asset import settings payload layout. Version 6 persists only
-        /// authored data (the importer id, the import mode byte and the processor settings); the source checksum and
-        /// the processed asset id are recomputed on load and never written.
+        /// Serializer version for the current model asset import settings payload layout. Version 7 persists only
+        /// authored data (the importer id, the import mode byte, the processor settings and the trailing generic
+        /// sidecar data block); the source checksum and the processed asset id are recomputed on load and never
+        /// written. New data goes into the sidecar data block as new keys, without another version bump.
         /// </summary>
-        public const byte CurrentVersion = 6;
+        public const byte CurrentVersion = 7;
+
+        /// <summary>
+        /// Last payload layout version that had no sidecar data block. It is still readable and loads with an empty block.
+        /// </summary>
+        public const byte VersionWithoutSidecarData = 6;
 
         /// <summary>
         /// Last payload layout version that had no import mode byte. It is still readable and loads as <see cref="ModelImportMode.SingleModel"/>.
@@ -23,7 +29,7 @@ namespace helengine.editor {
         /// <summary>
         /// Every payload layout version this serializer can read.
         /// </summary>
-        static readonly byte[] AcceptedVersions = new byte[] { VersionWithoutImportMode, CurrentVersion };
+        static readonly byte[] AcceptedVersions = new byte[] { VersionWithoutImportMode, VersionWithoutSidecarData, CurrentVersion };
 
         /// <summary>
         /// Payload endianness used by the current model asset import settings format.
@@ -79,6 +85,7 @@ namespace helengine.editor {
                     }
                 }
             }
+            SidecarDataBinarySerializer.Write(writer, settings.Importer.SidecarData);
         }
 
         /// <summary>
@@ -142,6 +149,10 @@ namespace helengine.editor {
                 settings.Processor.Environments.Add(platformId, environments);
             }
 
+            if (header.Version == CurrentVersion) {
+                settings.Importer.SidecarData = SidecarDataBinarySerializer.Read(reader);
+            }
+
             return settings;
         }
 
@@ -149,9 +160,10 @@ namespace helengine.editor {
         /// Returns whether the supplied payload layout version can be read by <see cref="Deserialize"/>.
         /// </summary>
         /// <param name="version">Payload layout version from a decoded header.</param>
-        /// <returns>True when the version is the current one or the last one without an import mode byte.</returns>
+        /// <returns>True when the version is the current one, the last one without a sidecar data block or the last one without
+        /// an import mode byte.</returns>
         public static bool IsReadableVersion(byte version) {
-            return version == CurrentVersion || version == VersionWithoutImportMode;
+            return Array.IndexOf(AcceptedVersions, version) >= 0;
         }
 
         /// <summary>

@@ -9,11 +9,21 @@ namespace helengine.editor {
         public const EditorBinaryRecordKind RecordKind = EditorBinaryRecordKind.AssetImportSettings;
 
         /// <summary>
-        /// Serializer version for the current texture asset import settings payload layout. Version 7 persists only
-        /// authored data (the importer id and the processor settings); the source checksum and the processed asset id
-        /// are recomputed on load and never written.
+        /// Serializer version for the current texture asset import settings payload layout. Version 8 persists only
+        /// authored data (the importer id, the processor settings and the trailing generic sidecar data block); the source
+        /// checksum and the processed asset id are recomputed on load and never written.
         /// </summary>
-        public const byte CurrentVersion = 7;
+        public const byte CurrentVersion = 8;
+
+        /// <summary>
+        /// Last payload layout version that had no sidecar data block. It is still readable and loads with an empty block.
+        /// </summary>
+        public const byte VersionWithoutSidecarData = 7;
+
+        /// <summary>
+        /// Every payload layout version this serializer can read.
+        /// </summary>
+        static readonly byte[] AcceptedVersions = new byte[] { VersionWithoutSidecarData, CurrentVersion };
 
         /// <summary>
         /// Payload endianness used by the current texture asset import settings format.
@@ -73,6 +83,7 @@ namespace helengine.editor {
                     }
                 }
             }
+            SidecarDataBinarySerializer.Write(writer, settings.Importer.SidecarData);
         }
 
         /// <summary>
@@ -90,12 +101,13 @@ namespace helengine.editor {
                 EditorAssetBinarySerializer.FormatId,
                 (ushort)RecordKind,
                 (ushort)AssetImportSettingsBinaryValueKind.TextureAssetImportSettings,
-                CurrentVersion,
+                AcceptedVersions,
                 "texture asset import settings",
                 "texture asset import settings",
                 "texture asset import settings",
                 VersionedBinaryVersionMismatchStyle.CurrentVersionSuffix,
-                "Regenerate the texture import settings sidecar.");
+                "Regenerate the texture import settings sidecar.",
+                out EngineBinaryHeader header);
 
             TextureAssetImportSettings settings = new TextureAssetImportSettings();
             settings.Importer.ImporterId = reader.ReadString();
@@ -128,6 +140,10 @@ namespace helengine.editor {
                     environments.Add(environmentId, ReadTextureSettings(reader, environmentId));
                 }
                 settings.Processor.Environments.Add(platformId, environments);
+            }
+
+            if (header.Version == CurrentVersion) {
+                settings.Importer.SidecarData = SidecarDataBinarySerializer.Read(reader);
             }
 
             return settings;

@@ -110,7 +110,8 @@ namespace helengine.editor.tests.serialization {
             Assert.True(ModelAssetImportSettingsBinarySerializer.IsReadableVersion(5));
             Assert.True(ModelAssetImportSettingsBinarySerializer.IsReadableVersion(6));
             Assert.False(ModelAssetImportSettingsBinarySerializer.IsReadableVersion(4));
-            Assert.False(ModelAssetImportSettingsBinarySerializer.IsReadableVersion(7));
+            Assert.True(ModelAssetImportSettingsBinarySerializer.IsReadableVersion(7));
+            Assert.False(ModelAssetImportSettingsBinarySerializer.IsReadableVersion(8));
         }
 
         /// <summary>

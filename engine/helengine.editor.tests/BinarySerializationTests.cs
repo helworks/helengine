@@ -1365,10 +1365,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures typed texture settings reject every version other than the current layout and explain regeneration.
+        /// Ensures typed texture settings reject every version other than the current and the previous layout (without the sidecar data block) and explain regeneration.
         /// </summary>
         [Theory]
-        [InlineData((byte)(TextureAssetImportSettingsBinarySerializer.CurrentVersion - 1))]
+        [InlineData((byte)(TextureAssetImportSettingsBinarySerializer.VersionWithoutSidecarData - 1))]
         [InlineData((byte)(TextureAssetImportSettingsBinarySerializer.CurrentVersion + 1))]
         public void TextureAssetImportSettingsBinarySerializer_Deserialize_WhenVersionIsNotCurrent_ReportsRegeneration(byte version) {
             TextureAssetImportSettings settings = CreateTextureAssetImportSettings();
@@ -1541,10 +1541,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures typed audio settings reject every version other than the current layout and explain regeneration.
+        /// Ensures typed audio settings reject every version other than the current and the previous layout (without the sidecar data block) and explain regeneration.
         /// </summary>
         [Theory]
-        [InlineData((byte)(AudioAssetImportSettingsBinarySerializer.CurrentVersion - 1))]
+        [InlineData((byte)(AudioAssetImportSettingsBinarySerializer.VersionWithoutSidecarData - 1))]
         [InlineData((byte)(AudioAssetImportSettingsBinarySerializer.CurrentVersion + 1))]
         public void AudioAssetImportSettingsBinarySerializer_Deserialize_WhenVersionIsNotCurrent_ReportsRegeneration(byte version) {
             AudioAssetImportSettings settings = CreateAudioAssetImportSettings();

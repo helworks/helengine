@@ -68,9 +68,9 @@ namespace helengine.editor.tests.serialization {
             Assert.Equal(disabled, WriteSidecar(restored));
         }
 
-        /// <summary>A sidecar written under the previous header version is rejected outright, so its sections are never framed by the current reader.</summary>
+        /// <summary>A sidecar written under a header version older than the last two layouts is rejected outright, so its sections are never framed by the current reader.</summary>
         [Fact]
-        public void PreviousHeaderVersionIsRejected() {
+        public void OlderHeaderVersionIsRejected() {
             AssetImportSettings settings = new AssetImportSettings();
             settings.Processor.Platforms.Add("ps2", new AssetPlatformProcessorSettings {
                 Font = new FontAssetProcessorSettings { PixelSize = 34, SnapHorizontalMetricsToPixels = true }
@@ -79,7 +79,7 @@ namespace helengine.editor.tests.serialization {
             using MemoryStream stream = new MemoryStream(bytes, true);
             EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
             stream.Position = 0;
-            EngineBinaryHeaderSerializer.Write(stream, new EngineBinaryHeader(header.Endianness, (byte)(SectionedAssetImportSettingsBinarySerializer.CurrentVersion - 1), header.FormatId, header.RecordKind, header.ValueKind));
+            EngineBinaryHeaderSerializer.Write(stream, new EngineBinaryHeader(header.Endianness, (byte)(SectionedAssetImportSettingsBinarySerializer.VersionWithoutSidecarData - 1), header.FormatId, header.RecordKind, header.ValueKind));
             stream.Position = 0;
             Assert.Throws<InvalidOperationException>(() => SectionedAssetImportSettingsBinarySerializer.Deserialize(stream));
         }

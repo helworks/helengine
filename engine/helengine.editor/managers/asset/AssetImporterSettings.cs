@@ -4,8 +4,22 @@ namespace helengine.editor {
     /// </summary>
     public class AssetImporterSettings {
         /// <summary>
-        /// Gets or sets the importer identifier used to read the source asset. This is the only importer field that
-        /// source import-settings sidecars (texture, model, audio, font and text) persist.
+        /// Initializes importer settings with an empty generic data block.
+        /// </summary>
+        public AssetImporterSettings() {
+            SidecarData = new SidecarData();
+        }
+
+        /// <summary>
+        /// Gets or sets the generic keyed data persisted at the end of source import-settings sidecars (texture, model, audio, font
+        /// and text). Owners add data as new keys through <see cref="SidecarDataEntryRegistry"/> instead of bumping the sidecar
+        /// version; keys without a registered owner are kept and written back unchanged. Material settings documents do not persist it.
+        /// </summary>
+        public SidecarData SidecarData { get; set; }
+
+        /// <summary>
+        /// Gets or sets the importer identifier used to read the source asset. Source import-settings sidecars
+        /// (texture, model, audio, font and text) persist it together with <see cref="SidecarData"/>.
         /// </summary>
         public string ImporterId { get; set; }
 

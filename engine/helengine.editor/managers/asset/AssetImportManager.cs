@@ -1759,7 +1759,7 @@ namespace helengine.editor {
                 Logger.WriteWarning(
                     $"Model import settings sidecar '{settingsPath}' is not current model import settings ({found}; current version " +
                     $"{ModelAssetImportSettingsBinarySerializer.CurrentVersion}). It is skipped while resolving runtime model ids. " +
-                    "Version " + ModelAssetImportSettingsBinarySerializer.VersionWithoutImportMode + " is also readable. " +
+                    "Versions " + ModelAssetImportSettingsBinarySerializer.VersionWithoutImportMode + " and " + ModelAssetImportSettingsBinarySerializer.VersionWithoutSidecarData + " are also readable. " +
                     "Regenerate the model import settings sidecar.");
                 settings = null;
                 return false;

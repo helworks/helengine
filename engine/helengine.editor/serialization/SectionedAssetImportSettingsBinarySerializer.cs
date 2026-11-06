@@ -14,11 +14,21 @@ namespace helengine.editor {
         public const AssetImportSettingsBinaryValueKind ValueKind = AssetImportSettingsBinaryValueKind.AssetImportSettings;
 
         /// <summary>
-        /// Serializer version for the current sectioned import settings payload layout. Version 14 persists only
-        /// authored data (the importer id and the processor sections); the source checksum and the processed asset id
-        /// are recomputed on load and never written. Font sections may carry the tagged horizontal-pixel extension.
+        /// Serializer version for the current sectioned import settings payload layout. Version 15 persists only
+        /// authored data (the importer id, the processor sections and the trailing generic sidecar data block); the source
+        /// checksum and the processed asset id are recomputed on load and never written. Font sections may carry the tagged horizontal-pixel extension.
         /// </summary>
-        public const byte CurrentVersion = 14;
+        public const byte CurrentVersion = 15;
+
+        /// <summary>
+        /// Last payload layout version that had no sidecar data block. It is still readable and loads with an empty block.
+        /// </summary>
+        public const byte VersionWithoutSidecarData = 14;
+
+        /// <summary>
+        /// Every payload layout version this serializer can read.
+        /// </summary>
+        static readonly byte[] AcceptedVersions = new byte[] { VersionWithoutSidecarData, CurrentVersion };
 
         /// <summary>
         /// Payload endianness used by the current asset import settings format.
@@ -76,6 +86,7 @@ namespace helengine.editor {
                     }
                 }
             }
+            SidecarDataBinarySerializer.Write(writer, settings.Importer.SidecarData);
         }
 
         /// <summary>
@@ -93,12 +104,13 @@ namespace helengine.editor {
                 EditorAssetBinarySerializer.FormatId,
                 (ushort)RecordKind,
                 (ushort)ValueKind,
-                CurrentVersion,
+                AcceptedVersions,
                 "asset import settings",
                 "asset import settings",
                 "sectioned asset import settings",
                 VersionedBinaryVersionMismatchStyle.CurrentVersionSuffix,
-                "Regenerate the sectioned asset import settings sidecar.");
+                "Regenerate the sectioned asset import settings sidecar.",
+                out EngineBinaryHeader header);
 
             AssetImportSettings settings = new AssetImportSettings();
             settings.Importer.ImporterId = reader.ReadString();
@@ -131,6 +143,10 @@ namespace helengine.editor {
                 }
 
                 settings.Processor.Platforms.Add(platformId, platformSettings);
+            }
+
+            if (header.Version == CurrentVersion) {
+                settings.Importer.SidecarData = SidecarDataBinarySerializer.Read(reader);
             }
 
             return settings;

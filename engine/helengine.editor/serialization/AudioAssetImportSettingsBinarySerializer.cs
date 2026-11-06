@@ -9,11 +9,21 @@ namespace helengine.editor {
         public const EditorBinaryRecordKind RecordKind = EditorBinaryRecordKind.AssetImportSettings;
 
         /// <summary>
-        /// Serializer version for the current audio asset import settings payload layout. Version 3 persists only
-        /// authored data (the importer id and the processor settings); the source checksum and the processed asset id
-        /// are recomputed on load and never written.
+        /// Serializer version for the current audio asset import settings payload layout. Version 4 persists only
+        /// authored data (the importer id, the processor settings and the trailing generic sidecar data block); the source
+        /// checksum and the processed asset id are recomputed on load and never written.
         /// </summary>
-        public const byte CurrentVersion = 3;
+        public const byte CurrentVersion = 4;
+
+        /// <summary>
+        /// Last payload layout version that had no sidecar data block. It is still readable and loads with an empty block.
+        /// </summary>
+        public const byte VersionWithoutSidecarData = 3;
+
+        /// <summary>
+        /// Every payload layout version this serializer can read.
+        /// </summary>
+        static readonly byte[] AcceptedVersions = new byte[] { VersionWithoutSidecarData, CurrentVersion };
 
         /// <summary>
         /// Payload endianness used by the current audio asset import settings format.
@@ -67,6 +77,7 @@ namespace helengine.editor {
                     }
                 }
             }
+            SidecarDataBinarySerializer.Write(writer, settings.Importer.SidecarData);
         }
 
         /// <summary>
@@ -84,12 +95,13 @@ namespace helengine.editor {
                 EditorAssetBinarySerializer.FormatId,
                 (ushort)RecordKind,
                 (ushort)AssetImportSettingsBinaryValueKind.AudioAssetImportSettings,
-                CurrentVersion,
+                AcceptedVersions,
                 "audio asset import settings",
                 "audio asset import settings",
                 "audio asset import settings",
                 VersionedBinaryVersionMismatchStyle.CurrentVersionSuffix,
-                "Regenerate the audio import settings sidecar.");
+                "Regenerate the audio import settings sidecar.",
+                out EngineBinaryHeader header);
 
             AudioAssetImportSettings settings = new AudioAssetImportSettings();
             settings.Importer.ImporterId = reader.ReadString();
@@ -120,6 +132,10 @@ namespace helengine.editor {
                     environments.Add(environmentId, ReadProcessorSettings(reader, environmentId));
                 }
                 settings.Processor.Environments.Add(platformId, environments);
+            }
+
+            if (header.Version == CurrentVersion) {
+                settings.Importer.SidecarData = SidecarDataBinarySerializer.Read(reader);
             }
 
             return settings;

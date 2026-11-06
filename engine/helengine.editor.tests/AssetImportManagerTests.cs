@@ -595,17 +595,17 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures a texture sidecar written in an earlier format fails with a message that names the file and says to
+        /// Ensures a texture sidecar written in a format older than the previous one fails with a message that names the file and says to
         /// regenerate it, instead of being read through a conversion path.
         /// </summary>
         [Fact]
-        public void LoadOrCreateTextureImportSettings_WhenSidecarHasThePreviousVersion_FailsNamingTheFile() {
+        public void LoadOrCreateTextureImportSettings_WhenSidecarHasAnOlderVersion_FailsNamingTheFile() {
             string sourcePath = WriteSourceTexture("previous-version.png");
             string settingsPath = sourcePath + AssetImportManager.SettingsExtension;
             AssetImportManager manager = CreateManager();
             manager.SaveTextureImportSettings(sourcePath, manager.LoadOrCreateTextureImportSettings(sourcePath));
             byte[] bytes = File.ReadAllBytes(settingsPath);
-            bytes[5] = (byte)(TextureAssetImportSettingsBinarySerializer.CurrentVersion - 1);
+            bytes[5] = (byte)(TextureAssetImportSettingsBinarySerializer.VersionWithoutSidecarData - 1);
             File.WriteAllBytes(settingsPath, bytes);
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => manager.LoadOrCreateTextureImportSettings(sourcePath));
