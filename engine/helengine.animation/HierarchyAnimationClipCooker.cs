@@ -4,11 +4,26 @@ using helengine.editor;
 namespace helengine.animation {
     /// <summary>
     /// Cooks authored <c>.hanimclip</c> files while a scene is packaged: the clip is read, validated by the runtime writer and
-    /// written into the build root at its canonical packaged path with the build's numeric policy. The packaged path is the
-    /// canonical form of the authored path because <see cref="HierarchyAnimationPlayerComponent.ClipPath"/> is a plain string
-    /// the packager does not rewrite; the importer stores that same canonical path in the player.
+    /// written into the build root at its packaged path with the build's numeric policy. The packaged path is
+    /// <see cref="GetPackagedPath"/> of the authored path because <see cref="HierarchyAnimationPlayerComponent.ClipPath"/> is a
+    /// plain string the packager does not rewrite; the importer stores that same path in the player.
     /// </summary>
     public sealed class HierarchyAnimationClipCooker : IPackagedAssetCooker {
+        /// <summary>
+        /// Build folder that platform builders ship as runtime content; packaged files outside it never reach the player.
+        /// </summary>
+        const string CookedFolder = "cooked/";
+
+        /// <summary>
+        /// Returns the build-relative path a clip is packaged at, which is also the path players load it from: the canonical
+        /// form of the authored path beneath the cooked folder.
+        /// </summary>
+        /// <param name="authoredRelativePath">Assets-relative path of the authored clip.</param>
+        /// <returns>Packaged clip path.</returns>
+        public static string GetPackagedPath(string authoredRelativePath) {
+            return CookedFolder + CanonicalPackagedAssetPath.Normalize(authoredRelativePath);
+        }
+
         /// <summary>
         /// Gets the clip file extension.
         /// </summary>
@@ -37,7 +52,7 @@ namespace helengine.animation {
                 throw new InvalidOperationException($"'{reference.RelativePath}' does not contain a hierarchy animation clip.");
             }
 
-            string packagedPath = CanonicalPackagedAssetPath.Normalize(reference.RelativePath);
+            string packagedPath = GetPackagedPath(reference.RelativePath);
             context.WriteAsset(packagedPath, clip);
             SceneAssetReference packagedReference = context.CreatePackagedReference(packagedPath);
             if (!string.Equals(packagedReference.RelativePath, packagedPath, StringComparison.Ordinal)) {

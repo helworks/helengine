@@ -91,7 +91,7 @@ namespace helengine.animation {
         }
 
         /// <summary>
-        /// Adds a paused player for one clip to the blueprint root. The clip path is the canonical packaged path of the clip,
+        /// Adds a paused player for one clip to the blueprint root. The clip path is the packaged path of the clip (see HierarchyAnimationClipCooker.GetPackagedPath),
         /// which is where the cooker writes it, and each track target references the blueprint entity of the track's node.
         /// </summary>
         /// <param name="animation">Animation the clip was built from; its channels are the clip's tracks in order.</param>
@@ -107,7 +107,7 @@ namespace helengine.animation {
             }
 
             HierarchyAnimationPlayerComponent player = new HierarchyAnimationPlayerComponent {
-                ClipPath = CanonicalPackagedAssetPath.Normalize(clipReference.RelativePath),
+                ClipPath = HierarchyAnimationClipCooker.GetPackagedPath(clipReference.RelativePath),
                 TrackTargets = targets,
                 Playing = false,
                 Loop = false

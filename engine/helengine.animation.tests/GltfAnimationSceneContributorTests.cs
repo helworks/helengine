@@ -20,9 +20,10 @@ namespace helengine.animation.tests {
         const string ClipPathInFolder = "anim/Open.hanimclip";
 
         /// <summary>
-        /// Canonical packaged path the player loads the clip from.
+        /// Canonical packaged path the player loads the clip from. It lies under cooked/, the only build folder platform
+        /// builders ship as content.
         /// </summary>
-        const string PackagedClipPath = "hinged_box.gltf.generated/anim/open.hanimclip";
+        const string PackagedClipPath = "cooked/hinged_box.gltf.generated/anim/open.hanimclip";
 
         /// <summary>
         /// Build-relative path the packager writes the Scenes/Main.helen scene to: the authored scenes root becomes cooked/scenes.
