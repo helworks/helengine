@@ -9,6 +9,11 @@ namespace helengine.editor {
         readonly AssetImportManager AssetImportManager;
 
         /// <summary>
+        /// Packaged asset cookers keyed by case-insensitive extension including the leading dot.
+        /// </summary>
+        readonly Dictionary<string, IPackagedAssetCooker> PackagedAssetCookersByExtension = new Dictionary<string, IPackagedAssetCooker>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
         /// Indicates whether host registration has been sealed for the current session.
         /// </summary>
         public bool IsFrozen { get; private set; }
@@ -71,6 +76,39 @@ namespace helengine.editor {
         public void RegisterModelImporter(ModelImporterRegistration registration) {
             EnsureMutable();
             AssetImportManager.RegisterModelImporter(registration);
+        }
+
+        /// <summary>
+        /// Registers a packaged asset cooker before the registry is frozen.
+        /// </summary>
+        /// <param name="cooker">Cooker that claims one file extension during scene packaging.</param>
+        public void RegisterPackagedAssetCooker(IPackagedAssetCooker cooker) {
+            EnsureMutable();
+            if (cooker == null) {
+                throw new ArgumentNullException(nameof(cooker));
+            }
+            if (string.IsNullOrWhiteSpace(cooker.Extension) || cooker.Extension[0] != '.') {
+                throw new InvalidOperationException($"Packaged asset cooker extension '{cooker.Extension}' must start with a dot.");
+            }
+            if (PackagedAssetCookersByExtension.ContainsKey(cooker.Extension)) {
+                throw new InvalidOperationException($"A packaged asset cooker is already registered for extension '{cooker.Extension}'.");
+            }
+
+            PackagedAssetCookersByExtension.Add(cooker.Extension, cooker);
+        }
+
+        /// <summary>
+        /// Finds the packaged asset cooker registered for an extension.
+        /// </summary>
+        /// <param name="extension">Extension including the leading dot, compared case-insensitively.</param>
+        /// <returns>Registered cooker, or null when none claims the extension.</returns>
+        public IPackagedAssetCooker FindPackagedAssetCooker(string extension) {
+            if (string.IsNullOrEmpty(extension)) {
+                return null;
+            }
+
+            PackagedAssetCookersByExtension.TryGetValue(extension, out IPackagedAssetCooker cooker);
+            return cooker;
         }
 
         /// <summary>

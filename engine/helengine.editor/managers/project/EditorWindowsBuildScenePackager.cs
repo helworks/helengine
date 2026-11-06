@@ -1205,6 +1205,23 @@ namespace helengine.editor {
             if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
                 string fullPath = ResolveProjectAssetPath(reference.RelativePath);
                 string fullExtension = Path.GetExtension(fullPath);
+                IPackagedAssetCooker packagedAssetCooker = AssetImportManager.ImporterRegistry.FindPackagedAssetCooker(fullExtension);
+                if (packagedAssetCooker != null) {
+                    PackagedAssetCookContext cookContext = new PackagedAssetCookContext(
+                        fullPath,
+                        buildRootPath,
+                        TargetPlatformId,
+                        SelectedEnvironmentId,
+                        (outputFullPath, asset) => WriteAsset(outputFullPath, asset),
+                        buildRelativePath => CreateFileSystemReference(buildRelativePath));
+                    SceneAssetReference cookedReference = packagedAssetCooker.Cook(reference, cookContext);
+                    if (cookedReference == null) {
+                        throw new InvalidOperationException($"Packaged asset cooker for '{fullExtension}' returned no reference for '{reference.RelativePath}'.");
+                    }
+
+                    return cookedReference;
+                }
+
                 if (AssetImportManager.IsModelExtension(fullExtension)) {
                     if (!AssetImportManager.TryLoadModelAsset(fullPath, out ModelAsset modelAsset) || modelAsset == null) {
                         throw new InvalidOperationException($"Model reference '{reference.RelativePath}' could not be imported into a packaged model asset. Source={AssetImportManager.DescribeAssetPathForDiagnostics(fullPath)}");
