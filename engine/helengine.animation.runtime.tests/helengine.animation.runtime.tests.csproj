@@ -12,9 +12,11 @@
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
-  <!-- The runtime tests reference only the shipping module (and through it core); they never see editor or importer
-       modules, which proves the player works on its own. -->
+  <!-- The runtime tests reference the shipping module (and through it core) and never the editor or importer modules,
+       which proves the player works on its own. helengine.files is referenced only so fixtures write the numeric policy
+       marker with the same writer the editor asset serializer uses. -->
   <ItemGroup>
     <ProjectReference Include="..\helengine.animation.runtime\helengine.animation.runtime.csproj" />
+    <ProjectReference Include="..\helengine.files\helengine.files.csproj" />
   </ItemGroup>
 </Project>

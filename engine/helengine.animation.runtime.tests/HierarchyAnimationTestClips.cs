@@ -43,15 +43,27 @@ namespace helengine.animation.runtime.tests {
         }
 
         /// <summary>
-        /// Writes one clip as a packaged file: the HELE header for value kind
-        /// <see cref="EditorAssetBinaryValueKind.HierarchyAnimationClipAsset"/>, then the reader's payload.
+        /// Writes one clip as a packaged file: the prefix from <see cref="WritePrefix"/>, then the reader's payload.
         /// </summary>
         /// <param name="stream">Destination stream.</param>
         /// <param name="clip">Clip to write.</param>
         public static void WritePackaged(Stream stream, HierarchyAnimationClipAsset clip) {
-            WriteHeader(stream);
+            WritePrefix(stream);
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             HierarchyAnimationClipReader.Write(writer, clip);
+        }
+
+        /// <summary>
+        /// Writes what precedes the payload of every packaged asset: the HELE header for value kind
+        /// <see cref="EditorAssetBinaryValueKind.HierarchyAnimationClipAsset"/>, then the numeric policy marker written by
+        /// the editor asset writer's own <c>WriteNumericPolicy</c>, the path <c>EditorAssetBinarySerializer</c> uses.
+        /// </summary>
+        /// <param name="stream">Destination stream.</param>
+        public static void WritePrefix(Stream stream) {
+            WriteHeader(stream);
+            using helengine.files.EngineBinaryWriter policyWriter = helengine.files.EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            policyWriter.NumericPolicy = RealRepresentation.Policy;
+            policyWriter.WriteNumericPolicy();
         }
 
         /// <summary>

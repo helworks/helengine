@@ -63,12 +63,24 @@ namespace helengine.animation.runtime {
             RotationValues = null;
             ScaleTimes = null;
             ScaleValues = null;
-            HierarchyAnimationClipAsset.DeleteOwnedArray(positionTimes);
-            HierarchyAnimationClipAsset.DeleteOwnedArray(positionValues);
-            HierarchyAnimationClipAsset.DeleteOwnedArray(rotationTimes);
-            HierarchyAnimationClipAsset.DeleteOwnedArray(rotationValues);
-            HierarchyAnimationClipAsset.DeleteOwnedArray(scaleTimes);
-            HierarchyAnimationClipAsset.DeleteOwnedArray(scaleValues);
+            DeleteOwnedArray(positionTimes);
+            DeleteOwnedArray(positionValues);
+            DeleteOwnedArray(rotationTimes);
+            DeleteOwnedArray(rotationValues);
+            DeleteOwnedArray(scaleTimes);
+            DeleteOwnedArray(scaleValues);
+        }
+
+        /// <summary>
+        /// Deletes one track-owned key array while preserving the shared empty-array singleton.
+        /// </summary>
+        /// <typeparam name="T">Value type stored in the array.</typeparam>
+        /// <param name="values">Key array owned by this track.</param>
+        static void DeleteOwnedArray<T>(T[] values) {
+            if (values == null || ReferenceEquals(values, Array.Empty<T>())) {
+                return;
+            }
+            NativeOwnership.Delete(values);
         }
     }
 }

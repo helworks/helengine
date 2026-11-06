@@ -27,7 +27,7 @@ namespace helengine.animation.runtime {
         public HierarchyAnimationTrack[] Tracks { get; set; } = Array.Empty<HierarchyAnimationTrack>();
 
         /// <summary>
-        /// Releases the tracks and their keys after every player borrowing the clip has been disposed.
+        /// Releases the tracks and their keys. Each player owns the clip it loaded and disposes it with itself.
         /// </summary>
         public void Dispose() {
             HierarchyAnimationTrack[] tracks = Tracks;
@@ -48,18 +48,6 @@ namespace helengine.animation.runtime {
                 NativeOwnership.DisposeAndDelete(tracks[index]);
             }
             NativeOwnership.Delete(tracks);
-        }
-
-        /// <summary>
-        /// Deletes one clip-owned value array while preserving the shared empty-array singleton.
-        /// </summary>
-        /// <typeparam name="T">Value type stored in the array.</typeparam>
-        /// <param name="values">Array owned by a track of this clip.</param>
-        internal static void DeleteOwnedArray<T>(T[] values) {
-            if (values == null || ReferenceEquals(values, Array.Empty<T>())) {
-                return;
-            }
-            NativeOwnership.Delete(values);
         }
     }
 }

@@ -15,10 +15,10 @@ namespace helengine.animation.runtime.tests {
             scene.Player.Seek(1);
 
             Assert.Equal(1.0, scene.Player.Time, 9);
-            AssertVector(new float3(1, 2, 3), scene.Arm.LocalPosition);
+            TransformAssert.Vector(new float3(1, 2, 3), scene.Arm.LocalPosition);
             double halfAngle = Math.PI / 16;
-            AssertQuaternion(new float4(0, 0, Math.Sin(halfAngle), Math.Cos(halfAngle)), scene.Hand.LocalOrientation);
-            AssertVector(new float3(1.5, 1.5, 1.5), scene.Hand.LocalScale);
+            TransformAssert.Quaternion(new float4(0, 0, Math.Sin(halfAngle), Math.Cos(halfAngle)), scene.Hand.LocalOrientation);
+            TransformAssert.Vector(new float3(1.5, 1.5, 1.5), scene.Hand.LocalScale);
         }
 
         /// <summary>
@@ -47,7 +47,7 @@ namespace helengine.animation.runtime.tests {
             Assert.Equal(armAtEnd, scene.Arm.LocalPosition);
             Assert.Equal(handAtEnd, scene.Hand.LocalOrientation);
             Assert.Equal(scaleAtEnd, scene.Hand.LocalScale);
-            AssertQuaternion(HierarchyAnimationTestClips.QuarterTurnAboutZ(), handAtEnd);
+            TransformAssert.Quaternion(HierarchyAnimationTestClips.QuarterTurnAboutZ(), handAtEnd);
 
             scene.Player.Seek(2.7);
             float3 armFirst = scene.Arm.LocalPosition;
@@ -87,12 +87,12 @@ namespace helengine.animation.runtime.tests {
             scene.Player.Loop = true;
             scene.Core.Update(0.5);
             Assert.Equal(0.5, scene.Player.Time, 6);
-            AssertVector(new float3(0.5, 1, 1.5), scene.Arm.LocalPosition);
+            TransformAssert.Vector(new float3(0.5, 1, 1.5), scene.Arm.LocalPosition);
 
             scene.Player.Speed = 2;
             scene.Core.Update(2);
             Assert.Equal(0.5, scene.Player.Time, 6);
-            AssertVector(new float3(0.5, 1, 1.5), scene.Arm.LocalPosition);
+            TransformAssert.Vector(new float3(0.5, 1, 1.5), scene.Arm.LocalPosition);
 
             scene.Player.Playing = false;
             scene.Core.Update(1);
@@ -100,26 +100,58 @@ namespace helengine.animation.runtime.tests {
         }
 
         /// <summary>
-        /// Asserts two vectors match component by component.
+        /// A zero-length frame (the core's first update has a zero delta) keeps a player at time 0 playing, and the next
+        /// frame advances it; a non-looping player stops only when it reaches the end.
         /// </summary>
-        /// <param name="expected">Expected vector.</param>
-        /// <param name="actual">Actual vector.</param>
-        static void AssertVector(float3 expected, float3 actual) {
-            Assert.Equal((double)expected.X, (double)actual.X, 5);
-            Assert.Equal((double)expected.Y, (double)actual.Y, 5);
-            Assert.Equal((double)expected.Z, (double)actual.Z, 5);
+        [Fact]
+        public void Update_zeroDeltaAtStart_keepsPlaying() {
+            using HierarchyPlayerScene scene = new HierarchyPlayerScene(true);
+            scene.Initialize();
+            scene.Player.Playing = true;
+
+            scene.Core.Update(0);
+            Assert.True(scene.Player.Playing);
+            Assert.Equal(0.0, scene.Player.Time, 6);
+
+            scene.Core.Update(1);
+            Assert.True(scene.Player.Playing);
+            Assert.Equal(1.0, scene.Player.Time, 6);
+
+            scene.Core.Update(5);
+            Assert.False(scene.Player.Playing);
+            Assert.Equal(4.0, scene.Player.Time, 6);
         }
 
         /// <summary>
-        /// Asserts two quaternions match component by component.
+        /// Initialization applies the pose at time 0, so the shown pose matches <see cref="HierarchyAnimationPlayerComponent.Time"/>.
         /// </summary>
-        /// <param name="expected">Expected quaternion.</param>
-        /// <param name="actual">Actual quaternion.</param>
-        static void AssertQuaternion(float4 expected, float4 actual) {
-            Assert.Equal((double)expected.X, (double)actual.X, 5);
-            Assert.Equal((double)expected.Y, (double)actual.Y, 5);
-            Assert.Equal((double)expected.Z, (double)actual.Z, 5);
-            Assert.Equal((double)expected.W, (double)actual.W, 5);
+        [Fact]
+        public void Initialize_appliesPoseAtTimeZero() {
+            using HierarchyPlayerScene scene = new HierarchyPlayerScene(true);
+            scene.Arm.LocalPosition = new float3(9, 9, 9);
+            scene.Hand.LocalScale = new float3(7, 7, 7);
+
+            scene.Initialize();
+
+            Assert.Equal(0.0, scene.Player.Time, 9);
+            TransformAssert.Vector(new float3(0, 0, 0), scene.Arm.LocalPosition);
+            TransformAssert.Vector(new float3(1, 1, 1), scene.Hand.LocalScale);
+        }
+
+        /// <summary>
+        /// A player whose track target count differs from the clip's track count fails initialization naming both counts
+        /// and the clip path.
+        /// </summary>
+        [Fact]
+        public void TrackTargetCountMismatch_throwsNamingCountsAndClip() {
+            using HierarchyPlayerScene scene = new HierarchyPlayerScene(true);
+            scene.Player.TrackTargets = new SceneEntityReference[] { scene.Player.TrackTargets[0] };
+
+            InvalidOperationException error = Assert.Throws<InvalidOperationException>(scene.Initialize);
+
+            Assert.Contains("2 tracks", error.Message);
+            Assert.Contains("1 track targets", error.Message);
+            Assert.Contains(HierarchyAnimationTestClips.ClipPath, error.Message);
         }
     }
 }

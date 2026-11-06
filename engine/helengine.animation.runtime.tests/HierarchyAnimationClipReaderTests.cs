@@ -45,17 +45,71 @@ namespace helengine.animation.runtime.tests {
         /// </summary>
         [Fact]
         public void Reader_rejectsUnknownLayoutVersion() {
-            using MemoryStream header = new MemoryStream();
-            HierarchyAnimationTestClips.WriteHeader(header);
+            using MemoryStream prefix = new MemoryStream();
+            HierarchyAnimationTestClips.WritePrefix(prefix);
             using MemoryStream stream = new MemoryStream();
             HierarchyAnimationTestClips.WritePackaged(stream, HierarchyAnimationTestClips.Sample());
             byte[] bytes = stream.ToArray();
-            bytes[header.Length] = HierarchyAnimationClipAsset.LayoutVersion + 1;
+            bytes[prefix.Length] = HierarchyAnimationClipAsset.LayoutVersion + 1;
 
             InvalidOperationException error = Assert.Throws<InvalidOperationException>(
                 () => HierarchyAnimationClipReader.Deserialize(new MemoryStream(bytes)));
 
             Assert.Contains("layout version", error.Message);
+        }
+
+        /// <summary>
+        /// The three-byte numeric policy marker the editor asset writer puts after the header is read and validated before
+        /// the payload; a file that omits it is rejected instead of having its first marker byte misread as the layout.
+        /// </summary>
+        [Fact]
+        public void Reader_readsPolicyMarkerBeforePayload() {
+            using MemoryStream header = new MemoryStream();
+            HierarchyAnimationTestClips.WriteHeader(header);
+            using MemoryStream prefix = new MemoryStream();
+            HierarchyAnimationTestClips.WritePrefix(prefix);
+            Assert.Equal(3, prefix.Length - header.Length);
+
+            using MemoryStream withMarker = new MemoryStream();
+            HierarchyAnimationTestClips.WritePackaged(withMarker, HierarchyAnimationTestClips.Sample());
+            withMarker.Position = 0;
+            using HierarchyAnimationClipAsset read = HierarchyAnimationClipReader.Deserialize(withMarker);
+            Assert.Equal(2, read.Tracks.Length);
+            Assert.Equal(withMarker.Length, withMarker.Position);
+
+            using MemoryStream withoutMarker = new MemoryStream();
+            HierarchyAnimationTestClips.WriteHeader(withoutMarker);
+            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(withoutMarker, EngineBinaryEndianness.LittleEndian)) {
+                HierarchyAnimationClipReader.Write(writer, HierarchyAnimationTestClips.Sample());
+            }
+            withoutMarker.Position = 0;
+            InvalidOperationException error = Assert.Throws<InvalidOperationException>(
+                () => HierarchyAnimationClipReader.Deserialize(withoutMarker));
+            Assert.Contains("policy", error.Message);
+        }
+
+        /// <summary>
+        /// Key times outside <c>[0, Duration]</c> are rejected, both when reading (the stored duration is patched to 1 s
+        /// while keys reach 4 s) and when writing.
+        /// </summary>
+        [Fact]
+        public void Reader_rejectsKeyTimesOutsideDuration() {
+            using MemoryStream prefix = new MemoryStream();
+            HierarchyAnimationTestClips.WritePrefix(prefix);
+            using MemoryStream stream = new MemoryStream();
+            HierarchyAnimationTestClips.WritePackaged(stream, HierarchyAnimationTestClips.Sample());
+            byte[] bytes = stream.ToArray();
+            BitConverter.GetBytes(1.0).CopyTo(bytes, (int)prefix.Length + 1);
+
+            InvalidOperationException readError = Assert.Throws<InvalidOperationException>(
+                () => HierarchyAnimationClipReader.Deserialize(new MemoryStream(bytes)));
+            Assert.Contains("outside the clip range", readError.Message);
+
+            HierarchyAnimationClipAsset clip = HierarchyAnimationTestClips.Sample();
+            clip.Duration = 1;
+            InvalidOperationException writeError = Assert.Throws<InvalidOperationException>(
+                () => HierarchyAnimationTestClips.WritePackaged(new MemoryStream(), clip));
+            Assert.Contains("outside the clip range", writeError.Message);
         }
     }
 }

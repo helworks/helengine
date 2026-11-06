@@ -72,13 +72,15 @@ namespace helengine.animation.runtime {
         }
 
         /// <summary>
-        /// Gets or sets whether frames advance the time.
+        /// Gets or sets whether frames advance the time. A clip that does not <see cref="Loop"/> stops at its end (or at its
+        /// start when playing backwards) and clears this flag; call <see cref="Seek"/> with 0 before playing it again.
         /// </summary>
         public bool Playing { get; set; }
 
         /// <summary>
         /// Gets or sets whether playback wraps to the start past the end (and to the end before the start when the speed is
-        /// negative). Without it playback stops at the clip boundary.
+        /// negative). Without it playback stops at the clip boundary, clears <see cref="Playing"/> and stays there until
+        /// <see cref="Seek"/> moves it.
         /// </summary>
         public bool Loop { get; set; }
 
@@ -155,7 +157,8 @@ namespace helengine.animation.runtime {
         }
 
         /// <summary>
-        /// Moves the time by a signed amount, wrapping when looping and stopping at the boundary otherwise, then applies it.
+        /// Moves the time by a signed amount, wrapping when looping and otherwise stopping at the boundary it moves into, then
+        /// applies it. A zero amount (the first frame's delta) never stops playback.
         /// </summary>
         /// <param name="seconds">Signed clip seconds to move.</param>
         void Advance(double seconds) {
@@ -164,10 +167,10 @@ namespace helengine.animation.runtime {
             double time = TimeValue + seconds;
             if (Loop && duration > 0d) {
                 time -= Math.Floor(time / duration) * duration;
-            } else if (time >= duration) {
+            } else if (seconds > 0d && time >= duration) {
                 time = duration;
                 Playing = false;
-            } else if (time <= 0d) {
+            } else if (seconds < 0d && time <= 0d) {
                 time = 0d;
                 Playing = false;
             }
@@ -177,7 +180,8 @@ namespace helengine.animation.runtime {
         }
 
         /// <summary>
-        /// Loads the clip and resolves one entity per track, failing when the counts differ or a reference is unresolved.
+        /// Loads the clip and resolves one entity per track, failing when the counts differ or a reference is unresolved, then
+        /// applies the pose at time 0 so <see cref="Time"/> always matches the shown pose.
         /// </summary>
         void Bind() {
             if (string.IsNullOrEmpty(ClipPathValue)) {
@@ -202,6 +206,7 @@ namespace helengine.animation.runtime {
             }
 
             TimeValue = 0d;
+            HierarchyAnimationEvaluator.Apply(Clip, Targets, TimeValue);
         }
 
         /// <summary>

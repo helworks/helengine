@@ -2,7 +2,8 @@ namespace helengine.animation.runtime {
     /// <summary>
     /// Reads and writes packaged hierarchy animation clips (value kind
     /// <see cref="EditorAssetBinaryValueKind.HierarchyAnimationClipAsset"/>). Files use the shared HELE header with the
-    /// packaged asset format id and version, followed by the payload:
+    /// packaged asset format id and version, then the three-byte numeric policy marker every packaged asset carries,
+    /// followed by the payload:
     /// <code>
     /// byte layout version (1)
     /// double duration seconds
@@ -16,6 +17,11 @@ namespace helengine.animation.runtime {
     /// one place, next to the runtime.
     /// </summary>
     public static class HierarchyAnimationClipReader {
+        /// <summary>
+        /// Seconds a key time may lie outside <c>[0, Duration]</c> to absorb rounding in authoring tools.
+        /// </summary>
+        const double TimeTolerance = 1e-6;
+
         /// <summary>
         /// Reads one packaged clip, header included.
         /// </summary>
@@ -31,6 +37,7 @@ namespace helengine.animation.runtime {
             try {
                 ValidateHeader(header);
                 using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
+                reader.NumericPolicy = RealBinaryCodec.ReadAndValidatePolicy(reader, RealRepresentation.Policy);
                 return ReadPayload(reader);
             } finally {
                 NativeOwnership.Delete(header);
@@ -38,7 +45,7 @@ namespace helengine.animation.runtime {
         }
 
         /// <summary>
-        /// Reads the payload that follows the header.
+        /// Reads the payload that follows the header and numeric policy marker.
         /// </summary>
         /// <param name="reader">Reader positioned at the layout byte.</param>
         /// <returns>The clip.</returns>
@@ -59,12 +66,13 @@ namespace helengine.animation.runtime {
                 throw new InvalidOperationException($"Hierarchy animation clip has an invalid duration {clip.Duration}.");
             }
 
-            clip.Tracks = ReadTracks(reader);
+            clip.Tracks = ReadTracks(reader, clip.Duration);
             return clip;
         }
 
         /// <summary>
-        /// Writes the payload (layout byte, duration and tracks) of one clip. The caller writes the HELE header.
+        /// Writes the payload (layout byte, duration and tracks) of one clip. The caller writes the HELE header and the
+        /// numeric policy marker.
         /// </summary>
         /// <param name="writer">Destination writer positioned after the header.</param>
         /// <param name="clip">Clip to write.</param>
@@ -81,7 +89,7 @@ namespace helengine.animation.runtime {
                 if (clip.Tracks[index] == null) {
                     throw new InvalidOperationException($"Hierarchy animation clip '{clip.Id}' has a null track at index {index}.");
                 }
-                ValidateTrack(clip.Tracks[index]);
+                ValidateTrack(clip.Tracks[index], clip.Duration);
             }
 
             writer.WriteByte(HierarchyAnimationClipAsset.LayoutVersion);
@@ -126,14 +134,15 @@ namespace helengine.animation.runtime {
         /// Reads the track count and every track, validating each one.
         /// </summary>
         /// <param name="reader">Reader positioned at the track count.</param>
+        /// <param name="duration">Clip duration the key times must fall within.</param>
         /// <returns>A new array of tracks.</returns>
         [NativeOwnedReturn]
-        static HierarchyAnimationTrack[] ReadTracks([NativeNoEscape] EngineBinaryReader reader) {
+        static HierarchyAnimationTrack[] ReadTracks([NativeNoEscape] EngineBinaryReader reader, double duration) {
             int trackCount = ReadCount(reader);
             HierarchyAnimationTrack[] tracks = new HierarchyAnimationTrack[trackCount];
             for (int index = 0; index < trackCount; index++) {
                 tracks[index] = ReadTrack(reader);
-                ValidateTrack(tracks[index]);
+                ValidateTrack(tracks[index], duration);
             }
 
             return tracks;
@@ -149,7 +158,7 @@ namespace helengine.animation.runtime {
             HierarchyAnimationTrack track = new HierarchyAnimationTrack();
             track.TargetPath = reader.ReadString();
             byte interpolation = reader.ReadByte();
-            if (interpolation > (byte)AnimationInterpolationMode.Linear) {
+            if (interpolation != (byte)AnimationInterpolationMode.Step && interpolation != (byte)AnimationInterpolationMode.Linear) {
                 throw new InvalidOperationException($"Hierarchy animation track '{track.TargetPath}' has an unknown interpolation mode {interpolation}.");
             }
 
@@ -239,10 +248,11 @@ namespace helengine.animation.runtime {
 
         /// <summary>
         /// Rejects a track the evaluator could not sample: missing arrays, value counts that differ from time counts, or
-        /// times that are not finite and strictly increasing.
+        /// times that are not finite, strictly increasing and inside <c>[0, duration]</c>.
         /// </summary>
         /// <param name="track">Track to check.</param>
-        static void ValidateTrack([NativeNoEscape] HierarchyAnimationTrack track) {
+        /// <param name="duration">Clip duration the key times must fall within.</param>
+        static void ValidateTrack([NativeNoEscape] HierarchyAnimationTrack track, double duration) {
             if (track.TargetPath == null) {
                 throw new InvalidOperationException("Hierarchy animation track has no target path.");
             } else if (track.PositionTimes == null || track.PositionValues == null || track.RotationTimes == null
@@ -256,21 +266,25 @@ namespace helengine.animation.runtime {
                 throw new InvalidOperationException($"Hierarchy animation track '{track.TargetPath}' has {track.ScaleTimes.Length} scale times but {track.ScaleValues.Length} values.");
             }
 
-            ValidateTimes(track, track.PositionTimes, "position");
-            ValidateTimes(track, track.RotationTimes, "rotation");
-            ValidateTimes(track, track.ScaleTimes, "scale");
+            ValidateTimes(track, track.PositionTimes, duration, "position");
+            ValidateTimes(track, track.RotationTimes, duration, "rotation");
+            ValidateTimes(track, track.ScaleTimes, duration, "scale");
         }
 
         /// <summary>
-        /// Rejects key times that are not finite and strictly increasing, which the evaluator's binary search requires.
+        /// Rejects key times that are not finite, outside <c>[0, duration]</c> (beyond <see cref="TimeTolerance"/>), or not
+        /// strictly increasing, which the evaluator's binary search requires.
         /// </summary>
         /// <param name="track">Track owning the times, for messages.</param>
         /// <param name="times">Key times to check.</param>
+        /// <param name="duration">Clip duration the key times must fall within.</param>
         /// <param name="channel">Channel name, for messages.</param>
-        static void ValidateTimes([NativeNoEscape] HierarchyAnimationTrack track, [NativeNoEscape] double[] times, string channel) {
+        static void ValidateTimes([NativeNoEscape] HierarchyAnimationTrack track, [NativeNoEscape] double[] times, double duration, string channel) {
             for (int index = 0; index < times.Length; index++) {
                 if (double.IsNaN(times[index]) || double.IsInfinity(times[index])) {
                     throw new InvalidOperationException($"Hierarchy animation track '{track.TargetPath}' has a non-finite {channel} time at key {index}.");
+                } else if (times[index] < -TimeTolerance || times[index] > duration + TimeTolerance) {
+                    throw new InvalidOperationException($"Hierarchy animation track '{track.TargetPath}' has a {channel} time {times[index]} at key {index} outside the clip range [0, {duration}].");
                 } else if (index > 0 && times[index] <= times[index - 1]) {
                     throw new InvalidOperationException($"Hierarchy animation track '{track.TargetPath}' has {channel} times that do not increase at key {index}.");
                 }
