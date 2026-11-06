@@ -73,14 +73,12 @@ namespace helengine.editor {
         /// <param name="buildRelativePath">Canonical build-relative output path.</param>
         /// <param name="asset">Asset to serialize.</param>
         public void WriteAsset(string buildRelativePath, Asset asset) {
-            if (string.IsNullOrWhiteSpace(buildRelativePath)) {
-                throw new ArgumentException("Build-relative path must be provided.", nameof(buildRelativePath));
-            }
+            string outputPath = ResolveConfinedOutputPath(buildRelativePath);
             if (asset == null) {
                 throw new ArgumentNullException(nameof(asset));
             }
 
-            AssetWriter(Path.Combine(BuildRootPath, buildRelativePath), asset);
+            AssetWriter(outputPath, asset);
         }
 
         /// <summary>
@@ -89,11 +87,32 @@ namespace helengine.editor {
         /// <param name="buildRelativePath">Canonical build-relative path of the cooked file.</param>
         /// <returns>Packaged scene asset reference.</returns>
         public SceneAssetReference CreatePackagedReference(string buildRelativePath) {
+            ResolveConfinedOutputPath(buildRelativePath);
+            return PackagedReferenceFactory(buildRelativePath);
+        }
+
+        /// <summary>
+        /// Resolves a cooker-supplied build-relative path to its absolute location, rejecting rooted paths (including drive-relative and
+        /// UNC paths) and paths whose ".." segments leave the build root, so a third-party cooker cannot write or reference files outside the build.
+        /// </summary>
+        /// <param name="buildRelativePath">Build-relative path supplied by the cooker.</param>
+        /// <returns>Absolute path beneath the build root.</returns>
+        string ResolveConfinedOutputPath(string buildRelativePath) {
             if (string.IsNullOrWhiteSpace(buildRelativePath)) {
                 throw new ArgumentException("Build-relative path must be provided.", nameof(buildRelativePath));
+            } else if (Path.IsPathRooted(buildRelativePath) || buildRelativePath.StartsWith("/", StringComparison.Ordinal)
+                || buildRelativePath.StartsWith("\\", StringComparison.Ordinal) || buildRelativePath.Contains(':')) {
+                throw new ArgumentException($"Cooked output path '{buildRelativePath}' must be relative to the build root.", nameof(buildRelativePath));
             }
 
-            return PackagedReferenceFactory(buildRelativePath);
+            string root = Path.GetFullPath(BuildRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string candidate = Path.GetFullPath(Path.Combine(root, buildRelativePath.Replace('/', Path.DirectorySeparatorChar)));
+            StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            if (!candidate.StartsWith(root + Path.DirectorySeparatorChar, comparison)) {
+                throw new ArgumentException($"Cooked output path '{buildRelativePath}' leaves the build root '{BuildRootPath}'.", nameof(buildRelativePath));
+            }
+
+            return candidate;
         }
     }
 }

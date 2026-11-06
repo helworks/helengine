@@ -106,6 +106,65 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a cooker cannot write or reference a file outside the build root through a rooted path or a ".." escape.
+        /// </summary>
+        /// <param name="buildRelativePath">Offending path.</param>
+        [Theory]
+        [InlineData("/etc/x.hfake")]
+        [InlineData("\\x.hfake")]
+        [InlineData("C:\\x.hfake")]
+        [InlineData("C:x.hfake")]
+        [InlineData("\\\\server\\share\\x.hfake")]
+        [InlineData("../x.hfake")]
+        [InlineData("cooked/../../x.hfake")]
+        [InlineData("cooked\\..\\..\\x.hfake")]
+        public void CookContext_rejectsPathsOutsideTheBuildRoot(string buildRelativePath) {
+            List<string> written = new List<string>();
+            List<string> referenced = new List<string>();
+            PackagedAssetCookContext context = CreateCookContext(written, referenced);
+
+            Assert.Throws<ArgumentException>(() => context.WriteAsset(buildRelativePath, new ModelAsset()));
+            Assert.Throws<ArgumentException>(() => context.CreatePackagedReference(buildRelativePath));
+            Assert.Empty(written);
+            Assert.Empty(referenced);
+        }
+
+        /// <summary>
+        /// Ensures a relative path that stays under the build root is written beneath it and handed to the reference factory unchanged.
+        /// </summary>
+        [Fact]
+        public void CookContext_acceptsPathsUnderTheBuildRoot() {
+            List<string> written = new List<string>();
+            List<string> referenced = new List<string>();
+            PackagedAssetCookContext context = CreateCookContext(written, referenced);
+
+            context.WriteAsset("cooked/clips/a.hfake", new ModelAsset());
+            context.CreatePackagedReference("cooked/clips/a.hfake");
+
+            Assert.Equal(Path.GetFullPath(Path.Combine(BuildRootPath, "cooked", "clips", "a.hfake")), Path.GetFullPath(Assert.Single(written)));
+            Assert.Equal("cooked/clips/a.hfake", Assert.Single(referenced));
+        }
+
+        /// <summary>
+        /// Creates a cook context whose callbacks record the paths they receive.
+        /// </summary>
+        /// <param name="written">Receives the absolute paths passed to the asset writer.</param>
+        /// <param name="referenced">Receives the build-relative paths passed to the reference factory.</param>
+        /// <returns>The context.</returns>
+        PackagedAssetCookContext CreateCookContext(List<string> written, List<string> referenced) {
+            return new PackagedAssetCookContext(
+                Path.Combine(ProjectRootPath, "assets", "clips", "a.hfake"),
+                BuildRootPath,
+                "windows",
+                string.Empty,
+                (path, asset) => written.Add(path),
+                path => {
+                    referenced.Add(path);
+                    return null;
+                });
+        }
+
+        /// <summary>
         /// With no cooker registered the file is copied raw, exactly as before.
         /// </summary>
         [Fact]
