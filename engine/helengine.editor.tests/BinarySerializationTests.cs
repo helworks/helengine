@@ -1385,7 +1385,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures typed model settings reject every version other than the current layout and explain regeneration.
+        /// Ensures typed model settings reject every version other than the current and previous layout and explain regeneration.
         /// </summary>
         [Theory]
         [InlineData((byte)(ModelAssetImportSettingsBinarySerializer.VersionWithoutImportMode - 1))]

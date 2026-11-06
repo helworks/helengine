@@ -519,7 +519,7 @@ namespace helengine.editor.tests.serialization.scene {
                 ModelAssetImportSettingsBinarySerializer.Serialize(stream, staleSettings);
                 obsoleteBytes = stream.ToArray();
             }
-            obsoleteBytes[5] = (byte)(ModelAssetImportSettingsBinarySerializer.CurrentVersion - 1);
+            obsoleteBytes[5] = (byte)(ModelAssetImportSettingsBinarySerializer.VersionWithoutImportMode - 1);
             string obsoleteSettingsPath = obsoleteSourcePath + ".hasset";
             File.WriteAllBytes(obsoleteSettingsPath, obsoleteBytes);
             DateTime pinnedWriteTime = new DateTime(2020, 1, 2, 3, 4, 5, DateTimeKind.Utc);

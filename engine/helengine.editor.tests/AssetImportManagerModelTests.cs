@@ -189,6 +189,38 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a version 5 sidecar on disk loads with its per-platform values instead of taking the defaults fallback.
+        /// </summary>
+        [Fact]
+        public void LoadOrCreateModelImportSettings_WhenSidecarIsVersionFive_LoadsPlatformSettingsAsSingleModel() {
+            string sourcePath = WriteSourceModel("v5-sidecar.obj");
+            using (FileStream stream = File.Create(sourcePath + ".hasset")) {
+                using (EngineBinaryWriter writer = VersionedBinaryPayload.WriteHeader(
+                    stream,
+                    EngineBinaryEndianness.LittleEndian,
+                    ModelAssetImportSettingsBinarySerializer.VersionWithoutImportMode,
+                    EditorAssetBinarySerializer.FormatId,
+                    (ushort)ModelAssetImportSettingsBinarySerializer.RecordKind,
+                    (ushort)AssetImportSettingsBinaryValueKind.ModelAssetImportSettings)) {
+                    writer.WriteString("test-model");
+                    writer.WriteInt32(1);
+                    writer.WriteString("windows");
+                    writer.WriteByte(1);
+                    writer.WriteByte(0);
+                    writer.WriteDouble(1.0d);
+                    writer.WriteByte(0);
+                    writer.WriteInt32(0);
+                }
+            }
+            AssetImportManager manager = CreateManager(new TestModelImporter());
+
+            ModelAssetImportSettings settings = manager.LoadOrCreateModelImportSettings(sourcePath);
+
+            Assert.Equal(ModelImportMode.SingleModel, settings.Mode);
+            Assert.True(settings.Processor.Platforms["windows"].FlipWinding);
+        }
+
+        /// <summary>
         /// Ensures typed model sidecars drive the platform-specific model processor path.
         /// </summary>
         [Fact]
