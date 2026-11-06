@@ -789,7 +789,8 @@ namespace helengine.editor {
                 folderRelativePath,
                 processedAssetId,
                 blueprintFileName,
-                Path.GetDirectoryName(sourcePath),
+                (relativePath, materialName) => ReadSceneExternalFile(Path.GetDirectoryName(sourcePath), relativePath, materialName),
+                extension => IsTextureExtension(extension),
                 (file, kind) => PublishSceneGeneratedFile(referenceResolver, folderPath, Path.GetDirectoryName(sourcePath), processedAssetId, processorSettings, file, kind, producedPaths));
 
             IReadOnlyList<IImportedSceneContributor> contributors = ImporterRegistryInstance.GetSceneContributors();
@@ -889,6 +890,34 @@ namespace helengine.editor {
             }
 
             return referenceResolver.CreateFileReference(fullPath, kind);
+        }
+
+        /// <summary>
+        /// Reads a file a scene source refers to, such as an external texture image. The path must be relative, the file must lie beneath
+        /// the project assets root (so "../textures/a.png" is fine but leaving the assets is not) and no part of the path may be a reparse point.
+        /// </summary>
+        /// <param name="sourceDirectoryPath">Absolute path of the folder that holds the source file.</param>
+        /// <param name="relativePath">Path as the source names it.</param>
+        /// <param name="materialName">Name of the material that uses the file, for errors.</param>
+        /// <returns>The file content.</returns>
+        byte[] ReadSceneExternalFile(string sourceDirectoryPath, string relativePath, string materialName) {
+            if (string.IsNullOrWhiteSpace(relativePath) || Path.IsPathRooted(relativePath) || relativePath.StartsWith("/", StringComparison.Ordinal)
+                || relativePath.StartsWith("\\", StringComparison.Ordinal) || relativePath.Contains(':')) {
+                throw new InvalidOperationException($"Material '{materialName}' uses the texture '{relativePath}', which is not a relative path inside the project assets.");
+            }
+
+            string fullPath = Path.GetFullPath(Path.Combine(sourceDirectoryPath, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+            try {
+                EnsurePathBeneathRoot(assetsRootPath, fullPath, "External scene file");
+            } catch (InvalidDataException exception) {
+                throw new InvalidOperationException($"Material '{materialName}' uses the texture '{relativePath}', which lies outside the project assets.", exception);
+            }
+            if (!File.Exists(fullPath)) {
+                throw new FileNotFoundException($"Material '{materialName}' uses the texture '{relativePath}', which was not found next to the source file.", fullPath);
+            }
+
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, projectRootPath);
+            return EditorAuthoringMutationScope.ReadAllBytes(projectRootPath, fullPath);
         }
 
         /// <summary>

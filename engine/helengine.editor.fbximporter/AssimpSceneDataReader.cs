@@ -209,6 +209,7 @@ namespace helengine.editor.assimp {
             if (baseColorTexture.Length == 0) {
                 baseColorTexture = ReadTexturePath(material, TextureType.Diffuse);
             }
+            // Normal and roughness paths are kept as the raw source paths: nothing consumes them yet, so they are neither extracted nor validated.
             string normalTexture = ReadTexturePath(material, TextureType.Normals);
             string roughnessTexture = ReadTexturePath(material, TextureType.GltfMetallicRoughness);
             if (roughnessTexture.Length == 0) {
@@ -221,8 +222,8 @@ namespace helengine.editor.assimp {
                 roughness,
                 metallic,
                 RegisterTexture(scene, name, baseColorTexture, "basecolor", textures, textureIndices, usedTextureNames),
-                RegisterTexture(scene, name, normalTexture, "normal", textures, textureIndices, usedTextureNames),
-                RegisterTexture(scene, name, roughnessTexture, "roughness", textures, textureIndices, usedTextureNames));
+                normalTexture,
+                roughnessTexture);
         }
 
         /// <summary>

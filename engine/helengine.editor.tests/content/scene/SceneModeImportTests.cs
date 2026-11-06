@@ -203,12 +203,15 @@ namespace helengine.editor.tests {
         public void Output_rejectsReservedPathAndOutOfRangeIndices() {
             ImportedSceneNode root = new ImportedSceneNode("Root", string.Empty, float3.Zero, float4.Identity, float3.One, Array.Empty<int>(), Array.Empty<ImportedSceneNode>());
             ImportedSceneData scene = new ImportedSceneData(root, Array.Empty<ImportedSceneMesh>(), Array.Empty<ImportedSceneMaterial>(), Array.Empty<ImportedSceneTexture>(), Array.Empty<ImportedSceneAnimation>(), string.Empty);
-            ImportedSceneOutput output = new ImportedSceneOutput(scene, "a.gltf.generated", "id", "a.hblueprint", ProjectRootPath, (file, kind) => null);
+            ImportedSceneOutput output = new ImportedSceneOutput(scene, "a.gltf.generated", "id", "a.hblueprint", (path, material) => new byte[0], extension => true, (file, kind) => null);
 
             Assert.Throws<ArgumentException>(() => output.AddGeneratedFile("a.hblueprint", new ModelAsset()));
             Assert.Throws<ArgumentOutOfRangeException>(() => output.MarkAnimationConsumed(0));
             Assert.Throws<ArgumentOutOfRangeException>(() => output.MarkMeshConsumed(-1));
             Assert.Throws<ArgumentOutOfRangeException>(() => output.MarkMaterialConsumed(0));
+            Assert.Throws<ArgumentException>(() => output.AddGeneratedSourceFile("x.hmeta", new byte[1]));
+            Assert.Throws<ArgumentException>(() => output.AddGeneratedSourceFile("x.hasset", new byte[1]));
+            Assert.Throws<ArgumentException>(() => output.AddGeneratedSourceFile("x.hblueprint", new byte[1]));
         }
 
         /// <summary>
@@ -416,6 +419,129 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures an external texture that leaves the project assets (through "../") fails the import naming the material and the path.
+        /// </summary>
+        [Fact]
+        public void ExternalTexture_escapingAssetsRoot_isRejected() {
+            File.Copy(FixturePath("textured_quad.png"), Path.Combine(ProjectRootPath, "outside.png"));
+            string sourcePath = WriteVariant("textured_quad.gltf", root => root["images"][0]["uri"] = "../outside.png");
+            AssetImportManager manager = CreateManager();
+            SetMode(manager, sourcePath, ModelImportMode.Scene);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => manager.ImportModel(sourcePath));
+
+            Assert.Contains("Printed", exception.Message);
+            Assert.Contains("../outside.png", exception.Message);
+        }
+
+        /// <summary>
+        /// Ensures an absolute external texture path fails the import naming the material and the path.
+        /// </summary>
+        [Fact]
+        public void ExternalTexture_withAbsolutePath_isRejected() {
+            string absolute = Path.Combine(ProjectRootPath, "outside.png").Replace('\\', '/');
+            File.Copy(FixturePath("textured_quad.png"), Path.Combine(ProjectRootPath, "outside.png"));
+            string sourcePath = WriteVariant("textured_quad.gltf", root => root["images"][0]["uri"] = absolute);
+            AssetImportManager manager = CreateManager();
+            SetMode(manager, sourcePath, ModelImportMode.Scene);
+
+            Exception exception = Assert.ThrowsAny<Exception>(() => manager.ImportModel(sourcePath));
+
+            Assert.Contains("Printed", exception.Message);
+            Assert.Contains("outside.png", exception.Message);
+        }
+
+        /// <summary>
+        /// Ensures a "../" texture that stays inside the assets root is accepted.
+        /// </summary>
+        [Fact]
+        public void ExternalTexture_inSiblingFolderInsideAssets_isAccepted() {
+            Directory.CreateDirectory(Path.Combine(AssetsRootPath, "models"));
+            Directory.CreateDirectory(Path.Combine(AssetsRootPath, "textures"));
+            File.Copy(FixturePath("textured_quad.png"), Path.Combine(AssetsRootPath, "textures", "shared.png"));
+            string text = File.ReadAllText(FixturePath("textured_quad.gltf")).Replace("textured_quad.png", "../textures/shared.png");
+            string sourcePath = Path.Combine(AssetsRootPath, "models", "textured_quad.gltf");
+            File.WriteAllText(sourcePath, text);
+            AssetImportManager manager = CreateManager();
+            SetMode(manager, sourcePath, ModelImportMode.Scene);
+
+            manager.ImportModel(sourcePath);
+
+            Assert.True(File.Exists(Path.Combine(AssetsRootPath, "models", "textured_quad.gltf.generated", "textures", "shared.png")));
+        }
+
+        /// <summary>
+        /// Ensures an unsupported image in the normal map slot, which nothing consumes yet, does not break the import.
+        /// </summary>
+        [Fact]
+        public void UnsupportedNormalMap_doesNotBreakImport() {
+            string sourcePath = WriteVariant("textured_quad.gltf", root => {
+                root["images"].AsArray().Add(new System.Text.Json.Nodes.JsonObject { ["uri"] = "normal.webp" });
+                root["textures"].AsArray().Add(new System.Text.Json.Nodes.JsonObject { ["source"] = 1 });
+                root["materials"][0]["normalTexture"] = new System.Text.Json.Nodes.JsonObject { ["index"] = 1 };
+            });
+            File.Copy(FixturePath("textured_quad.png"), Path.Combine(AssetsRootPath, "textured_quad.png"));
+            AssetImportManager manager = CreateManager();
+            SetMode(manager, sourcePath, ModelImportMode.Scene);
+
+            manager.ImportModel(sourcePath);
+
+            string textures = Path.Combine(AssetsRootPath, "textured_quad.gltf.generated", "textures");
+            Assert.Single(Directory.GetFiles(textures, "*.png"));
+            Assert.Empty(Directory.GetFiles(textures, "*.webp"));
+        }
+
+        /// <summary>
+        /// Ensures a texture whose extension has no registered texture importer fails the import naming the extension and the material.
+        /// </summary>
+        [Fact]
+        public void TextureWithoutRegisteredImporter_failsAtImport() {
+            string sourcePath = CopyFixture("textured_quad.glb");
+            AssetImportManager manager = CreateManager(false);
+            SetMode(manager, sourcePath, ModelImportMode.Scene);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => manager.ImportModel(sourcePath));
+
+            Assert.Contains("Printed", exception.Message);
+            Assert.Contains(".png", exception.Message);
+        }
+
+        /// <summary>
+        /// Ensures a texture the source no longer uses is deleted, with its sidecars, on reimport.
+        /// </summary>
+        [Fact]
+        public void RemovedTexture_isSweptOnReimport() {
+            string sourcePath = CopyFixture("textured_quad.gltf");
+            File.Copy(FixturePath("textured_quad.png"), Path.Combine(AssetsRootPath, "textured_quad.png"));
+            AssetImportManager manager = CreateManager();
+            SetMode(manager, sourcePath, ModelImportMode.Scene);
+            manager.ImportModel(sourcePath);
+            string texturePath = Path.Combine(AssetsRootPath, "textured_quad.gltf.generated", "textures", "textured_quad.png");
+            Assert.True(File.Exists(texturePath));
+
+            File.Copy(FixturePath("hinged_box.gltf"), sourcePath, true);
+            manager.ImportModel(sourcePath);
+
+            Assert.False(File.Exists(texturePath));
+            Assert.False(File.Exists(texturePath + ".hmeta"));
+            Assert.False(File.Exists(texturePath + AssetImportManager.SettingsExtension));
+        }
+
+        /// <summary>
+        /// Copies a scene fixture into the assets folder after editing its JSON.
+        /// </summary>
+        /// <param name="fileName">Fixture file name.</param>
+        /// <param name="edit">Edit applied to the parsed document.</param>
+        /// <returns>Absolute path of the written source.</returns>
+        string WriteVariant(string fileName, Action<System.Text.Json.Nodes.JsonNode> edit) {
+            System.Text.Json.Nodes.JsonNode root = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(FixturePath(fileName)));
+            edit(root);
+            string destination = Path.Combine(AssetsRootPath, fileName);
+            File.WriteAllText(destination, root.ToJsonString());
+            return destination;
+        }
+
+        /// <summary>
         /// Reads the base color texture id the material file stores for the windows platform.
         /// </summary>
         /// <param name="materialPath">Absolute path of the generated material.</param>
@@ -543,10 +669,21 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Configured manager.</returns>
         AssetImportManager CreateManager() {
+            return CreateManager(true);
+        }
+
+        /// <summary>
+        /// Creates a manager with the Assimp importer registered for glTF files and optionally the texture importer.
+        /// </summary>
+        /// <param name="registerTextureImporter">True to register a PNG/JPEG texture importer.</param>
+        /// <returns>Configured manager.</returns>
+        AssetImportManager CreateManager(bool registerTextureImporter) {
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterModelImporter(new ModelImporterRegistration("assimp", new HelengineAssimpImporter(), new[] { ".gltf", ".glb" }));
-            manager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new helengine.editor.tests.testing.TestTextureImporter(), new[] { ".png", ".jpg" }));
+            if (registerTextureImporter) {
+                manager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new helengine.editor.tests.testing.TestTextureImporter(), new[] { ".png", ".jpg" }));
+            }
             return manager;
         }
 

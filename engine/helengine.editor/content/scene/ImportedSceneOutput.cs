@@ -66,9 +66,19 @@ namespace helengine.editor {
         readonly int MeshCount;
 
         /// <summary>
-        /// Absolute path of the folder that holds the source file; external texture paths resolve against it.
+        /// Reads an external file the scene refers to; arguments are the source-relative path and the name of the material that uses it.
         /// </summary>
-        readonly string SourceDirectoryPathValue;
+        readonly Func<string, string, byte[]> ExternalFileReader;
+
+        /// <summary>
+        /// Tells whether a file extension (with the dot) has a registered texture importer.
+        /// </summary>
+        readonly Func<string, bool> TextureExtensionSupport;
+
+        /// <summary>
+        /// Extensions of files the importer itself writes next to generated files; contributors cannot add raw files with them.
+        /// </summary>
+        static readonly string[] ReservedSourceExtensions = { ".hmeta", ".hasset", ".hanimclip", BlueprintAsset.FileExtension, SceneAsset.FileExtension };
 
         /// <summary>
         /// Creates the output for one scene import.
@@ -77,14 +87,16 @@ namespace helengine.editor {
         /// <param name="generatedFolderRelativePath">Assets-relative path of the generated folder.</param>
         /// <param name="processedAssetId">Processed asset id of the source; generated asset ids derive from it.</param>
         /// <param name="reservedRelativePath">Path inside the generated folder owned by the importer (the blueprint); contributors cannot add a file there.</param>
-        /// <param name="sourceDirectoryPath">Absolute path of the folder that holds the source file, used to resolve external files the scene refers to.</param>
+        /// <param name="externalFileReader">Reads an external file the scene refers to, confined to the project assets; arguments are the source-relative path and the material name.</param>
+        /// <param name="textureExtensionSupport">Tells whether an extension (with the dot) has a registered texture importer.</param>
         /// <param name="publisher">Writes one generated file and returns its reference.</param>
         public ImportedSceneOutput(
             ImportedSceneData scene,
             string generatedFolderRelativePath,
             string processedAssetId,
             string reservedRelativePath,
-            string sourceDirectoryPath,
+            Func<string, string, byte[]> externalFileReader,
+            Func<string, bool> textureExtensionSupport,
             Func<ImportedSceneGeneratedFile, AssetEntryKind, SceneAssetReference> publisher) {
             if (scene == null) {
                 throw new ArgumentNullException(nameof(scene));
@@ -98,12 +110,9 @@ namespace helengine.editor {
                 throw new ArgumentException("Reserved path must be provided.", nameof(reservedRelativePath));
             }
 
-            if (string.IsNullOrWhiteSpace(sourceDirectoryPath)) {
-                throw new ArgumentException("Source directory path must be provided.", nameof(sourceDirectoryPath));
-            }
-
             ReservedRelativePath = reservedRelativePath;
-            SourceDirectoryPathValue = sourceDirectoryPath;
+            ExternalFileReader = externalFileReader ?? throw new ArgumentNullException(nameof(externalFileReader));
+            TextureExtensionSupport = textureExtensionSupport ?? throw new ArgumentNullException(nameof(textureExtensionSupport));
             MaterialIndexCount = scene.Materials.Length;
             GeneratedFolderRelativePath = generatedFolderRelativePath;
             ProcessedAssetId = processedAssetId;
@@ -124,9 +133,24 @@ namespace helengine.editor {
         public string ProcessedAssetId { get; }
 
         /// <summary>
-        /// Gets the absolute path of the folder that holds the source file; external files the scene refers to, such as texture images, resolve against it.
+        /// Reads an external file the scene refers to (for example a texture image next to the source). The path must be relative and the
+        /// file must lie inside the project assets without passing a reparse point.
         /// </summary>
-        public string SourceDirectoryPath => SourceDirectoryPathValue;
+        /// <param name="relativePath">Path as the source names it, relative to the source file.</param>
+        /// <param name="materialName">Name of the material that uses the file, for errors.</param>
+        /// <returns>The file content.</returns>
+        internal byte[] ReadExternalFile(string relativePath, string materialName) {
+            return ExternalFileReader(relativePath, materialName);
+        }
+
+        /// <summary>
+        /// Tells whether the project can import files with the extension as textures.
+        /// </summary>
+        /// <param name="extension">Extension including the dot.</param>
+        /// <returns>True when a texture importer is registered for it.</returns>
+        internal bool IsTextureExtensionSupported(string extension) {
+            return TextureExtensionSupport(extension);
+        }
 
         /// <summary>
         /// Gets the generated files in the order they were added.
@@ -184,6 +208,7 @@ namespace helengine.editor {
 
         /// <summary>
         /// Adds a raw source file, such as a texture image, that will be written byte for byte inside the generated folder.
+        /// Extensions the importer writes itself (.hmeta, .hasset, .hanimclip and the blueprint and scene extensions) are rejected. The bytes are copied.
         /// The file gets a deterministic authoring id in an <c>.hmeta</c> sidecar like other files without embedded identity, keeps that id
         /// across reimports, and is removed by the stale sweep when a later import no longer produces it. Image files are also imported as
         /// textures, so a material can refer to them by their assets-relative path (<see cref="GeneratedFolderRelativePath"/> plus the path given here).
@@ -196,7 +221,14 @@ namespace helengine.editor {
             }
 
             ValidateNewGeneratedPath(relativePathInFolder);
-            RegisterFile(new ImportedSceneGeneratedFile(relativePathInFolder, sourceBytes));
+            string extension = Path.GetExtension(relativePathInFolder);
+            for (int index = 0; index < ReservedSourceExtensions.Length; index++) {
+                if (string.Equals(extension, ReservedSourceExtensions[index], StringComparison.OrdinalIgnoreCase)) {
+                    throw new ArgumentException($"Generated source file '{relativePathInFolder}' uses the extension '{extension}', which the importer reserves for files it writes itself.", nameof(relativePathInFolder));
+                }
+            }
+
+            RegisterFile(new ImportedSceneGeneratedFile(relativePathInFolder, (byte[])sourceBytes.Clone()));
         }
 
         /// <summary>

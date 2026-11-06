@@ -143,31 +143,14 @@ namespace helengine.editor {
                 ImportedSceneTexture texture = scene.Textures[textureIndex];
                 string fileName = ImportedSceneNameUtils.Disambiguate(ImportedSceneNameUtils.MakeSafeName(texture.Name), usedTextureNames);
                 string path = TextureFolder + "/" + fileName + "." + texture.FormatHint;
-                output.AddGeneratedSourceFile(path, ReadTextureBytes(texture, material, output.SourceDirectoryPath));
+                if (!output.IsTextureExtensionSupported("." + texture.FormatHint)) {
+                    throw new InvalidOperationException($"Material '{material.Name}' uses a .{texture.FormatHint} texture, but the project has no texture importer registered for the extension .{texture.FormatHint}.");
+                }
+                output.AddGeneratedSourceFile(path, texture.IsEmbedded ? texture.EncodedBytes : output.ReadExternalFile(texture.ExternalRelativePath, material.Name));
                 texturePaths[textureIndex] = path;
             }
 
             return output.GeneratedFolderRelativePath + "/" + texturePaths[textureIndex];
-        }
-
-        /// <summary>
-        /// Returns the encoded bytes of a texture: the embedded bytes as they are, or the content of the external file next to the source.
-        /// </summary>
-        /// <param name="texture">Texture to read.</param>
-        /// <param name="material">Material that uses the texture, named in errors.</param>
-        /// <param name="sourceDirectoryPath">Absolute path of the folder that holds the source file.</param>
-        /// <returns>Encoded image bytes.</returns>
-        static byte[] ReadTextureBytes(ImportedSceneTexture texture, ImportedSceneMaterial material, string sourceDirectoryPath) {
-            if (texture.IsEmbedded) {
-                return texture.EncodedBytes;
-            }
-
-            string externalPath = Path.GetFullPath(Path.Combine(sourceDirectoryPath, texture.ExternalRelativePath.Replace('/', Path.DirectorySeparatorChar)));
-            if (!File.Exists(externalPath)) {
-                throw new FileNotFoundException($"Material '{material.Name}' uses the texture '{texture.ExternalRelativePath}', which was not found next to the source file.", externalPath);
-            }
-
-            return File.ReadAllBytes(externalPath);
         }
 
         /// <summary>
