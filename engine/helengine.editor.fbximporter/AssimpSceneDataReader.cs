@@ -136,13 +136,15 @@ namespace helengine.editor.assimp {
                 normals[vertexIndex] = new float3(normal.X, normal.Y, normal.Z);
                 if (hasTexCoords) {
                     System.Numerics.Vector3 texCoord = mesh.TextureCoordinateChannels[0][vertexIndex];
-                    texCoords[vertexIndex] = new float2(texCoord.X, texCoord.Y);
+                    // Assimp moves V to a bottom-left origin; the engine samples with the source's top-left origin (first texture row = image top).
+                    texCoords[vertexIndex] = new float2(texCoord.X, 1f - texCoord.Y);
                 } else {
                     texCoords[vertexIndex] = new float2(0f, 0f);
                 }
                 if (hasTangents) {
                     System.Numerics.Vector3 tangent = mesh.Tangents[vertexIndex];
-                    System.Numerics.Vector3 bitangent = mesh.BiTangents[vertexIndex];
+                    // V is flipped back above, which reverses the bitangent Assimp computed.
+                    System.Numerics.Vector3 bitangent = -mesh.BiTangents[vertexIndex];
                     float sign = System.Numerics.Vector3.Dot(System.Numerics.Vector3.Cross(normal, tangent), bitangent) < 0f ? -1f : 1f;
                     tangents[vertexIndex] = new float4(tangent.X, tangent.Y, tangent.Z, sign);
                 }

@@ -172,6 +172,22 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures texture coordinates keep the source's top-left origin, which is how the engine samples textures (their first
+        /// row is the image top). Assimp flips V to a bottom-left origin on read; the reader must undo it, or printed art
+        /// shows upside down and mirrored. The fixture triangle's glTF UVs equal its XY positions.
+        /// </summary>
+        [Fact]
+        public void TexCoords_keepTheSourceTopLeftOrigin() {
+            ImportedSceneMesh mesh = ReadZeroScaleFixture().Meshes[0];
+
+            Assert.Equal(3, mesh.TexCoords.Length);
+            for (int index = 0; index < mesh.TexCoords.Length; index++) {
+                Assert.Equal((double)mesh.Positions[index].X, (double)mesh.TexCoords[index].X, Precision);
+                Assert.Equal((double)mesh.Positions[index].Y, (double)mesh.TexCoords[index].Y, Precision);
+            }
+        }
+
+        /// <summary>
         /// Ensures a node with scale (0,0,0) and a node with scale (1,0,1) import instead of failing decomposition.
         /// </summary>
         [Fact]
