@@ -9,6 +9,11 @@ namespace helengine.editor {
         static readonly System.Reflection.Assembly EditorAssembly = typeof(ComponentPersistenceRegistry).Assembly;
 
         /// <summary>
+        /// Assembly-name prefix reserved for engine assemblies; project code modules may not use it.
+        /// </summary>
+        const string EngineAssemblyPrefix = "helengine.";
+
+        /// <summary>
         /// Resolves editor-owned types independently of project script registration while preserving script-host failures.
         /// </summary>
         /// <param name="componentTypeId">Current persisted component type identifier.</param>
@@ -26,6 +31,11 @@ namespace helengine.editor {
             string[] parts = componentTypeId.Split(',', 2, StringSplitOptions.TrimEntries);
             if (string.Equals(parts[1], EditorAssembly.GetName().Name, StringComparison.OrdinalIgnoreCase)) {
                 return EditorAssembly.GetType(parts[0], false, false);
+            }
+            // Engine plugin assemblies (helengine.*, such as helengine.animation.runtime) ship with the editor and are never
+            // project script modules, so the project script resolver has no entry for them.
+            if (parts[1].StartsWith(EngineAssemblyPrefix, StringComparison.OrdinalIgnoreCase)) {
+                return PersistedComponentTypeResolver.TryResolve(componentTypeId);
             }
             if (scriptTypeResolver != null) {
                 return scriptTypeResolver.Resolve(componentTypeId);
