@@ -168,7 +168,8 @@ namespace helengine.editor {
                     projectGuid,
                     module.ModuleKind,
                     EditorGeneratedCodeProjectKind.Production,
-                    string.Empty));
+                    string.Empty,
+                    module.EngineModules));
             }
 
             IReadOnlyList<EditorGeneratedCodeModuleProject> testProjects = [];
@@ -328,7 +329,8 @@ namespace helengine.editor {
                 moduleProject.ProjectGuid,
                 moduleProject.ModuleKind,
                 moduleProject.ProjectKind,
-                moduleProject.ReferencedProductionModuleId);
+                moduleProject.ReferencedProductionModuleId,
+                moduleProject.EngineModules);
         }
 
         /// <summary>

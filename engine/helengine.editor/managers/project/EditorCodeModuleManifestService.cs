@@ -110,7 +110,9 @@ namespace helengine.editor {
                     folderPath,
                     manifestRecord.DependencyModuleIds ?? [],
                     manifestRecord.LoadScopes is { Length: > 0 } ? manifestRecord.LoadScopes : [DefaultLoadScope],
-                    ParseModuleKind(manifestRecord.ModuleKind, manifestFilePath)));
+                    [],
+                    ParseModuleKind(manifestRecord.ModuleKind, manifestFilePath),
+                    manifestRecord.EngineModules ?? []));
             }
 
             if (discoveredEntries.Count == 0) {
@@ -139,7 +141,8 @@ namespace helengine.editor {
                     entry.DependencyModuleIds,
                     entry.LoadScopes,
                     [.. nestedFolderPaths],
-                    entry.ModuleKind));
+                    entry.ModuleKind,
+                    entry.EngineModules));
             }
 
             resolvedEntries.Sort((left, right) => {
@@ -377,6 +380,11 @@ namespace helengine.editor {
             /// Gets or sets the optional authored module kind text.
             /// </summary>
             public string ModuleKind { get; set; } = string.Empty;
+
+            /// <summary>
+            /// Gets or sets the optional engine plugin project names the module compiles against.
+            /// </summary>
+            public string[] EngineModules { get; set; } = [];
         }
     }
 }

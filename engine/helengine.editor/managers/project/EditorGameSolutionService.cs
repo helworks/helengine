@@ -1110,6 +1110,12 @@ namespace helengine.editor {
             }
 
             List<KeyValuePair<string, string>> references = CreateRuntimeAssemblyReferences();
+            for (int index = 0; index < moduleProject.EngineModules.Count; index++) {
+                string engineModuleId = moduleProject.EngineModules[index];
+                references.Add(new KeyValuePair<string, string>(
+                    engineModuleId,
+                    EditorEngineModuleReferences.ResolveAssemblyPath(moduleProject.ModuleId, engineModuleId)));
+            }
             if (moduleProject.ModuleKind == EditorCodeModuleKind.Editor) {
                 references.Add(new KeyValuePair<string, string>("helengine.editor", typeof(EditorGameSolutionService).Assembly.Location));
                 string editorAssemblyDirectoryPath = Path.GetDirectoryName(typeof(EditorGameSolutionService).Assembly.Location);

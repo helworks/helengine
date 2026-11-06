@@ -20,6 +20,7 @@ namespace helengine.editor {
         /// <param name="moduleKind">Declares whether the generated project is runtime or editor-only.</param>
         /// <param name="projectKind">Distinguishes generated production projects from inferred generated test projects.</param>
         /// <param name="referencedProductionModuleId">Matching generated production module id referenced by a generated test project.</param>
+        /// <param name="engineModules">Optional engine plugin project names whose assemblies the project compiles against.</param>
         public EditorGeneratedCodeModuleProject(
             string moduleId,
             string sourceFolderPath,
@@ -34,7 +35,8 @@ namespace helengine.editor {
             Guid projectGuid,
             EditorCodeModuleKind moduleKind,
             EditorGeneratedCodeProjectKind projectKind,
-            string referencedProductionModuleId) {
+            string referencedProductionModuleId,
+            IReadOnlyList<string> engineModules) {
             if (string.IsNullOrWhiteSpace(moduleId)) {
                 throw new ArgumentException("Module id must be provided.", nameof(moduleId));
             }
@@ -65,6 +67,9 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(outputDirectoryPath)) {
                 throw new ArgumentException("Output directory path must be provided.", nameof(outputDirectoryPath));
             }
+            if (engineModules == null) {
+                throw new ArgumentNullException(nameof(engineModules));
+            }
 
             ModuleId = moduleId;
             SourceFolderPath = sourceFolderPath;
@@ -80,6 +85,7 @@ namespace helengine.editor {
             ModuleKind = moduleKind;
             ProjectKind = projectKind;
             ReferencedProductionModuleId = referencedProductionModuleId ?? string.Empty;
+            EngineModules = engineModules;
         }
 
         /// <summary>
@@ -151,5 +157,11 @@ namespace helengine.editor {
         /// Gets the matching generated production module id referenced by one inferred generated test project.
         /// </summary>
         public string ReferencedProductionModuleId { get; }
+
+        /// <summary>
+        /// Gets the optional engine plugin project names, such as <c>helengine.animation.runtime</c>, whose assemblies the
+        /// project compiles against.
+        /// </summary>
+        public IReadOnlyList<string> EngineModules { get; }
     }
 }

@@ -873,7 +873,8 @@ namespace helengine.editor {
                 selectedCodegenOptionValues,
                 workspace.CodeRootPath,
                 queueItem.SelectedEnvironmentId,
-                builderDefinition.RuntimeGenerationContract.PortableInputPreprocessorSymbols);
+                builderDefinition.RuntimeGenerationContract.PortableInputPreprocessorSymbols,
+                PlatformDescriptor.GeneratedCoreProjectPaths);
         }
 
         /// <summary>

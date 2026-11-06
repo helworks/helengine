@@ -154,7 +154,8 @@ namespace helengine.editor {
                 projectGuid,
                 productionProject.ModuleKind,
                 EditorGeneratedCodeProjectKind.Test,
-                productionProject.ModuleId);
+                productionProject.ModuleId,
+                productionProject.EngineModules);
         }
 
         /// <summary>

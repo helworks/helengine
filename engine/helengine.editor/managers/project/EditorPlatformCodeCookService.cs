@@ -32,6 +32,7 @@ namespace helengine.editor {
         /// <param name="outputRootPath">Generated authored module output directory.</param>
         /// <param name="selectedEnvironmentId">Authored build environment.</param>
         /// <param name="runtimeContractPreprocessorSymbols">Required symbols declared by the platform runtime contract, applied only during native conversion.</param>
+        /// <param name="generatedCoreProjectPaths">Engine plugin projects the platform transpiles with generated-core; every engine module a compiled module declares must be one of them.</param>
         /// <returns>Compiled module records for the packaged runtime.</returns>
         public PlatformBuildCodeModule[] CompileModules(
             EditorCodeModuleManifestDocument manifestDocument,
@@ -43,7 +44,8 @@ namespace helengine.editor {
             IReadOnlyDictionary<string, string> selectedOptionValues,
             string outputRootPath,
             string selectedEnvironmentId = "",
-            IReadOnlyList<string> runtimeContractPreprocessorSymbols = null) {
+            IReadOnlyList<string> runtimeContractPreprocessorSymbols = null,
+            IReadOnlyList<string> generatedCoreProjectPaths = null) {
             if (manifestDocument == null) {
                 throw new ArgumentNullException(nameof(manifestDocument));
             }
@@ -82,6 +84,10 @@ namespace helengine.editor {
                 if (codegenProfile.OutputLanguage != PlatformCodegenLanguage.Cpp) {
                     throw new NotSupportedException($"Code module '{moduleEntry.ModuleId}' requested unsupported output language '{codegenProfile.OutputLanguage}'.");
                 }
+            }
+
+            for (int index = 0; index < modulesToCompile.Length; index++) {
+                EditorEngineModuleReferences.ValidateTranspiledByPlatform(modulesToCompile[index], platformId, generatedCoreProjectPaths ?? []);
             }
 
             for (int index = 0; index < modulesToCompile.Length; index++) {
@@ -341,6 +347,11 @@ namespace helengine.editor {
             projectBuilder.AppendLine($"    <Reference Include=\"helengine.input\" HintPath=\"{EscapeXml(typeof(InputSystem).Assembly.Location)}\" />");
             projectBuilder.AppendLine($"    <Reference Include=\"helengine.nativeownership\" HintPath=\"{EscapeXml(typeof(NativeBorrowedReturnAttribute).Assembly.Location)}\" />");
             projectBuilder.AppendLine($"    <Reference Include=\"helengine.physics\" HintPath=\"{EscapeXml(typeof(RigidBody3DComponent).Assembly.Location)}\" />");
+            for (int index = 0; index < moduleEntry.EngineModules.Length; index++) {
+                string engineModuleId = moduleEntry.EngineModules[index];
+                string engineModuleAssemblyPath = EditorEngineModuleReferences.ResolveAssemblyPath(moduleEntry.ModuleId, engineModuleId);
+                projectBuilder.AppendLine($"    <Reference Include=\"{EscapeXml(engineModuleId)}\" HintPath=\"{EscapeXml(engineModuleAssemblyPath)}\" />");
+            }
             projectBuilder.AppendLine("  </ItemGroup>");
             foreach (string dependencyModuleId in moduleEntry.DependencyModuleIds
                 .Where(dependencyModuleId => !string.IsNullOrWhiteSpace(dependencyModuleId))

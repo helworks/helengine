@@ -63,6 +63,26 @@ namespace helengine.editor {
         /// <param name="loadScopes">Authored runtime residency scopes.</param>
         /// <param name="nestedModuleFolderPaths">Nested module folder paths excluded from this module boundary.</param>
         /// <param name="moduleKind">Declares whether the module is runtime or editor-only.</param>
+        public EditorCodeModuleManifestEntry(
+            string moduleId,
+            string folderPath,
+            string[] dependencyModuleIds,
+            string[] loadScopes,
+            string[] nestedModuleFolderPaths,
+            EditorCodeModuleKind moduleKind)
+            : this(moduleId, folderPath, dependencyModuleIds, loadScopes, nestedModuleFolderPaths, moduleKind, []) {
+        }
+
+        /// <summary>
+        /// Initializes one manifest entry with the full authored metadata, including optional engine plugin references.
+        /// </summary>
+        /// <param name="moduleId">Stable authored module identifier.</param>
+        /// <param name="folderPath">Project-relative folder path owned by the module.</param>
+        /// <param name="dependencyModuleIds">Ordered dependency module identifiers.</param>
+        /// <param name="loadScopes">Authored runtime residency scopes.</param>
+        /// <param name="nestedModuleFolderPaths">Nested module folder paths excluded from this module boundary.</param>
+        /// <param name="moduleKind">Declares whether the module is runtime or editor-only.</param>
+        /// <param name="engineModules">Optional engine plugin project names, such as <c>helengine.animation.runtime</c>, the module compiles against.</param>
         [JsonConstructor]
         public EditorCodeModuleManifestEntry(
             string moduleId,
@@ -70,7 +90,8 @@ namespace helengine.editor {
             string[] dependencyModuleIds,
             string[] loadScopes,
             string[] nestedModuleFolderPaths,
-            EditorCodeModuleKind moduleKind) {
+            EditorCodeModuleKind moduleKind,
+            string[] engineModules) {
             if (string.IsNullOrWhiteSpace(moduleId)) {
                 throw new ArgumentException("Code module id must be provided.", nameof(moduleId));
             }
@@ -86,6 +107,14 @@ namespace helengine.editor {
             if (nestedModuleFolderPaths == null) {
                 throw new ArgumentNullException(nameof(nestedModuleFolderPaths));
             }
+            if (engineModules == null) {
+                throw new ArgumentNullException(nameof(engineModules));
+            }
+            for (int index = 0; index < engineModules.Length; index++) {
+                if (string.IsNullOrWhiteSpace(engineModules[index])) {
+                    throw new ArgumentException($"Code module '{moduleId}' declares an empty engine module name.", nameof(engineModules));
+                }
+            }
 
             ModuleId = moduleId;
             FolderPath = NormalizeFolderPath(folderPath);
@@ -93,6 +122,7 @@ namespace helengine.editor {
             LoadScopes = [.. loadScopes];
             DependencyModuleIds = [.. dependencyModuleIds];
             ModuleKind = moduleKind;
+            EngineModules = [.. engineModules];
         }
 
         /// <summary>
@@ -124,6 +154,12 @@ namespace helengine.editor {
         /// Gets whether the module participates in runtime packaging or editor-only tooling.
         /// </summary>
         public EditorCodeModuleKind ModuleKind { get; }
+
+        /// <summary>
+        /// Gets the optional engine plugin project names the module compiles against, such as <c>helengine.animation.runtime</c>.
+        /// Each plugin must be transpiled by the target platform (listed in its generated-core projects).
+        /// </summary>
+        public string[] EngineModules { get; }
 
         /// <summary>
         /// Normalizes one folder path to the persisted manifest convention.
