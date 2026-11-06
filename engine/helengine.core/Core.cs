@@ -174,6 +174,11 @@ namespace helengine {
         public AudioManager AudioManager { get; private set; }
 
         /// <summary>
+        /// Gets the message channel to the program hosting the engine, or null on platforms without such a host.
+        /// </summary>
+        public HostMessageManager HostMessages { get; private set; }
+
+        /// <summary>
         /// Gets the host-owned authored entity factory exposed to scene-authoring consumers.
         /// </summary>
         public IEntityFactory EntityFactory { get; private set; }
@@ -714,6 +719,18 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Attaches the platform channel to the program hosting the engine, enabling <see cref="HostMessages"/>.
+        /// </summary>
+        /// <param name="backend">Platform-owned host message channel.</param>
+        public void SetHostMessageBackend(IHostMessageBackend backend) {
+            if (backend == null) {
+                throw new ArgumentNullException(nameof(backend));
+            }
+
+            HostMessages = new HostMessageManager(backend);
+        }
+
+        /// <summary>
         /// Gets the default content manager configured for the current core instance.
         /// </summary>
         /// <returns>A core-owned content manager borrowed by the caller and backed by the configured content stream source.</returns>
@@ -1029,6 +1046,7 @@ namespace helengine {
                 RecordUpdateStage("AfterFpsRecordUpdateFrame");
             }
 
+            HostMessages?.Dispatch();
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.BeforeObjectManagerUpdatePhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("BeforeObjectManagerUpdate");
