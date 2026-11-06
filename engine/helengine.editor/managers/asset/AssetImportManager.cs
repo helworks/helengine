@@ -832,10 +832,12 @@ namespace helengine.editor {
                 AssetEntryKind.Unknown,
                 producedPaths);
 
-            string stampPath = GeneratedSceneImportStamp.GetPath(folderPath);
-            byte[] stampBytes = BuildExpectedSceneImportStamp(settings.Importer.ImporterId, settings.Importer.SourceChecksum).ToBytes();
-            WriteSerializedFile(stampPath, stream => stream.Write(stampBytes, 0, stampBytes.Length));
-            producedPaths.Add(stampPath);
+            // The stamp lives in the source's sidecar data block, written by the settings save that ends ImportModel. A stamp file left
+            // in the folder by an older editor (scene-import.himport) is not produced any more, so the sweep below deletes it.
+            SidecarDataEntryRegistry.Shared.Write(
+                settings.Importer.SidecarData,
+                GeneratedSceneImportStamp.SidecarDataKey,
+                BuildExpectedSceneImportStamp(settings.Importer.ImporterId, settings.Importer.SourceChecksum));
             DeleteStaleSceneFiles(folderPath, producedPaths);
             IReadOnlyList<string> unconsumed = output.DescribeUnconsumed();
             LastSceneImportUnconsumed = unconsumed;
@@ -859,7 +861,6 @@ namespace helengine.editor {
             }
 
             return new GeneratedSceneImportStamp {
-                Version = GeneratedSceneImportStamp.CurrentVersion,
                 ImporterId = importerId,
                 SourceChecksum = sourceChecksum,
                 ContributorIds = contributorIds
@@ -867,11 +868,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Describes why the generated folder of a scene-mode source no longer matches the source: the folder, its blueprint or its import
-        /// stamp is missing, or the stamp records another source checksum, importer or contributor set than the project has now.
+        /// Describes why the generated folder of a scene-mode source no longer matches the source: the folder or its blueprint is missing,
+        /// the source's sidecar has no readable import stamp entry, or the stamp records another source checksum, importer or contributor
+        /// set than the project has now. It only reads; a build calls it without writing anything.
         /// </summary>
         /// <param name="sourcePath">Absolute path of the scene-mode source.</param>
-        /// <param name="settings">Settings loaded for the source, whose checksum reflects the current source bytes.</param>
+        /// <param name="settings">Settings loaded from the source's sidecar, whose checksum reflects the current source bytes.</param>
         /// <returns>A short reason when the folder is missing or stale; an empty string when it is current.</returns>
         internal string DescribeGeneratedSceneStaleness(string sourcePath, ModelAssetImportSettings settings) {
             if (string.IsNullOrWhiteSpace(sourcePath)) {
@@ -881,20 +883,19 @@ namespace helengine.editor {
             }
 
             string folderPath = GeneratedSceneFolderPaths.GetFolderPath(sourcePath);
-            string stampPath = GeneratedSceneImportStamp.GetPath(folderPath);
             if (!Directory.Exists(folderPath)) {
                 return "its generated folder is missing";
             } else if (!File.Exists(GeneratedSceneFolderPaths.GetBlueprintPath(sourcePath))) {
                 return "the blueprint in its generated folder is missing";
-            } else if (!File.Exists(stampPath)) {
-                return $"the import stamp '{GeneratedSceneImportStamp.FileName}' in its generated folder is missing (the folder was written by an older editor)";
             }
 
             GeneratedSceneImportStamp recorded;
             try {
-                recorded = GeneratedSceneImportStamp.FromBytes(EditorAuthoringMutationScope.ReadAllBytes(projectRootPath, stampPath));
+                if (!SidecarDataEntryRegistry.Shared.TryRead(settings.Importer.SidecarData, GeneratedSceneImportStamp.SidecarDataKey, out recorded)) {
+                    return $"its import settings sidecar has no scene import stamp ('{GeneratedSceneImportStamp.SidecarDataKey}'; it was imported by an older editor)";
+                }
             } catch (InvalidDataException exception) {
-                return $"the import stamp in its generated folder cannot be read ({exception.Message})";
+                return $"the scene import stamp in its import settings sidecar cannot be read ({exception.Message})";
             }
 
             return recorded.DescribeDifference(BuildExpectedSceneImportStamp(settings.Importer.ImporterId, settings.Importer.SourceChecksum));

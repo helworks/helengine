@@ -551,6 +551,102 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a scene import records its stamp (importer, source checksum, contributors in order) as the
+        /// <c>helengine.scene.import</c> entry of the source's sidecar, and writes no stamp file into the generated folder.
+        /// </summary>
+        [Fact]
+        public void SceneImport_recordsStampInTheSourceSidecar() {
+            string sourcePath = CopyFixture();
+            AssetImportManager manager = CreateManager();
+            SetMode(manager, sourcePath, ModelImportMode.Scene);
+            manager.ImportModel(sourcePath);
+
+            ModelAssetImportSettings settings = manager.LoadOrCreateModelImportSettings(sourcePath);
+            Assert.True(SidecarDataEntryRegistry.Shared.TryRead(settings.Importer.SidecarData, GeneratedSceneImportStamp.SidecarDataKey, out GeneratedSceneImportStamp stamp));
+            Assert.Equal("helengine.scene.import", GeneratedSceneImportStamp.SidecarDataKey);
+            Assert.Equal("assimp", stamp.ImporterId);
+            Assert.Equal(settings.Importer.SourceChecksum, stamp.SourceChecksum);
+            Assert.Equal(ContributorIds(manager), stamp.ContributorIds);
+            Assert.Empty(Directory.GetFiles(Path.Combine(AssetsRootPath, GeneratedFolder), "*.himport", SearchOption.AllDirectories));
+        }
+
+        /// <summary>
+        /// Ensures the stamp entry survives the sidecar rewrite a build-time import performs, so the next build still finds the folder current.
+        /// </summary>
+        [Fact]
+        public void ReadOnlyImport_keepsTheStampInTheSidecar() {
+            string sourcePath = CopyFixture();
+            AssetImportManager editor = CreateManager();
+            SetMode(editor, sourcePath, ModelImportMode.Scene);
+            editor.ImportModel(sourcePath);
+            string settingsPath = sourcePath + AssetImportManager.SettingsExtension;
+            byte[] sidecarBefore = File.ReadAllBytes(settingsPath);
+
+            AssetImportManager build = CreateManager();
+            build.GeneratedSceneFoldersAreReadOnly = true;
+            build.ImportModel(sourcePath);
+            build.SaveModelImportSettings(sourcePath, build.LoadOrCreateModelImportSettings(sourcePath));
+            CreateManager().EnsureGeneratedScenesCurrent();
+
+            Assert.Equal(sidecarBefore, File.ReadAllBytes(settingsPath));
+            AssetImportManager nextBuild = CreateManager();
+            nextBuild.GeneratedSceneFoldersAreReadOnly = true;
+            nextBuild.ImportModel(sourcePath);
+        }
+
+        /// <summary>
+        /// Ensures a sidecar without the stamp entry (written before the stamp moved into it) makes a build fail as stale and the editor's
+        /// up-to-date scan regenerate the folder, which also deletes a leftover <c>scene-import.himport</c> file and records the stamp.
+        /// </summary>
+        [Fact]
+        public void SidecarWithoutStamp_isStaleAndRegeneratesWithoutTheOldStampFile() {
+            string sourcePath = CopyFixture();
+            AssetImportManager editor = CreateManager();
+            SetMode(editor, sourcePath, ModelImportMode.Scene);
+            Assert.Single(editor.ImportModelsMissingCache());
+            ModelAssetImportSettings settings = editor.LoadOrCreateModelImportSettings(sourcePath);
+            Assert.True(settings.Importer.SidecarData.Remove(GeneratedSceneImportStamp.SidecarDataKey));
+            editor.SaveModelImportSettings(sourcePath, settings);
+            string leftoverStampPath = Path.Combine(AssetsRootPath, GeneratedFolder, "scene-import.himport");
+            File.WriteAllText(leftoverStampPath, "{}");
+
+            AssetImportManager build = CreateManager();
+            build.GeneratedSceneFoldersAreReadOnly = true;
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => build.ImportModel(sourcePath));
+            Assert.Contains("stamp", exception.Message);
+            Assert.Contains("reimport", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Throws<InvalidOperationException>(() => CreateManager().EnsureGeneratedScenesCurrent());
+
+            Assert.Single(CreateManager().ImportModelsMissingCache());
+
+            Assert.False(File.Exists(leftoverStampPath));
+            ModelAssetImportSettings regenerated = editor.LoadOrCreateModelImportSettings(sourcePath);
+            Assert.True(regenerated.Importer.SidecarData.ContainsKey(GeneratedSceneImportStamp.SidecarDataKey));
+            CreateManager().EnsureGeneratedScenesCurrent();
+        }
+
+        /// <summary>
+        /// Ensures a stamp entry its owner cannot read (here an unknown payload version) counts as stale instead of failing the scan.
+        /// </summary>
+        [Fact]
+        public void UnreadableStampEntry_isReportedAsStale() {
+            string sourcePath = CopyFixture();
+            AssetImportManager editor = CreateManager();
+            SetMode(editor, sourcePath, ModelImportMode.Scene);
+            editor.ImportModel(sourcePath);
+            ModelAssetImportSettings settings = editor.LoadOrCreateModelImportSettings(sourcePath);
+            settings.Importer.SidecarData.TryGetRaw(GeneratedSceneImportStamp.SidecarDataKey, out byte[] payload);
+            payload[0] = 200;
+            settings.Importer.SidecarData.SetRaw(GeneratedSceneImportStamp.SidecarDataKey, payload);
+            editor.SaveModelImportSettings(sourcePath, settings);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => CreateManager().EnsureGeneratedScenesCurrent());
+
+            Assert.Contains("cannot be read", exception.Message);
+            Assert.Contains("200", exception.Message);
+        }
+
+        /// <summary>
         /// Ensures the registry runs the core contributor first, rejects duplicates and refuses registration once frozen.
         /// </summary>
         [Fact]

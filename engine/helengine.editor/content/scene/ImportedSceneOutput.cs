@@ -82,7 +82,7 @@ namespace helengine.editor {
         /// <summary>
         /// Extensions of files the importer itself writes next to generated files; contributors cannot add raw files with them.
         /// </summary>
-        static readonly string[] ReservedSourceExtensions = { ".hmeta", ".hasset", ".hanimclip", BlueprintAsset.FileExtension, SceneAsset.FileExtension, GeneratedSceneImportStamp.FileExtension };
+        static readonly string[] ReservedSourceExtensions = { ".hmeta", ".hasset", ".hanimclip", BlueprintAsset.FileExtension, SceneAsset.FileExtension };
 
         /// <summary>
         /// Creates the output for one scene import.
@@ -237,8 +237,8 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Checks that a path is a forward-slash path inside the generated folder that is neither reserved (the blueprint, the import
-        /// stamp extension) nor already taken, ignoring case. Backslashes, a leading slash, ':' (a drive or an NTFS alternate data stream),
+        /// Checks that a path is a forward-slash path inside the generated folder that is neither reserved for the blueprint nor
+        /// already taken, ignoring case. Backslashes, a leading slash, ':' (a drive or an NTFS alternate data stream),
         /// and empty, blank, "." or ".." segments are rejected, because contributor paths are not cleaned like the core contributor's names.
         /// </summary>
         /// <param name="relativePathInFolder">Path to check.</param>
@@ -249,8 +249,6 @@ namespace helengine.editor {
                 throw new ArgumentException($"Generated file path '{relativePathInFolder}' must be a forward-slash path inside the generated folder, without ':', empty, '.' or '..' segments.", nameof(relativePathInFolder));
             } else if (string.Equals(relativePathInFolder, ReservedRelativePath, StringComparison.OrdinalIgnoreCase)) {
                 throw new ArgumentException($"Generated file path '{relativePathInFolder}' is reserved for the blueprint.", nameof(relativePathInFolder));
-            } else if (relativePathInFolder.EndsWith(GeneratedSceneImportStamp.FileExtension, StringComparison.OrdinalIgnoreCase)) {
-                throw new ArgumentException($"Generated file path '{relativePathInFolder}' uses the extension of the importer's stamp.", nameof(relativePathInFolder));
             } else if (FilesByPath.ContainsKey(relativePathInFolder)) {
                 throw new InvalidOperationException($"A generated file already exists at '{relativePathInFolder}'.");
             }

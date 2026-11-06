@@ -21,9 +21,10 @@ namespace helengine.editor {
         readonly Dictionary<string, ISidecarDataEntryDefinition> DefinitionsByKey = new Dictionary<string, ISidecarDataEntryDefinition>(StringComparer.Ordinal);
 
         /// <summary>
-        /// Initializes the registry with no owners; built-in owners are registered here as they are introduced.
+        /// Initializes the registry with the built-in owners.
         /// </summary>
         public SidecarDataEntryRegistry() {
+            RegisterDefinition(new GeneratedSceneImportStampEntryDefinition());
         }
 
         /// <summary>

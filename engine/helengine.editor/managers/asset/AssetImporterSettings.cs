@@ -24,9 +24,11 @@ namespace helengine.editor {
         public string ImporterId { get; set; }
 
         /// <summary>
-        /// Gets or sets the checksum of the current source bytes. Source import-settings sidecars never persist it: the
-        /// import manager recomputes it from the source every time the settings are loaded, and it only feeds the
-        /// processed-asset cache key. Material settings documents carry it as an empty value.
+        /// Gets or sets the checksum of the current source bytes. This property is in-memory only: the import manager
+        /// recomputes it from the source every time the settings are loaded, and it feeds the processed-asset cache key.
+        /// The checksum a scene-mode <c>.generated</c> folder was generated from is a different value: it is persisted in
+        /// the <see cref="GeneratedSceneImportStamp"/> entry of <see cref="SidecarData"/> and compared with this one to
+        /// detect a stale folder. Material settings documents carry this property as an empty value.
         /// </summary>
         public string SourceChecksum { get; set; }
 
