@@ -1,8 +1,10 @@
+using helengine.animation;
+
 namespace helengine.editor {
     /// <summary>Registers source-compatible CPU importers without depending on a Windows editor assembly.</summary>
     public static class PortableImporterFactory {
         /// <summary>Preserves authored importer identifiers while choosing the portable raster implementation explicitly.</summary>
-        /// <returns>Texture, font, text and model importer registrations.</returns>
+        /// <returns>Texture, font, text and model importer registrations, plus the animation plugin's clip serializer, cooker and scene contributor.</returns>
         public static IReadOnlyList<IAssetImporterRegistration> CreateDefault() {
             return [
                 // These identifiers are persisted in source sidecars; changing the host implementation must not change asset identity.
@@ -19,7 +21,8 @@ namespace helengine.editor {
                 new FontImporterRegistration("gdi-font", new PortableFontImporter(), [".ttf", ".otf"]),
                 new TextImporterRegistration("text", new TextImporter(), [".txt"]),
                 new ModelImporterRegistration("assimp", new LazyModelImporter(new AssemblyModelImporterFactory(
-                    "helengine.editor.assimp", "helengine.editor.assimp.HelengineAssimpImporter")), [".fbx", ".obj", ".gltf", ".glb", ".dae", ".3ds", ".x"])
+                    "helengine.editor.assimp", "helengine.editor.assimp.HelengineAssimpImporter")), [".fbx", ".obj", ".gltf", ".glb", ".dae", ".3ds", ".x"]),
+                new AnimationEditorRegistration()
             ];
         }
     }

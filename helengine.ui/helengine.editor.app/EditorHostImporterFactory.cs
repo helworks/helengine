@@ -1,3 +1,4 @@
+using helengine.animation;
 using helengine.editor;
 using helengine.directx11;
 using helengine.vulkan;
@@ -11,7 +12,7 @@ namespace helengine.editor.app {
         /// Builds the default importer registrations used by both GUI and CLI editor startup.
         /// </summary>
         /// <param name="renderManager2D">Session-owned renderer used by imported font atlases, or null for headless imports.</param>
-        /// <returns>Default importer registrations.</returns>
+        /// <returns>Default importer registrations, including the animation plugin's clip serializer, cooker and scene contributor.</returns>
         public static IReadOnlyList<IAssetImporterRegistration> CreateDefault(RenderManager2D renderManager2D) {
             string[] textExtensions = new[] { ".txt" };
             string[] modelExtensions = new[] { ".fbx", ".obj", ".gltf", ".glb", ".dae", ".3ds", ".x" };
@@ -24,7 +25,8 @@ namespace helengine.editor.app {
                 new ModelImporterRegistration(
                     "assimp",
                     new LazyModelImporter(new AssemblyModelImporterFactory("helengine.editor.assimp", "helengine.editor.assimp.HelengineAssimpImporter")),
-                    modelExtensions)
+                    modelExtensions),
+                new AnimationEditorRegistration()
             });
 
             return registrations;

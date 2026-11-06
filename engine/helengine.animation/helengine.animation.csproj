@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Editor side of the optional hierarchical animation plugin: the .hanimclip payload serializer, the packaged cooker
+       and the glTF scene contributor that turns imported animations into clips and a paused player. It is not
+       transpiled; hosts reference it and pass AnimationEditorRegistration with their importer registrations, so the
+       editor itself never references it. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\helengine.editor\helengine.editor.csproj" SkipGetTargetFrameworkProperties="true" />
+    <!-- The dependency only points tools -> runtime; referencing it also ships the runtime assembly next to every host. -->
+    <ProjectReference Include="..\helengine.animation.runtime\helengine.animation.runtime.csproj" />
+  </ItemGroup>
+</Project>

@@ -871,6 +871,13 @@ namespace helengine.editor {
                     ModelAssetProcessor.Apply(modelAsset, processorSettings);
                 }
                 WriteSerializedFile(fullPath, stream => AssetSerializer.Serialize(stream, asset));
+                if (!new EditorAssetPathClassifier(projectRootPath).UsesEmbeddedIdentity(fullPath)) {
+                    // Files in a runtime layout (such as plugin clips) carry no identity, so the deterministic id lives in the
+                    // .hmeta sidecar. The sidecar is produced output too; otherwise the stale sweep deletes it and the id is lost.
+                    AssetIdentityMetadataService identityService = new AssetIdentityMetadataService(projectRootPath);
+                    identityService.LoadOrCreate(fullPath, authoringAssetId);
+                    producedPaths.Add(identityService.GetMetadataPath(fullPath));
+                }
             }
 
             producedPaths.Add(fullPath);

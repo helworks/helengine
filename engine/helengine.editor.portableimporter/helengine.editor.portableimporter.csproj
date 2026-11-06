@@ -10,5 +10,6 @@
     <ProjectReference Include="..\helengine.editor.windows.magickimporter\helengine.editor.windows.magickimporter.csproj" />
     <ProjectReference Include="..\helengine.editor.windows.pfimimporter\helengine.editor.windows.pfimimporter.csproj" />
     <ProjectReference Include="..\helengine.editor.fbximporter\helengine.editor.assimp.csproj" />
+    <ProjectReference Include="..\helengine.animation\helengine.animation.csproj" />
   </ItemGroup>
 </Project>
