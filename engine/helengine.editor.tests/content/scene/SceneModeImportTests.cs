@@ -510,6 +510,47 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the up-to-date scan regenerates a deleted generated folder even though the cache model of the source is still current.
+        /// </summary>
+        [Fact]
+        public void MissingGeneratedFolder_isRegeneratedByTheUpToDateScan() {
+            string sourcePath = CopyFixture();
+            AssetImportManager manager = CreateManager();
+            SetMode(manager, sourcePath, ModelImportMode.Scene);
+            Assert.Single(manager.ImportModelsMissingCache());
+            string[] relativePaths = { "mesh/Tri.hasset", "materials/Paint.hasset", "hinged_box.hblueprint" };
+            string[] before = ReadAuthoringIds(relativePaths);
+            Directory.Delete(Path.Combine(AssetsRootPath, GeneratedFolder), true);
+
+            Assert.Single(manager.ImportModelsMissingCache());
+
+            Assert.Equal(before, ReadAuthoringIds(relativePaths));
+            Assert.Empty(manager.ImportModelsMissingCache());
+        }
+
+        /// <summary>
+        /// Ensures the up-to-date scan regenerates the folder when a scene contributor is added to or removed from the project.
+        /// </summary>
+        [Fact]
+        public void ChangedContributorSet_regeneratesTheFolder() {
+            string sourcePath = CopyFixture();
+            AssetImportManager coreOnly = CreateManager();
+            SetMode(coreOnly, sourcePath, ModelImportMode.Scene);
+            Assert.Single(coreOnly.ImportModelsMissingCache());
+            string extra = Path.Combine(AssetsRootPath, GeneratedFolder, "extra", "Extra.hasset");
+            Assert.False(File.Exists(extra));
+
+            AssetImportManager withPlugin = CreateManager();
+            withPlugin.ImporterRegistry.RegisterSceneContributor(new RecordingContributor());
+            Assert.Single(withPlugin.ImportModelsMissingCache());
+            Assert.True(File.Exists(extra));
+            Assert.Empty(withPlugin.ImportModelsMissingCache());
+
+            Assert.Single(CreateManager().ImportModelsMissingCache());
+            Assert.False(File.Exists(extra));
+        }
+
+        /// <summary>
         /// Ensures the registry runs the core contributor first, rejects duplicates and refuses registration once frozen.
         /// </summary>
         [Fact]

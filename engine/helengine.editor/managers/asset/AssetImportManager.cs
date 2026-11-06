@@ -1404,7 +1404,10 @@ namespace helengine.editor {
                 }
 
                 string outputPath = GetModelAssetPath(settings.Importer.ProcessedAssetId);
-                if (HasCurrentCachedAsset(outputPath, EditorAssetBinaryValueKind.ModelAsset)) {
+                // The processed id excludes the generated folder and the contributor set, so a current cache model alone does not mean a
+                // scene-mode source is up to date: a deleted folder or an added or removed scene contributor also needs a reimport.
+                if (HasCurrentCachedAsset(outputPath, EditorAssetBinaryValueKind.ModelAsset)
+                    && (settings.Mode != ModelImportMode.Scene || DescribeGeneratedSceneStaleness(sourcePath, settings).Length == 0)) {
                     continue;
                 }
 
