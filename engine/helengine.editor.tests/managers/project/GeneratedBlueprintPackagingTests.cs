@@ -65,8 +65,8 @@ namespace helengine.editor.tests {
             Assert.Equal(0.9238795f, lid.LocalOrientation.W, 4);
             Assert.Equal(5f, lid.Children[0].LocalPosition.Z, 4);
 
-            Assert.True(CountComponents(instanceRoot, "helengine.MeshComponent") >= 1);
-            AssertModelReferencesArePackaged(packagedScene, 1);
+            List<string> modelPaths = AssertMeshComponentsPointAtPackagedModels(packagedScene, 4);
+            Assert.Single(new HashSet<string>(modelPaths));
         }
 
         /// <summary>
@@ -77,9 +77,8 @@ namespace helengine.editor.tests {
             SceneAsset packagedScene = ImportAndPackage("two_primitives.gltf");
 
             SceneEntityAsset instanceRoot = Assert.Single(packagedScene.RootEntities);
-            int meshComponents = CountComponents(instanceRoot, "helengine.MeshComponent");
-            Assert.True(meshComponents >= 2, "Expected at least two mesh components, found " + meshComponents);
-            AssertModelReferencesArePackaged(packagedScene, 2);
+            List<string> modelPaths = AssertMeshComponentsPointAtPackagedModels(packagedScene, 2);
+            Assert.NotEqual(modelPaths[0], modelPaths[1]);
         }
 
         /// <summary>
@@ -140,53 +139,63 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Asserts every file-system reference of the packaged scene exists in the build root and that enough of them are packaged models.
+        /// Asserts every mesh component of the packaged scene points at a packaged file-system model under the generated mesh folder.
         /// </summary>
+        /// <remarks>
+        /// The packaged payload of a mesh component is the runtime layout: version, numeric policy, member count (Materials, Model, RenderOrder3D in ordinal order),
+        /// then the material array (length plus optional references) followed by the optional model reference.
+        /// </remarks>
         /// <param name="scene">Packaged scene.</param>
-        /// <param name="minimumModels">Minimum number of packaged model references.</param>
-        void AssertModelReferencesArePackaged(SceneAsset scene, int minimumModels) {
-            int models = 0;
-            List<string> paths = new List<string>();
-            for (int index = 0; index < scene.AssetReferences.Length; index++) {
-                SceneAssetReference reference = scene.AssetReferences[index];
-                if (reference.SourceKind != SceneAssetReferenceSourceKind.FileSystem) {
-                    continue;
-                }
-                paths.Add(reference.RelativePath);
-                string fullPath = Path.Combine(BuildRootPath, reference.RelativePath.Replace('/', Path.DirectorySeparatorChar));
-                Assert.True(File.Exists(fullPath), "Missing packaged file for " + reference.RelativePath);
-                using FileStream stream = File.OpenRead(fullPath);
-                Asset asset;
-                try {
-                    asset = global::helengine.PackagedAssetBinarySerializer.Deserialize(stream);
-                } catch (Exception) {
-                    continue;
-                }
-                if (asset is ModelAsset) {
-                    models++;
-                }
+        /// <param name="expectedMeshComponents">Exact number of mesh components.</param>
+        /// <returns>Build-relative model paths, one per mesh component in scene order.</returns>
+        List<string> AssertMeshComponentsPointAtPackagedModels(SceneAsset scene, int expectedMeshComponents) {
+            List<SceneComponentAssetRecord> records = new List<SceneComponentAssetRecord>();
+            for (int index = 0; index < scene.RootEntities.Length; index++) {
+                CollectComponents(scene.RootEntities[index], "helengine.MeshComponent", records);
             }
-            Assert.True(models >= minimumModels, "Expected packaged models, found " + models + ". References: " + string.Join(", ", paths));
-            Assert.Equal(minimumModels, models);
+            Assert.Equal(expectedMeshComponents, records.Count);
+
+            List<string> modelPaths = new List<string>();
+            for (int index = 0; index < records.Count; index++) {
+                using MemoryStream payload = new MemoryStream(records[index].Payload, false);
+                using EngineBinaryReader reader = EngineBinaryReader.Create(payload, EngineBinaryEndianness.LittleEndian);
+                Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+                reader.NumericPolicy = RealBinaryCodec.ReadAndValidatePolicy(reader, RealRepresentation.Policy);
+                Assert.Equal(3, reader.ReadInt32());
+                int materialCount = reader.ReadInt32();
+                Assert.True(materialCount >= 0, "Mesh component must carry a material array.");
+                for (int materialIndex = 0; materialIndex < materialCount; materialIndex++) {
+                    Assert.NotNull(global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader));
+                }
+                SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
+                Assert.NotNull(reference);
+                Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, reference.SourceKind);
+                Assert.Contains(".generated/mesh/", reference.RelativePath);
+                string fullPath = Path.Combine(BuildRootPath, reference.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+                Assert.True(File.Exists(fullPath), "Missing packaged model " + reference.RelativePath);
+                using FileStream modelStream = File.OpenRead(fullPath);
+                Assert.IsType<ModelAsset>(global::helengine.PackagedAssetBinarySerializer.Deserialize(modelStream));
+                modelPaths.Add(reference.RelativePath);
+            }
+
+            return modelPaths;
         }
 
         /// <summary>
-        /// Counts components of one type in an entity subtree.
+        /// Collects the component records of one type in an entity subtree.
         /// </summary>
         /// <param name="entity">Subtree root.</param>
         /// <param name="componentTypeId">Component type id.</param>
-        /// <returns>Number of matching components.</returns>
-        static int CountComponents(SceneEntityAsset entity, string componentTypeId) {
-            int count = 0;
+        /// <param name="records">List that receives matching records.</param>
+        static void CollectComponents(SceneEntityAsset entity, string componentTypeId, List<SceneComponentAssetRecord> records) {
             for (int index = 0; index < entity.Components.Length; index++) {
                 if (entity.Components[index].ComponentTypeId == componentTypeId) {
-                    count++;
+                    records.Add(entity.Components[index]);
                 }
             }
             for (int index = 0; index < entity.Children.Length; index++) {
-                count += CountComponents(entity.Children[index], componentTypeId);
+                CollectComponents(entity.Children[index], componentTypeId, records);
             }
-            return count;
         }
 
         /// <summary>
