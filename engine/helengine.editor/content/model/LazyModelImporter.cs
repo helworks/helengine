@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Defers creation of an underlying model importer until the first import request.
     /// </summary>
-    public sealed class LazyModelImporter : IModelImporter {
+    public sealed class LazyModelImporter : IModelImporter, ISceneSourceImporter {
         /// <summary>
         /// Factory used to create the underlying importer on demand.
         /// </summary>
@@ -33,6 +33,24 @@ namespace helengine.editor {
             }
 
             return Importer.Value.ImportModel(stream);
+        }
+
+        /// <summary>
+        /// Reads one scene from the supplied stream through the underlying importer.
+        /// </summary>
+        /// <param name="stream">Stream containing source scene bytes.</param>
+        /// <returns>Neutral scene data.</returns>
+        public ImportedSceneData ImportScene(Stream stream) {
+            if (stream == null) {
+                throw new ArgumentNullException(nameof(stream));
+            }
+
+            ISceneSourceImporter sceneImporter = Importer.Value as ISceneSourceImporter;
+            if (sceneImporter == null) {
+                throw new InvalidOperationException("The underlying model importer does not support scene import.");
+            }
+
+            return sceneImporter.ImportScene(stream);
         }
 
         /// <summary>

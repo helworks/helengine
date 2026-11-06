@@ -14,6 +14,16 @@ namespace helengine.editor {
         readonly Dictionary<string, IPackagedAssetCooker> PackagedAssetCookersByExtension = new Dictionary<string, IPackagedAssetCooker>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
+        /// Plugin scene contributors in registration order; the core contributor is not stored here.
+        /// </summary>
+        readonly List<IImportedSceneContributor> SceneContributors = new List<IImportedSceneContributor>();
+
+        /// <summary>
+        /// Contributor that always runs first when a scene is imported.
+        /// </summary>
+        readonly CoreImportedSceneContributor CoreSceneContributor = new CoreImportedSceneContributor();
+
+        /// <summary>
         /// Indicates whether host registration has been sealed for the current session.
         /// </summary>
         public bool IsFrozen { get; private set; }
@@ -109,6 +119,41 @@ namespace helengine.editor {
 
             PackagedAssetCookersByExtension.TryGetValue(extension, out IPackagedAssetCooker cooker);
             return cooker;
+        }
+
+        /// <summary>
+        /// Registers a scene contributor before the registry is frozen. Contributors run after the core contributor, in registration order.
+        /// </summary>
+        /// <param name="contributor">Contributor that adds generated files or components to imported scenes.</param>
+        public void RegisterSceneContributor(IImportedSceneContributor contributor) {
+            EnsureMutable();
+            if (contributor == null) {
+                throw new ArgumentNullException(nameof(contributor));
+            }
+            if (string.IsNullOrWhiteSpace(contributor.ContributorId)) {
+                throw new InvalidOperationException("Scene contributors must have a contributor id.");
+            }
+            if (string.Equals(contributor.ContributorId, CoreSceneContributor.ContributorId, StringComparison.Ordinal)) {
+                throw new InvalidOperationException($"Scene contributor id '{contributor.ContributorId}' is reserved for the core contributor.");
+            }
+            for (int index = 0; index < SceneContributors.Count; index++) {
+                if (string.Equals(SceneContributors[index].ContributorId, contributor.ContributorId, StringComparison.Ordinal)) {
+                    throw new InvalidOperationException($"A scene contributor is already registered with id '{contributor.ContributorId}'.");
+                }
+            }
+
+            SceneContributors.Add(contributor);
+        }
+
+        /// <summary>
+        /// Gets the scene contributors in execution order: the core contributor first, then plugins in registration order.
+        /// </summary>
+        /// <returns>Contributors to run for every scene import.</returns>
+        public IReadOnlyList<IImportedSceneContributor> GetSceneContributors() {
+            List<IImportedSceneContributor> contributors = new List<IImportedSceneContributor>(SceneContributors.Count + 1);
+            contributors.Add(CoreSceneContributor);
+            contributors.AddRange(SceneContributors);
+            return contributors;
         }
 
         /// <summary>

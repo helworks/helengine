@@ -225,6 +225,11 @@ namespace helengine.editor {
         public AssetImporterRegistry ImporterRegistry => ImporterRegistryInstance;
 
         /// <summary>
+        /// Gets the lines describing source data the most recent scene-mode import did not consume; empty when everything was imported.
+        /// </summary>
+        public IReadOnlyList<string> LastSceneImportUnconsumed { get; private set; } = Array.Empty<string>();
+
+        /// <summary>
         /// Gets the typed import settings repository for this project.
         /// </summary>
         public AssetImportSettingsRepository SettingsRepository => SettingsRepositoryInstance;
@@ -741,13 +746,188 @@ namespace helengine.editor {
             ModelAssetProcessor.Apply(asset, processorSettings);
             asset.Id = settings.Importer.ProcessedAssetId;
             asset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(settings.Importer.ProcessedAssetId);
-            WriteGeneratedModelMaterials(sourcePath, importedModel.GeneratedMaterials);
+            if (settings.Mode == ModelImportMode.Scene) {
+                // The merged model stays the cache payload so the source keeps resolving to a model; the scene files replace the sibling materials.
+                ImportSceneOutputs(sourcePath, settings, processorSettings);
+            } else {
+                WriteGeneratedModelMaterials(sourcePath, importedModel.GeneratedMaterials);
+            }
 
             string outputPath = GetModelAssetPath(settings.Importer.ProcessedAssetId);
             WriteSerializedFile(outputPath, stream => AssetSerializer.Serialize(stream, asset));
 
             SaveModelImportSettings(sourcePath, settings);
             return asset;
+        }
+
+        /// <summary>
+        /// Imports a source file as a scene: reads the node tree, runs every scene contributor, writes the generated files and the
+        /// blueprint into the sibling <c>.generated</c> folder and deletes files of earlier imports that were not produced again.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the model source file.</param>
+        /// <param name="settings">Resolved model import settings whose mode is <see cref="ModelImportMode.Scene"/>.</param>
+        /// <param name="processorSettings">Processor settings applied to every generated model.</param>
+        void ImportSceneOutputs(string sourcePath, ModelAssetImportSettings settings, ModelAssetProcessorSettings processorSettings) {
+            ISceneSourceImporter sceneImporter = ModelImportHandler.GetImporter(settings.Importer.ImporterId) as ISceneSourceImporter;
+            if (sceneImporter == null) {
+                throw new InvalidOperationException($"Model importer '{settings.Importer.ImporterId}' cannot import scenes.");
+            }
+
+            ImportedSceneData scene = LoadVerifiedSource(sourcePath, stream => sceneImporter.ImportScene(stream));
+            string sourceRelativePath = Path.GetRelativePath(assetsRootPath, sourcePath).Replace('\\', '/');
+            string folderRelativePath = sourceRelativePath + ".generated";
+            string folderPath = Path.GetFullPath(Path.Combine(assetsRootPath, folderRelativePath.Replace('/', Path.DirectorySeparatorChar)));
+            EnsurePathBeneathRoot(assetsRootPath, folderPath, "Generated scene folder");
+
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
+            using EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(projectRootPath);
+            HashSet<string> producedPaths = new HashSet<string>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+            string processedAssetId = settings.Importer.ProcessedAssetId;
+            ImportedSceneOutput output = new ImportedSceneOutput(
+                scene,
+                folderRelativePath,
+                processedAssetId,
+                (file, kind) => PublishSceneGeneratedFile(referenceResolver, folderPath, Path.GetDirectoryName(sourcePath), processedAssetId, processorSettings, file, kind, producedPaths));
+
+            IReadOnlyList<IImportedSceneContributor> contributors = ImporterRegistryInstance.GetSceneContributors();
+            for (int index = 0; index < contributors.Count; index++) {
+                contributors[index].Contribute(scene, output);
+            }
+
+            output.PublishRemainingFiles();
+            string blueprintFileName = Path.GetFileNameWithoutExtension(sourcePath) + BlueprintAsset.FileExtension;
+            BlueprintAsset blueprint = new BlueprintAsset {
+                Id = folderRelativePath + "/" + blueprintFileName,
+                RootEntity = output.GetNodeEntity(string.Empty),
+                AssetReferences = output.GetReferences()
+            };
+            BlueprintValidationService.ValidateAsset(blueprint);
+            PublishSceneGeneratedFile(
+                referenceResolver,
+                folderPath,
+                Path.GetDirectoryName(sourcePath),
+                processedAssetId,
+                processorSettings,
+                new ImportedSceneGeneratedFile(blueprintFileName, blueprint),
+                AssetEntryKind.Unknown,
+                producedPaths);
+
+            DeleteStaleSceneFiles(folderPath, producedPaths);
+            IReadOnlyList<string> unconsumed = output.DescribeUnconsumed();
+            LastSceneImportUnconsumed = unconsumed;
+            for (int index = 0; index < unconsumed.Count; index++) {
+                Logger.WriteWarning($"Scene import of '{sourcePath}': {unconsumed[index]}");
+            }
+        }
+
+        /// <summary>
+        /// Writes one generated scene file with a deterministic authoring id and, when a kind is requested, returns a file-system reference to it.
+        /// </summary>
+        /// <param name="referenceResolver">Resolver that creates the file reference from the written file.</param>
+        /// <param name="folderPath">Absolute path to the generated folder.</param>
+        /// <param name="sourceDirectoryPath">Absolute path to the directory that holds the source file.</param>
+        /// <param name="processedAssetId">Processed asset id of the source file.</param>
+        /// <param name="processorSettings">Processor settings applied to generated models.</param>
+        /// <param name="file">File to write.</param>
+        /// <param name="kind">Asset category to reference, or <see cref="AssetEntryKind.Unknown"/> when no reference is needed.</param>
+        /// <param name="producedPaths">Receives the absolute path of the written file.</param>
+        /// <returns>Reference to the written file, or null when no kind was requested.</returns>
+        SceneAssetReference PublishSceneGeneratedFile(
+            EditorAssetReferenceResolver referenceResolver,
+            string folderPath,
+            string sourceDirectoryPath,
+            string processedAssetId,
+            ModelAssetProcessorSettings processorSettings,
+            ImportedSceneGeneratedFile file,
+            AssetEntryKind kind,
+            HashSet<string> producedPaths) {
+            string fullPath = Path.GetFullPath(Path.Combine(folderPath, file.RelativePathInFolder.Replace('/', Path.DirectorySeparatorChar)));
+            EnsurePathBeneathRoot(folderPath, fullPath, "Generated scene file");
+            string authoringAssetId = ResolveGeneratedSceneAssetId(fullPath, processedAssetId, file.RelativePathInFolder);
+            Asset asset = file.Asset;
+            if (asset is ShaderMaterialAsset materialAsset) {
+                string relativeMaterialPath = Path.GetRelativePath(sourceDirectoryPath, fullPath).Replace('\\', '/');
+                ImportedModelMaterialAsset generatedMaterial = new ImportedModelMaterialAsset(
+                    Path.GetFileNameWithoutExtension(fullPath),
+                    relativeMaterialPath,
+                    materialAsset);
+                MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(projectRootPath);
+                MaterialAssetImportSettings materialSettings = CreateGeneratedMaterialSettings(generatedMaterial);
+                EnsureDirectoryForFile(fullPath);
+                if (File.Exists(fullPath)) {
+                    settingsService.Save(fullPath, materialSettings);
+                } else {
+                    settingsService.Save(fullPath, materialSettings, authoringAssetId, null);
+                }
+            } else {
+                if (string.IsNullOrWhiteSpace(asset.Id)) {
+                    asset.Id = processedAssetId + "#" + file.RelativePathInFolder;
+                }
+                asset.AuthoringAssetId = authoringAssetId;
+                asset.FormerAuthoringAssetIds = Array.Empty<string>();
+                asset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(asset.Id);
+                if (asset is ModelAsset modelAsset) {
+                    ModelAssetProcessor.Apply(modelAsset, processorSettings);
+                }
+                WriteSerializedFile(fullPath, stream => AssetSerializer.Serialize(stream, asset));
+            }
+
+            producedPaths.Add(fullPath);
+            if (kind == AssetEntryKind.Unknown) {
+                return null;
+            }
+
+            return referenceResolver.CreateFileReference(fullPath, kind);
+        }
+
+        /// <summary>
+        /// Resolves the authoring id of a generated scene file: an existing file keeps its id so reimports are stable even when the
+        /// processed asset id changed, and a new file gets an id derived from the processed asset id and its path inside the folder.
+        /// </summary>
+        /// <param name="fullPath">Absolute path of the generated file.</param>
+        /// <param name="processedAssetId">Processed asset id of the source file.</param>
+        /// <param name="relativePathInFolder">Forward-slash path inside the generated folder.</param>
+        /// <returns>Lowercase 32-character hexadecimal asset id.</returns>
+        string ResolveGeneratedSceneAssetId(string fullPath, string processedAssetId, string relativePathInFolder) {
+            if (File.Exists(fullPath)) {
+                try {
+                    string existingId = new AssetIdentityMetadataService(projectRootPath).Load(fullPath).AssetId;
+                    if (!string.IsNullOrWhiteSpace(existingId)) {
+                        return existingId;
+                    }
+                } catch (InvalidOperationException) {
+                    // An unreadable earlier file is replaced, so its identity falls back to the derived id.
+                }
+            }
+
+            byte[] hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(processedAssetId + "\n" + relativePathInFolder));
+            return Convert.ToHexString(hash, 0, 16).ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Deletes files inside the generated folder that the current import did not produce, including the platform override files
+        /// stored next to produced materials. Nothing outside the folder is touched.
+        /// </summary>
+        /// <param name="folderPath">Absolute path to the generated folder.</param>
+        /// <param name="producedPaths">Absolute paths written by the current import.</param>
+        void DeleteStaleSceneFiles(string folderPath, HashSet<string> producedPaths) {
+            if (!Directory.Exists(folderPath)) {
+                return;
+            }
+
+            StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            foreach (string existingPath in Directory.EnumerateFiles(folderPath, "*", SearchOption.AllDirectories).ToArray()) {
+                bool produced = false;
+                foreach (string producedPath in producedPaths) {
+                    if (string.Equals(existingPath, producedPath, comparison) || existingPath.StartsWith(producedPath + ".", comparison)) {
+                        produced = true;
+                        break;
+                    }
+                }
+                if (!produced) {
+                    EditorAuthoringMutationScope.DeleteLeaf(projectRootPath, existingPath);
+                }
+            }
         }
 
         /// <summary>
@@ -3151,6 +3331,11 @@ namespace helengine.editor {
                 (processorSettings.FlipWinding ? "1" : "0"), "\n",
                 tessellateFlag, "\n",
                 tessellationMaxEdgeLength);
+            if (settings.Mode == ModelImportMode.Scene) {
+                // Single-model identities stay byte-identical; only scene imports add the mode, so switching a file between the
+                // modes changes the cache id and the existing up-to-date check re-imports it.
+                identity = identity + "\nscene";
+            }
             byte[] identityBytes = System.Text.Encoding.UTF8.GetBytes(identity);
             byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(identityBytes);
             return Convert.ToHexString(hashBytes).ToLowerInvariant();
