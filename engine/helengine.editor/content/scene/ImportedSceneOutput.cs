@@ -85,7 +85,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="scene">Neutral scene data being imported; only its counts are kept.</param>
         /// <param name="generatedFolderRelativePath">Assets-relative path of the generated folder.</param>
-        /// <param name="processedAssetId">Processed asset id of the source; generated asset ids derive from it.</param>
+        /// <param name="sourceAssetId">Authoring asset id of the source file; generated asset ids derive from it.</param>
         /// <param name="reservedRelativePath">Path inside the generated folder owned by the importer (the blueprint); contributors cannot add a file there.</param>
         /// <param name="externalFileReader">Reads an external file the scene refers to, confined to the project assets; arguments are the source-relative path and the material name.</param>
         /// <param name="textureExtensionSupport">Tells whether an extension (with the dot) has a registered texture importer.</param>
@@ -93,7 +93,7 @@ namespace helengine.editor {
         public ImportedSceneOutput(
             ImportedSceneData scene,
             string generatedFolderRelativePath,
-            string processedAssetId,
+            string sourceAssetId,
             string reservedRelativePath,
             Func<string, string, byte[]> externalFileReader,
             Func<string, bool> textureExtensionSupport,
@@ -102,8 +102,8 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(scene));
             } else if (string.IsNullOrWhiteSpace(generatedFolderRelativePath)) {
                 throw new ArgumentException("Generated folder path must be provided.", nameof(generatedFolderRelativePath));
-            } else if (string.IsNullOrWhiteSpace(processedAssetId)) {
-                throw new ArgumentException("Processed asset id must be provided.", nameof(processedAssetId));
+            } else if (string.IsNullOrWhiteSpace(sourceAssetId)) {
+                throw new ArgumentException("Source asset id must be provided.", nameof(sourceAssetId));
             }
 
             if (string.IsNullOrWhiteSpace(reservedRelativePath)) {
@@ -115,7 +115,7 @@ namespace helengine.editor {
             TextureExtensionSupport = textureExtensionSupport ?? throw new ArgumentNullException(nameof(textureExtensionSupport));
             MaterialIndexCount = scene.Materials.Length;
             GeneratedFolderRelativePath = generatedFolderRelativePath;
-            ProcessedAssetId = processedAssetId;
+            SourceAssetId = sourceAssetId;
             Publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
             AnimationCount = scene.Animations.Length;
             MeshCount = scene.Meshes.Length;
@@ -128,9 +128,10 @@ namespace helengine.editor {
         public string GeneratedFolderRelativePath { get; }
 
         /// <summary>
-        /// Gets the processed asset id of the source file.
+        /// Gets the authoring asset id of the source file. It is unique per source and survives edits, processor settings and the
+        /// active platform, so ids derived from it identify generated content reproducibly.
         /// </summary>
-        public string ProcessedAssetId { get; }
+        public string SourceAssetId { get; }
 
         /// <summary>
         /// Reads an external file the scene refers to (for example a texture image next to the source). The path must be relative and the

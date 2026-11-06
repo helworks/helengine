@@ -782,16 +782,18 @@ namespace helengine.editor {
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
             using EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(projectRootPath);
             HashSet<string> producedPaths = new HashSet<string>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
-            string processedAssetId = settings.Importer.ProcessedAssetId;
+            // Generated ids derive from the source file's own authoring id, which is unique per file and survives renames, edits,
+            // processor settings and the active platform, so a regenerated folder gets the ids scenes already reference.
+            string sourceAssetId = new AssetIdentityMetadataService(projectRootPath).LoadOrCreate(sourcePath, string.Empty).AssetId;
             string blueprintFileName = Path.GetFileNameWithoutExtension(sourcePath) + BlueprintAsset.FileExtension;
             ImportedSceneOutput output = new ImportedSceneOutput(
                 scene,
                 folderRelativePath,
-                processedAssetId,
+                sourceAssetId,
                 blueprintFileName,
                 (relativePath, materialName) => ReadSceneExternalFile(Path.GetDirectoryName(sourcePath), relativePath, materialName),
                 extension => IsTextureExtension(extension),
-                (file, kind) => PublishSceneGeneratedFile(referenceResolver, folderPath, Path.GetDirectoryName(sourcePath), processedAssetId, processorSettings, file, kind, producedPaths));
+                (file, kind) => PublishSceneGeneratedFile(referenceResolver, folderPath, Path.GetDirectoryName(sourcePath), sourceAssetId, processorSettings, file, kind, producedPaths));
 
             IReadOnlyList<IImportedSceneContributor> contributors = ImporterRegistryInstance.GetSceneContributors();
             for (int index = 0; index < contributors.Count; index++) {
@@ -809,7 +811,7 @@ namespace helengine.editor {
                 referenceResolver,
                 folderPath,
                 Path.GetDirectoryName(sourcePath),
-                processedAssetId,
+                sourceAssetId,
                 processorSettings,
                 new ImportedSceneGeneratedFile(blueprintFileName, blueprint),
                 AssetEntryKind.Unknown,
@@ -829,7 +831,7 @@ namespace helengine.editor {
         /// <param name="referenceResolver">Resolver that creates the file reference from the written file.</param>
         /// <param name="folderPath">Absolute path to the generated folder.</param>
         /// <param name="sourceDirectoryPath">Absolute path to the directory that holds the source file.</param>
-        /// <param name="processedAssetId">Processed asset id of the source file.</param>
+        /// <param name="sourceAssetId">Authoring asset id of the source file; generated ids derive from it.</param>
         /// <param name="processorSettings">Processor settings applied to generated models.</param>
         /// <param name="file">File to write.</param>
         /// <param name="kind">Asset category to reference, or <see cref="AssetEntryKind.Unknown"/> when no reference is needed.</param>
@@ -839,14 +841,14 @@ namespace helengine.editor {
             EditorAssetReferenceResolver referenceResolver,
             string folderPath,
             string sourceDirectoryPath,
-            string processedAssetId,
+            string sourceAssetId,
             ModelAssetProcessorSettings processorSettings,
             ImportedSceneGeneratedFile file,
             AssetEntryKind kind,
             HashSet<string> producedPaths) {
             string fullPath = Path.GetFullPath(Path.Combine(folderPath, file.RelativePathInFolder.Replace('/', Path.DirectorySeparatorChar)));
             EnsurePathBeneathRoot(folderPath, fullPath, "Generated scene file");
-            string authoringAssetId = ResolveGeneratedSceneAssetId(fullPath, processedAssetId, file.RelativePathInFolder);
+            string authoringAssetId = ResolveGeneratedSceneAssetId(fullPath, sourceAssetId, file.RelativePathInFolder);
             Asset asset = file.Asset;
             if (file.SourceBytes != null) {
                 PublishSceneSourceFile(fullPath, file.SourceBytes, authoringAssetId, producedPaths);
@@ -866,7 +868,7 @@ namespace helengine.editor {
                 }
             } else {
                 if (string.IsNullOrWhiteSpace(asset.Id)) {
-                    asset.Id = processedAssetId + "#" + file.RelativePathInFolder;
+                    asset.Id = sourceAssetId + "#" + file.RelativePathInFolder;
                 }
                 asset.AuthoringAssetId = authoringAssetId;
                 asset.FormerAuthoringAssetIds = Array.Empty<string>();
@@ -941,14 +943,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the authoring id of a generated scene file: an existing file keeps its id so reimports are stable even when the
-        /// processed asset id changed, and a new file gets an id derived from the processed asset id and its path inside the folder.
+        /// Resolves the authoring id of a generated scene file: an existing file keeps its id, and a new file gets an id derived from the
+        /// source file's authoring id and its path inside the folder. The derivation ignores the source bytes, the processor settings and the
+        /// platform, so a deleted folder regenerates with the same ids, and two copies of one source never share an id.
         /// </summary>
         /// <param name="fullPath">Absolute path of the generated file.</param>
-        /// <param name="processedAssetId">Processed asset id of the source file.</param>
+        /// <param name="sourceAssetId">Authoring asset id of the source file.</param>
         /// <param name="relativePathInFolder">Forward-slash path inside the generated folder.</param>
         /// <returns>Lowercase 32-character hexadecimal asset id.</returns>
-        string ResolveGeneratedSceneAssetId(string fullPath, string processedAssetId, string relativePathInFolder) {
+        string ResolveGeneratedSceneAssetId(string fullPath, string sourceAssetId, string relativePathInFolder) {
             if (File.Exists(fullPath)) {
                 string existingId;
                 try {
@@ -965,7 +968,7 @@ namespace helengine.editor {
                 return existingId;
             }
 
-            byte[] hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(processedAssetId + "\n" + relativePathInFolder));
+            byte[] hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(sourceAssetId + "\n" + relativePathInFolder));
             return Convert.ToHexString(hash, 0, 16).ToLowerInvariant();
         }
 

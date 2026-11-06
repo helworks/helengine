@@ -72,7 +72,7 @@ namespace helengine.editor.tests {
             }
 
             ModelAsset model = (ModelAsset)ReadAsset(Path.Combine(folder, "mesh", "Tri.hasset"));
-            Assert.Equal(manager.LoadOrCreateModelImportSettings(sourcePath).Importer.ProcessedAssetId + "#mesh/Tri", model.Id);
+            Assert.Equal(new AssetIdentityMetadataService(ProjectRootPath).Load(sourcePath).AssetId + "#mesh/Tri", model.Id);
             Assert.Equal(1f, model.Positions[1].X, 4);
             Assert.Equal(0f, model.Positions[1].Y, 4);
         }
@@ -133,6 +133,72 @@ namespace helengine.editor.tests {
             foreach (string id in before) {
                 Assert.Equal(32, id.Length);
             }
+        }
+
+        /// <summary>
+        /// Ensures two byte-identical sources get disjoint generated ids, because the ids derive from each source's own authoring id.
+        /// </summary>
+        [Fact]
+        public void IdenticalSources_getDisjointGeneratedIds() {
+            string firstSource = CopyFixture();
+            string secondSource = Path.Combine(AssetsRootPath, "hinged_copy.gltf");
+            File.Copy(firstSource, secondSource);
+            AssetImportManager manager = CreateManager();
+            SetMode(manager, firstSource, ModelImportMode.Scene);
+            SetMode(manager, secondSource, ModelImportMode.Scene);
+
+            manager.ImportModel(firstSource);
+            manager.ImportModel(secondSource);
+
+            string[] firstPaths = { "mesh/Tri.hasset", "materials/Paint.hasset", "hinged_box.hblueprint" };
+            string[] secondPaths = { "mesh/Tri.hasset", "materials/Paint.hasset", "hinged_copy.hblueprint" };
+            string[] first = ReadAuthoringIds("hinged_box.gltf.generated", firstPaths);
+            string[] second = ReadAuthoringIds("hinged_copy.gltf.generated", secondPaths);
+            Assert.Equal(6, first.Concat(second).Distinct().Count());
+
+            // Colliding ids would only look disjoint because the identity index repairs duplicates with random ids; regenerating both
+            // folders in the other order proves the ids are the deterministic ones.
+            Directory.Delete(Path.Combine(AssetsRootPath, "hinged_box.gltf.generated"), true);
+            Directory.Delete(Path.Combine(AssetsRootPath, "hinged_copy.gltf.generated"), true);
+            manager.ImportModel(secondSource);
+            manager.ImportModel(firstSource);
+            Assert.Equal(first, ReadAuthoringIds("hinged_box.gltf.generated", firstPaths));
+            Assert.Equal(second, ReadAuthoringIds("hinged_copy.gltf.generated", secondPaths));
+            ModelAsset firstModel = (ModelAsset)ReadAsset(Path.Combine(AssetsRootPath, "hinged_box.gltf.generated", "mesh", "Tri.hasset"));
+            ModelAsset secondModel = (ModelAsset)ReadAsset(Path.Combine(AssetsRootPath, "hinged_copy.gltf.generated", "mesh", "Tri.hasset"));
+            Assert.NotEqual(firstModel.Id, secondModel.Id);
+            Assert.NotEqual(firstModel.RuntimeAssetId, secondModel.RuntimeAssetId);
+        }
+
+        /// <summary>
+        /// Ensures a generated folder that is deleted and regenerated after the source and its processor settings changed gets the same ids
+        /// as before, so scenes that reference the blueprint keep resolving.
+        /// </summary>
+        [Fact]
+        public void RegeneratedFolder_keepsIdsAcrossSourceEditSettingsAndPlatform() {
+            new EditorProjectPlatformsService(ProjectRootPath).Save(new EditorProjectPlatformsDocument { SupportedPlatforms = ["windows", "webgpu"] });
+            string sourcePath = CopyFixture();
+            AssetImportManager manager = CreateManager();
+            manager.CurrentPlatformId = "windows";
+            SetMode(manager, sourcePath, ModelImportMode.Scene);
+            manager.ImportModel(sourcePath);
+            string firstProcessedId = manager.LoadOrCreateModelImportSettings(sourcePath).Importer.ProcessedAssetId;
+            string[] relativePaths = { "mesh/Tri.hasset", "materials/Paint.hasset", "hinged_box.hblueprint" };
+            string[] before = ReadAuthoringIds(relativePaths);
+            string modelIdBefore = ((ModelAsset)ReadAsset(Path.Combine(AssetsRootPath, GeneratedFolder, "mesh", "Tri.hasset"))).Id;
+
+            File.AppendAllText(sourcePath, "\n");
+            AssetImportManager otherPlatform = CreateManager();
+            otherPlatform.CurrentPlatformId = "webgpu";
+            ModelAssetImportSettings settings = otherPlatform.LoadOrCreateModelImportSettings(sourcePath);
+            settings.Processor.Platforms["webgpu"] = new ModelAssetProcessorSettings { FlipWinding = true };
+            otherPlatform.SaveModelImportSettings(sourcePath, settings);
+            Directory.Delete(Path.Combine(AssetsRootPath, GeneratedFolder), true);
+            otherPlatform.ImportModel(sourcePath);
+
+            Assert.NotEqual(firstProcessedId, otherPlatform.LoadOrCreateModelImportSettings(sourcePath).Importer.ProcessedAssetId);
+            Assert.Equal(before, ReadAuthoringIds(relativePaths));
+            Assert.Equal(modelIdBefore, ((ModelAsset)ReadAsset(Path.Combine(AssetsRootPath, GeneratedFolder, "mesh", "Tri.hasset"))).Id);
         }
 
         /// <summary>
@@ -616,10 +682,20 @@ namespace helengine.editor.tests {
         /// <param name="relativePaths">Paths relative to the generated folder.</param>
         /// <returns>Authoring ids in the same order.</returns>
         string[] ReadAuthoringIds(string[] relativePaths) {
+            return ReadAuthoringIds(GeneratedFolder, relativePaths);
+        }
+
+        /// <summary>
+        /// Reads the authoring ids of files in one generated folder.
+        /// </summary>
+        /// <param name="generatedFolder">Assets-relative generated folder.</param>
+        /// <param name="relativePaths">Paths relative to the generated folder.</param>
+        /// <returns>Authoring ids in the same order.</returns>
+        string[] ReadAuthoringIds(string generatedFolder, string[] relativePaths) {
             AssetIdentityMetadataService identity = new AssetIdentityMetadataService(ProjectRootPath);
             string[] ids = new string[relativePaths.Length];
             for (int index = 0; index < ids.Length; index++) {
-                ids[index] = identity.Load(Path.Combine(AssetsRootPath, GeneratedFolder, relativePaths[index])).AssetId;
+                ids[index] = identity.Load(Path.Combine(AssetsRootPath, generatedFolder, relativePaths[index])).AssetId;
             }
 
             return ids;

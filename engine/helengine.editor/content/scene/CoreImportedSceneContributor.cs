@@ -168,7 +168,7 @@ namespace helengine.editor {
                 string name = ImportedSceneNameUtils.Disambiguate(ImportedSceneNameUtils.MakeSafeName(mesh.Name), usedNames);
                 string path = MeshFolder + "/" + name + NativeModelExtension;
                 ModelAsset model = BuildModelAsset(mesh, scene.Materials[mesh.MaterialIndex].Name);
-                model.Id = output.ProcessedAssetId + "#" + MeshFolder + "/" + name;
+                model.Id = output.SourceAssetId + "#" + MeshFolder + "/" + name;
                 output.AddGeneratedFile(path, model);
                 output.MarkMeshConsumed(meshIndex);
                 paths[meshIndex] = path;
