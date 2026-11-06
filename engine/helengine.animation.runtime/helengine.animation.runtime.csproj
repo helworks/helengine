@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Shipping hierarchical animation runtime: the hierarchy animation clip, its packaged reader and
+       HierarchyAnimationPlayerComponent. It is transpiled to C++ with core, so it stays inside the C# subset core uses,
+       and it depends only on core and the curve catalog, never on editor or importer modules. Core never references it:
+       a game that does not reference it ships no hierarchical animation code. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\helengine.nativeownership\helengine.nativeownership.csproj" />
+    <ProjectReference Include="..\helengine.core\helengine.core.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\helengine.curves\helengine.curves.csproj" />
+  </ItemGroup>
+</Project>

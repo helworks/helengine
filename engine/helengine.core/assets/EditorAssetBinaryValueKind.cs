@@ -73,6 +73,12 @@ namespace helengine {
         /// Reserved for the cooked, flat timeline form read on target platforms; its serializer is registered by the
         /// optional timeline runtime module.
         /// </summary>
-        CookedTimelineAsset = 15
+        CookedTimelineAsset = 15,
+
+        /// <summary>
+        /// Reserved for hierarchical animation clips (<c>.hanimclip</c>) whose tracks address entities by path under the
+        /// player's entity; its reader is registered by the optional animation runtime module.
+        /// </summary>
+        HierarchyAnimationClipAsset = 16
     }
 }

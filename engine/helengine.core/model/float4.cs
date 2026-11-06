@@ -187,6 +187,36 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Spherically interpolates between two quaternions along the shorter arc at constant angular speed. When the
+        /// quaternions are nearly parallel the arc is indistinguishable from a chord, so it falls back to <see cref="Lerp"/>
+        /// to avoid dividing by a vanishing sine.
+        /// </summary>
+        /// <param name="start">Start quaternion.</param>
+        /// <param name="end">End quaternion.</param>
+        /// <param name="amount">Interpolation amount where 0 returns <paramref name="start"/> and 1 returns <paramref name="end"/>.</param>
+        /// <returns>Normalized interpolated quaternion.</returns>
+        public static float4 Slerp(float4 start, float4 end, RealEvaluation amount) {
+            RealEvaluation dot = Dot(start, end);
+            float4 adjustedEnd = end;
+            if (dot < 0d) {
+                adjustedEnd = -end;
+                dot = -dot;
+            }
+
+            if (dot > 0.9995d) {
+                return Lerp(start, adjustedEnd, amount);
+            }
+
+            RealEvaluation sinAngle = RealMath.Sqrt(1d - (dot * dot));
+            RealEvaluation angle = RealMath.Atan2(sinAngle, dot);
+            RealEvaluation startWeight = RealMath.Sin((1d - amount) * angle) / sinAngle;
+            RealEvaluation endWeight = RealMath.Sin(amount * angle) / sinAngle;
+            float4 result = (start * startWeight) + (adjustedEnd * endWeight);
+            result.Normalize();
+            return result;
+        }
+
+        /// <summary>
         /// Returns the component-wise minimum between two four-component values.
         /// </summary>
         /// <param name="left">First value to compare.</param>
