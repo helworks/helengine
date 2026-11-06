@@ -1020,7 +1020,8 @@ namespace helengine.editor {
                 ScriptTypeResolver, cookedManifest.NumericPolicy);
             EditorGeneratedCoreRegenerationService.EmitGeneratedRuntimeModuleRegistration(
                 generatedCoreRootPath,
-                sceneReferencedComponentTypes);
+                sceneReferencedComponentTypes,
+                PlatformDescriptor.GeneratedCoreProjectPaths);
             EditorGeneratedCoreRegenerationService.EmitCookedSceneAutomaticRuntimeComponentDeserializers(
                 generatedCoreRootPath,
                 cookedSceneAssetPaths,
@@ -1363,7 +1364,7 @@ namespace helengine.editor {
             EditorRuntimeLoadingSettings settings = EditorRuntimeLoadingSettingsResolver.Load(ProjectRootPath, PlatformDescriptor.Id);
             EditorRuntimeLoadingSettingsResolver.Apply(manifest, settings, ProjectRootPath);
             return new EditorSceneCodeModuleSourcePlanWriter().Write(manifest, coreRoot, codeRoot, contentRoot,
-                moduleIds, ScriptTypeResolver, definition, compactMessages, nativeExceptions);
+                moduleIds, ScriptTypeResolver, definition, compactMessages, nativeExceptions, PlatformDescriptor.GeneratedCoreProjectPaths);
         }
 
         /// <summary>

@@ -30,7 +30,7 @@ namespace helengine.editor {
         /// <returns>Absolute source-plan JSON path consumed by the target native builder.</returns>
         public string Write(PlatformBuildManifest manifest, string coreRoot, string codeRoot, string contentRoot,
             IReadOnlyList<string> moduleIds, IScriptTypeResolver resolver, PlatformDefinition definition,
-            bool compactMessages, bool nativeExceptions) {
+            bool compactMessages, bool nativeExceptions, IReadOnlyList<string> generatedCoreProjectPaths = null) {
             ArgumentNullException.ThrowIfNull(manifest);
             string planRoot = Path.Combine(coreRoot, "scene-modules");
             Directory.CreateDirectory(planRoot);
@@ -47,7 +47,7 @@ namespace helengine.editor {
             }
             Type[] allTypes = sceneTypes.Values.SelectMany(types => types).Distinct().ToArray();
             IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> runtimeManifests = EditorGeneratedCoreRegenerationService.DiscoverGeneratedRuntimeModuleManifests(
-                EditorGeneratedCoreRegenerationService.ResolveGeneratedRuntimeModuleManifestAssemblies());
+                EditorGeneratedCoreRegenerationService.ResolveGeneratedRuntimeModuleManifestAssemblies(null, generatedCoreProjectPaths));
             IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> activeRuntimeManifests = EditorGeneratedCoreRegenerationService.ResolveActiveGeneratedRuntimeModuleManifests(runtimeManifests, allTypes);
             HashSet<Type> bootstrapTypes = new();
             foreach (string sceneId in bootstrapIds) bootstrapTypes.UnionWith(sceneTypes[sceneId]);
@@ -59,7 +59,7 @@ namespace helengine.editor {
             File.WriteAllText(Path.Combine(coreRoot, "GeneratedRuntimeComponentDeserializerRegistration.cpp"),
                 EditorGeneratedCoreRegenerationService.BuildGeneratedRuntimeComponentDeserializerRegistrationSource(
                     schemas.Where(schema => residentTypes.Contains(schema.ComponentType)).ToArray(), generator));
-            EditorGeneratedCoreRegenerationService.EmitGeneratedRuntimeModuleRegistration(coreRoot, bootstrapTypes.ToArray());
+            EditorGeneratedCoreRegenerationService.EmitGeneratedRuntimeModuleRegistration(coreRoot, bootstrapTypes.ToArray(), generatedCoreProjectPaths);
             Dictionary<string, string> authoredOwnerByStem = DiscoverAuthoredSourceOwners(codeRoot, moduleIds);
             HashSet<string> genericResidentSources = new(StringComparer.Ordinal);
             foreach (System.Reflection.Assembly assembly in allTypes.Select(type => type.Assembly)

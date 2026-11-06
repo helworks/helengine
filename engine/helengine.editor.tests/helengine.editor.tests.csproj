@@ -19,6 +19,7 @@
     <ProjectReference Include="..\helengine.bepu\helengine.bepu.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.editor.fbximporter\helengine.editor.assimp.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.editor\helengine.editor.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\helengine.timeline.runtime\helengine.timeline.runtime.csproj" />
     <ProjectReference Include="..\helengine.physics3d\helengine.physics3d.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.files\helengine.files.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.platforms\helengine.platforms.csproj" SkipGetTargetFrameworkProperties="true" />

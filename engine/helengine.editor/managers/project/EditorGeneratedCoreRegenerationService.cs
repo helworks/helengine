@@ -1076,9 +1076,11 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="generatedCoreRootPath">Absolute generated core output root that should receive the generated files.</param>
         /// <param name="usedTypes">Runtime types used by the cooked build.</param>
+        /// <param name="generatedCoreProjectPaths">Optional extra generated-core managed projects whose manifest assemblies must be discovered explicitly.</param>
         internal static void EmitGeneratedRuntimeModuleRegistration(
             string generatedCoreRootPath,
-            IReadOnlyList<Type> usedTypes) {
+            IReadOnlyList<Type> usedTypes,
+            IReadOnlyList<string> generatedCoreProjectPaths = null) {
             if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
                 throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
             } else if (usedTypes == null) {
@@ -1086,7 +1088,7 @@ namespace helengine.editor {
             }
 
             Directory.CreateDirectory(generatedCoreRootPath);
-            IReadOnlyList<Assembly> assemblies = ResolveGeneratedRuntimeModuleManifestAssemblies();
+            IReadOnlyList<Assembly> assemblies = ResolveGeneratedRuntimeModuleManifestAssemblies(null, generatedCoreProjectPaths);
             IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> manifests = DiscoverGeneratedRuntimeModuleManifests(assemblies);
             IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> activeManifests = ResolveActiveGeneratedRuntimeModuleManifests(manifests, usedTypes);
 
@@ -1104,9 +1106,11 @@ namespace helengine.editor {
         /// shared physics assembly and do not load the provider assembly on their own.
         /// </summary>
         /// <param name="additionalAssemblies">Optional assemblies already known from the active build closure.</param>
+        /// <param name="generatedCoreProjectPaths">Optional generated-core managed projects declared by the platform. Each project's assembly is loaded by name from beside the editor so its manifests are found even when nothing else loaded it.</param>
         /// <returns>Distinct non-dynamic assemblies in deterministic order.</returns>
         internal static IReadOnlyList<Assembly> ResolveGeneratedRuntimeModuleManifestAssemblies(
-            IReadOnlyList<Assembly> additionalAssemblies = null) {
+            IReadOnlyList<Assembly> additionalAssemblies = null,
+            IReadOnlyList<string> generatedCoreProjectPaths = null) {
             HashSet<Assembly> assemblies = new HashSet<Assembly>();
             Assembly[] loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
             for (int index = 0; index < loadedAssemblies.Length; index++) {
@@ -1125,11 +1129,39 @@ namespace helengine.editor {
                 }
             }
 
+            if (generatedCoreProjectPaths != null) {
+                for (int index = 0; index < generatedCoreProjectPaths.Count; index++) {
+                    Assembly assembly = TryLoadGeneratedCoreProjectAssembly(generatedCoreProjectPaths[index]);
+                    if (assembly != null) {
+                        assemblies.Add(assembly);
+                    }
+                }
+            }
+
             assemblies.Add(typeof(global::helengine.HelPhysicsRuntimeComponentRegistration).Assembly);
             return assemblies
                 .OrderBy(assembly => assembly.FullName, StringComparer.Ordinal)
                 .ToArray();
         }
+        /// <summary>
+        /// Loads the assembly of one generated-core managed project by assembly name from beside the editor.
+        /// Projects that are only transpiled and have no assembly shipped with the editor (for example a platform's own managed project) contribute no manifest and yield null after the skip is reported on the build console.
+        /// </summary>
+        /// <param name="projectPath">Managed project path declared by the platform.</param>
+        /// <returns>The loaded assembly, or null when no assembly of that name is available next to the editor.</returns>
+        static Assembly TryLoadGeneratedCoreProjectAssembly(string projectPath) {
+            if (string.IsNullOrWhiteSpace(projectPath)) {
+                throw new InvalidOperationException("Generated-core project paths must not contain empty entries.");
+            }
+
+            try {
+                return Assembly.Load(new AssemblyName(Path.GetFileNameWithoutExtension(projectPath)));
+            } catch (FileNotFoundException) {
+                Console.WriteLine($"[build] generated-core project '{projectPath}' has no assembly next to the editor; its runtime module manifests are not discovered.");
+                return null;
+            }
+        }
+
         /// <summary>
         /// Parses one quoted include directive and returns its included file name when the line declares one.
         /// </summary>
