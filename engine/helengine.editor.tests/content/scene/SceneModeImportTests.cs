@@ -202,6 +202,101 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a build-time import (generated folders read-only) for another platform with other processor settings still writes its
+        /// cache model but leaves the authored generated folder byte for byte as the editor wrote it.
+        /// </summary>
+        [Fact]
+        public void ReadOnlyImport_leavesGeneratedFolderByteIdentical() {
+            new EditorProjectPlatformsService(ProjectRootPath).Save(new EditorProjectPlatformsDocument { SupportedPlatforms = ["windows", "webgpu"] });
+            string sourcePath = CopyFixture();
+            AssetImportManager editor = CreateManager();
+            editor.CurrentPlatformId = "windows";
+            SetMode(editor, sourcePath, ModelImportMode.Scene);
+            ModelAssetImportSettings settings = editor.LoadOrCreateModelImportSettings(sourcePath);
+            settings.Processor.Platforms["webgpu"] = new ModelAssetProcessorSettings { FlipWinding = true };
+            editor.SaveModelImportSettings(sourcePath, settings);
+            editor.ImportModel(sourcePath);
+            Dictionary<string, byte[]> before = SnapshotFolder(Path.Combine(AssetsRootPath, GeneratedFolder));
+
+            AssetImportManager build = CreateManager();
+            build.CurrentPlatformId = "webgpu";
+            build.GeneratedSceneFoldersAreReadOnly = true;
+            build.ImportModel(sourcePath);
+
+            string buildProcessedId = build.LoadOrCreateModelImportSettings(sourcePath).Importer.ProcessedAssetId;
+            Assert.True(File.Exists(build.GetModelAssetPath(buildProcessedId)));
+            AssertSnapshotEqual(before, SnapshotFolder(Path.Combine(AssetsRootPath, GeneratedFolder)));
+        }
+
+        /// <summary>
+        /// Ensures a build-time import of a scene-mode source whose generated folder is missing fails, tells the user to reimport in the
+        /// editor and writes nothing.
+        /// </summary>
+        [Fact]
+        public void ReadOnlyImport_failsWhenGeneratedFolderIsMissing() {
+            string sourcePath = CopyFixture();
+            AssetImportManager editor = CreateManager();
+            SetMode(editor, sourcePath, ModelImportMode.Scene);
+            editor.ImportModel(sourcePath);
+            Directory.Delete(Path.Combine(AssetsRootPath, GeneratedFolder), true);
+
+            AssetImportManager build = CreateManager();
+            build.GeneratedSceneFoldersAreReadOnly = true;
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => build.ImportModel(sourcePath));
+
+            Assert.Contains("hinged_box.gltf", exception.Message);
+            Assert.Contains("reimport", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.False(Directory.Exists(Path.Combine(AssetsRootPath, GeneratedFolder)));
+        }
+
+        /// <summary>
+        /// Ensures a build-time import fails when the source changed after its generated folder was written, and leaves the folder as it was.
+        /// </summary>
+        [Fact]
+        public void ReadOnlyImport_failsWhenSourceChangedAfterGeneration() {
+            string sourcePath = CopyFixture();
+            AssetImportManager editor = CreateManager();
+            SetMode(editor, sourcePath, ModelImportMode.Scene);
+            editor.ImportModel(sourcePath);
+            Dictionary<string, byte[]> before = SnapshotFolder(Path.Combine(AssetsRootPath, GeneratedFolder));
+            File.AppendAllText(sourcePath, "\n");
+
+            AssetImportManager build = CreateManager();
+            build.GeneratedSceneFoldersAreReadOnly = true;
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => build.ImportModel(sourcePath));
+
+            Assert.Contains("source changed", exception.Message);
+            Assert.Contains("reimport", exception.Message, StringComparison.OrdinalIgnoreCase);
+            AssertSnapshotEqual(before, SnapshotFolder(Path.Combine(AssetsRootPath, GeneratedFolder)));
+        }
+
+        /// <summary>
+        /// Ensures the GPU reduction policy of a generated mesh is read from the owning source's sidecar, because the generated folder has
+        /// no model sidecar of its own.
+        /// </summary>
+        [Fact]
+        public void GeneratedMesh_readsGpuReductionPolicyOfItsSource() {
+            string sourcePath = CopyFixture();
+            AssetImportManager manager = CreateManager();
+            SetMode(manager, sourcePath, ModelImportMode.Scene);
+            ModelAssetImportSettings settings = manager.LoadOrCreateModelImportSettings(sourcePath);
+            settings.Processor.Platforms["windows"] = new ModelAssetProcessorSettings {
+                GpuReduction = new ModelGpuReductionSettings { Enabled = true, MaximumVertices = 120, MaximumIndices = 360 }
+            };
+            manager.SaveModelImportSettings(sourcePath, settings);
+            manager.ImportModel(sourcePath);
+
+            ModelGpuReductionSettings policy = ModelGpuReductionAssetSettingsReader.Read(
+                Path.Combine(AssetsRootPath, GeneratedFolder, "mesh", "Tri.hasset"), "windows", string.Empty);
+
+            Assert.NotNull(policy);
+            Assert.True(policy.Enabled);
+            Assert.Equal(120, policy.MaximumVertices);
+            Assert.Equal(360, policy.MaximumIndices);
+            Assert.Null(ModelGpuReductionAssetSettingsReader.Read(Path.Combine(AssetsRootPath, GeneratedFolder, "mesh", "Tri.hasset"), "ps2", string.Empty));
+        }
+
+        /// <summary>
         /// Ensures files of an earlier import that the new import did not produce are deleted and nothing outside the folder is touched.
         /// </summary>
         [Fact]
@@ -699,6 +794,32 @@ namespace helengine.editor.tests {
             }
 
             return ids;
+        }
+
+        /// <summary>
+        /// Reads every file of a folder tree.
+        /// </summary>
+        /// <param name="folderPath">Absolute folder path.</param>
+        /// <returns>File bytes keyed by the path relative to the folder.</returns>
+        static Dictionary<string, byte[]> SnapshotFolder(string folderPath) {
+            Dictionary<string, byte[]> files = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+            foreach (string path in Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories)) {
+                files.Add(Path.GetRelativePath(folderPath, path), File.ReadAllBytes(path));
+            }
+
+            return files;
+        }
+
+        /// <summary>
+        /// Asserts two folder snapshots hold the same files with the same bytes.
+        /// </summary>
+        /// <param name="expected">Snapshot taken first.</param>
+        /// <param name="actual">Snapshot taken later.</param>
+        static void AssertSnapshotEqual(Dictionary<string, byte[]> expected, Dictionary<string, byte[]> actual) {
+            Assert.Equal(expected.Keys.OrderBy(key => key, StringComparer.Ordinal), actual.Keys.OrderBy(key => key, StringComparer.Ordinal));
+            foreach (KeyValuePair<string, byte[]> entry in expected) {
+                Assert.True(entry.Value.SequenceEqual(actual[entry.Key]), "Generated file changed: " + entry.Key);
+            }
         }
 
         /// <summary>

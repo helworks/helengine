@@ -101,14 +101,15 @@ namespace helengine.editor {
         /// Determines whether one file should be hidden from the asset browser and identity index.
         /// </summary>
         /// <param name="fullPath">Absolute or project-relative file path.</param>
-        /// <returns>True when the file is an editor-only sidecar.</returns>
+        /// <returns>True when the file is an editor-only sidecar or the import stamp of a generated scene folder.</returns>
         public bool ShouldHide(string fullPath) {
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 return true;
             }
 
             string extension = Path.GetExtension(fullPath);
-            if (string.Equals(extension, IdentityMetadataExtension, StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(extension, IdentityMetadataExtension, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(extension, GeneratedSceneImportStamp.FileExtension, StringComparison.OrdinalIgnoreCase)) {
                 return true;
             }
             if (!string.Equals(extension, ImportSettingsExtension, StringComparison.OrdinalIgnoreCase)) {

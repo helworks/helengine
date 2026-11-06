@@ -655,6 +655,9 @@ namespace helengine.editor {
             AssetImportManager = new AssetImportManager(ProjectRootPath, importContentManager);
             AssetImportManager.CurrentPlatformId = TargetPlatformId;
             AssetImportManager.CurrentEnvironmentId = SelectedEnvironmentId;
+            // A build reads the authored <source>.generated folders as they are; regenerating them here would rewrite project files
+            // with this target's settings.
+            AssetImportManager.GeneratedSceneFoldersAreReadOnly = true;
             PlatformFontVariantCacheService = new EditorPlatformFontVariantCacheService(AssetImportManager);
             Importers = importers;
             for (int index = 0; index < Importers.Count; index++) {
@@ -741,6 +744,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
             }
 
+            AssetImportManager.EnsureGeneratedScenesCurrent();
             string fullBuildRootPath = Path.GetFullPath(buildRootPath);
             Directory.CreateDirectory(fullBuildRootPath);
             CurrentCookRootPath = fullBuildRootPath;

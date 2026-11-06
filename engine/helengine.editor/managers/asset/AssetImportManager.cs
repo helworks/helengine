@@ -260,6 +260,13 @@ namespace helengine.editor {
         public string CurrentEnvironmentId { get; set; }
 
         /// <summary>
+        /// Gets or sets whether scene-mode imports must leave the authored <c>&lt;source&gt;.generated</c> folders untouched. Build
+        /// packagers set it: a build reads those folders as they are and fails, asking for a reimport in the editor, when one is missing
+        /// or stale. The editor leaves it false so imports regenerate the folders.
+        /// </summary>
+        public bool GeneratedSceneFoldersAreReadOnly { get; set; }
+
+        /// <summary>
         /// Registers a texture importer and records its supported extensions.
         /// </summary>
         /// <param name="registration">Importer registration data.</param>
@@ -748,7 +755,15 @@ namespace helengine.editor {
             asset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(settings.Importer.ProcessedAssetId);
             if (settings.Mode == ModelImportMode.Scene) {
                 // The merged model stays the cache payload so the source keeps resolving to a model; the scene files replace the sibling materials.
-                ImportSceneOutputs(sourcePath, settings, processorSettings);
+                // Known limit: the generated meshes are processed once, here, with the processor settings of the platform active in the
+                // editor (FlipWinding, tessellation), and every build target ships that processing. Builds never regenerate the authored
+                // folder, so per-target processing of generated meshes needs its own plan. GPU reduction is not affected: the packager
+                // applies it per target and reads its policy from this source's sidecar.
+                if (GeneratedSceneFoldersAreReadOnly) {
+                    EnsureGeneratedSceneCurrent(sourcePath, settings);
+                } else {
+                    ImportSceneOutputs(sourcePath, settings, processorSettings);
+                }
             } else {
                 WriteGeneratedModelMaterials(sourcePath, importedModel.GeneratedMaterials);
             }
@@ -775,7 +790,7 @@ namespace helengine.editor {
 
             ImportedSceneData scene = LoadVerifiedSource(sourcePath, stream => sceneImporter.ImportScene(stream));
             string sourceRelativePath = Path.GetRelativePath(assetsRootPath, sourcePath).Replace('\\', '/');
-            string folderRelativePath = sourceRelativePath + ".generated";
+            string folderRelativePath = sourceRelativePath + GeneratedSceneFolderPaths.FolderSuffix;
             string folderPath = Path.GetFullPath(Path.Combine(assetsRootPath, folderRelativePath.Replace('/', Path.DirectorySeparatorChar)));
             EnsurePathBeneathRoot(assetsRootPath, folderPath, "Generated scene folder");
 
@@ -785,7 +800,7 @@ namespace helengine.editor {
             // Generated ids derive from the source file's own authoring id, which is unique per file and survives renames, edits,
             // processor settings and the active platform, so a regenerated folder gets the ids scenes already reference.
             string sourceAssetId = new AssetIdentityMetadataService(projectRootPath).LoadOrCreate(sourcePath, string.Empty).AssetId;
-            string blueprintFileName = Path.GetFileNameWithoutExtension(sourcePath) + BlueprintAsset.FileExtension;
+            string blueprintFileName = GeneratedSceneFolderPaths.GetBlueprintFileName(sourcePath);
             ImportedSceneOutput output = new ImportedSceneOutput(
                 scene,
                 folderRelativePath,
@@ -817,12 +832,136 @@ namespace helengine.editor {
                 AssetEntryKind.Unknown,
                 producedPaths);
 
+            string stampPath = GeneratedSceneImportStamp.GetPath(folderPath);
+            byte[] stampBytes = BuildExpectedSceneImportStamp(settings.Importer.ImporterId, settings.Importer.SourceChecksum).ToBytes();
+            WriteSerializedFile(stampPath, stream => stream.Write(stampBytes, 0, stampBytes.Length));
+            producedPaths.Add(stampPath);
             DeleteStaleSceneFiles(folderPath, producedPaths);
             IReadOnlyList<string> unconsumed = output.DescribeUnconsumed();
             LastSceneImportUnconsumed = unconsumed;
             for (int index = 0; index < unconsumed.Count; index++) {
                 Logger.WriteWarning($"Scene import of '{sourcePath}': {unconsumed[index]}");
             }
+        }
+
+        /// <summary>
+        /// Builds the import stamp a scene import of a source would write now: the importer, the source checksum and the registered scene
+        /// contributors in execution order.
+        /// </summary>
+        /// <param name="importerId">Model importer id of the source.</param>
+        /// <param name="sourceChecksum">Checksum of the current source bytes.</param>
+        /// <returns>The expected stamp.</returns>
+        GeneratedSceneImportStamp BuildExpectedSceneImportStamp(string importerId, string sourceChecksum) {
+            IReadOnlyList<IImportedSceneContributor> contributors = ImporterRegistryInstance.GetSceneContributors();
+            string[] contributorIds = new string[contributors.Count];
+            for (int index = 0; index < contributorIds.Length; index++) {
+                contributorIds[index] = contributors[index].ContributorId;
+            }
+
+            return new GeneratedSceneImportStamp {
+                Version = GeneratedSceneImportStamp.CurrentVersion,
+                ImporterId = importerId,
+                SourceChecksum = sourceChecksum,
+                ContributorIds = contributorIds
+            };
+        }
+
+        /// <summary>
+        /// Describes why the generated folder of a scene-mode source no longer matches the source: the folder, its blueprint or its import
+        /// stamp is missing, or the stamp records another source checksum, importer or contributor set than the project has now.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path of the scene-mode source.</param>
+        /// <param name="settings">Settings loaded for the source, whose checksum reflects the current source bytes.</param>
+        /// <returns>A short reason when the folder is missing or stale; an empty string when it is current.</returns>
+        internal string DescribeGeneratedSceneStaleness(string sourcePath, ModelAssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            string folderPath = GeneratedSceneFolderPaths.GetFolderPath(sourcePath);
+            string stampPath = GeneratedSceneImportStamp.GetPath(folderPath);
+            if (!Directory.Exists(folderPath)) {
+                return "its generated folder is missing";
+            } else if (!File.Exists(GeneratedSceneFolderPaths.GetBlueprintPath(sourcePath))) {
+                return "the blueprint in its generated folder is missing";
+            } else if (!File.Exists(stampPath)) {
+                return $"the import stamp '{GeneratedSceneImportStamp.FileName}' in its generated folder is missing (the folder was written by an older editor)";
+            }
+
+            GeneratedSceneImportStamp recorded;
+            try {
+                recorded = GeneratedSceneImportStamp.FromBytes(EditorAuthoringMutationScope.ReadAllBytes(projectRootPath, stampPath));
+            } catch (InvalidDataException exception) {
+                return $"the import stamp in its generated folder cannot be read ({exception.Message})";
+            }
+
+            return recorded.DescribeDifference(BuildExpectedSceneImportStamp(settings.Importer.ImporterId, settings.Importer.SourceChecksum));
+        }
+
+        /// <summary>
+        /// Fails when the generated folder of a scene-mode source is missing or stale. Used instead of regenerating the folder when
+        /// <see cref="GeneratedSceneFoldersAreReadOnly"/> is set, so a build never writes authored files.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path of the scene-mode source.</param>
+        /// <param name="settings">Settings loaded for the source.</param>
+        void EnsureGeneratedSceneCurrent(string sourcePath, ModelAssetImportSettings settings) {
+            string reason = DescribeGeneratedSceneStaleness(sourcePath, settings);
+            if (reason.Length != 0) {
+                throw new InvalidOperationException(BuildStaleGeneratedSceneMessage(new[] { DescribeStaleGeneratedScene(sourcePath, reason) }));
+            }
+        }
+
+        /// <summary>
+        /// Checks every scene-mode model source of the project and fails, naming each one, when a generated folder is missing or stale.
+        /// Build packagers call this before packaging, because a build reads the generated folders as they are and never regenerates them.
+        /// </summary>
+        public void EnsureGeneratedScenesCurrent() {
+            EditorAssetPathClassifier classifier = new EditorAssetPathClassifier(projectRootPath);
+            List<string> problems = new List<string>();
+            foreach (string sourcePath in EnumerateAssetSourceFiles()) {
+                if (classifier.Classify(sourcePath) != AssetEntryKind.Model) {
+                    continue;
+                }
+
+                ModelAssetImportSettings settings;
+                if (!TryLoadModelImportSettings(GetSettingsPath(sourcePath), out settings) || settings.Mode != ModelImportMode.Scene) {
+                    continue;
+                }
+
+                UpdateModelImportSettingsChecksum(settings, sourcePath);
+                string reason = DescribeGeneratedSceneStaleness(sourcePath, settings);
+                if (reason.Length != 0) {
+                    problems.Add(DescribeStaleGeneratedScene(sourcePath, reason));
+                }
+            }
+
+            if (problems.Count != 0) {
+                throw new InvalidOperationException(BuildStaleGeneratedSceneMessage(problems));
+            }
+        }
+
+        /// <summary>
+        /// Formats one stale generated folder for the build failure message.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path of the scene-mode source.</param>
+        /// <param name="reason">Why the folder is missing or stale.</param>
+        /// <returns>One line naming the source by its assets-relative path.</returns>
+        string DescribeStaleGeneratedScene(string sourcePath, string reason) {
+            return $"'{Path.GetRelativePath(assetsRootPath, sourcePath).Replace('\\', '/')}': {reason}";
+        }
+
+        /// <summary>
+        /// Builds the failure message for missing or stale generated folders, telling the user to reimport the sources in the editor.
+        /// </summary>
+        /// <param name="problems">One line per affected source.</param>
+        /// <returns>The message.</returns>
+        static string BuildStaleGeneratedSceneMessage(IReadOnlyList<string> problems) {
+            return "The generated scene folder of these scene-mode sources is missing or out of date:" + Environment.NewLine
+                + string.Join(Environment.NewLine, problems) + Environment.NewLine
+                + "Builds read <source>.generated folders as they are and never regenerate them. Reimport these sources in the editor, "
+                + "commit the regenerated folders and build again.";
         }
 
         /// <summary>

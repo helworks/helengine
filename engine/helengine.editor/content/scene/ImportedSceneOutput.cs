@@ -78,7 +78,7 @@ namespace helengine.editor {
         /// <summary>
         /// Extensions of files the importer itself writes next to generated files; contributors cannot add raw files with them.
         /// </summary>
-        static readonly string[] ReservedSourceExtensions = { ".hmeta", ".hasset", ".hanimclip", BlueprintAsset.FileExtension, SceneAsset.FileExtension };
+        static readonly string[] ReservedSourceExtensions = { ".hmeta", ".hasset", ".hanimclip", BlueprintAsset.FileExtension, SceneAsset.FileExtension, GeneratedSceneImportStamp.FileExtension };
 
         /// <summary>
         /// Creates the output for one scene import.
@@ -233,7 +233,8 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Checks that a path is a forward-slash path inside the generated folder that is neither reserved nor already taken.
+        /// Checks that a path is a forward-slash path inside the generated folder that is neither reserved (the blueprint, the import
+        /// stamp extension) nor already taken.
         /// </summary>
         /// <param name="relativePathInFolder">Path to check.</param>
         void ValidateNewGeneratedPath(string relativePathInFolder) {
@@ -244,6 +245,8 @@ namespace helengine.editor {
                 throw new ArgumentException($"Generated file path '{relativePathInFolder}' must be a forward-slash path inside the generated folder.", nameof(relativePathInFolder));
             } else if (string.Equals(relativePathInFolder, ReservedRelativePath, StringComparison.OrdinalIgnoreCase)) {
                 throw new ArgumentException($"Generated file path '{relativePathInFolder}' is reserved for the blueprint.", nameof(relativePathInFolder));
+            } else if (relativePathInFolder.EndsWith(GeneratedSceneImportStamp.FileExtension, StringComparison.OrdinalIgnoreCase)) {
+                throw new ArgumentException($"Generated file path '{relativePathInFolder}' uses the extension of the importer's stamp.", nameof(relativePathInFolder));
             } else if (FilesByPath.ContainsKey(relativePathInFolder)) {
                 throw new InvalidOperationException($"A generated file already exists at '{relativePathInFolder}'.");
             }

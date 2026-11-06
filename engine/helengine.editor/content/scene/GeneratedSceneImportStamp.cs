@@ -1,0 +1,123 @@
+using System.Text.Json;
+
+namespace helengine.editor {
+    /// <summary>
+    /// Records what produced a scene-mode <c>.generated</c> folder: the importer, the checksum of the source bytes and the scene
+    /// contributors that ran, in order. The importer writes it into the folder after every scene import. The editor's up-to-date scan
+    /// and the build compare it with the current state to tell whether the folder is stale; a build only reads it and never regenerates
+    /// the folder.
+    /// </summary>
+    public sealed class GeneratedSceneImportStamp {
+        /// <summary>
+        /// File name of the stamp inside the generated folder.
+        /// </summary>
+        public const string FileName = "scene-import" + FileExtension;
+
+        /// <summary>
+        /// Extension of the stamp. The editor hides files with it from the asset browser and the identity index, and contributors cannot
+        /// add files with it.
+        /// </summary>
+        public const string FileExtension = ".himport";
+
+        /// <summary>
+        /// Layout version of the stamp document.
+        /// </summary>
+        public const int CurrentVersion = 1;
+
+        /// <summary>
+        /// JSON options for the stamp document.
+        /// </summary>
+        static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+
+        /// <summary>
+        /// Gets or sets the layout version of the document.
+        /// </summary>
+        public int Version { get; set; }
+
+        /// <summary>
+        /// Gets or sets the id of the model importer that read the source.
+        /// </summary>
+        public string ImporterId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the checksum of the source bytes the folder was generated from.
+        /// </summary>
+        public string SourceChecksum { get; set; }
+
+        /// <summary>
+        /// Gets or sets the ids of the scene contributors that ran, in execution order.
+        /// </summary>
+        public string[] ContributorIds { get; set; }
+
+        /// <summary>
+        /// Gets the path of the stamp inside a generated folder.
+        /// </summary>
+        /// <param name="generatedFolderPath">Absolute path of the generated folder.</param>
+        /// <returns>Absolute path of the stamp file.</returns>
+        public static string GetPath(string generatedFolderPath) {
+            if (string.IsNullOrWhiteSpace(generatedFolderPath)) {
+                throw new ArgumentException("Generated folder path must be provided.", nameof(generatedFolderPath));
+            }
+
+            return Path.Combine(generatedFolderPath, FileName);
+        }
+
+        /// <summary>
+        /// Serializes the stamp to UTF-8 JSON.
+        /// </summary>
+        /// <returns>Encoded document.</returns>
+        public byte[] ToBytes() {
+            return JsonSerializer.SerializeToUtf8Bytes(this, JsonOptions);
+        }
+
+        /// <summary>
+        /// Parses a stamp document and checks that every field is present.
+        /// </summary>
+        /// <param name="bytes">UTF-8 JSON document.</param>
+        /// <returns>The parsed stamp.</returns>
+        public static GeneratedSceneImportStamp FromBytes(byte[] bytes) {
+            if (bytes == null) {
+                throw new ArgumentNullException(nameof(bytes));
+            }
+
+            GeneratedSceneImportStamp stamp;
+            try {
+                stamp = JsonSerializer.Deserialize<GeneratedSceneImportStamp>(bytes, JsonOptions);
+            } catch (JsonException exception) {
+                throw new InvalidDataException("The scene import stamp is not valid JSON.", exception);
+            }
+
+            if (stamp == null || string.IsNullOrWhiteSpace(stamp.ImporterId) || string.IsNullOrWhiteSpace(stamp.SourceChecksum) || stamp.ContributorIds == null) {
+                throw new InvalidDataException("The scene import stamp is missing required fields.");
+            }
+
+            return stamp;
+        }
+
+        /// <summary>
+        /// Describes how this recorded stamp differs from the stamp the current source and project would produce.
+        /// </summary>
+        /// <param name="expected">Stamp built from the current source checksum, importer and registered contributors.</param>
+        /// <returns>A short reason when the folder is stale; an empty string when it is current.</returns>
+        public string DescribeDifference(GeneratedSceneImportStamp expected) {
+            if (expected == null) {
+                throw new ArgumentNullException(nameof(expected));
+            }
+
+            if (Version != expected.Version) {
+                return $"its import stamp has version {Version}, the editor writes version {expected.Version}";
+            } else if (!string.Equals(ImporterId, expected.ImporterId, StringComparison.Ordinal)) {
+                return $"it was generated by the importer '{ImporterId}', the source now uses '{expected.ImporterId}'";
+            } else if (!string.Equals(SourceChecksum, expected.SourceChecksum, StringComparison.Ordinal)) {
+                return "the source changed after the folder was generated";
+            } else if (!ContributorIds.SequenceEqual(expected.ContributorIds, StringComparer.Ordinal)) {
+                return $"the scene contributors changed: generated with [{string.Join(", ", ContributorIds)}], the project now registers [{string.Join(", ", expected.ContributorIds)}]";
+            }
+
+            return string.Empty;
+        }
+    }
+}

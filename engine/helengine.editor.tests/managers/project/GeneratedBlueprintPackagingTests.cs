@@ -82,11 +82,105 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures packaging two targets, while the scene also resolves the scene-mode source itself as a model and each target has its own
+        /// processor settings, leaves the authored generated folder byte for byte as the editor wrote it.
+        /// </summary>
+        [Fact]
+        public void PackagingTwoTargets_leavesGeneratedFolderByteIdentical() {
+            string sourcePath = ImportSceneMode("hinged_box.gltf");
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            manager.RegisterModelImporter(new ModelImporterRegistration("assimp", new HelengineAssimpImporter(), new[] { ".gltf" }));
+            ModelAssetImportSettings settings = manager.LoadOrCreateModelImportSettings(sourcePath);
+            settings.Processor.Platforms["webgpu"] = new ModelAssetProcessorSettings { FlipWinding = true };
+            settings.Processor.Platforms["windows"] = new ModelAssetProcessorSettings { Tessellate = true, TessellationMaxEdgeLength = 0.25d };
+            manager.SaveModelImportSettings(sourcePath, settings);
+            string folder = Path.Combine(AssetsRootPath, "hinged_box.gltf.generated");
+            Dictionary<string, byte[]> before = SnapshotFolder(folder);
+            string sceneId = WriteBlueprintScene("hinged_box.gltf", true);
+
+            foreach (string platformId in new[] { "webgpu", "windows" }) {
+                EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                    ProjectRootPath,
+                    new IAssetImporterRegistration[] { new ModelImporterRegistration("assimp", new HelengineAssimpImporter(), new[] { ".gltf" }) },
+                    platformId,
+                    TestGeneratedAssetGraph.CreateShaderLibrary());
+                packager.Package([sceneId], Path.Combine(BuildRootPath, platformId));
+            }
+
+            Dictionary<string, byte[]> after = SnapshotFolder(folder);
+            Assert.Equal(before.Keys.OrderBy(key => key, StringComparer.Ordinal), after.Keys.OrderBy(key => key, StringComparer.Ordinal));
+            foreach (KeyValuePair<string, byte[]> entry in before) {
+                Assert.True(entry.Value.SequenceEqual(after[entry.Key]), "Packaging changed the generated file " + entry.Key);
+            }
+        }
+
+        /// <summary>
+        /// Ensures packaging fails with a reimport instruction when a scene-mode source changed after its generated folder was written.
+        /// </summary>
+        [Fact]
+        public void Package_failsWhenGeneratedFolderIsStale() {
+            string sourcePath = ImportSceneMode("hinged_box.gltf");
+            string sceneId = WriteBlueprintScene("hinged_box.gltf", false);
+            File.AppendAllText(sourcePath, "\n");
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => CreatePackager().Package([sceneId], BuildRootPath));
+
+            Assert.Contains("hinged_box.gltf", exception.Message);
+            Assert.Contains("source changed", exception.Message);
+            Assert.Contains("reimport", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures packaging fails with a reimport instruction when the generated folder of a scene-mode source is missing.
+        /// </summary>
+        [Fact]
+        public void Package_failsWhenGeneratedFolderIsMissing() {
+            ImportSceneMode("hinged_box.gltf");
+            string sceneId = WriteBlueprintScene("hinged_box.gltf", false);
+            Directory.Delete(Path.Combine(AssetsRootPath, "hinged_box.gltf.generated"), true);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => CreatePackager().Package([sceneId], BuildRootPath));
+
+            Assert.Contains("hinged_box.gltf", exception.Message);
+            Assert.Contains("missing", exception.Message);
+            Assert.Contains("reimport", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.False(Directory.Exists(Path.Combine(AssetsRootPath, "hinged_box.gltf.generated")));
+        }
+
+        /// <summary>
         /// Imports a fixture in scene mode, instantiates its blueprint in a scene and packages it for webgpu.
         /// </summary>
         /// <param name="fixtureName">Fixture file name.</param>
         /// <returns>Packaged scene.</returns>
         SceneAsset ImportAndPackage(string fixtureName) {
+            ImportSceneMode(fixtureName);
+            string sceneId = WriteBlueprintScene(fixtureName, false);
+            CreatePackager().Package([sceneId], BuildRootPath);
+
+            string packagedPath = Path.Combine(BuildRootPath, PackagedScenePathResolver.BuildRelativePath(sceneId, 0).Replace('/', Path.DirectorySeparatorChar));
+            using FileStream packagedStream = File.OpenRead(packagedPath);
+            return global::helengine.PackagedAssetBinarySerializer.DeserializeSceneAsset(packagedStream);
+        }
+
+        /// <summary>
+        /// Creates a webgpu packager without importer registrations, as the original packaging tests use.
+        /// </summary>
+        /// <returns>Packager for the temporary project.</returns>
+        EditorPlatformBuildScenePackager CreatePackager() {
+            return new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                "webgpu",
+                TestGeneratedAssetGraph.CreateShaderLibrary());
+        }
+
+        /// <summary>
+        /// Copies a fixture into the assets folder and imports it in scene mode.
+        /// </summary>
+        /// <param name="fixtureName">Fixture file name.</param>
+        /// <returns>Absolute source path.</returns>
+        string ImportSceneMode(string fixtureName) {
             string sourcePath = Path.Combine(AssetsRootPath, fixtureName);
             File.Copy(Path.Combine(AppContext.BaseDirectory, "fixtures", "scene", fixtureName), sourcePath);
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
@@ -96,7 +190,17 @@ namespace helengine.editor.tests {
             settings.Mode = ModelImportMode.Scene;
             manager.SaveModelImportSettings(sourcePath, settings);
             manager.ImportModel(sourcePath);
+            return sourcePath;
+        }
 
+        /// <summary>
+        /// Writes a scene with one entity that instantiates the generated blueprint and, optionally, a second entity whose mesh component
+        /// uses the scene-mode source itself as its model, which makes the packager resolve the source as a model.
+        /// </summary>
+        /// <param name="fixtureName">Fixture file name.</param>
+        /// <param name="includeSourceModel">True to add the entity that renders the source as a model.</param>
+        /// <returns>Scene id.</returns>
+        string WriteBlueprintScene(string fixtureName, bool includeSourceModel) {
             string blueprintRelativePath = fixtureName + ".generated/" + Path.GetFileNameWithoutExtension(fixtureName) + ".hblueprint";
             string sceneId = "Scenes/Main.helen";
             string sceneFullPath = Path.Combine(AssetsRootPath, "Scenes", "Main.helen");
@@ -122,20 +226,28 @@ namespace helengine.editor.tests {
                 ],
                 AssetReferences = Array.Empty<SceneAssetReference>()
             };
+            if (includeSourceModel) {
+                EntityComponentSaveState state = new EntityComponentSaveState();
+                state.SetAssetReference(nameof(MeshComponent.Model), SceneAssetReferenceTestFactory.CreateCurrentFileSystem(fixtureName));
+                AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+                scene.RootEntities = [
+                    scene.RootEntities[0],
+                    new SceneEntityAsset {
+                        Id = 200u,
+                        Name = "Source Model",
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        LayerMask = EditorLayerMasks.SceneObjects,
+                        Components = [descriptor.SerializeComponent(new MeshComponent(), 0, state)],
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                ];
+            }
             using (FileStream stream = File.Create(sceneFullPath)) {
                 AssetSerializer.Serialize(stream, scene);
             }
 
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
-                ProjectRootPath,
-                Array.Empty<IAssetImporterRegistration>(),
-                "webgpu",
-                TestGeneratedAssetGraph.CreateShaderLibrary());
-            packager.Package([sceneId], BuildRootPath);
-
-            string packagedPath = Path.Combine(BuildRootPath, PackagedScenePathResolver.BuildRelativePath(sceneId, 0).Replace('/', Path.DirectorySeparatorChar));
-            using FileStream packagedStream = File.OpenRead(packagedPath);
-            return global::helengine.PackagedAssetBinarySerializer.DeserializeSceneAsset(packagedStream);
+            return sceneId;
         }
 
         /// <summary>
@@ -196,6 +308,20 @@ namespace helengine.editor.tests {
             for (int index = 0; index < entity.Children.Length; index++) {
                 CollectComponents(entity.Children[index], componentTypeId, records);
             }
+        }
+
+        /// <summary>
+        /// Reads every file of a folder tree.
+        /// </summary>
+        /// <param name="folderPath">Absolute folder path.</param>
+        /// <returns>File bytes keyed by the path relative to the folder.</returns>
+        static Dictionary<string, byte[]> SnapshotFolder(string folderPath) {
+            Dictionary<string, byte[]> files = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+            foreach (string path in Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories)) {
+                files.Add(Path.GetRelativePath(folderPath, path), File.ReadAllBytes(path));
+            }
+
+            return files;
         }
 
         /// <summary>
