@@ -4,7 +4,7 @@ namespace helengine.editor.assimp {
     /// <summary>
     /// Imports model files through Assimp and converts them into the engine's dual-width indexed model asset format.
     /// </summary>
-    public class HelengineAssimpImporter : IModelImporter {
+    public class HelengineAssimpImporter : IModelImporter, ISceneSourceImporter {
         /// <summary>
         /// Vertex program used by generated standard imported materials.
         /// </summary>
@@ -27,6 +27,16 @@ namespace helengine.editor.assimp {
             PostProcessSteps.GenerateSmoothNormals |
             PostProcessSteps.GenerateUVCoords |
             PostProcessSteps.ImproveCacheLocality;
+
+        /// <summary>
+        /// Assimp post-processing flags used for whole-scene reads: the model flags plus tangent generation.
+        /// </summary>
+        const PostProcessSteps SceneImportPostProcessSteps = ImportPostProcessSteps | PostProcessSteps.CalculateTangentSpace;
+
+        /// <summary>
+        /// Converts imported scenes into neutral scene data.
+        /// </summary>
+        readonly AssimpSceneDataReader SceneDataReader = new AssimpSceneDataReader();
 
         /// <summary>
         /// Converts imported scenes into engine model assets.
@@ -55,12 +65,43 @@ namespace helengine.editor.assimp {
         }
 
         /// <summary>
+        /// Reads the scene in the stream into neutral scene data, keeping node hierarchy and local transforms.
+        /// </summary>
+        /// <param name="stream">Stream containing the scene source.</param>
+        /// <returns>Neutral scene data.</returns>
+        public ImportedSceneData ImportScene(Stream stream) {
+            if (stream == null) {
+                throw new ArgumentNullException(nameof(stream));
+            }
+
+            using AssimpContext importer = new AssimpContext();
+            Scene scene = ImportScene(importer, stream, SceneImportPostProcessSteps);
+            if (scene == null) {
+                throw new InvalidOperationException("Assimp did not return a scene for the scene stream.");
+            }
+
+            string sourceFileName = stream is FileStream fileStream ? Path.GetFileName(fileStream.Name) : string.Empty;
+            return SceneDataReader.Read(scene, sourceFileName);
+        }
+
+        /// <summary>
         /// Imports one Assimp scene, preferring file-backed import when a source file path is available so companion resources like `.mtl` can be resolved.
         /// </summary>
         /// <param name="importer">Assimp context used to read the model.</param>
         /// <param name="stream">Source model stream.</param>
         /// <returns>Imported Assimp scene.</returns>
         Scene ImportScene(AssimpContext importer, Stream stream) {
+            return ImportScene(importer, stream, ImportPostProcessSteps);
+        }
+
+        /// <summary>
+        /// Imports one Assimp scene with explicit post-processing steps.
+        /// </summary>
+        /// <param name="importer">Assimp context used to read the model.</param>
+        /// <param name="stream">Source model stream.</param>
+        /// <param name="steps">Post-processing steps to apply.</param>
+        /// <returns>Imported Assimp scene.</returns>
+        Scene ImportScene(AssimpContext importer, Stream stream, PostProcessSteps steps) {
             if (importer == null) {
                 throw new ArgumentNullException(nameof(importer));
             } else if (stream == null) {
@@ -68,11 +109,11 @@ namespace helengine.editor.assimp {
             }
 
             if (stream is FileStream fileStream && !string.IsNullOrWhiteSpace(fileStream.Name) && File.Exists(fileStream.Name)) {
-                return importer.ImportFile(fileStream.Name, ImportPostProcessSteps);
+                return importer.ImportFile(fileStream.Name, steps);
             }
 
             string formatHint = ResolveFormatHint(stream);
-            return importer.ImportFileFromStream(stream, ImportPostProcessSteps, formatHint);
+            return importer.ImportFileFromStream(stream, steps, formatHint);
         }
 
         /// <summary>

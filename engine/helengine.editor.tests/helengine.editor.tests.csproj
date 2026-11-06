@@ -33,6 +33,7 @@
     <None Include="fixtures\**\*.cs.fixture" CopyToOutputDirectory="PreserveNewest" />
     <None Include="fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="fixtures\**\*.heproj" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="fixtures\**\*.gltf" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- Alternate artifact roots already contain the project-reference outputs. Skipping this legacy
