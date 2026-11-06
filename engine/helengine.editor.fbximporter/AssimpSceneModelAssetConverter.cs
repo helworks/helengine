@@ -610,10 +610,13 @@ namespace helengine.editor.assimp {
         /// Resolves the normal-space transform that should be applied to a mesh instance.
         /// </summary>
         /// <param name="transform">World transform applied to the mesh instance.</param>
-        /// <returns>Inverse-transpose transform used for normals.</returns>
+        /// <returns>
+        /// Inverse-transpose transform used for normals, or the cofactor matrix when a zero scale collapsed an axis and the
+        /// transform has no inverse.
+        /// </returns>
         System.Numerics.Matrix4x4 ResolveNormalTransform(System.Numerics.Matrix4x4 transform) {
             if (!System.Numerics.Matrix4x4.Invert(transform, out System.Numerics.Matrix4x4 inverseTransform)) {
-                throw new InvalidOperationException("Imported node transform is not invertible.");
+                return AssimpTransformUtils.CreateCofactorNormalTransform(transform);
             }
 
             return System.Numerics.Matrix4x4.Transpose(inverseTransform);

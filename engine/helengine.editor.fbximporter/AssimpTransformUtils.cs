@@ -9,6 +9,28 @@ namespace helengine.editor.assimp {
         const float DegenerateAxisLength = 1e-8f;
 
         /// <summary>
+        /// Builds the normal transform of a (row-vector) matrix from the cofactors of its upper 3x3 block. Each row is the
+        /// cross product of the other two basis rows, so it equals the inverse transpose scaled by the determinant and still
+        /// exists when a zero scale collapsed an axis: normals of a flattened mesh turn to the collapsed axis, and normals of a
+        /// mesh collapsed to a point or a line become zero vectors, which the callers leave unnormalized.
+        /// </summary>
+        /// <param name="matrix">Matrix whose rows are the scaled basis axes.</param>
+        /// <returns>Normal transform with no translation.</returns>
+        public static System.Numerics.Matrix4x4 CreateCofactorNormalTransform(System.Numerics.Matrix4x4 matrix) {
+            System.Numerics.Vector3 axisX = new System.Numerics.Vector3(matrix.M11, matrix.M12, matrix.M13);
+            System.Numerics.Vector3 axisY = new System.Numerics.Vector3(matrix.M21, matrix.M22, matrix.M23);
+            System.Numerics.Vector3 axisZ = new System.Numerics.Vector3(matrix.M31, matrix.M32, matrix.M33);
+            System.Numerics.Vector3 cofactorX = System.Numerics.Vector3.Cross(axisY, axisZ);
+            System.Numerics.Vector3 cofactorY = System.Numerics.Vector3.Cross(axisZ, axisX);
+            System.Numerics.Vector3 cofactorZ = System.Numerics.Vector3.Cross(axisX, axisY);
+            return new System.Numerics.Matrix4x4(
+                cofactorX.X, cofactorX.Y, cofactorX.Z, 0f,
+                cofactorY.X, cofactorY.Y, cofactorY.Z, 0f,
+                cofactorZ.X, cofactorZ.Y, cofactorZ.Z, 0f,
+                0f, 0f, 0f, 1f);
+        }
+
+        /// <summary>
         /// Decomposes a System.Numerics (row-vector) matrix, tolerating axes collapsed by a zero scale.
         /// </summary>
         /// <param name="matrix">Matrix whose rows are the scaled basis axes and whose last row is the translation.</param>

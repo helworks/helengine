@@ -71,6 +71,51 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures glTF nodes hidden with a zero scale (a common way to animate visibility) import into the merged model
+        /// collapsed to their node origin with finite normals, instead of failing because the node matrix has no inverse.
+        /// </summary>
+        [Fact]
+        public void ImportModel_WhenNodesHaveZeroScale_CollapsesTheirMeshes() {
+            string sourcePath = Path.Combine(AppContext.BaseDirectory, "fixtures", "scene", "zero_scale.gltf");
+            HelengineAssimpImporter importer = new HelengineAssimpImporter();
+
+            using FileStream stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            ModelAsset asset = importer.ImportModel(stream).ModelAsset;
+
+            Assert.Equal(6, asset.Positions.Length);
+            for (int index = 0; index < asset.Normals.Length; index++) {
+                float3 normal = asset.Normals[index];
+                Assert.True(float.IsFinite((float)normal.X) && float.IsFinite((float)normal.Y) && float.IsFinite((float)normal.Z), "Normal " + index + " is not finite.");
+            }
+            int collapsedVertexCount = 0;
+            for (int index = 0; index < asset.Positions.Length; index++) {
+                if (asset.Positions[index] == new float3(1f, 2f, 3f)) {
+                    collapsedVertexCount++;
+                }
+            }
+            Assert.Equal(3, collapsedVertexCount);
+        }
+
+        /// <summary>
+        /// Ensures the cofactor normal transform matches the inverse transpose direction for an invertible matrix and turns
+        /// normals of a mesh flattened by a zero scale onto the collapsed axis.
+        /// </summary>
+        [Fact]
+        public void CofactorNormalTransform_MatchesInverseTransposeAndHandlesFlattenedAxes() {
+            System.Numerics.Matrix4x4 skewed = System.Numerics.Matrix4x4.CreateScale(2f, 0.5f, 3f) * System.Numerics.Matrix4x4.CreateRotationY(0.7f);
+            System.Numerics.Matrix4x4.Invert(skewed, out System.Numerics.Matrix4x4 inverse);
+            System.Numerics.Vector3 normal = System.Numerics.Vector3.Normalize(new System.Numerics.Vector3(0.3f, 0.8f, -0.5f));
+            System.Numerics.Vector3 expected = System.Numerics.Vector3.Normalize(System.Numerics.Vector3.TransformNormal(normal, System.Numerics.Matrix4x4.Transpose(inverse)));
+            System.Numerics.Vector3 actual = System.Numerics.Vector3.Normalize(System.Numerics.Vector3.TransformNormal(normal, AssimpTransformUtils.CreateCofactorNormalTransform(skewed)));
+            Assert.True(System.Numerics.Vector3.Distance(expected, actual) < 0.0001f, "Cofactor normal " + actual + " differs from " + expected + ".");
+
+            System.Numerics.Matrix4x4 flattened = System.Numerics.Matrix4x4.CreateScale(1f, 0f, 1f);
+            System.Numerics.Matrix4x4 flattenedNormals = AssimpTransformUtils.CreateCofactorNormalTransform(flattened);
+            Assert.Equal(new System.Numerics.Vector3(0f, 1f, 0f), System.Numerics.Vector3.TransformNormal(new System.Numerics.Vector3(0f, 1f, 0f), flattenedNormals));
+            Assert.Equal(System.Numerics.Vector3.Zero, System.Numerics.Vector3.TransformNormal(new System.Numerics.Vector3(1f, 0f, 0f), flattenedNormals));
+        }
+
+        /// <summary>
         /// Ensures hierarchy-based X scenes duplicate instanced meshes with their node transforms applied.
         /// </summary>
         [Fact]
