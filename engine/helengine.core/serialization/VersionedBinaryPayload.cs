@@ -74,6 +74,110 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Reads and strictly validates the standardized HELE header for one versioned binary payload that accepts several layout versions, returning the decoded header so the caller can branch on the version it actually received.
+        /// </summary>
+        /// <param name="stream">Source stream containing the header and payload.</param>
+        /// <param name="expectedFormatId">Serializer format identifier the payload must match.</param>
+        /// <param name="expectedRecordKind">Logical record kind the payload must match.</param>
+        /// <param name="expectedValueKind">Concrete value type the payload must match.</param>
+        /// <param name="acceptedVersions">Every serializer version the payload may carry; the highest is reported as the current version in mismatch messages.</param>
+        /// <param name="formatIdMismatchSubject">Human-readable payload description used in the format-id mismatch message.</param>
+        /// <param name="recordMismatchSubject">Human-readable payload description used in the record-kind and value-kind mismatch messages.</param>
+        /// <param name="versionMismatchSubject">Human-readable payload description used in the version mismatch message.</param>
+        /// <param name="versionMismatchStyle">Wording to use when the payload version is not accepted.</param>
+        /// <param name="regenerateInstruction">Trailing guidance appended to the version mismatch message describing how to recover.</param>
+        /// <param name="header">Receives the decoded and validated header.</param>
+        /// <returns>Reader configured for the header's endianness, positioned immediately after the header.</returns>
+        public static EngineBinaryReader ReadHeader(
+            Stream stream,
+            ushort expectedFormatId,
+            ushort expectedRecordKind,
+            ushort expectedValueKind,
+            byte[] acceptedVersions,
+            string formatIdMismatchSubject,
+            string recordMismatchSubject,
+            string versionMismatchSubject,
+            VersionedBinaryVersionMismatchStyle versionMismatchStyle,
+            string regenerateInstruction,
+            out EngineBinaryHeader header) {
+            if (stream == null) {
+                throw new ArgumentNullException(nameof(stream));
+            }
+
+            header = EngineBinaryHeaderSerializer.Read(stream);
+            return ValidateHeader(
+                stream,
+                header,
+                expectedFormatId,
+                expectedRecordKind,
+                expectedValueKind,
+                acceptedVersions,
+                formatIdMismatchSubject,
+                recordMismatchSubject,
+                versionMismatchSubject,
+                versionMismatchStyle,
+                regenerateInstruction);
+        }
+
+        /// <summary>
+        /// Strictly validates an already-decoded HELE header whose version may be any one of several accepted layout versions, then returns a reader configured for the header's endianness.
+        /// </summary>
+        /// <param name="stream">Source stream positioned immediately after the decoded header.</param>
+        /// <param name="header">Header the caller already decoded from the stream.</param>
+        /// <param name="expectedFormatId">Serializer format identifier the payload must match.</param>
+        /// <param name="expectedRecordKind">Logical record kind the payload must match.</param>
+        /// <param name="expectedValueKind">Concrete value type the payload must match.</param>
+        /// <param name="acceptedVersions">Every serializer version the payload may carry; the highest is reported as the current version in mismatch messages.</param>
+        /// <param name="formatIdMismatchSubject">Human-readable payload description used in the format-id mismatch message.</param>
+        /// <param name="recordMismatchSubject">Human-readable payload description used in the record-kind and value-kind mismatch messages.</param>
+        /// <param name="versionMismatchSubject">Human-readable payload description used in the version mismatch message.</param>
+        /// <param name="versionMismatchStyle">Wording to use when the payload version is not accepted.</param>
+        /// <param name="regenerateInstruction">Trailing guidance appended to the version mismatch message describing how to recover.</param>
+        /// <returns>Reader configured for the header's endianness, positioned at the payload body.</returns>
+        public static EngineBinaryReader ValidateHeader(
+            Stream stream,
+            [NativeNoEscape] EngineBinaryHeader header,
+            ushort expectedFormatId,
+            ushort expectedRecordKind,
+            ushort expectedValueKind,
+            [NativeNoEscape] byte[] acceptedVersions,
+            string formatIdMismatchSubject,
+            string recordMismatchSubject,
+            string versionMismatchSubject,
+            VersionedBinaryVersionMismatchStyle versionMismatchStyle,
+            string regenerateInstruction) {
+            ValidateArguments(stream, header, formatIdMismatchSubject, recordMismatchSubject, versionMismatchSubject, regenerateInstruction);
+            if (acceptedVersions == null) {
+                throw new ArgumentNullException(nameof(acceptedVersions));
+            } else if (acceptedVersions.Length == 0) {
+                throw new ArgumentException("At least one accepted version is required.", nameof(acceptedVersions));
+            }
+
+            bool versionAccepted = false;
+            byte highestVersion = acceptedVersions[0];
+            for (int index = 0; index < acceptedVersions.Length; index++) {
+                if (acceptedVersions[index] == header.Version) {
+                    versionAccepted = true;
+                }
+                if (acceptedVersions[index] > highestVersion) {
+                    highestVersion = acceptedVersions[index];
+                }
+            }
+
+            if (header.FormatId != expectedFormatId) {
+                throw new InvalidOperationException($"Unsupported {formatIdMismatchSubject} format id '{header.FormatId}'.");
+            } else if (header.RecordKind != expectedRecordKind) {
+                throw new InvalidOperationException($"Unexpected {recordMismatchSubject} record kind '{header.RecordKind}'.");
+            } else if (header.ValueKind != expectedValueKind) {
+                throw new InvalidOperationException($"Unexpected {recordMismatchSubject} value kind '{header.ValueKind}'.");
+            } else if (!versionAccepted) {
+                ThrowVersionMismatch(header.Version, highestVersion, versionMismatchSubject, versionMismatchStyle, regenerateInstruction);
+            }
+
+            return EngineBinaryReader.Create(stream, header.Endianness);
+        }
+
+        /// <summary>
         /// Reads and strictly validates the standardized HELE header for one versioned binary payload whose value kind selects among several supported layouts and is therefore validated by the caller, then returns a reader configured for the header's endianness.
         /// </summary>
         /// <param name="stream">Source stream containing the header and payload.</param>

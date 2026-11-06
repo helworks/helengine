@@ -1344,7 +1344,7 @@ namespace helengine.editor {
                 || header.FormatId != EditorAssetBinarySerializer.FormatId
                 || header.RecordKind != (ushort)ModelAssetImportSettingsBinarySerializer.RecordKind
                 || header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.ModelAssetImportSettings
-                || header.Version != ModelAssetImportSettingsBinarySerializer.CurrentVersion) {
+                || !ModelAssetImportSettingsBinarySerializer.IsReadableVersion(header.Version)) {
                 string found = header == null
                     ? "no HELE header"
                     : $"record kind {header.RecordKind}, value kind {header.ValueKind}, version {header.Version}";

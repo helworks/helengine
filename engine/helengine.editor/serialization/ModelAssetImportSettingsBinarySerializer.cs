@@ -9,11 +9,21 @@ namespace helengine.editor {
         public const EditorBinaryRecordKind RecordKind = EditorBinaryRecordKind.AssetImportSettings;
 
         /// <summary>
-        /// Serializer version for the current model asset import settings payload layout. Version 5 persists only
-        /// authored data (the importer id and the processor settings); the source checksum and the processed asset id
-        /// are recomputed on load and never written.
+        /// Serializer version for the current model asset import settings payload layout. Version 6 persists only
+        /// authored data (the importer id, the import mode byte and the processor settings); the source checksum and
+        /// the processed asset id are recomputed on load and never written.
         /// </summary>
-        public const byte CurrentVersion = 5;
+        public const byte CurrentVersion = 6;
+
+        /// <summary>
+        /// Last payload layout version that had no import mode byte. It is still readable and loads as <see cref="ModelImportMode.SingleModel"/>.
+        /// </summary>
+        public const byte VersionWithoutImportMode = 5;
+
+        /// <summary>
+        /// Every payload layout version this serializer can read.
+        /// </summary>
+        static readonly byte[] AcceptedVersions = new byte[] { VersionWithoutImportMode, CurrentVersion };
 
         /// <summary>
         /// Payload endianness used by the current model asset import settings format.
@@ -44,6 +54,8 @@ namespace helengine.editor {
                 (ushort)RecordKind,
                 (ushort)AssetImportSettingsBinaryValueKind.ModelAssetImportSettings);
             writer.WriteString(settings.Importer.ImporterId);
+            ValidateMode(settings.Mode);
+            writer.WriteByte((byte)settings.Mode);
             writer.WriteInt32(settings.Processor.Platforms.Count);
             foreach (KeyValuePair<string, ModelAssetProcessorSettings> entry in settings.Processor.Platforms.OrderBy(entry => entry.Key, StringComparer.Ordinal)) {
                 if (string.IsNullOrWhiteSpace(entry.Key)) {
@@ -84,15 +96,21 @@ namespace helengine.editor {
                 EditorAssetBinarySerializer.FormatId,
                 (ushort)RecordKind,
                 (ushort)AssetImportSettingsBinaryValueKind.ModelAssetImportSettings,
-                CurrentVersion,
+                AcceptedVersions,
                 "model asset import settings",
                 "model asset import settings",
                 "model asset import settings",
                 VersionedBinaryVersionMismatchStyle.CurrentVersionSuffix,
-                "Regenerate the model import settings sidecar.");
+                "Regenerate the model import settings sidecar.",
+                out EngineBinaryHeader header);
 
             ModelAssetImportSettings settings = new ModelAssetImportSettings();
             settings.Importer.ImporterId = reader.ReadString();
+            if (header.Version != VersionWithoutImportMode) {
+                ModelImportMode mode = (ModelImportMode)reader.ReadByte();
+                ValidateMode(mode);
+                settings.Mode = mode;
+            }
 
             int platformCount = reader.ReadInt32();
             if (platformCount < 0) {
@@ -125,6 +143,25 @@ namespace helengine.editor {
             }
 
             return settings;
+        }
+
+        /// <summary>
+        /// Returns whether the supplied payload layout version can be read by <see cref="Deserialize"/>.
+        /// </summary>
+        /// <param name="version">Payload layout version from a decoded header.</param>
+        /// <returns>True when the version is the current one or the last one without an import mode byte.</returns>
+        public static bool IsReadableVersion(byte version) {
+            return version == CurrentVersion || version == VersionWithoutImportMode;
+        }
+
+        /// <summary>
+        /// Rejects an import mode that is not a defined <see cref="ModelImportMode"/> value.
+        /// </summary>
+        /// <param name="mode">Import mode to validate.</param>
+        static void ValidateMode(ModelImportMode mode) {
+            if (mode != ModelImportMode.SingleModel && mode != ModelImportMode.Scene) {
+                throw new InvalidOperationException($"Unsupported model import mode '{(byte)mode}'.");
+            }
         }
 
         /// <summary>

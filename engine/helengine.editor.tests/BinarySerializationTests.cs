@@ -1388,7 +1388,7 @@ namespace helengine.editor.tests {
         /// Ensures typed model settings reject every version other than the current layout and explain regeneration.
         /// </summary>
         [Theory]
-        [InlineData((byte)(ModelAssetImportSettingsBinarySerializer.CurrentVersion - 1))]
+        [InlineData((byte)(ModelAssetImportSettingsBinarySerializer.VersionWithoutImportMode - 1))]
         [InlineData((byte)(ModelAssetImportSettingsBinarySerializer.CurrentVersion + 1))]
         public void ModelAssetImportSettingsBinarySerializer_Deserialize_WhenVersionIsNotCurrent_ReportsRegeneration(byte version) {
             ModelAssetImportSettings settings = CreateModelAssetImportSettings();

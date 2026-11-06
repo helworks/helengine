@@ -17,6 +17,11 @@ namespace helengine.editor {
         public AssetImporterSettings Importer { get; set; }
 
         /// <summary>
+        /// Gets or sets how the source file is imported. Defaults to <see cref="ModelImportMode.SingleModel"/>.
+        /// </summary>
+        public ModelImportMode Mode { get; set; } = ModelImportMode.SingleModel;
+
+        /// <summary>
         /// Gets or sets per-platform model processor settings.
         /// </summary>
         public ModelAssetProcessorPlatformSettings Processor { get; set; }

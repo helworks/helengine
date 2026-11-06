@@ -15,9 +15,14 @@ namespace helengine.core.tests.serialization {
         [InlineData("ValidateHeader")]
         [InlineData("ValidateHeaderWithDispatchedValueKind")]
         public void ReturnedStreamWrapperMethods_DoNotDeclareStreamNoEscape(string methodName) {
-            System.Reflection.ParameterInfo stream = typeof(VersionedBinaryPayload).GetMethod(methodName).GetParameters()[0];
+            System.Reflection.MethodInfo[] overloads = typeof(VersionedBinaryPayload).GetMethods().Where(method => method.Name == methodName).ToArray();
 
-            Assert.Empty(stream.GetCustomAttributes(typeof(NativeNoEscapeAttribute), false));
+            Assert.NotEmpty(overloads);
+            foreach (System.Reflection.MethodInfo overload in overloads) {
+                System.Reflection.ParameterInfo stream = overload.GetParameters()[0];
+
+                Assert.Empty(stream.GetCustomAttributes(typeof(NativeNoEscapeAttribute), false));
+            }
         }
 
         [Fact]
@@ -114,6 +119,65 @@ namespace helengine.core.tests.serialization {
                     "Regenerate the test payload."));
 
             Assert.Equal("Test payload version '1' is unsupported; version '2' is required. Regenerate the test payload.", exception.Message);
+        }
+
+        /// <summary>
+        /// Ensures the accepted-versions overload admits every listed version and hands back the decoded header.
+        /// </summary>
+        [Theory]
+        [InlineData((byte)5)]
+        [InlineData((byte)6)]
+        public void ReadHeader_WithAcceptedVersions_AdmitsEachListedVersionAndReturnsHeader(byte version) {
+            using MemoryStream stream = new MemoryStream();
+            using (EngineBinaryWriter writer = VersionedBinaryPayload.WriteHeader(stream, EngineBinaryEndianness.LittleEndian, version, 7, 11, 42)) {
+                writer.WriteInt32(77);
+            }
+
+            stream.Position = 0;
+            using EngineBinaryReader reader = VersionedBinaryPayload.ReadHeader(
+                stream,
+                7,
+                11,
+                42,
+                new byte[] { 5, 6 },
+                "test payload",
+                "test payload",
+                "test payload",
+                VersionedBinaryVersionMismatchStyle.CurrentVersionSuffix,
+                "Regenerate the test payload.",
+                out EngineBinaryHeader header);
+
+            Assert.Equal(version, header.Version);
+            Assert.Equal(77, reader.ReadInt32());
+        }
+
+        /// <summary>
+        /// Ensures the accepted-versions overload rejects an unlisted version and names the highest accepted version as current.
+        /// </summary>
+        [Fact]
+        public void ReadHeader_WithAcceptedVersions_WhenVersionIsNotListed_ThrowsNamingHighestVersion() {
+            using MemoryStream stream = new MemoryStream();
+            using (VersionedBinaryPayload.WriteHeader(stream, EngineBinaryEndianness.LittleEndian, 4, 7, 11, 42)) {
+            }
+
+            stream.Position = 0;
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => VersionedBinaryPayload.ReadHeader(
+                    stream,
+                    7,
+                    11,
+                    42,
+                    new byte[] { 5, 6 },
+                    "test payload",
+                    "test payload",
+                    "test payload",
+                    VersionedBinaryVersionMismatchStyle.CurrentVersionSuffix,
+                    "Regenerate the test payload.",
+                    out EngineBinaryHeader _));
+
+            Assert.Contains("received '4'", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("current version is '6'", exception.Message, StringComparison.Ordinal);
         }
 
         [Fact]
