@@ -20,12 +20,14 @@ namespace helengine.animation.tests {
         }
 
         /// <summary>
-        /// Registers the payload serializer and the recording cooker.
+        /// Registers the payload serializer, the recording cooker and the glTF animation contributor. The contributor is registered like
+        /// a real host does, because the packager checks that the registered contributors match the ones that generated the folder.
         /// </summary>
         /// <param name="registry">Packager registry.</param>
         public void Register(AssetImporterRegistry registry) {
             global::helengine.files.EditorAssetPayloadSerializerRegistry.Register(new HierarchyAnimationClipPayloadSerializer());
             registry.RegisterPackagedAssetCooker(Cooker);
+            registry.RegisterSceneContributor(new GltfAnimationSceneContributor());
         }
     }
 }
