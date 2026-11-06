@@ -160,5 +160,55 @@ namespace helengine.editor.tests {
             Assert.Equal("X_2", ImportedSceneNameUtils.Disambiguate("X", used));
             Assert.Equal("X_3", ImportedSceneNameUtils.Disambiguate("X", used));
         }
+
+        /// <summary>
+        /// Reads the zero-scale fixture, which hides nodes with collapsed scale axes.
+        /// </summary>
+        /// <returns>Neutral scene data read from the fixture.</returns>
+        static ImportedSceneData ReadZeroScaleFixture() {
+            string path = Path.Combine(AppContext.BaseDirectory, "fixtures", "scene", "zero_scale.gltf");
+            using FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return new HelengineAssimpImporter().ImportScene(stream);
+        }
+
+        /// <summary>
+        /// Ensures a node with scale (0,0,0) and a node with scale (1,0,1) import instead of failing decomposition.
+        /// </summary>
+        [Fact]
+        public void ZeroScaleNodes_areReadWithRecoveredTransforms() {
+            ImportedSceneData scene = ReadZeroScaleFixture();
+
+            ImportedSceneNode hidden = FindByPath(scene.RootNode, "a_b");
+            Assert.NotNull(hidden);
+            Assert.Equal(1d, (double)hidden.LocalPosition.X, Precision);
+            Assert.Equal(3d, (double)hidden.LocalPosition.Z, Precision);
+            Assert.Equal(0d, (double)hidden.LocalScale.X, Precision);
+            Assert.Equal(0d, (double)hidden.LocalScale.Y, Precision);
+            Assert.Equal(0d, (double)hidden.LocalScale.Z, Precision);
+            Assert.Equal(1d, (double)hidden.LocalRotation.W, Precision);
+
+            ImportedSceneNode squash = FindByPath(scene.RootNode, "Squash");
+            Assert.NotNull(squash);
+            Assert.Equal(4d, (double)squash.LocalPosition.X, Precision);
+            Assert.Equal(1d, (double)squash.LocalScale.X, Precision);
+            Assert.Equal(0d, (double)squash.LocalScale.Y, Precision);
+            Assert.Equal(1d, (double)squash.LocalScale.Z, Precision);
+            Assert.Equal(0d, (double)squash.LocalRotation.X, Precision);
+            Assert.Equal(0.7071068d, (double)squash.LocalRotation.Y, Precision);
+            Assert.Equal(0d, (double)squash.LocalRotation.Z, Precision);
+            Assert.Equal(0.7071068d, (double)squash.LocalRotation.W, Precision);
+        }
+
+        /// <summary>
+        /// Ensures an unsafe source node name such as a/b is sanitized to a_b in the node name and path.
+        /// </summary>
+        [Fact]
+        public void UnsafeNodeName_isSanitizedInNameAndPath() {
+            ImportedSceneData scene = ReadZeroScaleFixture();
+
+            ImportedSceneNode node = FindByPath(scene.RootNode, "a_b");
+            Assert.NotNull(node);
+            Assert.Equal("a_b", node.Name);
+        }
     }
 }

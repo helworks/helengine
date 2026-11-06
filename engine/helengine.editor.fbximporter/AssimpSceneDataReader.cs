@@ -48,6 +48,7 @@ namespace helengine.editor.assimp {
 
         /// <summary>
         /// Reads one node and its subtree depth-first so repeated names are disambiguated in source order.
+        /// Assimp animation channels carry only a node name, so when names repeat a channel targets the first node in depth-first order.
         /// </summary>
         /// <param name="node">Assimp node.</param>
         /// <param name="parentPath">Path of the parent node, empty for the root and its direct children.</param>
@@ -68,9 +69,7 @@ namespace helengine.editor.assimp {
             System.Numerics.Vector3 scale;
             System.Numerics.Quaternion rotation;
             System.Numerics.Vector3 translation;
-            if (!System.Numerics.Matrix4x4.Decompose(local, out scale, out rotation, out translation)) {
-                throw new InvalidOperationException("Node '" + sourceName + "' has a transform that cannot be decomposed into translation, rotation and scale.");
-            }
+            AssimpTransformUtils.Decompose(local, out scale, out rotation, out translation);
 
             int[] meshIndices = new int[node.MeshCount];
             for (int index = 0; index < node.MeshCount; index++) {
@@ -261,6 +260,7 @@ namespace helengine.editor.assimp {
 
         /// <summary>
         /// Reads one node channel and resolves the node it animates to a unique path.
+        /// Assimp animation channels carry only a node name, so when names repeat the channel targets the first node in depth-first order.
         /// </summary>
         /// <param name="channel">Assimp channel.</param>
         /// <param name="ticksPerSecond">Tick rate of the owning animation.</param>
