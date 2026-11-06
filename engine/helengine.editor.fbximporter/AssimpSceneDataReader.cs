@@ -38,12 +38,13 @@ namespace helengine.editor.assimp {
             }
 
             ImportedSceneMesh[] meshes = ReadMeshes(scene);
-            ImportedSceneMaterial[] materials = ReadMaterials(scene);
+            List<ImportedSceneTexture> textures = new List<ImportedSceneTexture>();
+            ImportedSceneMaterial[] materials = ReadMaterials(scene, textures);
             HashSet<string> usedNames = new HashSet<string>(StringComparer.Ordinal);
             Dictionary<string, string> pathsBySourceName = new Dictionary<string, string>(StringComparer.Ordinal);
             ImportedSceneNode root = ReadNode(scene.RootNode, string.Empty, true, usedNames, pathsBySourceName);
             ImportedSceneAnimation[] animations = ReadAnimations(scene, pathsBySourceName);
-            return new ImportedSceneData(root, meshes, materials, animations, sourceFileName);
+            return new ImportedSceneData(root, meshes, materials, textures.ToArray(), animations, sourceFileName);
         }
 
         /// <summary>
@@ -166,12 +167,15 @@ namespace helengine.editor.assimp {
         /// Reads every scene material, in scene order.
         /// </summary>
         /// <param name="scene">Imported Assimp scene.</param>
+        /// <param name="textures">Receives every texture image the materials use, in order of first use.</param>
         /// <returns>Neutral materials.</returns>
-        ImportedSceneMaterial[] ReadMaterials(Scene scene) {
+        ImportedSceneMaterial[] ReadMaterials(Scene scene, List<ImportedSceneTexture> textures) {
             string[] names = AssimpMaterialNameCatalog.ResolveMaterialNames(scene);
+            Dictionary<string, int> textureIndices = new Dictionary<string, int>(StringComparer.Ordinal);
+            HashSet<string> usedTextureNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             ImportedSceneMaterial[] materials = new ImportedSceneMaterial[scene.MaterialCount];
             for (int index = 0; index < scene.MaterialCount; index++) {
-                materials[index] = ReadMaterial(scene.Materials[index], names[index]);
+                materials[index] = ReadMaterial(scene, scene.Materials[index], names[index], textures, textureIndices, usedTextureNames);
             }
 
             return materials;
@@ -180,10 +184,14 @@ namespace helengine.editor.assimp {
         /// <summary>
         /// Reads the PBR factors and texture paths of one material.
         /// </summary>
+        /// <param name="scene">Imported Assimp scene that owns the embedded textures.</param>
         /// <param name="material">Assimp material.</param>
         /// <param name="name">Resolved unique material name.</param>
+        /// <param name="textures">Texture table being filled.</param>
+        /// <param name="textureIndices">Table index per Assimp texture path, so a shared image is stored once.</param>
+        /// <param name="usedTextureNames">Texture names already handed out.</param>
         /// <returns>Neutral material.</returns>
-        ImportedSceneMaterial ReadMaterial(Material material, string name) {
+        ImportedSceneMaterial ReadMaterial(Scene scene, Material material, string name, List<ImportedSceneTexture> textures, Dictionary<string, int> textureIndices, HashSet<string> usedTextureNames) {
             float4 baseColor = new float4(1f, 1f, 1f, 1f);
             if (material.HasColorDiffuse) {
                 System.Numerics.Vector4 color = material.ColorDiffuse;
@@ -207,7 +215,137 @@ namespace helengine.editor.assimp {
                 roughnessTexture = ReadTexturePath(material, TextureType.Roughness);
             }
 
-            return new ImportedSceneMaterial(name, baseColor, roughness, metallic, baseColorTexture, normalTexture, roughnessTexture);
+            return new ImportedSceneMaterial(
+                name,
+                baseColor,
+                roughness,
+                metallic,
+                RegisterTexture(scene, name, baseColorTexture, "basecolor", textures, textureIndices, usedTextureNames),
+                RegisterTexture(scene, name, normalTexture, "normal", textures, textureIndices, usedTextureNames),
+                RegisterTexture(scene, name, roughnessTexture, "roughness", textures, textureIndices, usedTextureNames));
+        }
+
+        /// <summary>
+        /// Adds the image behind one Assimp texture path to the texture table, once, and returns the material slot value that refers to it.
+        /// Assimp names an image embedded in the source "*N"; any other path is an external file relative to the source.
+        /// </summary>
+        /// <param name="scene">Imported Assimp scene that owns the embedded textures.</param>
+        /// <param name="materialName">Name of the material that uses the texture, for errors and fallback names.</param>
+        /// <param name="assimpPath">Texture path as Assimp reports it, empty when the slot is unused.</param>
+        /// <param name="role">Slot role used to name an image that carries no name of its own.</param>
+        /// <param name="textures">Texture table being filled.</param>
+        /// <param name="textureIndices">Table index per Assimp texture path.</param>
+        /// <param name="usedTextureNames">Texture names already handed out.</param>
+        /// <returns>The slot value: empty for an unused slot, otherwise "*K" for table entry K.</returns>
+        string RegisterTexture(
+            Scene scene,
+            string materialName,
+            string assimpPath,
+            string role,
+            List<ImportedSceneTexture> textures,
+            Dictionary<string, int> textureIndices,
+            HashSet<string> usedTextureNames) {
+            if (assimpPath.Length == 0) {
+                return string.Empty;
+            }
+
+            int tableIndex;
+            if (textureIndices.TryGetValue(assimpPath, out tableIndex)) {
+                return ImportedSceneTextureReference.Format(tableIndex);
+            }
+
+            ImportedSceneTexture texture;
+            if (assimpPath.StartsWith("*", StringComparison.Ordinal)) {
+                texture = ReadEmbeddedTexture(scene, materialName, assimpPath, role, usedTextureNames);
+            } else {
+                string format = NormalizeFormat(Path.GetExtension(assimpPath));
+                if (format.Length == 0) {
+                    throw new NotSupportedException($"Material '{materialName}' uses the texture '{assimpPath}', which is not a PNG or JPEG image.");
+                }
+                texture = new ImportedSceneTexture(
+                    ImportedSceneNameUtils.Disambiguate(ImportedSceneNameUtils.MakeSafeName(Path.GetFileNameWithoutExtension(assimpPath)), usedTextureNames),
+                    format,
+                    Array.Empty<byte>(),
+                    assimpPath);
+            }
+
+            tableIndex = textures.Count;
+            textures.Add(texture);
+            textureIndices.Add(assimpPath, tableIndex);
+            return ImportedSceneTextureReference.Format(tableIndex);
+        }
+
+        /// <summary>
+        /// Reads the encoded image bytes of a texture embedded in the source file, for example inside a .glb.
+        /// </summary>
+        /// <param name="scene">Imported Assimp scene that owns the embedded textures.</param>
+        /// <param name="materialName">Name of the material that uses the texture, for errors and fallback names.</param>
+        /// <param name="assimpPath">Assimp path "*N" of the embedded texture.</param>
+        /// <param name="role">Slot role used to name an image that carries no name of its own.</param>
+        /// <param name="usedTextureNames">Texture names already handed out.</param>
+        /// <returns>The embedded texture.</returns>
+        ImportedSceneTexture ReadEmbeddedTexture(Scene scene, string materialName, string assimpPath, string role, HashSet<string> usedTextureNames) {
+            int embeddedIndex;
+            if (!int.TryParse(assimpPath.Substring(1), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out embeddedIndex)
+                || embeddedIndex >= scene.TextureCount) {
+                throw new InvalidOperationException($"Material '{materialName}' refers to the embedded texture '{assimpPath}', which the source does not contain.");
+            }
+
+            EmbeddedTexture embedded = scene.Textures[embeddedIndex];
+            if (!embedded.IsCompressed) {
+                throw new NotSupportedException($"Material '{materialName}' uses an uncompressed embedded texture ('{assimpPath}'); only embedded PNG and JPEG images are supported.");
+            }
+
+            byte[] bytes = embedded.CompressedData;
+            string format = NormalizeFormat(embedded.CompressedFormatHint);
+            if (format.Length == 0) {
+                format = SniffFormat(bytes);
+            }
+            if (bytes == null || bytes.Length == 0 || format.Length == 0) {
+                throw new NotSupportedException($"Material '{materialName}' uses an embedded texture ('{assimpPath}') that is not a PNG or JPEG image.");
+            }
+
+            string sourceName = Path.GetFileNameWithoutExtension(embedded.Filename ?? string.Empty);
+            if (sourceName.Length == 0 || sourceName.StartsWith("*", StringComparison.Ordinal)) {
+                sourceName = materialName + "_" + role;
+            }
+
+            return new ImportedSceneTexture(
+                ImportedSceneNameUtils.Disambiguate(ImportedSceneNameUtils.MakeSafeName(sourceName), usedTextureNames),
+                format,
+                bytes,
+                string.Empty);
+        }
+
+        /// <summary>
+        /// Maps an image format hint or file extension to the lowercase format the importer writes.
+        /// </summary>
+        /// <param name="hint">Hint such as "png", ".JPG" or "jpeg"; may be null or empty.</param>
+        /// <returns>"png" or "jpg", or an empty string when the hint is not a supported format.</returns>
+        static string NormalizeFormat(string hint) {
+            string lowered = (hint ?? string.Empty).TrimStart('.').ToLowerInvariant();
+            if (lowered == "png") {
+                return "png";
+            } else if (lowered == "jpg" || lowered == "jpeg") {
+                return "jpg";
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Recognizes PNG and JPEG data by its signature, for embedded images whose format hint is missing.
+        /// </summary>
+        /// <param name="bytes">Encoded image bytes.</param>
+        /// <returns>"png" or "jpg", or an empty string when the signature is neither.</returns>
+        static string SniffFormat(byte[] bytes) {
+            if (bytes != null && bytes.Length >= 4 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) {
+                return "png";
+            } else if (bytes != null && bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
+                return "jpg";
+            }
+
+            return string.Empty;
         }
 
         /// <summary>

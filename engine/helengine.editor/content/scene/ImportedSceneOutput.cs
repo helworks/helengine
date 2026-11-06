@@ -66,18 +66,25 @@ namespace helengine.editor {
         readonly int MeshCount;
 
         /// <summary>
+        /// Absolute path of the folder that holds the source file; external texture paths resolve against it.
+        /// </summary>
+        readonly string SourceDirectoryPathValue;
+
+        /// <summary>
         /// Creates the output for one scene import.
         /// </summary>
         /// <param name="scene">Neutral scene data being imported; only its counts are kept.</param>
         /// <param name="generatedFolderRelativePath">Assets-relative path of the generated folder.</param>
         /// <param name="processedAssetId">Processed asset id of the source; generated asset ids derive from it.</param>
         /// <param name="reservedRelativePath">Path inside the generated folder owned by the importer (the blueprint); contributors cannot add a file there.</param>
+        /// <param name="sourceDirectoryPath">Absolute path of the folder that holds the source file, used to resolve external files the scene refers to.</param>
         /// <param name="publisher">Writes one generated file and returns its reference.</param>
         public ImportedSceneOutput(
             ImportedSceneData scene,
             string generatedFolderRelativePath,
             string processedAssetId,
             string reservedRelativePath,
+            string sourceDirectoryPath,
             Func<ImportedSceneGeneratedFile, AssetEntryKind, SceneAssetReference> publisher) {
             if (scene == null) {
                 throw new ArgumentNullException(nameof(scene));
@@ -91,7 +98,12 @@ namespace helengine.editor {
                 throw new ArgumentException("Reserved path must be provided.", nameof(reservedRelativePath));
             }
 
+            if (string.IsNullOrWhiteSpace(sourceDirectoryPath)) {
+                throw new ArgumentException("Source directory path must be provided.", nameof(sourceDirectoryPath));
+            }
+
             ReservedRelativePath = reservedRelativePath;
+            SourceDirectoryPathValue = sourceDirectoryPath;
             MaterialIndexCount = scene.Materials.Length;
             GeneratedFolderRelativePath = generatedFolderRelativePath;
             ProcessedAssetId = processedAssetId;
@@ -110,6 +122,11 @@ namespace helengine.editor {
         /// Gets the processed asset id of the source file.
         /// </summary>
         public string ProcessedAssetId { get; }
+
+        /// <summary>
+        /// Gets the absolute path of the folder that holds the source file; external files the scene refers to, such as texture images, resolve against it.
+        /// </summary>
+        public string SourceDirectoryPath => SourceDirectoryPathValue;
 
         /// <summary>
         /// Gets the generated files in the order they were added.
@@ -157,10 +174,38 @@ namespace helengine.editor {
         /// <param name="relativePathInFolder">Forward-slash path relative to the generated folder.</param>
         /// <param name="asset">Asset payload to serialize at that path.</param>
         public void AddGeneratedFile(string relativePathInFolder, Asset asset) {
+            if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            }
+
+            ValidateNewGeneratedPath(relativePathInFolder);
+            RegisterFile(new ImportedSceneGeneratedFile(relativePathInFolder, asset));
+        }
+
+        /// <summary>
+        /// Adds a raw source file, such as a texture image, that will be written byte for byte inside the generated folder.
+        /// The file gets a deterministic authoring id in an <c>.hmeta</c> sidecar like other files without embedded identity, keeps that id
+        /// across reimports, and is removed by the stale sweep when a later import no longer produces it. Image files are also imported as
+        /// textures, so a material can refer to them by their assets-relative path (<see cref="GeneratedFolderRelativePath"/> plus the path given here).
+        /// </summary>
+        /// <param name="relativePathInFolder">Forward-slash path relative to the generated folder, including the file extension.</param>
+        /// <param name="sourceBytes">File content to write unchanged.</param>
+        public void AddGeneratedSourceFile(string relativePathInFolder, byte[] sourceBytes) {
+            if (sourceBytes == null) {
+                throw new ArgumentNullException(nameof(sourceBytes));
+            }
+
+            ValidateNewGeneratedPath(relativePathInFolder);
+            RegisterFile(new ImportedSceneGeneratedFile(relativePathInFolder, sourceBytes));
+        }
+
+        /// <summary>
+        /// Checks that a path is a forward-slash path inside the generated folder that is neither reserved nor already taken.
+        /// </summary>
+        /// <param name="relativePathInFolder">Path to check.</param>
+        void ValidateNewGeneratedPath(string relativePathInFolder) {
             if (string.IsNullOrWhiteSpace(relativePathInFolder)) {
                 throw new ArgumentException("Generated file path must be provided.", nameof(relativePathInFolder));
-            } else if (asset == null) {
-                throw new ArgumentNullException(nameof(asset));
             } else if (relativePathInFolder.Contains('\\') || relativePathInFolder.StartsWith("/", StringComparison.Ordinal)
                 || Array.IndexOf(relativePathInFolder.Split('/'), "..") >= 0) {
                 throw new ArgumentException($"Generated file path '{relativePathInFolder}' must be a forward-slash path inside the generated folder.", nameof(relativePathInFolder));
@@ -169,10 +214,15 @@ namespace helengine.editor {
             } else if (FilesByPath.ContainsKey(relativePathInFolder)) {
                 throw new InvalidOperationException($"A generated file already exists at '{relativePathInFolder}'.");
             }
+        }
 
-            ImportedSceneGeneratedFile file = new ImportedSceneGeneratedFile(relativePathInFolder, asset);
+        /// <summary>
+        /// Records a validated pending file.
+        /// </summary>
+        /// <param name="file">File to record.</param>
+        void RegisterFile(ImportedSceneGeneratedFile file) {
             Files.Add(file);
-            FilesByPath.Add(relativePathInFolder, file);
+            FilesByPath.Add(file.RelativePathInFolder, file);
         }
 
         /// <summary>

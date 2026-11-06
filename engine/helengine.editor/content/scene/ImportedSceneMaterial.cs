@@ -1,6 +1,6 @@
 namespace helengine.editor {
     /// <summary>
-    /// Engine-neutral physically based material parameters read from the source, with texture paths exactly as the source names them.
+    /// Engine-neutral physically based material parameters read from the source, with texture slots that are either empty or "*K", an index into <see cref="ImportedSceneData.Textures"/> (see <see cref="ImportedSceneTextureReference"/>).
     /// </summary>
     public sealed class ImportedSceneMaterial {
         /// <summary>
@@ -10,9 +10,9 @@ namespace helengine.editor {
         /// <param name="baseColor">The base color factor.</param>
         /// <param name="roughness">The roughness factor.</param>
         /// <param name="metallic">The metallic factor.</param>
-        /// <param name="baseColorTexturePath">The base color texture path, empty when absent.</param>
-        /// <param name="normalTexturePath">The normal map texture path, empty when absent.</param>
-        /// <param name="roughnessTexturePath">The metallic-roughness texture path, empty when absent.</param>
+        /// <param name="baseColorTexturePath">The base color texture slot, empty when absent, otherwise "*K" for texture table entry K.</param>
+        /// <param name="normalTexturePath">The normal map texture slot, empty when absent, otherwise "*K" for texture table entry K.</param>
+        /// <param name="roughnessTexturePath">The metallic-roughness texture slot, empty when absent, otherwise "*K" for texture table entry K.</param>
         public ImportedSceneMaterial(string name, float4 baseColor, float roughness, float metallic, string baseColorTexturePath, string normalTexturePath, string roughnessTexturePath) {
             Name = name ?? throw new ArgumentNullException(nameof(name));
             BaseColor = baseColor;
@@ -44,17 +44,17 @@ namespace helengine.editor {
         public float Metallic { get; }
 
         /// <summary>
-        /// Gets the base color texture path, empty when absent.
+        /// Gets the base color texture slot, empty when absent, otherwise "*K" for texture table entry K.
         /// </summary>
         public string BaseColorTexturePath { get; }
 
         /// <summary>
-        /// Gets the normal map texture path, empty when absent.
+        /// Gets the normal map texture slot, empty when absent, otherwise "*K" for texture table entry K.
         /// </summary>
         public string NormalTexturePath { get; }
 
         /// <summary>
-        /// Gets the metallic-roughness texture path, empty when absent.
+        /// Gets the metallic-roughness texture slot, empty when absent, otherwise "*K" for texture table entry K.
         /// </summary>
         public string RoughnessTexturePath { get; }
     }

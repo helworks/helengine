@@ -789,6 +789,7 @@ namespace helengine.editor {
                 folderRelativePath,
                 processedAssetId,
                 blueprintFileName,
+                Path.GetDirectoryName(sourcePath),
                 (file, kind) => PublishSceneGeneratedFile(referenceResolver, folderPath, Path.GetDirectoryName(sourcePath), processedAssetId, processorSettings, file, kind, producedPaths));
 
             IReadOnlyList<IImportedSceneContributor> contributors = ImporterRegistryInstance.GetSceneContributors();
@@ -846,7 +847,9 @@ namespace helengine.editor {
             EnsurePathBeneathRoot(folderPath, fullPath, "Generated scene file");
             string authoringAssetId = ResolveGeneratedSceneAssetId(fullPath, processedAssetId, file.RelativePathInFolder);
             Asset asset = file.Asset;
-            if (asset is ShaderMaterialAsset materialAsset) {
+            if (file.SourceBytes != null) {
+                PublishSceneSourceFile(fullPath, file.SourceBytes, authoringAssetId, producedPaths);
+            } else if (asset is ShaderMaterialAsset materialAsset) {
                 string relativeMaterialPath = Path.GetRelativePath(sourceDirectoryPath, fullPath).Replace('\\', '/');
                 ImportedModelMaterialAsset generatedMaterial = new ImportedModelMaterialAsset(
                     Path.GetFileNameWithoutExtension(fullPath),
@@ -886,6 +889,26 @@ namespace helengine.editor {
             }
 
             return referenceResolver.CreateFileReference(fullPath, kind);
+        }
+
+        /// <summary>
+        /// Writes a raw generated source file (such as a texture image) byte for byte, gives it its deterministic identity in an
+        /// <c>.hmeta</c> sidecar and, for textures, creates the import settings sidecar through the regular texture import path. The
+        /// sidecars are produced output too, otherwise the stale sweep deletes them and the identity is lost.
+        /// </summary>
+        /// <param name="fullPath">Absolute path of the generated file.</param>
+        /// <param name="sourceBytes">File content.</param>
+        /// <param name="authoringAssetId">Deterministic authoring id of the file.</param>
+        /// <param name="producedPaths">Receives the absolute paths of the sidecars.</param>
+        void PublishSceneSourceFile(string fullPath, byte[] sourceBytes, string authoringAssetId, HashSet<string> producedPaths) {
+            WriteSerializedFile(fullPath, stream => stream.Write(sourceBytes, 0, sourceBytes.Length));
+            AssetIdentityMetadataService identityService = new AssetIdentityMetadataService(projectRootPath);
+            identityService.LoadOrCreate(fullPath, authoringAssetId);
+            producedPaths.Add(identityService.GetMetadataPath(fullPath));
+            if (IsTextureExtension(Path.GetExtension(fullPath))) {
+                SaveTextureImportSettings(fullPath, LoadOrCreateTextureImportSettings(fullPath));
+                producedPaths.Add(GetSettingsPath(fullPath));
+            }
         }
 
         /// <summary>

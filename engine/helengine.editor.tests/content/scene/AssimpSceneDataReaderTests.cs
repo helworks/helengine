@@ -210,5 +210,39 @@ namespace helengine.editor.tests {
             Assert.NotNull(node);
             Assert.Equal("a_b", node.Name);
         }
+
+        /// <summary>
+        /// Ensures the reader lists an image embedded in a glb in the texture table and points the material slot at it.
+        /// </summary>
+        [Fact]
+        public void EmbeddedImage_isListedInTextureTable() {
+            string path = Path.Combine(AppContext.BaseDirectory, "fixtures", "scene", "textured_quad.glb");
+            using FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+            ImportedSceneData scene = new HelengineAssimpImporter().ImportScene(stream);
+
+            ImportedSceneTexture texture = Assert.Single(scene.Textures);
+            Assert.True(texture.IsEmbedded);
+            Assert.Equal("png", texture.FormatHint);
+            Assert.Equal("quad_art", texture.Name);
+            Assert.Equal(0x89, texture.EncodedBytes[0]);
+            Assert.Equal("*0", scene.Materials[scene.Meshes[0].MaterialIndex].BaseColorTexturePath);
+        }
+
+        /// <summary>
+        /// Ensures an external image path stays a relative path in the texture table.
+        /// </summary>
+        [Fact]
+        public void ExternalImage_keepsItsRelativePath() {
+            string path = Path.Combine(AppContext.BaseDirectory, "fixtures", "scene", "textured_quad.gltf");
+            using FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+            ImportedSceneData scene = new HelengineAssimpImporter().ImportScene(stream);
+
+            ImportedSceneTexture texture = Assert.Single(scene.Textures);
+            Assert.False(texture.IsEmbedded);
+            Assert.Equal("textured_quad.png", texture.ExternalRelativePath);
+            Assert.Equal("png", texture.FormatHint);
+        }
     }
 }

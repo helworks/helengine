@@ -9,12 +9,14 @@ namespace helengine.editor {
         /// <param name="rootNode">The root of the node hierarchy; its children are the top-level scene nodes.</param>
         /// <param name="meshes">The unique meshes of the scene; nodes reference them by index so shared meshes are read once.</param>
         /// <param name="materials">The materials of the scene; meshes reference them by index.</param>
+        /// <param name="textures">The texture images the materials refer to by index; empty when no material has a texture.</param>
         /// <param name="animations">The animations authored in the source file.</param>
         /// <param name="sourceFileName">The file name of the source the scene was read from.</param>
-        public ImportedSceneData(ImportedSceneNode rootNode, ImportedSceneMesh[] meshes, ImportedSceneMaterial[] materials, ImportedSceneAnimation[] animations, string sourceFileName) {
+        public ImportedSceneData(ImportedSceneNode rootNode, ImportedSceneMesh[] meshes, ImportedSceneMaterial[] materials, ImportedSceneTexture[] textures, ImportedSceneAnimation[] animations, string sourceFileName) {
             RootNode = rootNode ?? throw new ArgumentNullException(nameof(rootNode));
             Meshes = meshes ?? throw new ArgumentNullException(nameof(meshes));
             Materials = materials ?? throw new ArgumentNullException(nameof(materials));
+            Textures = textures ?? throw new ArgumentNullException(nameof(textures));
             Animations = animations ?? throw new ArgumentNullException(nameof(animations));
             SourceFileName = sourceFileName ?? throw new ArgumentNullException(nameof(sourceFileName));
         }
@@ -33,6 +35,11 @@ namespace helengine.editor {
         /// Gets the materials of the scene; meshes reference them by index.
         /// </summary>
         public ImportedSceneMaterial[] Materials { get; }
+
+        /// <summary>
+        /// Gets the texture images the materials refer to; a material texture slot "*K" names entry K.
+        /// </summary>
+        public ImportedSceneTexture[] Textures { get; }
 
         /// <summary>
         /// Gets the animations authored in the source file.

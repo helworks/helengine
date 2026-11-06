@@ -35,6 +35,7 @@ namespace helengine.editor.tests {
             CacheRootPath = Path.Combine(ProjectRootPath, "cache");
             Directory.CreateDirectory(AssetsRootPath);
             Directory.CreateDirectory(CacheRootPath);
+            new EditorProjectPlatformsService(ProjectRootPath).Save(new EditorProjectPlatformsDocument { SupportedPlatforms = ["windows"] });
         }
 
         /// <summary>
@@ -201,8 +202,8 @@ namespace helengine.editor.tests {
         [Fact]
         public void Output_rejectsReservedPathAndOutOfRangeIndices() {
             ImportedSceneNode root = new ImportedSceneNode("Root", string.Empty, float3.Zero, float4.Identity, float3.One, Array.Empty<int>(), Array.Empty<ImportedSceneNode>());
-            ImportedSceneData scene = new ImportedSceneData(root, Array.Empty<ImportedSceneMesh>(), Array.Empty<ImportedSceneMaterial>(), Array.Empty<ImportedSceneAnimation>(), string.Empty);
-            ImportedSceneOutput output = new ImportedSceneOutput(scene, "a.gltf.generated", "id", "a.hblueprint", (file, kind) => null);
+            ImportedSceneData scene = new ImportedSceneData(root, Array.Empty<ImportedSceneMesh>(), Array.Empty<ImportedSceneMaterial>(), Array.Empty<ImportedSceneTexture>(), Array.Empty<ImportedSceneAnimation>(), string.Empty);
+            ImportedSceneOutput output = new ImportedSceneOutput(scene, "a.gltf.generated", "id", "a.hblueprint", ProjectRootPath, (file, kind) => null);
 
             Assert.Throws<ArgumentException>(() => output.AddGeneratedFile("a.hblueprint", new ModelAsset()));
             Assert.Throws<ArgumentOutOfRangeException>(() => output.MarkAnimationConsumed(0));
@@ -326,6 +327,115 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a PNG embedded in a glb is extracted into the generated folder, imported as a texture source and bound to the material.
+        /// </summary>
+        [Fact]
+        public void EmbeddedTexture_isExtractedImportedAndBound() {
+            string sourcePath = CopyFixture("textured_quad.glb");
+            AssetImportManager manager = CreateManager();
+            SetMode(manager, sourcePath, ModelImportMode.Scene);
+
+            manager.ImportModel(sourcePath);
+
+            string folder = Path.Combine(AssetsRootPath, "textured_quad.glb.generated");
+            string texturePath = Path.Combine(folder, "textures", "quad_art.png");
+            Assert.Equal(File.ReadAllBytes(FixturePath("textured_quad.png")), File.ReadAllBytes(texturePath));
+            Assert.True(File.Exists(texturePath + ".hmeta"));
+            Assert.True(File.Exists(texturePath + AssetImportManager.SettingsExtension));
+            Assert.True(manager.TryLoadOrCreateTextureImportSettings(texturePath, out TextureAssetImportSettings settings));
+            Assert.False(string.IsNullOrWhiteSpace(settings.Importer.ProcessedAssetId));
+
+            string textureId = ReadMaterialTextureId(Path.Combine(folder, "materials", "Printed.hasset"));
+            Assert.Equal("textured_quad.glb.generated/textures/quad_art.png", textureId);
+            Assert.True(manager.TryResolveImportedTextureSourcePath(textureId, out string resolved));
+            Assert.Equal(Path.GetFullPath(texturePath), Path.GetFullPath(resolved));
+        }
+
+        /// <summary>
+        /// Ensures an external PNG next to a .gltf is copied into the generated folder and bound to the material.
+        /// </summary>
+        [Fact]
+        public void ExternalTexture_isCopiedAndBound() {
+            string sourcePath = CopyFixture("textured_quad.gltf");
+            File.Copy(FixturePath("textured_quad.png"), Path.Combine(AssetsRootPath, "textured_quad.png"));
+            AssetImportManager manager = CreateManager();
+            SetMode(manager, sourcePath, ModelImportMode.Scene);
+
+            manager.ImportModel(sourcePath);
+
+            string folder = Path.Combine(AssetsRootPath, "textured_quad.gltf.generated");
+            string texturePath = Path.Combine(folder, "textures", "textured_quad.png");
+            Assert.Equal(File.ReadAllBytes(FixturePath("textured_quad.png")), File.ReadAllBytes(texturePath));
+            Assert.True(File.Exists(Path.Combine(AssetsRootPath, "textured_quad.png")));
+            Assert.Equal(
+                "textured_quad.gltf.generated/textures/textured_quad.png",
+                ReadMaterialTextureId(Path.Combine(folder, "materials", "Printed.hasset")));
+        }
+
+        /// <summary>
+        /// Ensures a missing external texture file fails the import and names the material and the file.
+        /// </summary>
+        [Fact]
+        public void MissingExternalTexture_failsNamingMaterial() {
+            string sourcePath = CopyFixture("textured_quad.gltf");
+            AssetImportManager manager = CreateManager();
+            SetMode(manager, sourcePath, ModelImportMode.Scene);
+
+            FileNotFoundException exception = Assert.Throws<FileNotFoundException>(() => manager.ImportModel(sourcePath));
+
+            Assert.Contains("Printed", exception.Message);
+            Assert.Contains("textured_quad.png", exception.Message);
+        }
+
+        /// <summary>
+        /// Ensures a reimport keeps the identity of the texture file and its settings and does not sweep them away.
+        /// </summary>
+        [Fact]
+        public void Reimport_keepsTextureIds() {
+            string sourcePath = CopyFixture("textured_quad.glb");
+            AssetImportManager manager = CreateManager();
+            SetMode(manager, sourcePath, ModelImportMode.Scene);
+            manager.ImportModel(sourcePath);
+            string folder = Path.Combine(AssetsRootPath, "textured_quad.glb.generated");
+            string texturePath = Path.Combine(folder, "textures", "quad_art.png");
+            AssetIdentityMetadataService identity = new AssetIdentityMetadataService(ProjectRootPath);
+            string idBefore = identity.Load(texturePath).AssetId;
+            string settingsBefore = manager.LoadOrCreateTextureImportSettings(texturePath).Importer.ProcessedAssetId;
+            Assert.Equal(32, idBefore.Length);
+
+            // A trailing byte after the last chunk changes the source checksum without invalidating the glb.
+            File.AppendAllText(sourcePath, "\0");
+            manager.ImportModel(sourcePath);
+
+            Assert.True(File.Exists(texturePath));
+            Assert.True(File.Exists(texturePath + ".hmeta"));
+            Assert.True(File.Exists(texturePath + AssetImportManager.SettingsExtension));
+            Assert.Equal(idBefore, identity.Load(texturePath).AssetId);
+            Assert.Equal(settingsBefore, manager.LoadOrCreateTextureImportSettings(texturePath).Importer.ProcessedAssetId);
+            Assert.Single(Directory.GetFiles(Path.Combine(folder, "textures"), "*.png"));
+        }
+
+        /// <summary>
+        /// Reads the base color texture id the material file stores for the windows platform.
+        /// </summary>
+        /// <param name="materialPath">Absolute path of the generated material.</param>
+        /// <returns>The "texture-id" field value.</returns>
+        string ReadMaterialTextureId(string materialPath) {
+            MaterialAssetSettingsService service = new MaterialAssetSettingsService(ProjectRootPath);
+            Assert.True(service.TryLoadPlatformSettings(materialPath, "windows", out MaterialAssetProcessorSettings settings));
+            return settings.FieldValues["texture-id"];
+        }
+
+        /// <summary>
+        /// Resolves the path of a scene fixture in the test output.
+        /// </summary>
+        /// <param name="fileName">Fixture file name.</param>
+        /// <returns>Absolute fixture path.</returns>
+        static string FixturePath(string fileName) {
+            return Path.Combine(AppContext.BaseDirectory, "fixtures", "scene", fileName);
+        }
+
+        /// <summary>
         /// Lists the contributor ids in execution order.
         /// </summary>
         /// <param name="manager">Manager whose registry is inspected.</param>
@@ -435,7 +545,8 @@ namespace helengine.editor.tests {
         AssetImportManager CreateManager() {
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
-            manager.RegisterModelImporter(new ModelImporterRegistration("assimp", new HelengineAssimpImporter(), new[] { ".gltf" }));
+            manager.RegisterModelImporter(new ModelImporterRegistration("assimp", new HelengineAssimpImporter(), new[] { ".gltf", ".glb" }));
+            manager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new helengine.editor.tests.testing.TestTextureImporter(), new[] { ".png", ".jpg" }));
             return manager;
         }
 

@@ -35,6 +35,11 @@ namespace helengine.editor {
         const string MaterialFolder = "materials";
 
         /// <summary>
+        /// Folder inside the generated folder that holds the extracted texture images.
+        /// </summary>
+        const string TextureFolder = "textures";
+
+        /// <summary>
         /// Vertex program of the standard shader, matching the single-model importer.
         /// </summary>
         const string StandardVertexProgramName = "ForwardStandardShader.vs";
@@ -85,7 +90,9 @@ namespace helengine.editor {
         /// <returns>Relative file path per material index; null for materials no mesh uses.</returns>
         string[] AddMaterials(ImportedSceneData scene, ImportedSceneOutput output) {
             string[] paths = new string[scene.Materials.Length];
+            string[] texturePaths = new string[scene.Textures.Length];
             HashSet<string> usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> usedTextureNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             for (int meshIndex = 0; meshIndex < scene.Meshes.Length; meshIndex++) {
                 int materialIndex = scene.Meshes[meshIndex].MaterialIndex;
                 if (materialIndex < 0 || materialIndex >= scene.Materials.Length) {
@@ -104,7 +111,7 @@ namespace helengine.editor {
                     VertexProgram = StandardVertexProgramName,
                     PixelProgram = StandardPixelProgramName,
                     Variant = DefaultVariantName,
-                    DiffuseTextureAssetId = material.BaseColorTexturePath
+                    DiffuseTextureAssetId = AddBaseColorTexture(scene, output, material, texturePaths, usedTextureNames)
                 };
                 output.AddGeneratedFile(path, materialAsset);
                 output.MarkMaterialConsumed(materialIndex);
@@ -112,6 +119,55 @@ namespace helengine.editor {
             }
 
             return paths;
+        }
+
+        /// <summary>
+        /// Writes the base color image of a material into the generated folder, once per texture, and returns the id the material binds it by.
+        /// Normal and roughness slots stay in the scene data and are not wired into the generated material yet.
+        /// </summary>
+        /// <param name="scene">Scene data being imported.</param>
+        /// <param name="output">Output receiving the image file.</param>
+        /// <param name="material">Material whose base color slot is resolved.</param>
+        /// <param name="texturePaths">Relative image path per texture index, filled as images are written.</param>
+        /// <param name="usedTextureNames">Image file names already taken in the textures folder.</param>
+        /// <returns>The assets-relative path of the image, or an empty string when the material has no base color texture.</returns>
+        string AddBaseColorTexture(ImportedSceneData scene, ImportedSceneOutput output, ImportedSceneMaterial material, string[] texturePaths, HashSet<string> usedTextureNames) {
+            int textureIndex = ImportedSceneTextureReference.Parse(material.BaseColorTexturePath);
+            if (textureIndex < 0) {
+                return string.Empty;
+            } else if (textureIndex >= scene.Textures.Length) {
+                throw new InvalidOperationException($"Material '{material.Name}' refers to texture {textureIndex}, which the scene does not contain.");
+            }
+
+            if (texturePaths[textureIndex] == null) {
+                ImportedSceneTexture texture = scene.Textures[textureIndex];
+                string fileName = ImportedSceneNameUtils.Disambiguate(ImportedSceneNameUtils.MakeSafeName(texture.Name), usedTextureNames);
+                string path = TextureFolder + "/" + fileName + "." + texture.FormatHint;
+                output.AddGeneratedSourceFile(path, ReadTextureBytes(texture, material, output.SourceDirectoryPath));
+                texturePaths[textureIndex] = path;
+            }
+
+            return output.GeneratedFolderRelativePath + "/" + texturePaths[textureIndex];
+        }
+
+        /// <summary>
+        /// Returns the encoded bytes of a texture: the embedded bytes as they are, or the content of the external file next to the source.
+        /// </summary>
+        /// <param name="texture">Texture to read.</param>
+        /// <param name="material">Material that uses the texture, named in errors.</param>
+        /// <param name="sourceDirectoryPath">Absolute path of the folder that holds the source file.</param>
+        /// <returns>Encoded image bytes.</returns>
+        static byte[] ReadTextureBytes(ImportedSceneTexture texture, ImportedSceneMaterial material, string sourceDirectoryPath) {
+            if (texture.IsEmbedded) {
+                return texture.EncodedBytes;
+            }
+
+            string externalPath = Path.GetFullPath(Path.Combine(sourceDirectoryPath, texture.ExternalRelativePath.Replace('/', Path.DirectorySeparatorChar)));
+            if (!File.Exists(externalPath)) {
+                throw new FileNotFoundException($"Material '{material.Name}' uses the texture '{texture.ExternalRelativePath}', which was not found next to the source file.", externalPath);
+            }
+
+            return File.ReadAllBytes(externalPath);
         }
 
         /// <summary>
