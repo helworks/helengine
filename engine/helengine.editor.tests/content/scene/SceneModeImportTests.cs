@@ -376,6 +376,41 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures two contributors cannot add paths that differ only by case, because they name the same file on Windows.
+        /// </summary>
+        [Fact]
+        public void Output_rejectsPathsThatCollideByCase() {
+            ImportedSceneOutput output = CreateEmptyOutput();
+            output.AddGeneratedFile("Anim/x.hasset", new ModelAsset());
+            output.AddGeneratedSourceFile("Textures/t.png", new byte[1]);
+
+            Assert.Throws<InvalidOperationException>(() => output.AddGeneratedFile("anim/X.hasset", new ModelAsset()));
+            Assert.Throws<InvalidOperationException>(() => output.AddGeneratedSourceFile("textures/T.PNG", new byte[1]));
+            Assert.Equal(2, output.GeneratedFiles.Count);
+        }
+
+        /// <summary>
+        /// Ensures generated paths with an NTFS stream separator, "." or ".." segments or empty segments are rejected.
+        /// </summary>
+        [Theory]
+        [InlineData("a:b.hasset")]
+        [InlineData("x.png:stream")]
+        [InlineData("./a.hasset")]
+        [InlineData("a/./b.hasset")]
+        [InlineData("a/../b.hasset")]
+        [InlineData("..")]
+        [InlineData("a//b.hasset")]
+        [InlineData("a/")]
+        [InlineData("a/ /b.hasset")]
+        public void Output_rejectsUnsafePathSegments(string path) {
+            ImportedSceneOutput output = CreateEmptyOutput();
+
+            Assert.Throws<ArgumentException>(() => output.AddGeneratedFile(path, new ModelAsset()));
+            Assert.Throws<ArgumentException>(() => output.AddGeneratedSourceFile(path, new byte[1]));
+            Assert.Empty(output.GeneratedFiles);
+        }
+
+        /// <summary>
         /// Ensures an existing generated file whose identity cannot be read fails the import and names the file.
         /// </summary>
         [Fact]
@@ -794,6 +829,16 @@ namespace helengine.editor.tests {
             }
 
             return ids;
+        }
+
+        /// <summary>
+        /// Creates an output for an empty scene whose publisher writes nothing.
+        /// </summary>
+        /// <returns>Output to add files to.</returns>
+        static ImportedSceneOutput CreateEmptyOutput() {
+            ImportedSceneNode root = new ImportedSceneNode("Root", string.Empty, float3.Zero, float4.Identity, float3.One, Array.Empty<int>(), Array.Empty<ImportedSceneNode>());
+            ImportedSceneData scene = new ImportedSceneData(root, Array.Empty<ImportedSceneMesh>(), Array.Empty<ImportedSceneMaterial>(), Array.Empty<ImportedSceneTexture>(), Array.Empty<ImportedSceneAnimation>(), string.Empty);
+            return new ImportedSceneOutput(scene, "a.gltf.generated", "id", "a.hblueprint", (path, material) => new byte[0], extension => true, (file, kind) => null);
         }
 
         /// <summary>

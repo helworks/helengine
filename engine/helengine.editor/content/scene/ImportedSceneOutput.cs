@@ -18,7 +18,11 @@ namespace helengine.editor {
         /// <summary>
         /// Generated files keyed by their relative path inside the folder.
         /// </summary>
-        readonly Dictionary<string, ImportedSceneGeneratedFile> FilesByPath = new Dictionary<string, ImportedSceneGeneratedFile>(StringComparer.Ordinal);
+        /// <remarks>
+        /// Keys compare without case because Windows file systems do: "Anim/x" and "anim/X" name the same file, so the second
+        /// contributor would silently overwrite the first.
+        /// </remarks>
+        readonly Dictionary<string, ImportedSceneGeneratedFile> FilesByPath = new Dictionary<string, ImportedSceneGeneratedFile>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Blueprint entities keyed by the unique node path.
@@ -234,15 +238,15 @@ namespace helengine.editor {
 
         /// <summary>
         /// Checks that a path is a forward-slash path inside the generated folder that is neither reserved (the blueprint, the import
-        /// stamp extension) nor already taken.
+        /// stamp extension) nor already taken, ignoring case. Backslashes, a leading slash, ':' (a drive or an NTFS alternate data stream),
+        /// and empty, blank, "." or ".." segments are rejected, because contributor paths are not cleaned like the core contributor's names.
         /// </summary>
         /// <param name="relativePathInFolder">Path to check.</param>
         void ValidateNewGeneratedPath(string relativePathInFolder) {
             if (string.IsNullOrWhiteSpace(relativePathInFolder)) {
                 throw new ArgumentException("Generated file path must be provided.", nameof(relativePathInFolder));
-            } else if (relativePathInFolder.Contains('\\') || relativePathInFolder.StartsWith("/", StringComparison.Ordinal)
-                || Array.IndexOf(relativePathInFolder.Split('/'), "..") >= 0) {
-                throw new ArgumentException($"Generated file path '{relativePathInFolder}' must be a forward-slash path inside the generated folder.", nameof(relativePathInFolder));
+            } else if (relativePathInFolder.Contains('\\') || relativePathInFolder.Contains(':') || HasUnsafeSegment(relativePathInFolder)) {
+                throw new ArgumentException($"Generated file path '{relativePathInFolder}' must be a forward-slash path inside the generated folder, without ':', empty, '.' or '..' segments.", nameof(relativePathInFolder));
             } else if (string.Equals(relativePathInFolder, ReservedRelativePath, StringComparison.OrdinalIgnoreCase)) {
                 throw new ArgumentException($"Generated file path '{relativePathInFolder}' is reserved for the blueprint.", nameof(relativePathInFolder));
             } else if (relativePathInFolder.EndsWith(GeneratedSceneImportStamp.FileExtension, StringComparison.OrdinalIgnoreCase)) {
@@ -250,6 +254,23 @@ namespace helengine.editor {
             } else if (FilesByPath.ContainsKey(relativePathInFolder)) {
                 throw new InvalidOperationException($"A generated file already exists at '{relativePathInFolder}'.");
             }
+        }
+
+        /// <summary>
+        /// Tells whether a forward-slash path has an empty or blank segment (which also covers a leading or trailing slash) or a "." or ".." segment.
+        /// </summary>
+        /// <param name="relativePathInFolder">Path to check.</param>
+        /// <returns>True when any segment is unsafe.</returns>
+        static bool HasUnsafeSegment(string relativePathInFolder) {
+            string[] segments = relativePathInFolder.Split('/');
+            for (int index = 0; index < segments.Length; index++) {
+                string segment = segments[index];
+                if (string.IsNullOrWhiteSpace(segment) || segment == "." || segment == "..") {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
