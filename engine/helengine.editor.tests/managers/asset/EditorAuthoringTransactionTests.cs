@@ -456,6 +456,44 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
         Assert.True(File.Exists(Path.Combine(ProjectRootPath, "cache", "editor", "authoring-write.generation")));
     }
 
+    /// <summary>
+    /// Ensures rewriting a generated texture from a fresh settings intent keeps the sidecar data entries of the published sidecar,
+    /// including an entry whose owner is not loaded, byte-identical.
+    /// </summary>
+    [Fact]
+    public void WriteGeneratedTexture_WhenSidecarHasDataEntries_KeepsThemByteIdentical() {
+        byte[] unknownPayload = new byte[] { 200, 0, 1, 2, 255 };
+        string settingsPath = Path.Combine(ProjectRootPath, "assets", "textures", "kept.png.hasset");
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        using (EditorAuthoringTransaction first = session.BeginTransaction()) {
+            TextureAssetImportSettings firstIntent = new TextureAssetImportSettings();
+            firstIntent.Importer.ImporterId = "generated";
+            session.WriteGeneratedTexture("textures/kept.png", new byte[] { 0x01, 0x02 }, firstIntent, first);
+            first.Commit();
+        }
+
+        TextureAssetImportSettings published;
+        using (FileStream stream = File.OpenRead(settingsPath)) {
+            published = TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
+        }
+        published.Importer.SidecarData.SetRaw("plugin.not.loaded", unknownPayload);
+        using (FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write)) {
+            TextureAssetImportSettingsBinarySerializer.Serialize(stream, published);
+        }
+
+        using (EditorAuthoringTransaction second = session.BeginTransaction()) {
+            TextureAssetImportSettings secondIntent = new TextureAssetImportSettings();
+            secondIntent.Importer.ImporterId = "generated";
+            session.WriteGeneratedTexture("textures/kept.png", new byte[] { 0x03, 0x04 }, secondIntent, second);
+            second.Commit();
+        }
+
+        using FileStream rewritten = File.OpenRead(settingsPath);
+        TextureAssetImportSettings restored = TextureAssetImportSettingsBinarySerializer.Deserialize(rewritten);
+        Assert.True(restored.Importer.SidecarData.TryGetRaw("plugin.not.loaded", out byte[] payload));
+        Assert.Equal(unknownPayload, payload);
+    }
+
     [Fact]
     public void WriteGeneratedTexture_WhenPublicationFails_RollsBackSourceMetadataAndIndex() {
         using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);

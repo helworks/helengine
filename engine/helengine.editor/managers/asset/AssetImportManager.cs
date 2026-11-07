@@ -2716,6 +2716,15 @@ namespace helengine.editor {
                 if (settings.Processor.Platforms.Count == 0 && settings.Processor.Environments.Count == 0) {
                     settings.Processor = existingSettings.Processor;
                 }
+                // The intent rarely knows the sidecar data block; keep every published entry it does not set itself, including
+                // entries whose owner is not loaded here, so regenerating a texture never drops them.
+                IReadOnlyList<string> existingKeys = existingSettings.Importer.SidecarData.Keys;
+                for (int index = 0; index < existingKeys.Count; index++) {
+                    if (!settings.Importer.SidecarData.ContainsKey(existingKeys[index])) {
+                        existingSettings.Importer.SidecarData.TryGetRaw(existingKeys[index], out byte[] payload);
+                        settings.Importer.SidecarData.SetRaw(existingKeys[index], payload);
+                    }
+                }
             }
 
             RepairTextureImporterId(sourcePath, settings);
