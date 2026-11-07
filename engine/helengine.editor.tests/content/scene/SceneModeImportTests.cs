@@ -745,6 +745,44 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a material with a glTF base colour factor yields a generated material whose base-colour buffer holds that colour,
+        /// sRGB-encoded because the engine's buffer is gamma-space (linear 0.5, 0.25, 0.75 becomes 188, 137, 225 in 8-bit sRGB).
+        /// </summary>
+        [Fact]
+        public void BaseColorFactor_isWrittenToTheMaterialBuffer() {
+            string sourcePath = CopyFixture();
+            AssetImportManager manager = CreateManager();
+            SetMode(manager, sourcePath, ModelImportMode.Scene);
+
+            manager.ImportModel(sourcePath);
+
+            float4 color = ReadMaterialBaseColor(Path.Combine(AssetsRootPath, GeneratedFolder, "materials", "Paint.hasset"));
+            Assert.Equal(188f / 255f, color.X.ToSingle(), 0.001f);
+            Assert.Equal(137f / 255f, color.Y.ToSingle(), 0.001f);
+            Assert.Equal(225f / 255f, color.Z.ToSingle(), 0.001f);
+            Assert.Equal(1f, color.W.ToSingle(), 0.001f);
+        }
+
+        /// <summary>
+        /// Ensures a material without a base colour factor yields a white base-colour buffer.
+        /// </summary>
+        [Fact]
+        public void MissingBaseColorFactor_isWhite() {
+            string sourcePath = CopyFixture("textured_quad.gltf");
+            File.Copy(FixturePath("textured_quad.png"), Path.Combine(AssetsRootPath, "textured_quad.png"));
+            AssetImportManager manager = CreateManager();
+            SetMode(manager, sourcePath, ModelImportMode.Scene);
+
+            manager.ImportModel(sourcePath);
+
+            float4 color = ReadMaterialBaseColor(Path.Combine(AssetsRootPath, "textured_quad.gltf.generated", "materials", "Printed.hasset"));
+            Assert.Equal(1f, color.X.ToSingle(), 0.001f);
+            Assert.Equal(1f, color.Y.ToSingle(), 0.001f);
+            Assert.Equal(1f, color.Z.ToSingle(), 0.001f);
+            Assert.Equal(1f, color.W.ToSingle(), 0.001f);
+        }
+
+        /// <summary>
         /// Ensures a PNG embedded in a glb is extracted into the generated folder, imported as a texture source and bound to the material.
         /// </summary>
         [Fact]
@@ -954,6 +992,18 @@ namespace helengine.editor.tests {
             string destination = Path.Combine(AssetsRootPath, fileName);
             File.WriteAllText(destination, root.ToJsonString());
             return destination;
+        }
+
+        /// <summary>
+        /// Reads the base-colour constant buffer of a generated material as the windows platform resolves it.
+        /// </summary>
+        /// <param name="materialPath">Absolute path of the generated material.</param>
+        /// <returns>The colour stored in the buffer.</returns>
+        float4 ReadMaterialBaseColor(string materialPath) {
+            MaterialAssetSettingsService service = new MaterialAssetSettingsService(ProjectRootPath);
+            ShaderMaterialAsset material = service.LoadMaterialAsset(materialPath, "windows");
+            MaterialConstantBufferAsset buffer = Assert.Single(material.ConstantBuffers, candidate => candidate.Name == StandardMaterialBaseColorDefaults.BaseColorBufferName);
+            return StandardMaterialBaseColorDefaults.ReadConstantBufferData(buffer.Data);
         }
 
         /// <summary>

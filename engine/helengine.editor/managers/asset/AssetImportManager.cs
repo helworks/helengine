@@ -1238,7 +1238,7 @@ namespace helengine.editor {
             settings.FieldValues["emissive-texture-id"] = materialAsset.EmissiveTextureAssetId ?? string.Empty;
             settings.FieldValues["casts-shadow"] = "true";
             settings.FieldValues["receives-shadow"] = "true";
-            settings.FieldValues["base-color"] = "#FFFFFFFF";
+            settings.FieldValues["base-color"] = EditorColorUtils.FormatHtmlColor(ResolveGeneratedMaterialBaseColor(materialAsset));
 
             if (string.Equals(settings.FieldValues["use-custom-shader"], "true", StringComparison.Ordinal)) {
                 settings.FieldValues["shader-asset-id"] = materialAsset.ShaderAssetId ?? string.Empty;
@@ -1247,6 +1247,39 @@ namespace helengine.editor {
             }
 
             return settings;
+        }
+
+        /// <summary>
+        /// Reads the base colour a generated material carries in its base-colour constant buffer, quantised to the 8-bit channels the
+        /// authored <c>base-color</c> field stores. A material without that buffer is opaque white.
+        /// </summary>
+        /// <param name="materialAsset">Generated material asset returned by the model or scene importer.</param>
+        /// <returns>Base colour as an 8-bit RGBA value.</returns>
+        byte4 ResolveGeneratedMaterialBaseColor(ShaderMaterialAsset materialAsset) {
+            if (materialAsset.ConstantBuffers != null) {
+                for (int index = 0; index < materialAsset.ConstantBuffers.Length; index++) {
+                    MaterialConstantBufferAsset buffer = materialAsset.ConstantBuffers[index];
+                    if (buffer != null && string.Equals(buffer.Name, StandardMaterialBaseColorDefaults.BaseColorBufferName, StringComparison.Ordinal)) {
+                        float4 color = StandardMaterialBaseColorDefaults.ReadConstantBufferData(buffer.Data);
+                        return new byte4(
+                            QuantizeColorChannel(color.X.ToSingle()),
+                            QuantizeColorChannel(color.Y.ToSingle()),
+                            QuantizeColorChannel(color.Z.ToSingle()),
+                            QuantizeColorChannel(color.W.ToSingle()));
+                    }
+                }
+            }
+
+            return new byte4(255, 255, 255, 255);
+        }
+
+        /// <summary>
+        /// Rounds a 0..1 colour channel to the nearest 8-bit value.
+        /// </summary>
+        /// <param name="channel">Channel value; clamped to 0..1.</param>
+        /// <returns>8-bit channel value.</returns>
+        static byte QuantizeColorChannel(float channel) {
+            return (byte)Math.Round(Math.Min(1f, Math.Max(0f, channel)) * 255f, MidpointRounding.AwayFromZero);
         }
 
         /// <summary>

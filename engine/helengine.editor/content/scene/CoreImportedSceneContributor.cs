@@ -65,9 +65,9 @@ namespace helengine.editor {
         public string ContributorId => CoreContributorId;
 
         /// <summary>
-        /// Gets the version of the generated output.
+        /// Gets the version of the generated output. Version 2 writes the glTF base colour factor (sRGB-encoded) into the material base-colour buffer.
         /// </summary>
-        public int OutputVersion => 1;
+        public int OutputVersion => 2;
 
         /// <summary>
         /// Adds the model and material files and creates the blueprint entity tree.
@@ -116,7 +116,9 @@ namespace helengine.editor {
                     VertexProgram = StandardVertexProgramName,
                     PixelProgram = StandardPixelProgramName,
                     Variant = DefaultVariantName,
-                    DiffuseTextureAssetId = AddBaseColorTexture(scene, output, material, texturePaths, usedTextureNames)
+                    DiffuseTextureAssetId = AddBaseColorTexture(scene, output, material, texturePaths, usedTextureNames),
+                    // glTF baseColorFactor is linear, the engine's base-colour buffer is gamma (sRGB) encoded: see LinearToSrgb.
+                    ConstantBuffers = new[] { StandardMaterialBaseColorDefaults.CreateConstantBufferAsset(StandardMaterialBaseColorDefaults.LinearToSrgb(material.BaseColor)) }
                 };
                 output.AddGeneratedFile(path, materialAsset);
                 output.MarkMaterialConsumed(materialIndex);
