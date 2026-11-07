@@ -10,6 +10,13 @@ namespace helengine.editor {
         string ContributorId { get; }
 
         /// <summary>
+        /// Gets the version of the output this contributor produces. Raise it whenever a change to the contributor alters what it
+        /// generates from an unchanged source file; the import stamp records it, so existing generated folders count as stale and
+        /// regenerate (editor) or fail the build with the reimport message.
+        /// </summary>
+        int OutputVersion { get; }
+
+        /// <summary>
         /// Reads the neutral scene data and records generated files and entity changes on the output.
         /// </summary>
         /// <param name="scene">Neutral scene data read from the source file.</param>

@@ -856,14 +856,17 @@ namespace helengine.editor {
         GeneratedSceneImportStamp BuildExpectedSceneImportStamp(string importerId, string sourceChecksum) {
             IReadOnlyList<IImportedSceneContributor> contributors = ImporterRegistryInstance.GetSceneContributors();
             string[] contributorIds = new string[contributors.Count];
+            int[] contributorVersions = new int[contributors.Count];
             for (int index = 0; index < contributorIds.Length; index++) {
                 contributorIds[index] = contributors[index].ContributorId;
+                contributorVersions[index] = contributors[index].OutputVersion;
             }
 
             return new GeneratedSceneImportStamp {
                 ImporterId = importerId,
                 SourceChecksum = sourceChecksum,
-                ContributorIds = contributorIds
+                ContributorIds = contributorIds,
+                ContributorVersions = contributorVersions
             };
         }
 

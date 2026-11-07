@@ -551,6 +551,87 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the up-to-date scan regenerates the folder when a contributor's output version changes while the source and the
+        /// contributor set stay the same.
+        /// </summary>
+        [Fact]
+        public void ChangedContributorOutputVersion_regeneratesTheFolder() {
+            string sourcePath = CopyFixture();
+            AssetImportManager first = CreateManager();
+            first.ImporterRegistry.RegisterSceneContributor(new RecordingContributor());
+            SetMode(first, sourcePath, ModelImportMode.Scene);
+            Assert.Single(first.ImportModelsMissingCache());
+
+            AssetImportManager unchanged = CreateManager();
+            unchanged.ImporterRegistry.RegisterSceneContributor(new RecordingContributor());
+            Assert.Empty(unchanged.ImportModelsMissingCache());
+
+            AssetImportManager bumped = CreateManager();
+            bumped.ImporterRegistry.RegisterSceneContributor(new RecordingContributor { OutputVersion = 2 });
+            Assert.Single(bumped.ImportModelsMissingCache());
+            Assert.Empty(bumped.ImportModelsMissingCache());
+            ModelAssetImportSettings settings = bumped.LoadOrCreateModelImportSettings(sourcePath);
+            Assert.True(SidecarDataEntryRegistry.Shared.TryRead(settings.Importer.SidecarData, GeneratedSceneImportStamp.SidecarDataKey, out GeneratedSceneImportStamp stamp));
+            Assert.Equal(new[] { CoreImportedSceneContributor.CoreContributorId, RecordingContributor.PluginId }, stamp.ContributorIds);
+            Assert.Equal(new[] { new CoreImportedSceneContributor().OutputVersion, 2 }, stamp.ContributorVersions);
+        }
+
+        /// <summary>
+        /// Ensures a build fails with the reimport message, and does not regenerate, when a contributor's output version changed.
+        /// </summary>
+        [Fact]
+        public void ChangedContributorOutputVersion_failsTheBuildAsStale() {
+            string sourcePath = CopyFixture();
+            AssetImportManager editor = CreateManager();
+            editor.ImporterRegistry.RegisterSceneContributor(new RecordingContributor());
+            SetMode(editor, sourcePath, ModelImportMode.Scene);
+            editor.ImportModel(sourcePath);
+            byte[] sidecarBefore = File.ReadAllBytes(sourcePath + AssetImportManager.SettingsExtension);
+
+            AssetImportManager build = CreateManager();
+            build.ImporterRegistry.RegisterSceneContributor(new RecordingContributor { OutputVersion = 2 });
+            build.GeneratedSceneFoldersAreReadOnly = true;
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => build.ImportModel(sourcePath));
+
+            Assert.Contains("output changed", exception.Message);
+            Assert.Contains("reimport", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(sidecarBefore, File.ReadAllBytes(sourcePath + AssetImportManager.SettingsExtension));
+        }
+
+        /// <summary>
+        /// Ensures a stamp in the older ids-only layout (payload version 1) is still read but always counts as stale, so the editor
+        /// regenerates and a build fails.
+        /// </summary>
+        [Fact]
+        public void IdsOnlyStampLayout_isReadAsStale() {
+            string sourcePath = CopyFixture();
+            AssetImportManager editor = CreateManager();
+            SetMode(editor, sourcePath, ModelImportMode.Scene);
+            editor.ImportModel(sourcePath);
+            ModelAssetImportSettings settings = editor.LoadOrCreateModelImportSettings(sourcePath);
+            using MemoryStream stream = new MemoryStream();
+            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian)) {
+                writer.WriteByte(GeneratedSceneImportStampEntryDefinition.IdsOnlyVersion);
+                writer.WriteString("assimp");
+                writer.WriteString(settings.Importer.SourceChecksum);
+                writer.WriteInt32(1);
+                writer.WriteString(CoreImportedSceneContributor.CoreContributorId);
+            }
+            settings.Importer.SidecarData.SetRaw(GeneratedSceneImportStamp.SidecarDataKey, stream.ToArray());
+            editor.SaveModelImportSettings(sourcePath, settings);
+
+            Assert.True(SidecarDataEntryRegistry.Shared.TryRead(editor.LoadOrCreateModelImportSettings(sourcePath).Importer.SidecarData, GeneratedSceneImportStamp.SidecarDataKey, out GeneratedSceneImportStamp old));
+            Assert.Null(old.ContributorVersions);
+            AssetImportManager build = CreateManager();
+            build.GeneratedSceneFoldersAreReadOnly = true;
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => build.ImportModel(sourcePath));
+            Assert.Contains("older editor", exception.Message);
+
+            Assert.Single(CreateManager().ImportModelsMissingCache());
+            Assert.Empty(CreateManager().ImportModelsMissingCache());
+        }
+
+        /// <summary>
         /// Ensures a scene import records its stamp (importer, source checksum, contributors in order) as the
         /// <c>helengine.scene.import</c> entry of the source's sidecar, and writes no stamp file into the generated folder.
         /// </summary>
@@ -567,6 +648,7 @@ namespace helengine.editor.tests {
             Assert.Equal("assimp", stamp.ImporterId);
             Assert.Equal(settings.Importer.SourceChecksum, stamp.SourceChecksum);
             Assert.Equal(ContributorIds(manager), stamp.ContributorIds);
+            Assert.Equal(new[] { new CoreImportedSceneContributor().OutputVersion }, stamp.ContributorVersions);
             Assert.Empty(Directory.GetFiles(Path.Combine(AssetsRootPath, GeneratedFolder), "*.himport", SearchOption.AllDirectories));
         }
 
@@ -1086,6 +1168,11 @@ namespace helengine.editor.tests {
             public string ContributorId => PluginId;
 
             /// <summary>
+            /// Gets or sets the output version, which tests change to simulate a contributor whose output changed.
+            /// </summary>
+            public int OutputVersion { get; set; } = 1;
+
+            /// <summary>
             /// Records the core entities and adds an extra file.
             /// </summary>
             /// <param name="scene">Scene data.</param>
@@ -1111,6 +1198,11 @@ namespace helengine.editor.tests {
             /// Gets the contributor identifier.
             /// </summary>
             public string ContributorId => "test.other";
+
+            /// <summary>
+            /// Gets the output version.
+            /// </summary>
+            public int OutputVersion => 1;
 
             /// <summary>
             /// Does nothing.

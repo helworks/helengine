@@ -25,6 +25,11 @@ namespace helengine.animation {
         public string ContributorId => AnimationContributorId;
 
         /// <summary>
+        /// Gets the version of the generated clip output; raise it when the clips or player generated from an unchanged glTF change.
+        /// </summary>
+        public int OutputVersion => 1;
+
+        /// <summary>
         /// Adds one clip per animation and the player for the first one.
         /// </summary>
         /// <param name="scene">Neutral scene data read from the source file.</param>

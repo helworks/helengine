@@ -65,6 +65,11 @@ namespace helengine.editor {
         public string ContributorId => CoreContributorId;
 
         /// <summary>
+        /// Gets the version of the generated output.
+        /// </summary>
+        public int OutputVersion => 1;
+
+        /// <summary>
         /// Adds the model and material files and creates the blueprint entity tree.
         /// </summary>
         /// <param name="scene">Neutral scene data read from the source file.</param>
