@@ -162,6 +162,26 @@ public sealed class EditorPlatformFontVariantCacheServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures adding a sidecar data entry, which carries no font import input, keeps the variant checksum and reuses the cached variant.
+    /// </summary>
+    [Fact]
+    public void ResolveVariant_WhenSidecarDataEntryIsAdded_ReusesCachedVariant() {
+        string sourcePath = WriteSourceFont("Fonts/DemoData.ttf");
+        AssetImportManager manager = CreateFontManager(new TestFontImporter());
+        EditorPlatformFontVariantCacheService service = new EditorPlatformFontVariantCacheService(manager);
+        EditorPlatformFontVariantCacheResult firstResult = service.ResolveVariant(sourcePath, "gamecube");
+
+        AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+        settings.Importer.SidecarData.SetRaw("plugin.not.loaded", new byte[] { 1, 2, 3 });
+        manager.SaveImportSettings(sourcePath, settings);
+        EditorPlatformFontVariantCacheResult secondResult = service.ResolveVariant(sourcePath, "gamecube");
+
+        Assert.True(manager.LoadOrCreateImportSettings(sourcePath).Importer.SidecarData.ContainsKey("plugin.not.loaded"));
+        Assert.True(secondResult.IsCacheHit);
+        Assert.Equal(firstResult.CachedFontAssetPath, secondResult.CachedFontAssetPath);
+    }
+
+    /// <summary>
     /// Leaves a valid v4 variant in place and verifies the corrected crop-bearing importer selects a new cache identity instead of reporting that stale variant as a hit.
     /// </summary>
     [Fact]

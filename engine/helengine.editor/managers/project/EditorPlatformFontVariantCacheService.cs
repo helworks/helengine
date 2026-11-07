@@ -100,6 +100,8 @@ namespace helengine.editor {
 
         /// <summary>
         /// Serializes the current authored import settings and hashes the payload so cache invalidation follows any settings change.
+        /// The sidecar data block is left out: its entries (scene import stamps, plugin data) are not font import inputs, so adding
+        /// or changing one must not invalidate the cached variant.
         /// </summary>
         /// <param name="settings">Resolved authored import settings for the source font.</param>
         /// <returns>Checksum of the serialized authored import settings.</returns>
@@ -111,7 +113,15 @@ namespace helengine.editor {
             using MemoryStream stream = new MemoryStream();
             byte[] versionBytes = System.Text.Encoding.UTF8.GetBytes(CacheFormatVersion);
             stream.Write(versionBytes, 0, versionBytes.Length);
-            SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            AssetImportSettings fontInputs = new AssetImportSettings {
+                Importer = new AssetImporterSettings {
+                    ImporterId = settings.Importer.ImporterId,
+                    SourceChecksum = settings.Importer.SourceChecksum,
+                    ProcessedAssetId = settings.Importer.ProcessedAssetId
+                },
+                Processor = settings.Processor
+            };
+            SectionedAssetImportSettingsBinarySerializer.Serialize(stream, fontInputs);
             return ComputeChecksum(stream.ToArray());
         }
 
