@@ -2,7 +2,21 @@ namespace helengine {
     /// <summary>
     /// Tracks wheel and middle-button autoscroll for a rectangular viewport, acts as its own clip region, derives the visible range when needed, and can translate a bound content root automatically.
     /// </summary>
-    public class ScrollComponent : UpdateComponent, IClipRegion2D {
+    public class ScrollComponent : UpdateComponent, IClipRegion2D, ITouchInteractable2D {
+        /// <summary>Enables contact routing only for viewports that explicitly request touch scrolling.</summary>
+        bool TouchScrollingEnabledValue;
+        /// <summary>Physical-pixel movement required before a contact becomes a scroll gesture.</summary>
+        float TouchDragThresholdValue = 8f;
+        /// <summary>Whether one finger currently owns the viewport's touch gesture.</summary>
+        bool HasScrollTouch;
+        /// <summary>Stable identifier of the finger allowed to drive scrolling.</summary>
+        int ScrollTouchId;
+        /// <summary>Viewport-relative coordinate where the captured finger began.</summary>
+        int ScrollTouchOrigin;
+        /// <summary>Item offset at the beginning of the captured contact.</summary>
+        int ScrollTouchOffset;
+        /// <summary>Whether the owning finger has crossed the drag threshold.</summary>
+        bool ScrollTouchDragging;
         /// <summary>
         /// Standard mouse-wheel delta used to represent one notch on Windows-compatible devices.
         /// </summary>
@@ -317,6 +331,9 @@ namespace helengine {
         /// <param name="entity">Entity owning the scroll viewport.</param>
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
+            if (TouchScrollingEnabledValue && entity.IsHierarchyEnabled) {
+                OwnerCore.ObjectManager.RegisterInteractable(this);
+            }
             if (ShowScrollBarValue) {
                 CreateScrollBar();
             }
@@ -325,6 +342,8 @@ namespace helengine {
         /// <summary>Releases the owned scrollbar and any active autoscroll when the viewport is detached.</summary>
         /// <param name="entity">Entity losing the scroll viewport.</param>
         public override void ComponentRemoved(Entity entity) {
+            OwnerCore.ObjectManager.RemoveInteractable(this);
+            HasScrollTouch = false;
             StopAutoScroll();
             RemoveScrollBar();
             CachedViewportClip = null;
@@ -350,6 +369,12 @@ namespace helengine {
         /// <param name="newEnabled">Whether the viewport hierarchy remains enabled.</param>
         public override void ParentEnabledChange(bool newEnabled) {
             base.ParentEnabledChange(newEnabled);
+            if (newEnabled && TouchScrollingEnabledValue) {
+                OwnerCore.ObjectManager.RegisterInteractable(this);
+            } else if (!newEnabled) {
+                OwnerCore.ObjectManager.RemoveInteractable(this);
+                HasScrollTouch = false;
+            }
             if (!newEnabled) {
                 StopAutoScroll();
             }
@@ -449,6 +474,8 @@ namespace helengine {
 
                 StopAutoScroll();
                 OrientationValue = value;
+                if (Parent != null) { OwnerCore.PointerInteractionSystem.ClearInteractionFor(this); }
+                HasScrollTouch = false;
                 ClampScrollOffset();
                 ApplyContentRootOffset();
             }
@@ -746,5 +773,84 @@ namespace helengine {
             }
             return null;
         }
+
+        /// <summary>Gets or sets opt-in finger scrolling. Defaults to false; disabling cancels held scroll contacts.</summary>
+        public bool TouchScrollingEnabled {
+            get { return TouchScrollingEnabledValue; }
+            set {
+                if (TouchScrollingEnabledValue == value) { return; }
+                TouchScrollingEnabledValue = value;
+                if (Parent == null) { return; }
+                if (value && Parent.IsHierarchyEnabled && ComponentExecutionPolicy.ShouldRunComponentLifecycle(this, Parent)) {
+                    OwnerCore.ObjectManager.RegisterInteractable(this);
+                } else if (!value) {
+                    OwnerCore.ObjectManager.RemoveInteractable(this);
+                    HasScrollTouch = false;
+                }
+            }
+        }
+
+        /// <summary>Gets or sets the finite, nonnegative drag threshold in resolved physical pixels; defaults to eight.</summary>
+        public float TouchDragThreshold {
+            get { return TouchDragThresholdValue; }
+            set {
+                if (float.IsNaN(value) || float.IsInfinity(value) || value < 0f) {
+                    throw new ArgumentOutOfRangeException(nameof(value), "Touch drag threshold must be finite and nonnegative.");
+                }
+                TouchDragThresholdValue = value;
+            }
+        }
+
+        /// <summary>Scroll backgrounds leave the desktop cursor unchanged.</summary>
+        public PointerCursorKind HoverCursor => PointerCursorKind.Default;
+
+        /// <summary>Provides the common interactable contract; background scrolling is routed only for touches.</summary>
+        public event Action<int2, int2, PointerInteraction> CursorEvent;
+
+        /// <summary>Forwards explicitly requested cursor events without implementing a second mouse scrolling path.</summary>
+        public void OnCursor(int2 relPos, int2 delta, PointerInteraction state) { CursorEvent?.Invoke(relPos, delta, state); }
+
+        /// <summary>Moves whole item offsets from the original contact position, retaining one driver until lift or cancellation.</summary>
+        public void OnTouch(InputTouchState touch) {
+            if (touch.Phase == InputTouchPhase.Began) {
+                if (!TouchScrollingEnabledValue || HasScrollTouch || Parent == null || !Parent.IsHierarchyEnabled) { return; }
+                HasScrollTouch = true;
+                ScrollTouchId = touch.Id;
+                ScrollTouchOrigin = OrientationValue == ScrollOrientation.Horizontal ? touch.X : touch.Y;
+                ScrollTouchOffset = ScrollOffset;
+                ScrollTouchDragging = false;
+                StopAutoScroll();
+                return;
+            }
+            if (!HasScrollTouch || ScrollTouchId != touch.Id) { return; }
+            if (touch.Phase == InputTouchPhase.Canceled) {
+                HasScrollTouch = false;
+                ScrollTouchDragging = false;
+                return;
+            }
+            float distance = (OrientationValue == ScrollOrientation.Horizontal ? (float)touch.X : touch.Y) - ScrollTouchOrigin;
+            if (Math.Abs(distance) > TouchDragThresholdValue) { ScrollTouchDragging = true; }
+            bool ending = touch.Phase == InputTouchPhase.Ended;
+            if (ending) { HasScrollTouch = false; }
+            if (ScrollTouchDragging) {
+                float movement = distance / ItemExtentValue;
+                int offset;
+                if (movement >= ScrollTouchOffset + 1f) {
+                    offset = 0;
+                } else if (-movement >= MaximumScrollOffset - (float)ScrollTouchOffset + 1f) {
+                    offset = MaximumScrollOffset;
+                } else {
+                    offset = ScrollTouchOffset - (int)movement;
+                }
+                SetScrollOffset(offset, true);
+            }
+            if (ending) { ScrollTouchDragging = false; }
+        }
+
+        /// <summary>Prevents another finger from taking over a live scroll while allowing the router to cancel its descendant press.</summary>
+        internal bool CanCaptureScrollTouch(int id) { return !HasScrollTouch || ScrollTouchId == id; }
+
+        /// <summary>Keeps an accepted scroll gesture stable instead of transferring it again to an outer viewport.</summary>
+        internal bool IsDraggingScrollTouch(int id) { return HasScrollTouch && ScrollTouchId == id && ScrollTouchDragging; }
     }
 }

@@ -176,6 +176,34 @@ namespace helengine.editor.tests {
             Assert.True(material.ReceivesShadows);
         }
 
+        /// <summary>Preserves shader layout and inherited constants while each owned instance binds its own primary atlas texture.</summary>
+        [Fact]
+        public void CreateInstance_PreservesShaderBindingsAndIndependentPrimaryTexture() {
+            using ShaderRuntimeMaterial template = new ShaderRuntimeMaterial();
+            template.SetLayout(CreateFirstLayout());
+            using TestRuntimeTexture original = new TestRuntimeTexture(); using TestRuntimeTexture atlas = new TestRuntimeTexture();
+            template.SetPrimaryTexture(original); template.Properties.SetConstantBufferData("MaterialParams", new byte[] { 1, 2, 3, 4 });
+            template.CastsShadows = false; template.ReceivesShadows = false;
+            using RuntimeMaterial created = template.CreateInstance();
+            ShaderRuntimeMaterial instance = Assert.IsType<ShaderRuntimeMaterial>(created); instance.SetPrimaryTexture(atlas);
+            Assert.Same(template, instance.ResolveRootMaterial()); Assert.Same(template.Layout, instance.Layout);
+            Assert.Same(atlas, instance.Properties.GetTexture(0)); Assert.Same(atlas, instance.ResolvePrimaryTexture());
+            Assert.Same(original, template.ResolvePrimaryTexture()); Assert.False(instance.CastsShadows); Assert.False(instance.ReceivesShadows);
+            Assert.True(instance.TryResolveConstantBufferData("MaterialParams", out byte[] data)); Assert.Equal(new byte[] { 1, 2, 3, 4 }, data);
+        }
+        /// <summary>A generic material instance preserves feature flags and state without changing its template's atlas binding.</summary>
+        [Fact]
+        public void CreateInstance_PreservesGenericStateAndIndependentPrimaryTexture() {
+            using RuntimeMaterial template = new RuntimeMaterial { CastsShadows = false, ReceivesShadows = false };
+            using TestRuntimeTexture original = new TestRuntimeTexture(); using TestRuntimeTexture atlas = new TestRuntimeTexture();
+            template.SetPrimaryTexture(original);
+            MaterialRenderState state = template.RenderState; state.BlendMode = MaterialBlendMode.AlphaBlend;
+            using RuntimeMaterial instance = template.CreateInstance(); instance.SetPrimaryTexture(atlas);
+            Assert.Same(template, instance.ResolveRootMaterial()); Assert.NotSame(state, instance.RenderState);
+            Assert.Equal(MaterialBlendMode.AlphaBlend, instance.RenderState.BlendMode);
+            Assert.False(instance.CastsShadows); Assert.False(instance.ReceivesShadows);
+            Assert.Same(atlas, instance.ResolvePrimaryTexture()); Assert.Same(original, template.ResolvePrimaryTexture());
+        }
         /// <summary>
         /// Creates the initial material layout used by runtime-material tests.
         /// </summary>

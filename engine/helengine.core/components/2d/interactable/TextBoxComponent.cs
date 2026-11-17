@@ -4,10 +4,88 @@ namespace helengine {
     /// </summary>
     [RunInEditor]
     public class TextBoxComponent : Component, IFocusTarget {
+        /// <summary>Optional system typography propagated to the existing text presentation.</summary>
+        [NativeOwnedMember] SystemTextStyle SystemTextStyleValue;
+        /// <summary>Stores explicit glyph density independently of reference-canvas scaling.</summary>
+        float FontScaleValue = 1f;
+        /// <summary>Gets or sets a finite positive glyph scale; one preserves existing bitmap and system typography defaults.</summary>
+        public float FontScale {
+            get { return FontScaleValue; }
+            set {
+                if (float.IsNaN(value) || float.IsInfinity(value) || value <= 0f || value > 64f) { throw new ArgumentOutOfRangeException(nameof(value)); }
+                FontScaleValue = value;
+                if (TextComponent != null) { TextComponent.FontScale = value; }
+                UpdateTextLayout();
+            }
+        }
+        /// <summary>Gets or sets the platform style for text and placeholder. Native keyboard activation is supplied separately by the host.</summary>
+        [ScenePersistenceIgnore]
+        public SystemTextStyle SystemTextStyle {
+            get { return SystemTextStyleValue; }
+            set {
+                if (ReferenceEquals(value, SystemTextStyleValue)) { return; }
+                SystemTextStyle replacement = value == null ? null : new SystemTextStyle(value.Role, value.Weight, value.Rounded, value.PointSize);
+                NativeOwnership.Release(ref SystemTextStyleValue);
+                SystemTextStyleValue = replacement;
+                if (TextComponent != null) { TextComponent.SystemTextStyle = value; }
+                UpdateTextLayout();
+            }
+        }
+        /// <summary>Releases owned input and style without accessing presentation children, which entity teardown may already have destroyed.</summary>
+        public override void Dispose() {
+            NativeOwnership.DisposeAndRelease(ref NativeSession);
+            if (FocusedTextBox == this) { FocusedTextBox = null; }
+            IsFocusedValue = false;
+            IsSelectingText = false;
+            NativeOwnership.Release(ref SystemTextStyleValue);
+            base.Dispose();
+        }
         /// <summary>
         /// Horizontal padding between the textbox border and its text content.
         /// </summary>
         const int TextPaddingX = 8;
+        /// <summary>Owns native input only while this attached control has focus.</summary>
+        [NativeOwnedMember] ITextEntrySession NativeSession;
+        /// <summary>Last coherent native snapshot revision applied to this control.</summary>
+        int NativeRevision;
+        /// <summary>Horizontal layout origin kept visible while the complete Unicode string remains shaped.</summary>
+        float TextScrollX;
+        /// <summary>Hosts the independently rendered caret; glyphs never contain a synthetic caret character.</summary>
+        Entity CaretEntity;
+        /// <summary>Draws the caret without disturbing shaping or composition.</summary>
+        RoundedRectComponent CaretSprite;
+        /// <summary>Hosts the underline for a native marked composition.</summary>
+        Entity MarkedEntity;
+        /// <summary>Draws the current marked span independently of text glyphs.</summary>
+        RoundedRectComponent MarkedSprite;
+        /// <summary>Stores the text foreground while preserving existing white defaults.</summary>
+        byte4 TextColorValue = new byte4(255, 255, 255, 255);
+        /// <summary>Stores the existing muted placeholder foreground.</summary>
+        byte4 PlaceholderColorValue = new byte4(150, 150, 150, 255);
+        /// <summary>Stores the caret foreground independently from glyph tint.</summary>
+        byte4 CaretColorValue = new byte4(255, 255, 255, 255);
+        /// <summary>Stores the idle background role selected when the control is created.</summary>
+        byte4 FillColorValue;
+        /// <summary>Stores the idle border role independently from focus.</summary>
+        byte4 BorderColorValue;
+        /// <summary>Stores the focused border role.</summary>
+        byte4 FocusedBorderColorValue;
+        /// <summary>Stores selection fill including its authored alpha.</summary>
+        byte4 SelectionColorValue;
+        /// <summary>Gets or sets the text foreground.</summary>
+        public byte4 TextColor { get { return TextColorValue; } set { TextColorValue = value; UpdateTextDisplay(); } }
+        /// <summary>Gets or sets the empty unfocused placeholder foreground.</summary>
+        public byte4 PlaceholderColor { get { return PlaceholderColorValue; } set { PlaceholderColorValue = value; UpdateTextDisplay(); } }
+        /// <summary>Gets or sets the independently drawn caret and marked-span foreground.</summary>
+        public byte4 CaretColor { get { return CaretColorValue; } set { CaretColorValue = value; UpdateTextLayout(); } }
+        /// <summary>Gets or sets the background surface without changing focus behavior.</summary>
+        public byte4 FillColor { get { return FillColorValue; } set { FillColorValue = value; if (BackgroundSprite != null) { BackgroundSprite.FillColor = value; } } }
+        /// <summary>Gets or sets the ordinary border color.</summary>
+        public byte4 BorderColor { get { return BorderColorValue; } set { BorderColorValue = value; UpdateFocusVisual(); } }
+        /// <summary>Gets or sets the focused border color.</summary>
+        public byte4 FocusedBorderColor { get { return FocusedBorderColorValue; } set { FocusedBorderColorValue = value; UpdateFocusVisual(); } }
+        /// <summary>Gets or sets selection fill, including opacity.</summary>
+        public byte4 SelectionColor { get { return SelectionColorValue; } set { SelectionColorValue = value; UpdateTextLayout(); } }
         /// <summary>
         /// Fixed per-frame time step used by transient textbox feedback effects.
         /// </summary>
@@ -110,8 +188,17 @@ namespace helengine {
         public string Text {
             get { return EditState.Text; }
             set {
+                string incomingText = value ?? "";
+                if (incomingText == EditState.Text) { return; }
+                if (NativeSession != null) { TextEntryValidation.ValidateText(incomingText); }
                 string previousText = EditState.Text;
-                EditState.Text = value ?? "";
+                if (NativeSession != null && NativeSession.IsActive) {
+                    NativeSession.Replace(incomingText, EditState.SelectionStart, EditState.SelectionEnd - EditState.SelectionStart);
+                    EditState.ApplyNativeSnapshot(NativeSession.Text, NativeSession.SelectionStart, NativeSession.SelectionLength, NativeSession.MarkedStart, NativeSession.MarkedLength);
+                    NativeRevision = NativeSession.Revision;
+                } else {
+                    EditState.Text = incomingText;
+                }
                 UpdateTextDisplay();
                 if (previousText != EditState.Text) {
                     TextChanged?.Invoke(this);
@@ -224,6 +311,10 @@ namespace helengine {
             this.FontValue = font;
             this.PlaceholderValue = placeholder;
             EditState = new TextBoxEditState();
+            FillColorValue = ThemeManager.Colors.SurfaceInput;
+            BorderColorValue = ThemeManager.Colors.AccentTertiary;
+            FocusedBorderColorValue = ThemeManager.Colors.AccentPrimary;
+            SelectionColorValue = new byte4(FocusedBorderColorValue.X, FocusedBorderColorValue.Y, FocusedBorderColorValue.Z, 96);
         }
 
         /// <summary>
@@ -238,8 +329,8 @@ namespace helengine {
             BackgroundSprite.Size = SizeValue;
             BackgroundSprite.Radius = MathF.Min(SizeValue.X, SizeValue.Y) * 0.15f;
             BackgroundSprite.BorderThickness = 2f;
-            BackgroundSprite.FillColor = ThemeManager.Colors.SurfaceInput;
-            BackgroundSprite.BorderColor = ThemeManager.Colors.AccentTertiary;
+            BackgroundSprite.FillColor = FillColorValue;
+            BackgroundSprite.BorderColor = BorderColorValue;
             entity.AddComponent(BackgroundSprite);
 
             // Create selection highlight so dragged text can be shown behind the caret and text.
@@ -277,9 +368,21 @@ namespace helengine {
             entity.AddChild(TextEntity);
 
             TextComponent = new TextComponent();
+            TextComponent.SystemTextStyle = SystemTextStyleValue;
+            TextComponent.FontScale = FontScaleValue;
             TextComponent.Font = FontValue;
-            TextComponent.Color = new byte4(255, 255, 255, 255);
+            TextComponent.Color = TextColorValue;
+            TextComponent.WrapText = false;
+            TextComponent.ClipSystemTextToSize = true;
             TextEntity.AddComponent(TextComponent);
+            CaretEntity = CreateFeedbackEntity(entity);
+            entity.AddChild(CaretEntity);
+            CaretSprite = new RoundedRectComponent { BorderThickness = 0f, Radius = 0f, FillColor = CaretColorValue };
+            CaretEntity.AddComponent(CaretSprite);
+            MarkedEntity = CreateFeedbackEntity(entity);
+            entity.AddChild(MarkedEntity);
+            MarkedSprite = new RoundedRectComponent { BorderThickness = 0f, Radius = 0f, FillColor = CaretColorValue };
+            MarkedEntity.AddComponent(MarkedSprite);
 
             // Create interactable component for mouse clicks
             InteractableComponent = new InteractableComponent();
@@ -306,8 +409,10 @@ namespace helengine {
                     FocusedTextBox.IsFocused = false;
                 }
                 IsFocused = true;
+                PollNativeSession();
                 int cursorPosition = ResolveCursorPositionFromClick(relPos.X);
                 EditState.SetSelection(cursorPosition, cursorPosition);
+                PushNativeSelection();
                 IsSelectingText = true;
                 UpdateTextDisplay();
             } else if (state == PointerInteraction.Hover && IsSelectingText) {
@@ -317,6 +422,7 @@ namespace helengine {
                 } else {
 #endif
                     EditState.SetSelection(EditState.SelectionAnchorPosition, ResolveCursorPositionFromClick(relPos.X));
+                    PushNativeSelection();
 #if DESKTOP_PLATFORM
                 }
 #endif
@@ -341,6 +447,8 @@ namespace helengine {
                 return;
             }
 
+            PollNativeSession();
+            if (!IsFocusedValue) { return; }
             // Handle cursor blinking
             CursorBlinkElapsedSeconds += core.DeltaTime;
             if (CursorBlinkElapsedSeconds >= 0.5d) {
@@ -351,6 +459,7 @@ namespace helengine {
 
             // Handle keyboard input
 #if DESKTOP_PLATFORM
+            if (NativeSession != null) { return; }
             InputSystem inputManager = core.Input;
             bool isShiftPressed = inputManager.IsKeyDown(Keys.LeftShift) || inputManager.IsKeyDown(Keys.RightShift);
             bool isControlPressed = inputManager.IsKeyDown(Keys.LeftControl) || inputManager.IsKeyDown(Keys.RightControl);
@@ -598,20 +707,8 @@ namespace helengine {
             bool showPlaceholder = string.IsNullOrEmpty(EditState.Text) && !IsFocusedValue;
             string displayText = showPlaceholder ? PlaceholderValue : EditState.Text;
 
-            // Add cursor if focused and visible
-            if (IsFocusedValue && CursorVisible) {
-                int cursorIndex = Math.Max(0, Math.Min(EditState.CursorPosition, displayText.Length));
-                displayText = displayText.Insert(cursorIndex, "|");
-            }
-
             TextComponent.Text = displayText;
-
-            // Set color based on whether it's placeholder or real text
-            if (showPlaceholder) {
-                TextComponent.Color = new byte4(150, 150, 150, 255); // Gray for placeholder
-            } else {
-                TextComponent.Color = new byte4(255, 255, 255, 255); // White for text
-            }
+            TextComponent.Color = showPlaceholder ? PlaceholderColorValue : TextColorValue;
 
             UpdateTextLayout();
         }
@@ -622,10 +719,11 @@ namespace helengine {
         /// <param name="clickX">Pointer X position relative to the textbox bounds.</param>
         /// <returns>Caret index that best matches the clicked text position.</returns>
         int ResolveCursorPositionFromClick(int clickX) {
-            if (Font == null) {
-                return 0;
+            if (SystemTextStyleValue != null && TextComponent != null) {
+                ISystemTextLayout layout = TextComponent.MeasureSystemText();
+                return layout.HitTest(Math.Max(0f, clickX - TextPaddingX + TextScrollX), 0f);
             }
-
+            if (Font == null) { return 0; }
             string text = EditState.Text;
             if (string.IsNullOrEmpty(text)) {
                 return 0;
@@ -652,18 +750,18 @@ namespace helengine {
         /// <returns>Advance width in pixels.</returns>
         double ResolveCharacterAdvance(char character) {
             if (character == ' ') {
-                return Math.Max((double)Font.FontInfo.SpaceWidth, 1.0);
+                return Math.Max((double)Font.FontInfo.SpaceWidth, 1.0) * FontScaleValue;
             }
 
             FontChar glyph;
             if (Font.Characters != null && Font.Characters.TryGetValue(character, out glyph)) {
                 if (glyph.AdvanceWidth > 0f) {
-                    return glyph.AdvanceWidth;
+                    return glyph.AdvanceWidth * FontScaleValue;
                 }
 
                 double sourceWidth = (double)glyph.SourceRect.Z;
                 if (sourceWidth > 0.0) {
-                    return sourceWidth;
+                    return sourceWidth * FontScaleValue;
                 }
             }
 
@@ -674,11 +772,17 @@ namespace helengine {
         /// Positions the textbox text host with shared left padding and vertically centers it using the font line height.
         /// </summary>
         void UpdateTextLayout() {
-            if (TextEntity == null || TextComponent == null || FontValue == null) {
+            if (TextEntity == null || TextComponent == null) {
                 return;
             }
+            if (SystemTextStyleValue != null) {
+                UpdateSystemTextLayout();
+                return;
+            }
+            TextComponent.CenterSystemTextVertically = false;
+            if (FontValue == null) { return; }
 
-            double lineHeight = Math.Max((double)FontValue.LineHeight, 1.0);
+            double lineHeight = Math.Max((double)FontValue.LineHeight * FontScaleValue, 1.0);
             double textY = Math.Round((SizeValue.Y - lineHeight) / 2.0, MidpointRounding.AwayFromZero);
             FontTightMetrics textMetrics = FontValue.MeasureTight(TextComponent.Text);
             TextEntity.Position = new float3(TextPaddingX, (float)textY, 0.1f);
@@ -686,6 +790,7 @@ namespace helengine {
                 (int)Math.Ceiling(textMetrics.Width),
                 (int)Math.Ceiling(lineHeight));
             UpdateSelectionVisual(textY, lineHeight);
+            UpdateCaretGeometry((float)ResolveTextWidth(0, EditState.CursorPosition), (float)textY, (float)lineHeight);
         }
 
         /// <summary>
@@ -778,9 +883,20 @@ namespace helengine {
                 return;
             }
 
-            IsFocusedValue = value;
-            if (IsFocusedValue) {
+            if (value && !CanReceiveFocus) { return; }
+            if (value && OwnerCore != null && OwnerCore.TextEntry != null) { TextEntryValidation.ValidateText(EditState.Text); }
+            if (value && FocusedTextBox != null && FocusedTextBox != this) { FocusedTextBox.IsFocused = false; }
+            if (!value) { CloseNativeSession(); }
+            if (value) {
                 EditState.SetCursorToEnd();
+                if (OwnerCore != null && OwnerCore.TextEntry != null) {
+                    TextEntryValidation.ValidateText(EditState.Text);
+                    NativeOwnership.DisposeAndRelease(ref NativeSession);
+                    NativeSession = OwnerCore.TextEntry.Begin(EditState.Text, EditState.SelectionStart, EditState.SelectionEnd - EditState.SelectionStart, TextEntryValidation.MaximumLength);
+                    if (NativeSession == null) { IsFocusedValue = false; throw new InvalidOperationException("Native text backend returned no owned session."); }
+                    NativeRevision = -1;
+                }
+                IsFocusedValue = true;
                 FocusedTextBox = this;
             } else if (FocusedTextBox == this) {
                 FocusedTextBox = null;
@@ -788,6 +904,7 @@ namespace helengine {
                 EditState.ClearSelection();
             }
 
+            IsFocusedValue = value;
             CursorVisible = true;
             CursorBlinkElapsedSeconds = 0d;
             UpdateTextDisplay();
@@ -796,6 +913,104 @@ namespace helengine {
             if (!IsFocusedValue && submitOnBlur) {
                 Submitted?.Invoke(this);
             }
+        }
+
+        /// <summary>Creates an initialized feedback entity and transfers ownership to the caller, which attaches it before keeping a borrowed field reference.</summary>
+        [NativeOwnedReturn]
+        Entity CreateFeedbackEntity(Entity parent) {
+            Entity child = new Entity(OwnerCore);
+            child.LayerMask = parent.LayerMask;
+            child.Enabled = true;
+            child.InitComponents();
+            return child;
+        }
+        /// <summary>Polls only this focus owner's session, applying a complete coherent snapshot before terminal focus changes.</summary>
+        void PollNativeSession() {
+            if (NativeSession == null || !IsFocusedValue) { return; }
+            NativeSession.Poll();
+            if (NativeRevision != NativeSession.Revision) {
+                string previous = EditState.Text;
+                EditState.ApplyNativeSnapshot(NativeSession.Text, NativeSession.SelectionStart, NativeSession.SelectionLength, NativeSession.MarkedStart, NativeSession.MarkedLength);
+                NativeRevision = NativeSession.Revision;
+                CursorVisible = true;
+                UpdateTextDisplay();
+                if (previous != EditState.Text) { TextChanged?.Invoke(this); }
+            }
+            if (NativeSession == null || !IsFocusedValue) { return; }
+            if (NativeSession.Submitted) { SetFocusedState(false, true); }
+            else if (NativeSession.Canceled || !NativeSession.IsActive) { SetFocusedState(false, false); }
+        }
+        /// <summary>Pushes caret/selection changes without replacing the text or unmarking an IME composition.</summary>
+        void PushNativeSelection() {
+            if (NativeSession != null && NativeSession.IsActive) { NativeSession.Select(EditState.SelectionStart, EditState.SelectionEnd - EditState.SelectionStart); NativeRevision = -1; }
+        }
+        /// <summary>Ends and releases only this control's owned session; cancellation cannot reach a newer focus owner.</summary>
+        void CloseNativeSession() {
+            bool changed = false;
+            if (NativeSession != null) {
+                NativeSession.Poll();
+                if (NativeRevision != NativeSession.Revision) {
+                    string previous = EditState.Text;
+                    EditState.ApplyNativeSnapshot(NativeSession.Text, NativeSession.SelectionStart, NativeSession.SelectionLength, NativeSession.MarkedStart, NativeSession.MarkedLength);
+                    changed = previous != EditState.Text;
+                    NativeRevision = NativeSession.Revision;
+                }
+                NativeSession.Cancel(); NativeOwnership.DisposeAndRelease(ref NativeSession);
+            }
+            if (changed) { TextChanged?.Invoke(this); }
+            if (EditState.MarkedStart >= 0) { EditState.ApplyNativeSnapshot(EditState.Text, EditState.SelectionStart, EditState.SelectionEnd - EditState.SelectionStart, -1, 0); }
+        }
+        /// <summary>Copies one caret from a borrowed shaped layout, moving an interior composed index back to a permitted boundary.</summary>
+        float4 ResolveSystemCaret(ISystemTextLayout layout, int index) {
+            int boundary = Math.Max(0, Math.Min(index, layout.TextLength));
+            while (boundary > 0 && !layout.IsCaretBoundary(boundary)) { boundary--; }
+            return layout.GetCaret(boundary);
+        }
+        /// <summary>Shapes the complete string while rasterizing only the visible horizontal window and scrolling to the active caret.</summary>
+        void UpdateSystemTextLayout() {
+            int width = Math.Max(0, SizeValue.X - TextPaddingX * 2);
+            TextComponent.Size = new int2(width, SizeValue.Y);
+            TextComponent.CenterSystemTextVertically = true;
+            if (OwnerCore == null || OwnerCore.RenderManager2D == null || OwnerCore.RenderManager2D.SystemTextBackend == null) { return; }
+            ISystemTextLayout layout = TextComponent.MeasureSystemText();
+            float4 caret = ResolveSystemCaret(layout, EditState.CursorPosition);
+            float4 selectionStart = ResolveSystemCaret(layout, EditState.SelectionStart);
+            float4 selectionEnd = ResolveSystemCaret(layout, EditState.SelectionEnd);
+            float4 markedStart = ResolveSystemCaret(layout, Math.Max(0, EditState.MarkedStart));
+            float4 markedEnd = ResolveSystemCaret(layout, Math.Max(0, EditState.MarkedStart + EditState.MarkedLength));
+            float lineY = (SizeValue.Y - (float)layout.Size.Y) * 0.5f;
+            float maximumScroll = Math.Max(0f, (float)layout.Size.X - width + 2f);
+            if (IsFocusedValue) {
+                if ((float)caret.X < TextScrollX) { TextScrollX = (float)caret.X; }
+                else if ((float)caret.X > TextScrollX + Math.Max(0, width - 2)) { TextScrollX = (float)caret.X - Math.Max(0, width - 2); }
+                TextScrollX = Math.Max(0f, Math.Min(TextScrollX, maximumScroll));
+            } else { TextScrollX = 0f; }
+            TextComponent.SystemTextRasterOrigin = new float2(TextScrollX, -lineY);
+            TextEntity.Position = new float3(TextPaddingX - TextScrollX, 0f, 0.1f);
+            UpdateCaretGeometry((float)caret.X - TextScrollX, lineY + (float)caret.Y, (float)caret.Z);
+            SetFeedbackRange(SelectionEntity, SelectionSprite, (float)selectionStart.X - TextScrollX, (float)selectionEnd.X - TextScrollX, lineY, (float)caret.Z, IsFocusedValue && EditState.HasSelection, SelectionColorValue);
+            SetFeedbackRange(MarkedEntity, MarkedSprite, (float)markedStart.X - TextScrollX, (float)markedEnd.X - TextScrollX, lineY + (float)caret.Z - 2f, 2f, IsFocusedValue && EditState.MarkedStart >= 0, CaretColorValue);
+        }
+        /// <summary>Draws a bounded rectangular span after copying shaped metrics; bidi multi-range highlighting remains a separate enhancement.</summary>
+        void SetFeedbackRange(Entity entity, RoundedRectComponent sprite, float start, float end, float y, float height, bool visible, byte4 color) {
+            if (entity == null || sprite == null) { return; }
+            int width = Math.Max(0, SizeValue.X - TextPaddingX * 2);
+            int viewportHeight = Math.Max(0, SizeValue.Y);
+            int left = (int)Math.Floor(Math.Max(0f, Math.Min(width, Math.Min(start, end))));
+            int right = (int)Math.Ceiling(Math.Max(0f, Math.Min(width, Math.Max(start, end))));
+            int top = (int)Math.Floor(Math.Max(0f, Math.Min(viewportHeight, y)));
+            int bottom = (int)Math.Ceiling(Math.Max(0f, Math.Min(viewportHeight, y + Math.Max(0f, height))));
+            entity.Position = new float3(TextPaddingX + left, top, 0.05f);
+            sprite.Size = visible ? new int2(Math.Max(0, right - left), Math.Max(0, bottom - top)) : new int2(0, 0);
+            sprite.FillColor = color;
+        }
+        /// <summary>Positions a separate caret rectangle without adding glyphs to the text or moving native selection.</summary>
+        void UpdateCaretGeometry(float x, float y, float height) {
+            if (CaretSprite == null || CaretEntity == null) { return; }
+            bool visible = IsFocusedValue && CursorVisible && !EditState.HasSelection;
+            SetFeedbackRange(CaretEntity, CaretSprite, x, x + Math.Max(1, (int)Math.Ceiling(FontScaleValue)), y, height, visible, CaretColorValue);
+            CaretEntity.Position = new float3(CaretEntity.Position.X, CaretEntity.Position.Y, 0.15f);
+            if (SystemTextStyleValue == null && MarkedSprite != null) { MarkedSprite.Size = new int2(0, 0); }
         }
 
         /// <summary>
@@ -814,8 +1029,8 @@ namespace helengine {
             }
 
             BackgroundSprite.BorderColor = IsFocusedValue
-                ? ThemeManager.Colors.AccentPrimary
-                : ThemeManager.Colors.AccentTertiary;
+                ? FocusedBorderColorValue
+                : BorderColorValue;
         }
 
         /// <summary>
@@ -848,11 +1063,7 @@ namespace helengine {
             SelectionSprite.Size = new int2(
                 (int)Math.Ceiling(selectionWidth),
                 (int)Math.Ceiling(lineHeight));
-            SelectionSprite.FillColor = new byte4(
-                ThemeManager.Colors.AccentPrimary.X,
-                ThemeManager.Colors.AccentPrimary.Y,
-                ThemeManager.Colors.AccentPrimary.Z,
-                96);
+            SelectionSprite.FillColor = SelectionColorValue;
         }
 
         /// <summary>
@@ -863,7 +1074,7 @@ namespace helengine {
                 return;
             }
 
-            double lineHeight = Math.Max((double)FontValue.LineHeight, 1.0);
+            double lineHeight = Math.Max((double)FontValue.LineHeight * FontScaleValue, 1.0);
             double textY = Math.Round((SizeValue.Y - lineHeight) / 2.0, MidpointRounding.AwayFromZero);
             UpdateSelectionVisual(textY, lineHeight);
         }
@@ -891,45 +1102,4 @@ namespace helengine {
         }
     }
 
-    /// <summary>
-    /// Helper update component that forwards updates to its owning text box.
-    /// </summary>
-    [RunInEditor]
-    class TextBoxUpdateComponent : UpdateComponent {
-        TextBoxComponent TextBox;
-
-        /// <summary>
-        /// Creates a forwarding update component for the given text box.
-        /// </summary>
-        /// <param name="textBox">Text box to drive.</param>
-        public TextBoxUpdateComponent(TextBoxComponent textBox) {
-            this.TextBox = textBox;
-        }
-
-        /// <summary>
-        /// Forwards update calls to the text box.
-        /// </summary>
-        public override void Update() {
-            TextBox.Update();
-
-#if DESKTOP_PLATFORM
-            if (!TextBox.IsFocused) {
-                return;
-            }
-
-            InputSystem input = OwnerCore.Input;
-            if (!input.WasMouseLeftButtonPressed()) {
-                return;
-            }
-
-            int pointerX = input.GetMouseX();
-            int pointerY = input.GetMouseY();
-            if (!TextBox.ContainsScreenPoint(pointerX, pointerY)) {
-                TextBox.IsFocused = false;
-            }
-#endif
-        }
-    }
 }
-
-

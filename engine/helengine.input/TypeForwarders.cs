@@ -25,6 +25,8 @@ using System.Runtime.CompilerServices;
 [assembly: TypeForwardedTo(typeof(helengine.InputTextState))]
 [assembly: TypeForwardedTo(typeof(helengine.InputTouchPhase))]
 [assembly: TypeForwardedTo(typeof(helengine.InputTouchState))]
+[assembly: TypeForwardedTo(typeof(helengine.InputTouchTool))]
+[assembly: TypeForwardedTo(typeof(helengine.InputPenAxes))]
 [assembly: TypeForwardedTo(typeof(helengine.InputTouchTracker))]
 [assembly: TypeForwardedTo(typeof(helengine.int2))]
 #if DESKTOP_PLATFORM

@@ -14,12 +14,17 @@ namespace helengine {
         bool UpdateLoopActive;
 
         /// <summary>
+        /// Indicates that removed updateables left empty slots which must be compacted after the active sweep.
+        /// </summary>
+        bool HasRemovedUpdateables;
+
+        /// <summary>
         /// Tracks the number of update passes executed so early-frame crash diagnostics can be correlated with one specific pass.
         /// </summary>
         int DiagnosticUpdatePassCount;
 
         /// <summary>
-        /// Holds update list changes requested during the active update loop.
+        /// Holds registrations requested during the active update loop; removal cancels their borrowed references immediately.
         /// </summary>
         readonly List<PendingUpdateOperation> PendingUpdateOperations;
 
@@ -343,7 +348,8 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Removes an object from the update list.
+        /// Unregisters an object immediately. During iteration its slot is cleared without shifting later entries,
+        /// so callers may dispose it before the sweep finishes; a later registration starts on the next sweep.
         /// </summary>
         /// <param name="entity">Updateable to remove.</param>
         /// <param name="lastUpdateOrder">Update order value captured before removal.</param>
@@ -353,7 +359,7 @@ namespace helengine {
             }
 
             if (UpdateLoopActive) {
-                QueueUpdateOperation(entity, false);
+                InvalidateUpdateable(entity);
                 return;
             }
 
@@ -565,10 +571,9 @@ namespace helengine {
                 return false;
             }
 
-            if (camera is CameraComponent cameraComponent &&
-                cameraComponent.FilterEditorHiddenEntities &&
-                drawableOwner.IsRenderHierarchySuppressed) {
-                return false;
+            if (camera is CameraComponent cameraComponent) {
+                if (!cameraComponent.IncludesSceneEntity(drawableOwner)) { return false; }
+                if (cameraComponent.FilterEditorHiddenEntities && drawableOwner.IsRenderHierarchySuppressed) { return false; }
             }
 
             if ((drawableOwner.LayerMask & camera.LayerMask) == 0) {
@@ -633,6 +638,9 @@ namespace helengine {
 
                 for (int i = 0; i < Updateables.Count; i++) {
                     IUpdateable item = Updateables[i];
+                    if (item == null) {
+                        continue;
+                    }
                     if (item is Component component && component.Parent != null
                         && !ComponentExecutionPolicy.ShouldRunComponentLifecycle(component, component.Parent)) {
                         continue;
@@ -653,7 +661,7 @@ namespace helengine {
                         ulong cpuProfileEnd = cpuProfileSink.ReadMicroseconds();
                         if (cpuProfileEnd < cpuProfileStart) {
                             cpuProfileSink.ClockFault();
-                        } else {
+                        } else if (Updateables[i] != null) {
                             cpuProfileSink.RecordUpdateable(item, i, LastUpdateableDiagnosticTypeHash,
                                 LastUpdateableDiagnosticOwnerSceneEntityId, cpuProfileEnd - cpuProfileStart);
                         }
@@ -667,6 +675,7 @@ namespace helengine {
                 }
             } finally {
                 UpdateLoopActive = false;
+                CompactUpdateables();
             }
 
             ApplyPendingUpdateOperations();
@@ -703,6 +712,47 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Clears borrowed references before a detached component may be deleted, without shifting the active iteration.
+        /// Pending registrations are canceled as well so the boundary cannot read a deleted object's update order.
+        /// </summary>
+        /// <param name="entity">Live updateable being unregistered before its owner releases it.</param>
+        void InvalidateUpdateable(IUpdateable entity) {
+            for (int i = 0; i < Updateables.Count; i++) {
+                if (ReferenceEquals(Updateables[i], entity)) {
+                    Updateables[i] = null;
+                    HasRemovedUpdateables = true;
+                }
+            }
+            for (int i = 0; i < PendingUpdateOperations.Count; i++) {
+                if (ReferenceEquals(PendingUpdateOperations[i].Entity, entity)) {
+                    PendingUpdateOperations[i] = new PendingUpdateOperation(null, false);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Removes empty slots after iteration ends, preserving the order of surviving updateables even on a failed update.
+        /// </summary>
+        void CompactUpdateables() {
+            if (!HasRemovedUpdateables) {
+                return;
+            }
+            int destination = 0;
+            for (int source = 0; source < Updateables.Count; source++) {
+                if (Updateables[source] != null) {
+                    if (destination != source) {
+                        Updateables[destination] = Updateables[source];
+                    }
+                    destination++;
+                }
+            }
+            while (Updateables.Count > destination) {
+                Updateables.RemoveAt(Updateables.Count - 1);
+            }
+            HasRemovedUpdateables = false;
+        }
+
+        /// <summary>
         /// Queues a pending update operation when modifications occur during the update loop.
         /// </summary>
         /// <param name="entity">Updateable to modify.</param>
@@ -721,6 +771,9 @@ namespace helengine {
 
             for (int i = 0; i < PendingUpdateOperations.Count; i++) {
                 PendingUpdateOperation op = PendingUpdateOperations[i];
+                if (op.Entity == null) {
+                    continue;
+                }
                 if (op.IsAdd) {
                     AddUpdateableToList(op.Entity);
                 } else {

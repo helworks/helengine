@@ -5,7 +5,7 @@ using Xunit;
 namespace helengine.editor.tests {
     /// <summary>Protects the observable invalidation contract used by renderer-owned immutable property copies.</summary>
     public class MaterialRevisionTests {
-        /// <summary>Every successful write/clear invalidates, while owned reads and rejected payloads preserve the current revision.</summary>
+        /// <summary>Changed writes and clears invalidate, while owned reads and rejected payloads preserve the current revision.</summary>
         [Fact]
         public void Properties_TrackAllWritesWithoutChangingCopyIsolation() {
             using var block = new MaterialPropertyBlock(CreateLayout());
@@ -40,6 +40,7 @@ namespace helengine.editor.tests {
             Assert.Same(source.GetTexture(0), target.GetTexture(0));
             Assert.Equal(source.GetConstantBufferData(0), target.GetConstantBufferData(0));
             revision = target.Revision;
+            source.SetTexture(0, new TestRuntimeTexture());
             layout.ConstantBufferBindings[0] = null;
             Assert.Throws<NullReferenceException>(() => target.CopyMatchingValuesFrom(source));
             Assert.True(target.Revision > revision);
@@ -72,6 +73,40 @@ namespace helengine.editor.tests {
             MaterialPropertyBlock old = material.Properties;
             Assert.Throws<OverflowException>(() => material.SetLayout(CreateLayout()));
             Assert.Same(old, material.Properties);
+        }
+        /// <summary>Repeated painting bindings keep the prepared version while actual changes still invalidate it.</summary>
+        [Fact]
+        public void IdenticalAssignments_KeepRevisionAndOwnedCopyIsolation() {
+            using var block = new MaterialPropertyBlock(CreateLayout());
+            var texture = new TestRuntimeTexture();
+            block.SetTexture(0, texture);
+            byte[] bytes = new byte[] { 1, 2, 3, 4 };
+            block.SetConstantBufferData(0, bytes);
+            ulong revision = block.Revision;
+            block.SetTexture(0, texture);
+            block.SetConstantBufferData(0, new byte[] { 1, 2, 3, 4 });
+            Assert.Equal(revision, block.Revision);
+            bytes[0] = 9;
+            Assert.Equal((byte)1, block.GetConstantBufferData(0)[0]);
+            block.SetConstantBufferData(0, bytes);
+            Assert.True(block.Revision > revision);
+            block.SetTexture(0, null);block.SetConstantBufferData(0, null);
+            revision = block.Revision;
+            block.SetTexture(0, null);block.SetConstantBufferData(0, null);
+            Assert.Equal(revision, block.Revision);
+        }
+        /// <summary>Lifetime keys never alias another instance and survive changes of layout and disposal.</summary>
+        [Fact]
+        public void CacheIdentity_IsStableAndUniqueAcrossMaterialLifetimes() {
+            var first = new ShaderRuntimeMaterial();
+            long identity = first.CacheIdentity;
+            first.SetLayout(CreateLayout());
+            Assert.Equal(identity, first.CacheIdentity);
+            first.Dispose();
+            using var second = new ShaderRuntimeMaterial();
+            Assert.True(identity > 0);
+            Assert.True(second.CacheIdentity > identity);
+            Assert.Equal(identity, first.CacheIdentity);
         }
         /// <summary>Builds one texture and one fixed-size constant binding so every mutation route is observable.</summary>
         static MaterialLayout CreateLayout() {

@@ -11,6 +11,7 @@ namespace helengine {
         /// <param name="camera">Camera whose viewport and layer mask scope the hit test.</param>
         /// <param name="pointerX">Pointer X coordinate in window space.</param>
         /// <param name="pointerY">Pointer Y coordinate in window space.</param>
+        /// <param name="includeTouchScroll">Includes opt-in scroll backgrounds for touch routing; desktop callers retain their existing hit regions.</param>
         /// <returns>A list-owned interactable borrowed by the input router, or null when nothing matches.</returns>
         [NativeBorrowedReturn]
         public static IInteractable2D ResolveTopInteractableAt(
@@ -18,7 +19,8 @@ namespace helengine {
             List<IDrawable2D> drawables2D,
             ICamera camera,
             int pointerX,
-            int pointerY) {
+            int pointerY,
+            bool includeTouchScroll = false) {
             if (interactables == null) {
                 throw new ArgumentNullException(nameof(interactables));
             }
@@ -35,6 +37,7 @@ namespace helengine {
 
             for (int interactableIndex = 0; interactableIndex < interactables.Count; interactableIndex++) {
                 IInteractable2D interactable = interactables[interactableIndex];
+                if (!includeTouchScroll && interactable is ScrollComponent) { continue; }
                 if (interactable == null || interactable.Parent == null || !interactable.Parent.IsHierarchyEnabled || (interactable.Parent.LayerMask & cameraLayerMask) == 0) {
                     continue;
                 }
@@ -55,7 +58,8 @@ namespace helengine {
                 }
 
                 float3 position = interactable.Parent.Position;
-                float4 rect = new float4(position.X, position.Y, interactable.Size.X, interactable.Size.Y);
+                float4 rect = interactable is ScrollComponent scroll
+                    ? scroll.GetClipRect() : new float4(position.X, position.Y, interactable.Size.X, interactable.Size.Y);
                 if (!rect.Contains(localPointerX, localPointerY)) {
                     continue;
                 }
@@ -89,6 +93,9 @@ namespace helengine {
             while (current != null) {
                 if (current.Components != null) {
                     for (int componentIndex = 0; componentIndex < current.Components.Count; componentIndex++) {
+                        if (current.Components[componentIndex] is IPointerHitRegion2D hitRegion && !hitRegion.ContainsPointer(pointerX, pointerY)) {
+                            return false;
+                        }
                         if (current.Components[componentIndex] is IClipRegion2D clipRegion) {
                             float4 clipRect = clipRegion.GetClipRect();
                             if (!GeometryUtils.IsPointInsideRect(pointerX, pointerY, new float3(clipRect.X, clipRect.Y, 0f), (int)clipRect.Z, (int)clipRect.W)) {
@@ -126,6 +133,10 @@ namespace helengine {
 
             ResolvePointerInInteractableSpace(interactable, camera, pointerX, pointerY, out int localPointerX, out int localPointerY);
             float3 position = interactable.Parent.Position;
+            if (interactable is ScrollComponent scroll) {
+                float4 clip = scroll.GetClipRect();
+                position = new float3(clip.X, clip.Y, 0f);
+            }
             relativeX = (int)RealMath.Round(localPointerX - position.X);
             relativeY = (int)RealMath.Round(localPointerY - position.Y);
         }

@@ -314,7 +314,8 @@ namespace helengine {
             int x,
             int y,
             out IInteractable2D hitInteractable,
-            out ICamera hitCamera) {
+            out ICamera hitCamera,
+            bool includeTouchScroll = false) {
             List<ICamera> cameras = Core.ObjectManager.Cameras;
             hitInteractable = null;
             hitCamera = null;
@@ -332,7 +333,8 @@ namespace helengine {
                     drawables2D,
                     camera,
                     x,
-                    y);
+                    y,
+                    includeTouchScroll);
                 if (candidateInteractable == null) {
                     continue;
                 }
@@ -431,9 +433,7 @@ namespace helengine {
             for (int index = TouchCaptures.Count - 1; index >= 0; index--) {
                 if (index >= TouchCaptures.Count) { continue; }
                 TouchInteractionCapture capture = TouchCaptures[index];
-                if (capture.Target.Parent == null || !capture.Target.Parent.IsHierarchyEnabled ||
-                    !Core.ObjectManager.Interactables.Contains(capture.Target) ||
-                    !Core.ObjectManager.Cameras.Contains(capture.Camera) || !IsCameraAvailableForInput(capture.Camera)) {
+                if (!IsTouchCaptureAvailable(capture)) {
                     CancelTouchAt(index);
                 } else {
                     capture.SeenThisFrame = false;
@@ -446,15 +446,18 @@ namespace helengine {
                 if (touch.Phase == InputTouchPhase.Began) {
                     if (captureIndex >= 0) { CancelTouchAt(captureIndex); }
                     ResolveTopInteractableAt(Core.ObjectManager.Interactables, Core.ObjectManager.Drawables2D,
-                        touch.X, touch.Y, out IInteractable2D hit, out ICamera camera);
+                        touch.X, touch.Y, out IInteractable2D hit, out ICamera camera, true);
                     if (hit is ITouchInteractable2D target) {
                         TouchInteractionCapture capture = new TouchInteractionCapture {
-                            Id = touch.Id, Target = target, Camera = camera, LastSample = touch, SeenThisFrame = true
+                            Id = touch.Id, Target = target, Camera = camera, LastSample = touch, InitialSample = touch, SeenThisFrame = true
                         };
                         TouchCaptures.Add(capture);
                         DispatchTouch(capture, touch);
                     }
                 } else if (captureIndex >= 0) {
+                    TryTransferScrollTouch(touch);
+                    captureIndex = FindTouchCapture(touch.Id);
+                    if (captureIndex < 0) { continue; }
                     TouchInteractionCapture capture = TouchCaptures[captureIndex];
                     capture.LastSample = touch;
                     capture.SeenThisFrame = true;
@@ -477,6 +480,56 @@ namespace helengine {
                 if (TouchCaptures[index].Id == id) { return index; }
             }
             return -1;
+        }
+
+        /// <summary>Validates registration before dereferencing borrowed scene objects, including after arbitrary touch callbacks.</summary>
+        bool IsTouchCaptureAvailable(TouchInteractionCapture capture) {
+            return Core.ObjectManager.Interactables.Contains(capture.Target)
+                && Core.ObjectManager.Cameras.Contains(capture.Camera)
+                && capture.Target.Parent != null && capture.Target.Parent.IsHierarchyEnabled
+                && IsCameraAvailableForInput(capture.Camera);
+        }
+
+        /// <summary>Cancels a descendant press before handing its original contact origin to the nearest applicable scroll viewport.</summary>
+        void TryTransferScrollTouch(InputTouchState touch) {
+            if (touch.Phase != InputTouchPhase.Moved && touch.Phase != InputTouchPhase.Ended) { return; }
+            int index = FindTouchCapture(touch.Id);
+            if (index < 0) { return; }
+            TouchInteractionCapture capture = TouchCaptures[index];
+            if (!IsTouchCaptureAvailable(capture)) { CancelTouchAt(index); return; }
+            if (capture.Target is ScrollComponent active && active.IsDraggingScrollTouch(touch.Id)) { return; }
+            ScrollComponent scroll = FindTouchScrollAncestor(capture, touch);
+            if (scroll == null || ReferenceEquals(scroll, capture.Target)) { return; }
+            CancelTouchAt(index);
+            if (FindTouchCapture(touch.Id) >= 0 || !Core.ObjectManager.Interactables.Contains(scroll)
+                || !Core.ObjectManager.Cameras.Contains(capture.Camera)) { return; }
+            capture.Target = scroll;
+            if (!IsTouchCaptureAvailable(capture) || !scroll.TouchScrollingEnabled || !scroll.CanCaptureScrollTouch(touch.Id)) { return; }
+            capture.SeenThisFrame = true;
+            capture.LastSample = capture.InitialSample;
+            TouchCaptures.Add(capture);
+            DispatchTouch(capture, capture.InitialSample);
+        }
+
+        /// <summary>Walks current ancestors without retaining them across frames; range limits still claim drags to suppress accidental taps.</summary>
+        [NativeBorrowedReturn]
+        ScrollComponent FindTouchScrollAncestor(TouchInteractionCapture capture, InputTouchState touch) {
+            Entity entity = capture.Target.Parent;
+            while (entity != null) {
+                if (entity.Components == null) { entity = entity.Parent; continue; }
+                for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
+                    if (entity.Components[componentIndex] is ScrollBarComponent) { return null; }
+                    if (entity.Components[componentIndex] is ScrollComponent scroll && scroll.TouchScrollingEnabled
+                        && entity.IsHierarchyEnabled && Core.ObjectManager.Interactables.Contains(scroll)
+                        && (entity.LayerMask & capture.Camera.LayerMask) != 0) {
+                        float distance = scroll.Orientation == ScrollOrientation.Horizontal
+                            ? (float)touch.X - capture.InitialSample.X : (float)touch.Y - capture.InitialSample.Y;
+                        if (Math.Abs(distance) > scroll.TouchDragThreshold) { return scroll; }
+                    }
+                }
+                entity = entity.Parent;
+            }
+            return null;
         }
 
         /// <summary>Converts a sample through the same viewport space used by pointer hit testing.</summary>

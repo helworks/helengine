@@ -74,7 +74,7 @@ namespace helengine {
 
         /// <summary>Gets or sets optional page metadata; existing fonts leave it null.</summary>
         [NativeOwnedMember] public FontPage[] Pages { get; set; }
-        /// <summary>Gets or sets the additional RGBA residency budget; the base atlas is always resident.</summary>
+        /// <summary>Gets or sets the soft additional RGBA residency budget; the base atlas stays resident and visible text pages are pinned.</summary>
         public long PageBudgetBytes { get; set; } = 8 * 1024 * 1024;
         /// <summary>Attaches lazy page loading without reading any page pixels.</summary>
         public void ConfigurePageCache(ContentManager content, RenderManager2D renderer) {
@@ -89,6 +89,31 @@ namespace helengine {
             if (pageIndex == 0) { return Texture; }
             if (PageCache == null) { throw new InvalidOperationException("Paged font requires its content-backed cache before drawing."); }
             return PageCache.Resolve(pageIndex - 1);
+        }
+
+        /// <summary>Retains an atlas while visible geometry borrows it; page zero remains owned by the font's existing atlas owner.</summary>
+        [NativeBorrowedReturn]
+        public RuntimeTexture RetainPageTexture(int pageIndex) {
+            ValidatePageIndex(pageIndex);
+            if (pageIndex == 0) { return Texture; }
+            if (PageCache == null) { throw new InvalidOperationException("Paged font requires its content-backed cache before drawing."); }
+            return PageCache.Retain(pageIndex - 1);
+        }
+        /// <summary>Releases one visible geometry reference without assuming ownership of the base atlas.</summary>
+        public void ReleasePageTexture(int pageIndex) {
+            ValidatePageIndex(pageIndex);
+            if (pageIndex > 0) { PageCache.Release(pageIndex - 1); }
+        }
+        /// <summary>Gets the native pixel width of the atlas containing a glyph.</summary>
+        public int GetPageWidth(int pageIndex) { ValidatePageIndex(pageIndex); return pageIndex == 0 ? AtlasWidth : Pages[pageIndex - 1].Width; }
+        /// <summary>Gets the native pixel height of the atlas containing a glyph.</summary>
+        public int GetPageHeight(int pageIndex) { ValidatePageIndex(pageIndex); return pageIndex == 0 ? AtlasHeight : Pages[pageIndex - 1].Height; }
+        /// <summary>Rejects disposed fonts and absent page descriptors before loading or interpreting glyph metrics.</summary>
+        void ValidatePageIndex(int pageIndex) {
+            if (IsDisposed) { throw new ObjectDisposedException(nameof(FontAsset)); }
+            if (pageIndex < 0 || (pageIndex > 0 && (Pages == null || pageIndex > Pages.Length || Pages[pageIndex - 1] == null))) {
+                throw new ArgumentOutOfRangeException(nameof(pageIndex));
+            }
         }
 
         /// <summary>

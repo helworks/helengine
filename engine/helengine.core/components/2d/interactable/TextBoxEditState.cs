@@ -7,6 +7,26 @@ namespace helengine {
         /// Backing text content currently being edited.
         /// </summary>
         string TextValue = "";
+        /// <summary>Gets the first marked UTF-16 position, or minus one after commit/external replacement.</summary>
+        public int MarkedStart { get; private set; } = -1;
+        /// <summary>Gets the native composition length while retaining the exact marked payload.</summary>
+        public int MarkedLength { get; private set; }
+        /// <summary>Imports a complete native snapshot atomically. Selection clamps to valid UTF-16 scalar boundaries; invalid marked spans fail.</summary>
+        public void ApplyNativeSnapshot(string text, int selectionStart, int selectionLength, int markedStart, int markedLength) {
+            TextEntryValidation.ValidateText(text);
+            if (selectionLength < 0 || markedLength < 0 || markedStart < -1
+                || (markedStart == -1 && markedLength != 0)
+                || (markedStart >= 0 && (markedStart > text.Length || markedLength > text.Length - markedStart))) {
+                throw new ArgumentOutOfRangeException(nameof(markedStart));
+            }
+            int start = TextEntryValidation.ClampBoundary(text, selectionStart);
+            int available = text.Length - Math.Max(0, Math.Min(selectionStart, text.Length));
+            int end = TextEntryValidation.ClampBoundary(text, Math.Max(0, Math.Min(selectionStart, text.Length)) + Math.Min(selectionLength, available));
+            if (markedStart >= 0 && (TextEntryValidation.ClampBoundary(text, markedStart) != markedStart
+                || TextEntryValidation.ClampBoundary(text, markedStart + markedLength) != markedStart + markedLength)) { throw new ArgumentException("Marked range splits a UTF-16 scalar."); }
+            TextValue = text; SelectionAnchorPositionValue = start; CursorPositionValue = end;
+            MarkedStart = markedStart; MarkedLength = markedLength;
+        }
 
         /// <summary>
         /// Current caret position within the text content.
@@ -41,6 +61,7 @@ namespace helengine {
             get { return TextValue; }
             set {
                 TextValue = value ?? "";
+                MarkedStart = -1; MarkedLength = 0;
                 CursorPositionValue = ClampCursor(CursorPositionValue);
                 SelectionAnchorPositionValue = ClampCursor(SelectionAnchorPositionValue);
             }

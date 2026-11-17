@@ -381,6 +381,9 @@ float4 PS(PS_IN input) : SV_Target
 {
     float4 sampledDiffuseTexture = DiffuseTexture.Sample(DiffuseTextureSampler, input.texCoord);
     float4 sampledBaseColor = sampledDiffuseTexture * baseColor;
+    // Unlit surfaces display their own texture/tint at full strength, independent of scene lights.
+    // Keep the normal alpha contract; adding emissive to the lit base would brighten UI twice.
+    if (materialFlags.w == 1.0f) { return sampledBaseColor; }
 #if defined(HELENGINE_WIIU_DIRECTIONAL_SHADOWS_ONLY) && !defined(HELENGINE_STANDARD_SHADOWED)
     if (materialFlags.w == -123456.0f)
     {

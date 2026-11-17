@@ -45,7 +45,7 @@ namespace helengine.core.tests.managers.rendering {
         }
         /// <summary>Invalid atlas bindings and failed uploads remain explicit and never destroy a previously valid model prematurely.</summary>
         [Fact]
-        public void FailedReplacementRetainsOwnershipAndRejectsMissingGlyphs() {
+        public void FailedReplacementRetainsOwnershipAndMissingGlyphsReleaseGeometry() {
             using TextMeshTestRenderManager renderer = new TextMeshTestRenderManager(); using Core core = CreateCore(renderer);
             using FontAsset font = TextMeshGeometryTests.CreateFont(); using RuntimeMaterial material = CreateMaterial(font);
             using Entity entity = CreateEntity(core);
@@ -53,7 +53,7 @@ namespace helengine.core.tests.managers.rendering {
             RuntimeModel first = text.Model; text.Text = "ó"; renderer.FailBuild = true;
             Assert.Throws<InvalidOperationException>(() => text.Model); Assert.Empty(renderer.Released);
             renderer.FailBuild = false; Assert.NotSame(first, text.Model); Assert.Single(renderer.Released);
-            text.Text = "ç"; Assert.Throws<InvalidOperationException>(() => text.Model);
+            text.Text = "ç"; Assert.Null(text.Model); Assert.Equal(2, renderer.Released.Count);
             text.Text = "A"; text.Materials = Array.Empty<RuntimeMaterial>(); Assert.Throws<InvalidOperationException>(() => text.Model);
             Assert.Throws<ArgumentNullException>(() => text.Text = null);
         }
@@ -92,7 +92,24 @@ namespace helengine.core.tests.managers.rendering {
             Assert.InRange(text.WorldPlaneNormal.X.ToDouble(), 0.4471, 0.4473);
             Assert.InRange(text.WorldPlaneNormal.Z.ToDouble(), 0.8943, 0.8945);
             root.Scale = new float3(0, 1, 0); Assert.Equal(float3.Zero, text.WorldPlaneNormal);
-        }        /// <summary>Creates an initialized owner with an explicit recording 3D renderer.</summary>
+        }        /// <summary>Material-first rendering prepares instances once and hides without rebuilding or reacquiring invisible text resources.</summary>
+        [Fact]
+        public void AtlasTemplateCreatesIndependentMaterialsBeforeModelAndReusesHiddenGeometry() {
+            using TextMeshTestRenderManager renderer = new TextMeshTestRenderManager(); using Core core = CreateCore(renderer);
+            using FontAsset font = TextMeshGeometryTests.CreateFont(); using RuntimeMaterial template = CreateMaterial(font);
+            using Entity entity = CreateEntity(core);
+            TextMeshComponent text = new TextMeshComponent { Font = font, Text = "A", AtlasMaterial = template }; entity.AddComponent(text);
+            RuntimeMaterial material = Assert.Single(text.Materials);
+            RuntimeModel model = text.Model;
+            Assert.NotSame(template, material); Assert.Same(template, material.ParentMaterial);
+            Assert.Same(font.Texture, material.ResolvePrimaryTexture()); Assert.Same(material, text.Materials[0]);
+            entity.Enabled = false; Assert.Empty(text.Materials); Assert.Null(text.Model);
+            entity.Enabled = true;
+            Assert.NotSame(material, text.Materials[0]); Assert.Same(model, text.Model); Assert.Equal(1, renderer.BuildCount);
+            text.Text = "ó"; Assert.NotSame(model, text.Model); Assert.Equal(2, renderer.BuildCount);
+            text.Dispose(); text.Dispose(); Assert.False(font.IsDisposed); Assert.Same(font.Texture, template.ResolvePrimaryTexture());
+        }
+        /// <summary>Creates an initialized owner with an explicit recording 3D renderer.</summary>
         static Core CreateCore(TextMeshTestRenderManager renderer) {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory) });
             core.Initialize(renderer, null, null, new PlatformInfo("test", "test")); return core;

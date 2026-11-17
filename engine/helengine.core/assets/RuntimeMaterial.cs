@@ -21,6 +21,18 @@ namespace helengine {
         /// Generic primary texture override consumed by fixed-function or platform-owned runtime material paths.
         /// </summary>
         RuntimeTexture PrimaryTextureValue;
+        /// <summary>Local sampling policy, used by roots and explicit instance overrides.</summary>
+        MaterialTextureSampling TextureSamplingValue;
+        /// <summary>Distinguishes an explicit default override from inherited sampling.</summary>
+        bool HasTextureSamplingValue;
+        /// <summary>Sampling used by authored textures; instances inherit until explicitly overridden.</summary>
+        public MaterialTextureSampling TextureSampling {
+            get { return ParentMaterialValue == null || HasTextureSamplingValue ? TextureSamplingValue : ParentMaterialValue.TextureSampling; }
+            set {
+                if(value != MaterialTextureSampling.Default && value != MaterialTextureSampling.RepeatAnisotropic16 && value != MaterialTextureSampling.ClampAnisotropic16){throw new ArgumentOutOfRangeException(nameof(value));}
+                TextureSamplingValue=value;HasTextureSamplingValue=true;
+            }
+        }
 
         /// <summary>
         /// Initializes a new runtime material with default render state and conservative lighting feature flags.
@@ -33,6 +45,15 @@ namespace helengine {
             SupportsEmissive = false;
             CastsShadows = true;
             ReceivesShadows = true;
+        }
+
+        /// <summary>Creates an owned material instance inheriting this material's state while allowing independent texture overrides.</summary>
+        [NativeOwnedReturn]
+        public virtual RuntimeMaterial CreateInstance() {
+            RuntimeMaterial instance = new RuntimeMaterial();
+            instance.LightingModel = LightingModel; instance.SupportsNormalMapping = SupportsNormalMapping;
+            instance.SupportsEmissive = SupportsEmissive; instance.CastsShadows = CastsShadows; instance.ReceivesShadows = ReceivesShadows;
+            instance.SetParentMaterial(this); return instance;
         }
 
         /// <summary>

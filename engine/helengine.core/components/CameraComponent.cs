@@ -14,6 +14,9 @@ namespace helengine {
         /// </summary>
         ushort LayerMaskValue;
 
+        /// <summary>Negative means unrestricted; otherwise resolves the scene root through the camera entity's ancestors.</summary>
+        int SceneScopeAncestorDepthValue = -1;
+
         /// <summary>Identifies the host view receiving this camera, or empty to render in every view.</summary>
         string OutputWindowTagValue = string.Empty;
 
@@ -225,6 +228,36 @@ namespace helengine {
                 }
             }
         }
+
+        /// <summary>Limits rendering to a hierarchy subtree: -1 keeps layer-only routing, 0 uses the camera entity, 1 its parent. No entity lifetime is borrowed.</summary>
+        [EditorPropertyHidden]
+        [ScenePersistenceIgnore]
+        public int SceneScopeAncestorDepth {
+            get { return SceneScopeAncestorDepthValue; }
+            set {
+                if (value < -1) { throw new ArgumentOutOfRangeException(nameof(value)); }
+                if (SceneScopeAncestorDepthValue == value) { return; }
+                bool registered = Parent != null && Parent.IsHierarchyEnabled;
+                if (registered) { OwnerCore.ObjectManager.RemoveCamera(this); }
+                SceneScopeAncestorDepthValue = value;
+                if (registered) { RegisterWithObjectManagerIfNeeded(); }
+            }
+        }
+
+        /// <summary>Checks subtree membership without storing a scene-root pointer; absent ancestors admit no drawables.</summary>
+        internal bool IncludesSceneEntity(Entity entity) {
+            if (SceneScopeAncestorDepthValue < 0) { return true; }
+            Entity scope = Parent;
+            for (int level = 0; level < SceneScopeAncestorDepthValue && scope != null; level++) { scope = scope.Parent; }
+            if (scope == null) { return false; }
+            Entity current = entity;
+            while (current != null) {
+                if (ReferenceEquals(current, scope)) { return true; }
+                current = current.Parent;
+            }
+            return false;
+        }
+
 
         /// <summary>
         /// Allocates render lists using the core initialization options.

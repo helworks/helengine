@@ -77,19 +77,19 @@ namespace helengine.editor.tests.shaders {
 
             MaterialLayout layout = MaterialLayoutBuilder.Build(CreateMaterialAsset(shaderAsset.Id), shaderAsset);
 
-            Assert.Contains(layout.TextureBindings, binding => binding.Name == StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
-            Assert.Contains(layout.TextureBindings, binding => binding.Name == StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName);
-            Assert.Contains(layout.TextureBindings, binding => binding.Name == StandardMaterialTextureBindingDefaults.EmissiveTextureBindingName);
-            Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == "BaseColorBuffer");
-            Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == StandardMaterialRoughnessDefaults.RoughnessBufferName);
-            Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == StandardMaterialMetallicDefaults.MetallicBufferName);
-            Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == StandardMaterialSpecularDefaults.SpecularBufferName);
-            Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == StandardMaterialEmissiveColorDefaults.EmissiveColorBufferName);
-            Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == "ForwardLightBuffer");
-            Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == "ShadowBuffer");
-            Assert.Contains(layout.SamplerBindings, binding => binding.Name == StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName + "Sampler");
-            Assert.Contains(layout.SamplerBindings, binding => binding.Name == StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName + "Sampler");
-            Assert.Contains(layout.SamplerBindings, binding => binding.Name == StandardMaterialTextureBindingDefaults.EmissiveTextureBindingName + "Sampler");
+            Assert.True(layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName) >= 0);
+            Assert.True(layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName) >= 0);
+            Assert.True(layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.EmissiveTextureBindingName) >= 0);
+            Assert.True(layout.FindConstantBufferBindingIndex("BaseColorBuffer") >= 0);
+            Assert.True(layout.FindConstantBufferBindingIndex(StandardMaterialRoughnessDefaults.RoughnessBufferName) >= 0);
+            Assert.True(layout.FindConstantBufferBindingIndex(StandardMaterialMetallicDefaults.MetallicBufferName) >= 0);
+            Assert.True(layout.FindConstantBufferBindingIndex(StandardMaterialSpecularDefaults.SpecularBufferName) >= 0);
+            Assert.True(layout.FindConstantBufferBindingIndex(StandardMaterialEmissiveColorDefaults.EmissiveColorBufferName) >= 0);
+            Assert.True(layout.FindConstantBufferBindingIndex("ForwardLightBuffer") >= 0);
+            Assert.True(layout.FindConstantBufferBindingIndex("ShadowBuffer") >= 0);
+            Assert.True(layout.FindSamplerBindingIndex(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName + "Sampler") >= 0);
+            Assert.True(layout.FindSamplerBindingIndex(StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName + "Sampler") >= 0);
+            Assert.True(layout.FindSamplerBindingIndex(StandardMaterialTextureBindingDefaults.EmissiveTextureBindingName + "Sampler") >= 0);
         }
 
         /// <summary>

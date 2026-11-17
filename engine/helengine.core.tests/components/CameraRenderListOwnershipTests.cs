@@ -98,6 +98,35 @@ namespace helengine.core.tests.components {
             Assert.False(drawable.WasDisposed);
         }
 
+        /// <summary>Same-layer cameras admit only their own scene, including late registration and camera reparenting.</summary>
+        [Fact]
+        public void SceneScope_IsolatesQueuesAndFollowsHierarchyWithoutBorrowedRoot() {
+            using Core core = CreateCore();
+            Entity first = SceneEntity(core, null), second = SceneEntity(core, null);
+            Entity eyeA = SceneEntity(core, first), eyeB = SceneEntity(core, second);
+            CameraComponent a = new CameraComponent { SceneScopeAncestorDepth = 1 };
+            CameraComponent b = new CameraComponent { SceneScopeAncestorDepth = 1 };
+            eyeA.AddComponent(a); eyeB.AddComponent(b);
+            Drawable da = new Drawable(), db = new Drawable(); first.AddComponent(da); second.AddComponent(db);
+            core.ObjectManager.RegisterForRender3D(da); core.ObjectManager.RegisterForRender3D(db);
+            Assert.Equal(1, a.RenderQueue3D.Count); Assert.Same(da, Assert.IsType<RenderList3D>(a.RenderQueue3D)[0]);
+            Assert.Equal(1, b.RenderQueue3D.Count); Assert.Same(db, Assert.IsType<RenderList3D>(b.RenderQueue3D)[0]);
+            a.SceneScopeAncestorDepth = -1; Assert.Equal(2, a.RenderQueue3D.Count);
+            a.SceneScopeAncestorDepth = 1; Assert.Equal(1, a.RenderQueue3D.Count);
+            first.RemoveChild(eyeA); Assert.Equal(0, a.RenderQueue3D.Count);
+            second.AddChild(eyeA); Assert.Equal(1, a.RenderQueue3D.Count); Assert.Same(db, Assert.IsType<RenderList3D>(a.RenderQueue3D)[0]);
+            Assert.Throws<ArgumentOutOfRangeException>(() => a.SceneScopeAncestorDepth = -2);
+            core.ObjectManager.RemoveFromRender3D(da); core.ObjectManager.RemoveFromRender3D(db);
+            first.Dispose(); second.Dispose(); Assert.Empty(core.ObjectManager.Cameras);
+        }
+
+        /// <summary>Creates a hierarchy node without any GPU or platform dependency.</summary>
+        static Entity SceneEntity(Core core, Entity parent) {
+            Entity result = new Entity(core); result.InitChildren(); result.InitComponents();
+            if (parent != null) { parent.AddChild(result); }
+            return result;
+        }
+
         /// <summary>Creates a headless core with capacities larger than detached camera queues.</summary>
         /// <returns>Initialized core that owns the test entities.</returns>
         static Core CreateCore() {

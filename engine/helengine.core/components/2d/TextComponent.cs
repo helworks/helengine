@@ -3,7 +3,76 @@ namespace helengine {
     /// Renders text using a provided font asset via the 2D render manager.
     /// </summary>
     [RunInEditor]
-    public class TextComponent : Component, ITextDrawable2D, IAnchorSizeProvider {
+    public class TextComponent : Component, ITextDrawable2D, IAnchorSizeProvider, ISystemTextDrawable2D {
+        /// <summary>Stores the optional immutable system style; null preserves authored bitmap fonts.</summary>
+        [NativeOwnedMember] SystemTextStyle SystemTextStyleValue;
+        /// <summary>Stores the opt-in system raster clipping policy; bitmap fonts and unclipped authored defaults remain unchanged.</summary>
+        bool ClipSystemTextToSizeValue;
+        /// <summary>Runtime-only local raster-window origin used by scrolling controls; complete shaping and caret coordinates remain unchanged.</summary>
+        internal float2 SystemTextRasterOrigin { get; set; }
+        /// <summary>Gets or sets whether system raster pixels are restricted to the local Size box while complete shaping and caret metrics remain available.</summary>
+        [ScenePersistenceAppend(2)]
+        public bool ClipSystemTextToSize {
+            get { return ClipSystemTextToSizeValue; }
+            set {
+                if (ClipSystemTextToSizeValue == value) { return; }
+                ClipSystemTextToSizeValue = value;
+                MarkTextRenderStateDirty();
+            }
+        }
+        /// <summary>Lets existing controls center current shaped line metrics on every draw, including system text-size changes.</summary>
+        internal bool CenterSystemTextVertically { get; set; }
+        /// <summary>Gets or sets optional platform typography through the existing text renderer and viewport layout.</summary>
+        [ScenePersistenceIgnore]
+        [NativeBorrowedReturn]
+        public SystemTextStyle SystemTextStyle {
+            get { return SystemTextStyleValue; }
+            set {
+                if (ReferenceEquals(SystemTextStyleValue, value)) { return; }
+                if (value != null && SystemTextStyleValue != null && value.Role == SystemTextStyleValue.Role
+                    && value.Weight == SystemTextStyleValue.Weight && value.Rounded == SystemTextStyleValue.Rounded && value.PointSize == SystemTextStyleValue.PointSize) { return; }
+                SystemTextStyle replacement = value == null ? null : new SystemTextStyle(value.Role, value.Weight, value.Rounded, value.PointSize);
+                NativeOwnership.Release(ref SystemTextStyleValue);
+                SystemTextStyleValue = replacement;
+                MarkTextRenderStateDirty();
+            }
+        }
+        /// <summary>Gets or restores a scene-persistence snapshot; the append-only slot preserves older bitmap-font scene payloads.</summary>
+        [ScenePersistenceAppend(1)]
+        [NativeOwnedReturn]
+        public SystemTextSettings PersistedSystemTextStyle {
+            get {
+                if (SystemTextStyleValue == null) { return null; }
+                return new SystemTextSettings {
+                    Role = SystemTextStyleValue.Role,
+                    Weight = SystemTextStyleValue.Weight,
+                    Rounded = SystemTextStyleValue.Rounded,
+                    PointSize = SystemTextStyleValue.PointSize
+                };
+            }
+            set {
+                SystemTextStyle replacement = value == null ? null : new SystemTextStyle(value.Role, value.Weight, value.Rounded, value.PointSize);
+                NativeOwnership.Release(ref SystemTextStyleValue);
+                SystemTextStyleValue = replacement;
+                MarkTextRenderStateDirty();
+            }
+        }
+        /// <summary>Gets borrowed shaped metrics valid only until the backend's next layout request or invalidation; callers must copy needed values immediately.</summary>
+        [NativeBorrowedReturn]
+        public ISystemTextLayout MeasureSystemText() {
+            if (SystemTextStyleValue == null || OwnerCore == null || OwnerCore.RenderManager2D == null || OwnerCore.RenderManager2D.SystemTextBackend == null) {
+                throw new NotSupportedException("System typography requires an attached component and a host system-text backend.");
+            }
+            if (ClipSystemTextToSizeValue) {
+                return OwnerCore.RenderManager2D.SystemTextBackend.LayoutClipped(Text, SystemTextStyleValue, (float)FontScale, Size.X, WrapText, Alignment, new float4(SystemTextRasterOrigin.X, SystemTextRasterOrigin.Y, Size.X, Size.Y));
+            }
+            return OwnerCore.RenderManager2D.SystemTextBackend.Layout(Text, SystemTextStyleValue, (float)FontScale, Size.X, WrapText, Alignment);
+        }
+        /// <summary>Releases the component-owned immutable style before ordinary component teardown.</summary>
+        public override void Dispose() {
+            NativeOwnership.Release(ref SystemTextStyleValue);
+            base.Dispose();
+        }
         /// <summary>
         /// Stores the current text content so selection state can clamp itself when the text changes.
         /// </summary>

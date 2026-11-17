@@ -3,6 +3,19 @@ namespace helengine {
     /// Describes core initialization settings for ordering helpers, frame timing, and object-list capacities.
     /// </summary>
     public class CoreInitializationOptions {
+        /// <summary>Optional host-owned decoder for bounded runtime PNG/JPEG images, borrowed for the Core lifetime.</summary>
+        public IImageDecodeBackend ImageDecodeBackend { get; set; }
+        /// <summary>Optional host-owned native composition/keyboard service, borrowed for the core's lifetime.</summary>
+        public ITextEntryBackend TextEntryBackend { get; set; }
+        /// <summary>Optional host-owned view environment; logical dimensions remain distinct from reference-canvas coordinates.</summary>
+        public IUiEnvironmentBackend UiEnvironmentBackend { get; set; }
+        /// <summary>Optional host-owned asynchronous user document backend, independent from packaged content.</summary>
+        public IUserFileBackend UserFileBackend { get; set; }
+        /// <summary>Optional host-owned transactional user document writer, borrowed independently from read-only storage.</summary>
+        public IUserFileWriteBackend UserFileWriteBackend { get; set; }
+        /// <summary>Optional host-owned factory creating same-device painting resources for portable PaintSession consumers.</summary>
+        public IPaintSurfaceFactory PaintSurfaceFactory { get; set; }
+
         /// <summary>
         /// Gets or sets the content stream source used by the core-owned content manager.
         /// Uses one explicit runtime asset source for content-root initialization.

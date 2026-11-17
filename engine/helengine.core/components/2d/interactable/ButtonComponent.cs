@@ -4,6 +4,38 @@ namespace helengine {
     /// </summary>
     [RunInEditor]
     public class ButtonComponent : Component, IFocusTarget, IAnchorSizeProvider {
+        /// <summary>Optional immutable style propagated to the existing label component.</summary>
+        [NativeOwnedMember] SystemTextStyle SystemTextStyleValue;
+        /// <summary>Stores explicit glyph density independently of reference-canvas scaling.</summary>
+        float FontScaleValue = 1f;
+        /// <summary>Gets or sets a finite positive glyph scale; one preserves existing bitmap and system typography defaults.</summary>
+        public float FontScale {
+            get { return FontScaleValue; }
+            set {
+                if (float.IsNaN(value) || float.IsInfinity(value) || value <= 0f || value > 64f) { throw new ArgumentOutOfRangeException(nameof(value)); }
+                FontScaleValue = value;
+                if (TextComponent != null) { TextComponent.FontScale = value; }
+                ApplyTextLayout();
+            }
+        }
+        /// <summary>Gets or sets system typography for the existing label; set before attachment to create a button without a bitmap font.</summary>
+        [ScenePersistenceIgnore]
+        public SystemTextStyle SystemTextStyle {
+            get { return SystemTextStyleValue; }
+            set {
+                if (ReferenceEquals(value, SystemTextStyleValue)) { return; }
+                SystemTextStyle replacement = value == null ? null : new SystemTextStyle(value.Role, value.Weight, value.Rounded, value.PointSize);
+                NativeOwnership.Release(ref SystemTextStyleValue);
+                SystemTextStyleValue = replacement;
+                if (TextComponent != null) { TextComponent.SystemTextStyle = value; }
+                ApplyTextLayout();
+            }
+        }
+        /// <summary>Releases the button-owned style snapshot independently of its existing child-label lifetime.</summary>
+        public override void Dispose() {
+            NativeOwnership.Release(ref SystemTextStyleValue);
+            base.Dispose();
+        }
         string Text;
         FontAsset FontValue;
         int2 SizeValue;
@@ -343,6 +375,8 @@ namespace helengine {
 
             // Create text component
             TextComponent = new TextComponent();
+            TextComponent.SystemTextStyle = SystemTextStyleValue;
+            TextComponent.FontScale = FontScaleValue;
             TextComponent.Text = Text;
             TextComponent.Font = FontValue;
             TextComponent.Color = ButtonTextColor;
@@ -547,16 +581,26 @@ namespace helengine {
                 return;
             }
 
+            if (SystemTextStyleValue != null) {
+                TextEntity.Position = new float3(0f, 0f, 0.1f);
+                TextComponent.Size = SizeValue;
+                TextComponent.Alignment = TextAlignment.Center;
+                TextComponent.CenterSystemTextVertically = true;
+                return;
+            }
+            TextComponent.CenterSystemTextVertically = false;
+            TextComponent.Alignment = TextAlignment.Left;
+            if (FontValue == null) { throw new InvalidOperationException("Button labels require a bitmap font or a system text style."); }
             var tight = FontValue.MeasureTight(Text);
-            double lineHeight = Math.Max((double)FontValue.LineHeight, 1d);
+            double lineHeight = Math.Max((double)FontValue.LineHeight * FontScaleValue, 1d);
 
-            double px = ((double)SizeValue.X - tight.Width) / 2d;
+            double px = ((double)SizeValue.X - tight.Width * FontScaleValue) / 2d;
             double py = ((double)SizeValue.Y - lineHeight) / 2d;
             px = Math.Round(px);
             py = Math.Round(py);
 
             TextEntity.Position = new float3((float)px, (float)py, 0.1f);
-            TextComponent.Size = new int2((int)Math.Ceiling(tight.Width), (int)Math.Ceiling(lineHeight));
+            TextComponent.Size = new int2((int)Math.Ceiling(tight.Width * FontScaleValue), (int)Math.Ceiling(lineHeight));
         }
     }
 }

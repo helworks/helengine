@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Compile the real contracts; no copied engine sources or substitute generated headers. -->
+    <Compile Include="../../../helengine.core/storage/*.cs" />
+    <ProjectReference Include="../../../helengine.nativeownership/helengine.nativeownership.csproj" />
+  </ItemGroup>
+</Project>

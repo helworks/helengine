@@ -23,14 +23,12 @@ namespace helengine.core.tests.managers.rendering {
             Assert.Single(mesh.Submeshes);
             Assert.Equal(18, mesh.Submeshes[0].IndexCount);
         }
-        /// <summary>Spaces and tabs move the pen using font space metrics while absent glyphs fail rather than vanish.</summary>
+        /// <summary>Spaces and tabs move the pen using font space metrics while invalid arguments remain errors.</summary>
         [Fact]
-        public void ControlsAndMissingGlyphsAreExplicit() {
+        public void ControlsAndInvalidArgumentsAreExplicit() {
             using FontAsset font = CreateFont();
             using ModelAsset mesh = TextMeshGeometry.Build(font, "\tA");
             Assert.Equal(11d, mesh.Positions[0].X.ToDouble());
-            Assert.Throws<InvalidOperationException>(() => TextMeshGeometry.Build(font, "ç"));
-            Assert.Throws<NotSupportedException>(() => TextMeshGeometry.Build(font, "😀"));
             Assert.Throws<ArgumentNullException>(() => TextMeshGeometry.Build(null, "A"));
             Assert.Throws<ArgumentNullException>(() => TextMeshGeometry.Build(font, null));
         }
@@ -65,7 +63,20 @@ namespace helengine.core.tests.managers.rendering {
             Assert.Throws<InvalidOperationException>(() => TextMeshGeometry.Build(font, "A"));
             font.FontInfo.SpaceWidth = float.NaN;
             Assert.Throws<InvalidOperationException>(() => TextMeshGeometry.Build(font, " "));
-        }        /// <summary>Creates a small explicit atlas containing only A and an accented o, with distinctive independent metrics.</summary>
+        }        /// <summary>Uses each page's dimensions and preserves successive material runs without reordering overlapping glyphs.</summary>
+        [Fact]
+        public void PagedGlyphsUseTheirOwnDimensionsAndOrderedSlots() {
+            using FontAsset font = CreateFont();
+            font.Pages = new[] { new FontPage("page.hasset", 128, 64) };
+            FontChar glyph = font.Characters['ó']; glyph.PageIndex = 1; font.Characters['ó'] = glyph;
+            using ModelAsset mesh = TextMeshGeometry.Build(font, "AóóA");
+            Assert.Equal(new float3(9, -1, 0), mesh.Positions[4]);
+            Assert.Equal(new float3(19, -17, 0), mesh.Positions[6]);
+            Assert.Equal(new[] { 6, 12, 6 }, mesh.Submeshes.Select(slot => slot.IndexCount));
+            Assert.Equal(new[] { 0, 1, 0 }, TextMeshGeometry.GetPageIndices(font, "AóóA"));
+            Assert.Equal(new float2(0.5f, 0.5f), mesh.TexCoords[4]);
+        }
+        /// <summary>Creates a small explicit atlas containing only A and an accented o, with distinctive independent metrics.</summary>
         internal static FontAsset CreateFont() {
             return new FontAsset(new FontInfo("Synthetic own font", 10, 3), new ManagedRuntimeTexture { Width = 64, Height = 32 },
                 new Dictionary<char, FontChar> {

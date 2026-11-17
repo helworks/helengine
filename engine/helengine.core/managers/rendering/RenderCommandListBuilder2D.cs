@@ -3,6 +3,8 @@ namespace helengine {
     /// Walks the current 2D render queue and emits one reusable flat command list for backend consumption.
     /// </summary>
     public sealed class RenderCommandListBuilder2D : IRenderVisitor2D, IDisposable {
+        /// <summary>Gets or sets the borrowed host shaping service used only by opt-in existing text components.</summary>
+        public ISystemTextBackend SystemTextBackend { get; set; }
         /// <summary>
         /// Reusable command list populated during the current build pass.
         /// </summary>
@@ -150,8 +152,10 @@ namespace helengine {
             }
 
             ulong setupStart = BeginCpuProfileStage();
+            bool containsSystemText = QueueContainsSystemText(renderQueue);
+            if (containsSystemText) { InvalidateTextCommandReuse(); }
             int staticTextRenderQueueSignature = 0;
-            bool canReuseStaticTextCommandList = TextReuseMemoryBudgetBytes == 0
+            bool canReuseStaticTextCommandList = !containsSystemText && TextReuseMemoryBudgetBytes == 0
                 && TryResolveStaticTextRenderQueueSignature(renderQueue, out staticTextRenderQueueSignature);
             if (canReuseStaticTextCommandList
                 && HasCachedStaticTextRenderQueue
@@ -164,7 +168,7 @@ namespace helengine {
             ReusingTextPayloads = false;
             CapturingTextPayloads = false;
             bool preserveGlyphPayloads = false;
-            if (TextReuseCache != null) {
+            if (TextReuseCache != null && !containsSystemText) {
                 if (renderQueue is RenderList2D concreteQueue) {
                     ReusingTextPayloads = TextReuseCache.Matches(concreteQueue) && MatchesTextVisibility();
                     preserveGlyphPayloads = ReusingTextPayloads
@@ -475,6 +479,7 @@ namespace helengine {
             }
 
             if (drawable is ITextDrawable2D text) {
+                if (text is ISystemTextDrawable2D systemText && systemText.SystemTextStyle != null) { return false; }
                 if (text.Size.X <= 0 || text.Size.Y <= 0) {
                     return false;
                 }
@@ -536,6 +541,10 @@ namespace helengine {
         /// </summary>
         /// <param name="text">Text drawable to flatten.</param>
         void EmitText(ITextDrawable2D text) {
+            if (text is ISystemTextDrawable2D systemText && systemText.SystemTextStyle != null) {
+                EmitSystemText(text, systemText.SystemTextStyle);
+                return;
+            }
             ulong layoutStart = BeginCpuProfileStage();
             FontAsset font = text.Font;
             RealEvaluation fontScale = RealMath.Max((RealEvaluation)text.FontScale, 0.0001d);
@@ -628,9 +637,54 @@ namespace helengine {
             }
         }
 
+        /// <summary>Rejects command retention for system layouts whose textures may be retired by the bounded native cache.</summary>
+        /// <param name="queue">Current prepared drawable queue.</param>
+        /// <returns>True when one existing text component opted into platform shaping.</returns>
+        static bool QueueContainsSystemText(IRenderQueue2D queue) {
+            if (!(queue is RenderList2D list)) { return false; }
+            for (int index = 0; index < list.Count; index++) {
+                if (list.GetPreparedDrawable(index) is ISystemTextDrawable2D text && text.SystemTextStyle != null) { return true; }
+            }
+            return false;
+        }
+
+        /// <summary>Consumes borrowed shaped results immediately and emits their owned texture through the established tint and clip command path.</summary>
+        /// <param name="text">Existing resolved text drawable.</param>
+        /// <param name="style">Immutable platform typography request.</param>
+        void EmitSystemText(ITextDrawable2D text, SystemTextStyle style) {
+            if (SystemTextBackend == null) { throw new NotSupportedException("This renderer does not provide system typography."); }
+            ISystemTextLayout layout;
+            if (text is TextComponent clipped && clipped.ClipSystemTextToSize) {
+                layout = SystemTextBackend.LayoutClipped(text.Text, style, (float)text.FontScale, text.Size.X, text.WrapText, text.Alignment, new float4(clipped.SystemTextRasterOrigin.X, clipped.SystemTextRasterOrigin.Y, text.Size.X, text.Size.Y));
+            } else {
+                layout = SystemTextBackend.Layout(text.Text, style, (float)text.FontScale, text.Size.X, text.WrapText, text.Alignment);
+            }
+            if (layout == null) { throw new InvalidOperationException("System text backend returned no layout."); }
+            RuntimeTexture texture = layout.Texture;
+            if (texture == null) { return; }
+            float4 bounds = layout.RasterBounds;
+            if (text is TextComponent centered && centered.CenterSystemTextVertically) {
+                bounds.Y += (text.Size.Y - layout.Size.Y) / 2f;
+            }
+            float3 position = text.Parent.Position;
+            RealEvaluation rotation = text is TextComponent component ? (RealEvaluation)component.Rotation : 0d;
+            List<TextRenderEffectPass> passes = TextRenderEffectPassBuilder.Build(text);
+            for (int index = 0; index < passes.Count; index++) {
+                TextRenderEffectPass pass = passes[index];
+                CommandListValue.AddTexturedQuad(texture,
+                    new float4(position.X + bounds.X + pass.Offset.X, position.Y + bounds.Y + pass.Offset.Y, bounds.Z, bounds.W),
+                    new float4(0, 0, 1, 1), pass.Color, rotation);
+            }
+            NativeOwnership.Delete(passes);
+        }
+
         /// <summary>Reuses unchanged glyphs or reruns the original emitter into the same checked range when only the snapped world origin moved.</summary>
         /// <param name="text">Current live text whose clipping has already been resolved.</param>
         void EmitReusableText([NativeNoEscape] ITextDrawable2D text) {
+            if (text is ISystemTextDrawable2D systemText && systemText.SystemTextStyle != null) {
+                EmitSystemText(text, systemText.SystemTextStyle);
+                return;
+            }
             int slot = TextReuseCache == null ? -1 : TextReuseCache.Find(text);
             if (ReusingTextPayloads && slot >= 0) {
                 TextCommandReuseEntry entry = TextReuseCache.Get(slot);

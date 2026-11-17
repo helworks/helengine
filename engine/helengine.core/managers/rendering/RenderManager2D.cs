@@ -3,6 +3,8 @@ namespace helengine {
     /// Abstract base for 2D rendering backends.
     /// </summary>
     public abstract class RenderManager2D : IDisposable {
+        /// <summary>Gets or sets the host-owned optional system text service; the host must outlive its renderer and retire cached textures before disposal.</summary>
+        public ISystemTextBackend SystemTextBackend { get; set; }
         /// <summary>
         /// Lazily created renderer-owned one-pixel fallback textures. These
         /// values intentionally live on the renderer rather than in a
@@ -107,11 +109,47 @@ namespace helengine {
         /// <returns>Runtime texture instance.</returns>
         public abstract RuntimeTexture BuildTextureFromRaw([NativeNoEscape] TextureAsset data);
 
+        /// <summary>Uploads an immutable RGBA texture with a complete mip chain. Unsupported backends fail explicitly.</summary>
+        public virtual RuntimeTexture BuildMipmappedTextureFromRaw([NativeNoEscape] TextureAsset data) {
+            throw new NotSupportedException("This renderer does not support immutable mipmapped texture uploads.");
+        }
+
         /// <summary>
         /// Gets whether runtime UI font atlases may use independent RGB coverage rather than ordinary alpha coverage.
         /// Backends must explicitly opt in after implementing both subpixel blending and grayscale fallback.
         /// </summary>
         public virtual bool SupportsRgbFontCoverage => false;
+
+        /// <summary>Enqueues a bounded exact texture region without waiting for GPU completion. Returns a caller-owned operation, or null while the backend's physical readback slot is occupied.</summary>
+        /// <remarks>The source is borrowed only for this call; accepted work retains native resources independently. A maximum 128 by 128 region prevents input-driven full-frame readbacks. Unsupported formats/backends fail explicitly.</remarks>
+        [NativeOwnedReturn]
+        public ITextureReadbackOperation ReadTextureRegionAsync([NativeNoEscape] RuntimeTexture texture, int x, int y, int width, int height) {
+            if (texture == null) {
+                throw new ArgumentNullException(nameof(texture));
+            }
+            if (texture.IsDisposed) {
+                throw new ObjectDisposedException(nameof(texture));
+            }
+            if (x < 0 || x >= texture.Width) {
+                throw new ArgumentOutOfRangeException(nameof(x));
+            }
+            if (y < 0 || y >= texture.Height) {
+                throw new ArgumentOutOfRangeException(nameof(y));
+            }
+            if (width <= 0 || width > 128 || (long)x + width > texture.Width) {
+                throw new ArgumentOutOfRangeException(nameof(width));
+            }
+            if (height <= 0 || height > 128 || (long)y + height > texture.Height) {
+                throw new ArgumentOutOfRangeException(nameof(height));
+            }
+            return ReadTextureRegionAsyncCore(texture, x, y, width, height);
+        }
+
+        /// <summary>Enqueues a validated readback using backend-owned resources; existing renderers explicitly reject unsupported asynchronous copying.</summary>
+        [NativeOwnedReturn]
+        protected virtual ITextureReadbackOperation ReadTextureRegionAsyncCore([NativeNoEscape] RuntimeTexture texture, int x, int y, int width, int height) {
+            throw new NotSupportedException("This renderer does not support asynchronous texture-region readback.");
+        }
 
         /// <summary>
         /// Updates one pixel rectangle in a renderer-owned runtime texture from an RGBA8 source buffer.

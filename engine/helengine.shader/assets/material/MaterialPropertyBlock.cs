@@ -18,7 +18,7 @@ namespace helengine {
         /// </summary>
         byte[][] ConstantBufferValues;
 
-        /// <summary>Monotonic invalidation stamp advanced before any potentially partial mutation of owned values.</summary>
+        /// <summary>Monotonic invalidation stamp advanced before changes of owned values; identical assignments preserve cached bindings.</summary>
         ulong RevisionValue;
 
         /// <summary>Gets the current property revision without exposing or borrowing private constant-buffer storage.</summary>
@@ -70,6 +70,9 @@ namespace helengine {
         /// <param name="texture">Texture value to assign, or <c>null</c> to clear the binding.</param>
         public void SetTexture(int bindingIndex, RuntimeTexture texture) {
             ValidateTextureBindingIndex(bindingIndex);
+            if (ReferenceEquals(TextureValues[bindingIndex], texture)) {
+                return;
+            }
             InvalidateRevision();
             TextureValues[bindingIndex] = texture;
         }
@@ -128,6 +131,9 @@ namespace helengine {
             ValidateConstantBufferBindingIndex(bindingIndex);
 
             if (data == null) {
+                if (ConstantBufferValues[bindingIndex] == null) {
+                    return;
+                }
                 InvalidateRevision();
                 NativeOwnership.Delete(ConstantBufferValues[bindingIndex]);
                 ConstantBufferValues[bindingIndex] = null;
@@ -140,6 +146,9 @@ namespace helengine {
                     $"Constant buffer binding '{binding.Name}' expects {binding.Size} bytes but received {data.Length}.");
             }
 
+            if (ConstantBytesEqual(ConstantBufferValues[bindingIndex], data)) {
+                return;
+            }
             byte[] copiedData = new byte[data.Length];
             Array.Copy(data, copiedData, data.Length);
             InvalidateRevision();
@@ -176,6 +185,19 @@ namespace helengine {
 
             CopyMatchingTextureValuesFrom(source);
             CopyMatchingConstantBufferValuesFrom(source);
+        }
+
+        /// <summary>Compares owned constants with a borrowed assignment without copying or allocating on repeated binds.</summary>
+        static bool ConstantBytesEqual([NativeNoEscape] byte[] current, [NativeNoEscape] byte[] incoming) {
+            if (current == null || current.Length != incoming.Length) {
+                return false;
+            }
+            for (int index = 0; index < current.Length; index++) {
+                if (current[index] != incoming[index]) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         /// <summary>Refuses wrap before mutation so no old immutable snapshot can become current again after counter exhaustion.</summary>

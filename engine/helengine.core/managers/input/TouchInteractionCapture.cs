@@ -9,6 +9,8 @@ namespace helengine {
         public ICamera Camera;
         /// <summary>Retains the latest physical position for cancellation after focus or scene changes.</summary>
         public InputTouchState LastSample;
+        /// <summary>Preserves the physical begin position when a descendant press transfers to an ancestor scroll.</summary>
+        public InputTouchState InitialSample;
         /// <summary>Records whether the backend included this held contact in the current frame.</summary>
         public bool SeenThisFrame;
     }

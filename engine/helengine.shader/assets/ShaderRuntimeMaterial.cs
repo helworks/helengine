@@ -14,6 +14,12 @@ namespace helengine {
         [NativeOwnedMember]
         MaterialPropertyBlock PropertiesValue;
 
+        /// <summary>Stable identity for this instance, independent of native allocation addresses and authored asset ids.</summary>
+        readonly long CacheIdentityValue = ShaderMaterialIdentity.Next();
+
+        /// <summary>Gets the unique lifetime used by native prepared-material caches.</summary>
+        public long CacheIdentity => CacheIdentityValue;
+
         /// <summary>Distinguishes property-block replacements even when a native allocator reuses the previous address.</summary>
         ulong LayoutRevisionValue;
 
@@ -26,6 +32,15 @@ namespace helengine {
         public ShaderRuntimeMaterial() {
             LayoutValue = MaterialLayout.Empty;
             PropertiesValue = new MaterialPropertyBlock(LayoutValue);
+        }
+
+        /// <summary>Creates an owned material instance inheriting this material's state while allowing independent texture overrides.</summary>
+        [NativeOwnedReturn]
+        public override RuntimeMaterial CreateInstance() {
+            ShaderRuntimeMaterial instance = new ShaderRuntimeMaterial();
+            instance.LightingModel = LightingModel; instance.SupportsNormalMapping = SupportsNormalMapping;
+            instance.SupportsEmissive = SupportsEmissive; instance.CastsShadows = CastsShadows; instance.ReceivesShadows = ReceivesShadows;
+            instance.SetParentMaterial(this); return instance;
         }
 
         /// <summary>

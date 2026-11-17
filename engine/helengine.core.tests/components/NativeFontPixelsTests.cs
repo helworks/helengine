@@ -34,7 +34,10 @@ namespace helengine.core.tests.components {
             System.Reflection.MemberInfo[] members = ScenePersistenceMemberOrdering.OrderMembers(
                 typeof(TextComponent).GetMembers(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)
                     .Where(ScenePersistenceValueWalker.IsSerializableMember));
-            Assert.Equal(nameof(TextComponent.NativeFontPixels), members[^1].Name);
+            int nativeIndex = Array.FindIndex(members, value => value.Name == nameof(TextComponent.NativeFontPixels));
+            int styleIndex = Array.FindIndex(members, value => value.Name == nameof(TextComponent.PersistedSystemTextStyle));
+            int clipIndex = Array.FindIndex(members, value => value.Name == nameof(TextComponent.ClipSystemTextToSize));
+            Assert.True(nativeIndex >= 0 && nativeIndex < styleIndex && styleIndex < clipIndex);
             TextComponent restored = new TextComponent { FontScale = 3f };
             ScenePersistenceValueWalker.SetMemberValue(member, restored, TextNativePixelMode.RoundUp);
             Assert.Equal(TextNativePixelMode.RoundUp, restored.NativeFontPixels);

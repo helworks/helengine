@@ -217,7 +217,9 @@ namespace helengine {
             }
             set {
                 ThrowIfDisposed();
+                if (LayerMaskValue == value) { return; }
                 LayerMaskValue = value;
+                RefreshRenderRegistrations();
             }
         }
 

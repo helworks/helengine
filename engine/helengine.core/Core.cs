@@ -75,6 +75,15 @@ namespace helengine {
         /// <summary>Owns this session's active platform configuration independently from project-authored presets.</summary>
         [NativeOwnedMember] PlatformSettingsService PlatformSettingsValue;
 
+        /// <summary>Owns the portable user-file facade while borrowing its host backend.</summary>
+        [NativeOwnedMember] UserFileService UserFilesValue;
+        /// <summary>Owns the optional transactional document service while borrowing its host backend.</summary>
+        [NativeOwnedMember] UserFileWriteService UserFileWritesValue;
+        /// <summary>Owns optional painting service registration while the host retains factory and device resources.</summary>
+        [NativeOwnedMember] PaintSurfaceService PaintingValue;
+        /// <summary>Owns the portable facade while borrowing the host image decoder.</summary>
+        [NativeOwnedMember] ImageDecodeService ImagesValue;
+
         /// <summary>
         /// Initializes a new core instance with default initialization options.
         /// </summary>
@@ -134,6 +143,24 @@ namespace helengine {
 
         /// <summary>Gets the API for listing presets and explicitly applying runtime settings for this core's platform.</summary>
         public PlatformSettingsService PlatformSettings => PlatformSettingsValue;
+
+        /// <summary>Gets read-only asynchronous user document access; unsupported hosts explicitly report unavailable.</summary>
+        [NativeBorrowedReturn]
+        public UserFileService UserFiles => UserFilesValue;
+        /// <summary>Gets optional transactional user document writing; unsupported hosts explicitly report unavailable.</summary>
+        [NativeBorrowedReturn]
+        public UserFileWriteService UserFileWrites => UserFileWritesValue;
+        /// <summary>Gets the optional same-device painting resource service used by portable painting sessions.</summary>
+        [NativeBorrowedReturn]
+        public PaintSurfaceService Painting => PaintingValue;
+        /// <summary>Gets bounded asynchronous runtime image decoding independently from packaged assets and files.</summary>
+        public ImageDecodeService Images => ImagesValue;
+        /// <summary>Gets the optional borrowed native keyboard/input backend; unsupported hosts retain legacy input.</summary>
+        [NativeBorrowedReturn]
+        public ITextEntryBackend TextEntry => InitializationOptions.TextEntryBackend;
+        /// <summary>Gets optional borrowed native UI environment facts refreshed by the host before each update.</summary>
+        [NativeBorrowedReturn]
+        public IUiEnvironmentBackend UiEnvironment => InitializationOptions.UiEnvironmentBackend;
 
         /// <summary>
         /// Gets the optional CPU profiling sink used by Core and its object manager.
@@ -633,6 +660,14 @@ namespace helengine {
             options.Normalize();
             InitializationOptions = options;
             PerformanceOverlay = options.PerformanceOverlay;
+            NativeOwnership.Release(ref UserFilesValue);
+            UserFilesValue = new UserFileService(options.UserFileBackend);
+            NativeOwnership.Release(ref UserFileWritesValue);
+            UserFileWritesValue = new UserFileWriteService(options.UserFileWriteBackend);
+            NativeOwnership.Release(ref PaintingValue);
+            PaintingValue = new PaintSurfaceService(options.PaintSurfaceFactory);
+            NativeOwnership.Release(ref ImagesValue);
+            ImagesValue = new ImageDecodeService(options.ImageDecodeBackend);
             PhysicsSchedulerValue = CreatePhysicsScheduler(options);
             StandardPlatformInput.Configure(options.StandardPlatformInputConfiguration);
 
@@ -921,6 +956,7 @@ namespace helengine {
         /// Releases managed resources for render managers.
         /// </summary>
         public void Dispose() {
+            if (TextEntry != null) { TextEntry.CancelActive(); }
             PointerInteractionSystem.Dispose();
             NativeOwnership.DisposeAndRelease(ref PlatformSettingsValue);
             if (SceneManager != null) {
@@ -935,6 +971,10 @@ namespace helengine {
                 RenderManager2D.Dispose();
             }
             NativeOwnership.DisposeAndRelease(ref PhysicsRuntimeRegistrationState);
+            NativeOwnership.Release(ref UserFilesValue);
+            NativeOwnership.Release(ref ImagesValue);
+            NativeOwnership.Release(ref UserFileWritesValue);
+            NativeOwnership.Release(ref PaintingValue);
             RuntimeDiagnosticsService = null;
         }
 

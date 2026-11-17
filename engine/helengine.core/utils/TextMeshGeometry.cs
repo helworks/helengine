@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>Builds planar 3D glyph meshes from the engine's explicitly generated font atlas and metrics.</summary>
     public static class TextMeshGeometry {
         /// <summary>Creates owned local-XY geometry at the font's native pixel size, with lines descending along negative Y.</summary>
-        /// <param name="font">Borrowed engine font containing every requested non-control glyph.</param>
+        /// <param name="font">Borrowed engine font; missing glyphs use replacement metrics or a space.</param>
         /// <param name="text">Complete text; CR is ignored, LF starts a line and TAB advances by four spaces.</param>
         /// <returns>Owned model data; runs without visible glyphs contain no submeshes or triangles.</returns>
         [NativeOwnedReturn]
@@ -16,6 +16,7 @@ namespace helengine {
             int count = CountGlyphs(font, text);
             if (count > int.MaxValue / 6) { throw new InvalidOperationException("Text geometry exceeds the model index capacity."); }
             int vertexCount = count * 4;
+            int[] pages = GetPageIndices(font, text);
             ModelAsset model = new ModelAsset {
                 Id = string.Empty,
                 Positions = new float3[vertexCount],
@@ -23,39 +24,63 @@ namespace helengine {
                 TexCoords = new float2[vertexCount],
                 Indices16 = vertexCount <= 65536 ? new ushort[count * 6] : null,
                 Indices32 = vertexCount > 65536 ? new uint[count * 6] : null,
-                Submeshes = count == 0 ? new ModelSubmeshAsset[0] : new ModelSubmeshAsset[]{new ModelSubmeshAsset {
-                    MaterialSlotName="Font",IndexStart=0,IndexCount=count*6
-                }}
+                Submeshes = new ModelSubmeshAsset[pages.Length]
             };
-            RealEvaluation penX = 0; RealEvaluation penY = 0; int glyphIndex = 0;
+            RealEvaluation penX = 0; RealEvaluation penY = 0; int glyphIndex = 0; int slot = -1; int lastPage = -1;
             for (int index = 0; index < text.Length; index++) {
                 char character = text[index];
                 if (character == '\r') { continue; }
                 if (character == '\n') { penX = 0; penY -= font.LineHeight; continue; }
                 if (character == ' ' || character == '\t') { penX += font.FontInfo.SpaceWidth * (character == '\t' ? 4 : 1); continue; }
-                FontChar glyph = font.Characters[character];
-                RealEvaluation width = glyph.SourceRect.Z * font.AtlasWidth;
-                RealEvaluation height = glyph.SourceRect.W * font.AtlasHeight;
+                if (!TryResolveGlyph(font, text, ref index, out FontChar glyph)) { penX += font.FontInfo.SpaceWidth; continue; }
+                RealEvaluation width = glyph.SourceRect.Z * font.GetPageWidth(glyph.PageIndex);
+                RealEvaluation height = glyph.SourceRect.W * font.GetPageHeight(glyph.PageIndex);
                 RealEvaluation x = penX + glyph.BearingX; RealEvaluation y = penY - glyph.OffsetY;
                 penX += glyph.AdvanceWidth > 0 ? glyph.AdvanceWidth : width;
                 if (width <= 0 || height <= 0) { continue; }
+                if (lastPage != glyph.PageIndex) {
+                    slot++; lastPage = glyph.PageIndex;
+                    model.Submeshes[slot] = new ModelSubmeshAsset { MaterialSlotName = "Font", IndexStart = glyphIndex * 6 };
+                }
+                model.Submeshes[slot].IndexCount += 6;
                 EmitGlyph(model, glyphIndex, glyph, x, y, width, height);
                 glyphIndex++;
             }
+            NativeOwnership.Release(ref pages);
             return model;
         }
-        /// <summary>Validates the complete run before allocating geometry, rejecting missing or unrepresentable characters explicitly.</summary>
+        /// <summary>Returns owned page indices for consecutive drawable runs, preserving glyph submission order across atlas changes.</summary>
+        [NativeOwnedReturn]
+        public static int[] GetPageIndices(FontAsset font, string text) {
+            if (font == null) { throw new ArgumentNullException(nameof(font)); }
+            if (text == null) { throw new ArgumentNullException(nameof(text)); }
+            CountGlyphs(font, text);
+            int count = 0; int lastPage = -1;
+            for (int index = 0; index < text.Length; index++) {
+                char character = text[index];
+                if (character == '\r' || character == '\n' || character == ' ' || character == '\t') { continue; }
+                if (!TryResolveGlyph(font, text, ref index, out FontChar glyph)) { continue; }
+                if (glyph.SourceRect.Z <= 0 || glyph.SourceRect.W <= 0 || glyph.PageIndex == lastPage) { continue; }
+                count++; lastPage = glyph.PageIndex;
+            }
+            int[] pages = new int[count]; int slot = 0; lastPage = -1;
+            for (int index = 0; index < text.Length; index++) {
+                char character = text[index];
+                if (character == '\r' || character == '\n' || character == ' ' || character == '\t') { continue; }
+                if (!TryResolveGlyph(font, text, ref index, out FontChar glyph)) { continue; }
+                if (glyph.SourceRect.Z <= 0 || glyph.SourceRect.W <= 0 || glyph.PageIndex == lastPage) { continue; }
+                pages[slot++] = glyph.PageIndex; lastPage = glyph.PageIndex;
+            }
+            return pages;
+        }
+        /// <summary>Validates resolved glyph metrics before allocation, allowing missing input to use replacement glyphs or spacing.</summary>
         static int CountGlyphs(FontAsset font, string text) {
             int count = 0;
             for (int index = 0; index < text.Length; index++) {
                 char character = text[index];
                 if (character == '\r' || character == '\n' || character == ' ' || character == '\t') { continue; }
-                if (character >= '\uD800' && character <= '\uDFFF') {
-                    throw new NotSupportedException("The current font atlas format cannot represent UTF-16 surrogate glyphs.");
-                }
-                if (!font.Characters.TryGetValue(character, out FontChar glyph)) {
-                    throw new InvalidOperationException("The requested character is absent from the generated font atlas: " + character);
-                }
+                if (!TryResolveGlyph(font, text, ref index, out FontChar glyph)) { continue; }
+                font.GetPageWidth(glyph.PageIndex); font.GetPageHeight(glyph.PageIndex);
                 if (!RealEvaluation.IsFinite(glyph.SourceRect.X) || !RealEvaluation.IsFinite(glyph.SourceRect.Y)
                     || !RealEvaluation.IsFinite(glyph.SourceRect.Z) || !RealEvaluation.IsFinite(glyph.SourceRect.W)
                     || !float.IsFinite(glyph.AdvanceWidth) || !float.IsFinite(glyph.BearingX) || !float.IsFinite(glyph.OffsetY)
@@ -65,6 +90,16 @@ namespace helengine {
                 if (glyph.SourceRect.Z > 0 && glyph.SourceRect.W > 0) { count++; }
             }
             return count;
+        }
+        /// <summary>Resolves one Unicode scalar without requiring atlas coverage; unsupported supplementary characters consume both code units once.</summary>
+        static bool TryResolveGlyph(FontAsset font, string text, ref int index, out FontChar glyph) {
+            char character = text[index];
+            bool surrogate = character >= '\uD800' && character <= '\uDFFF';
+            if (character >= '\uD800' && character <= '\uDBFF' && index + 1 < text.Length
+                && text[index + 1] >= '\uDC00' && text[index + 1] <= '\uDFFF') { index++; }
+            if (!surrogate && font.Characters.TryGetValue(character, out glyph)) { return true; }
+            if (font.Characters.TryGetValue('\uFFFD', out glyph)) { return true; }
+            return font.Characters.TryGetValue('?', out glyph);
         }
         /// <summary>Writes one quad with atlas UVs, positive-Z winding and visible bounds independent of logical pen advances.</summary>
         static void EmitGlyph(ModelAsset model, int glyphIndex, FontChar glyph, RealEvaluation x, RealEvaluation y, RealEvaluation width, RealEvaluation height) {

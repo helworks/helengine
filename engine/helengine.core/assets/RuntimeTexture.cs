@@ -22,6 +22,8 @@ namespace helengine {
         /// Gets or sets whether this runtime texture is owned by engine infrastructure instead of one loaded scene.
         /// </summary>
         public bool IsEngineOwned { get; set; }
+        /// <summary>Gets or sets whether stored RGB already includes alpha, so compositors apply coverage exactly once.</summary>
+        public bool IsPremultipliedAlpha { get; set; }
 
         /// <summary>
         /// Gets or sets whether this runtime font atlas stores independent RGB subpixel coverage.

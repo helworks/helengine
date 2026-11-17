@@ -356,6 +356,17 @@ namespace helengine {
             throw new NotSupportedException("This renderer does not support platform-owned cooked model creation.");
         }
 
+        /// <summary>Creates a sampleable target whose complete mip chain is regenerated after each camera pass.</summary>
+        public virtual RenderTarget CreateMipmappedRenderTarget(int width, int height) {
+            throw new NotSupportedException("This renderer does not support mipmapped camera targets.");
+        }
+
+        /// <summary>Creates an owned, two-sided transparent material borrowing a premultiplied texture; dispose before releasing the texture.</summary>
+        [NativeOwnedReturn]
+        public virtual RuntimeMaterial CreateTextureLayerMaterial([NativeRetainsBorrow] RuntimeTexture texture) {
+            throw new NotSupportedException("This renderer does not support transparent texture layers.");
+        }
+
         /// <summary>
         /// Creates a render target that can be assigned to a camera.
         /// </summary>
