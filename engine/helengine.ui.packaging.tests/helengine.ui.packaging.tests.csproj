@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <!-- Exercise the actual generic cooker and confined context without building the editor or renderer. -->
+  <ItemGroup>
+    <ProjectReference Include="../helengine.ui.format/helengine.ui.format.csproj" />
+    <Compile Include="../helengine.editor/managers/project/cooking/UiBinaryAssetCooker.cs" Link="production/UiBinaryAssetCooker.cs" />
+    <Compile Include="../helengine.editor/managers/project/cooking/PackagedAssetCookContext.cs" Link="production/PackagedAssetCookContext.cs" />
+    <Compile Include="../helengine.editor/managers/project/cooking/IPackagedAssetCooker.cs" Link="production/IPackagedAssetCooker.cs" />
+    <Compile Include="../helengine.core/assets/Asset.cs" Link="production/Asset.cs" />
+    <Compile Include="../helengine.core/assets/raw/scene/SceneAssetReference.cs" Link="production/SceneAssetReference.cs" />
+    <Compile Include="../helengine.core/assets/raw/scene/SceneAssetReferenceSourceKind.cs" Link="production/SceneAssetReferenceSourceKind.cs" />
+    <Compile Include="../helengine.core/utils/CanonicalPackagedAssetPath.cs" Link="production/CanonicalPackagedAssetPath.cs" />
+  </ItemGroup>
+</Project>

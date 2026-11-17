@@ -254,13 +254,13 @@ namespace helengine {
             }
 
             LastTextLoadStage = "ResolveFontBeforeContentLoad";
-            FontAsset fontAsset = AssetContentManager.Load<FontAsset>(fullPath, RuntimeContentProcessorIds.FontAsset);
+            FontAsset fontAsset = TrackOwnedFont(AssetContentManager.Load<FontAsset>(fullPath, RuntimeContentProcessorIds.FontAsset));
             AttachExternalCookedFontAtlasIfPresent(fontAsset);
             LastTextLoadStage = "ResolveFontAfterContentLoad";
             if (ActiveResolvedFontsByPath != null) {
                 ActiveResolvedFontsByPath.Add(fullPath, fontAsset);
             }
-            return TrackOwnedFont(fontAsset);
+            return fontAsset;
         }
 
         /// <summary>

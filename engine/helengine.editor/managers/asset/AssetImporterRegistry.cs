@@ -34,6 +34,7 @@ namespace helengine.editor {
         /// <param name="assetImportManager">Manager receiving the typed registration state.</param>
         public AssetImporterRegistry(AssetImportManager assetImportManager) {
             AssetImportManager = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
+            RegisterPackagedAssetCooker(new UiBinaryAssetCooker());
         }
 
         /// <summary>

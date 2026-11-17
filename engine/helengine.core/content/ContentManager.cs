@@ -124,7 +124,8 @@ namespace helengine {
         /// <typeparam name="T">Type of content to load.</typeparam>
         /// <param name="assetPath">Absolute path or root-relative path to the content file.</param>
         /// <param name="processorId">Optional processor identifier used to override default resolution.</param>
-        /// <returns>Loaded content value.</returns>
+        /// <returns>Loaded content value whose cleanup responsibility transfers to the caller.</returns>
+        [NativeOwnedReturn]
         public T Load<T>(string assetPath, string processorId = null) {
             IContentProcessor<T> processor = ResolveProcessor<T>(assetPath, processorId);
             return LoadProcessedContent(assetPath, processor);
@@ -135,9 +136,10 @@ namespace helengine {
         /// </summary>
         /// <typeparam name="T">Type of content to load.</typeparam>
         /// <param name="assetPath">Absolute path or root-relative path to the content file.</param>
-        /// <param name="processor">Processor instance used to parse the content.</param>
-        /// <returns>Loaded content value.</returns>
-        public T Load<T>(string assetPath, IContentProcessor<T> processor) {
+        /// <param name="processor">Processor borrowed only while parsing this load; it is never retained.</param>
+        /// <returns>Loaded content value whose cleanup responsibility transfers to the caller.</returns>
+        [NativeOwnedReturn]
+        public T Load<T>(string assetPath, [NativeNoEscape] IContentProcessor<T> processor) {
             if (processor == null) {
                 throw new ArgumentNullException(nameof(processor));
             }
@@ -150,9 +152,10 @@ namespace helengine {
         /// </summary>
         /// <typeparam name="T">Type of content to load.</typeparam>
         /// <param name="assetPath">Runtime asset path supplied by the caller.</param>
-        /// <param name="processor">Processor instance used to parse the content.</param>
-        /// <returns>Loaded content value.</returns>
-        T LoadProcessedContent<T>(string assetPath, IContentProcessor<T> processor) {
+        /// <param name="processor">Processor borrowed only while parsing this load; it is never retained.</param>
+        /// <returns>Loaded content value whose cleanup responsibility transfers to the caller.</returns>
+        [NativeOwnedReturn]
+        T LoadProcessedContent<T>(string assetPath, [NativeNoEscape] IContentProcessor<T> processor) {
             if (string.IsNullOrWhiteSpace(assetPath)) {
                 throw new ArgumentException("Content path must be provided.", nameof(assetPath));
             }

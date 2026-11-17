@@ -1217,7 +1217,8 @@ namespace helengine.editor {
                         TargetPlatformId,
                         SelectedEnvironmentId,
                         (outputFullPath, asset) => WriteAsset(outputFullPath, asset),
-                        buildRelativePath => CreateFileSystemReference(buildRelativePath));
+                        buildRelativePath => CreateFileSystemReference(buildRelativePath),
+                        (outputFullPath, bytes) => WriteBytes(outputFullPath, bytes));
                     SceneAssetReference cookedReference = packagedAssetCooker.Cook(reference, cookContext);
                     if (cookedReference == null) {
                         throw new InvalidOperationException($"Packaged asset cooker for '{fullExtension}' returned no reference for '{reference.RelativePath}'.");
@@ -3322,7 +3323,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Writes one cooked material byte payload to disk.
+        /// Writes one cooked binary payload to disk and records it among the current scene's outputs.
         /// </summary>
         /// <param name="fullPath">Absolute output path.</param>
         /// <param name="data">Serialized asset bytes to write.</param>

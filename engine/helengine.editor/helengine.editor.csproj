@@ -19,6 +19,7 @@
     <ProjectReference Include="..\helengine.platforms\helengine.platforms.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.projectfile\helengine.projectfile.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.vulkan\helengine.vulkan.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\helengine.ui\helengine.ui.csproj" SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
 
   <ItemGroup>

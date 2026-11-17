@@ -917,6 +917,7 @@ namespace helengine.editor {
                 foreach (SceneAssetReference intermediate in rewrittenSaveState.EnumerateAssetReferences()) ReferenceSelection.RememberIntermediate(intermediate);
             }
             RewriteCpuReadableModelReferenceMembers(schema, component, buildRootPath);
+            RewriteRegisteredAssetReferenceMembers(schema, component, buildRootPath);
             ModelGpuReductionProfile gpuProfile = component is MeshComponent ? ResolveMeshGpuReductionProfile(saveState, sourceRecord, targetPath) : new ModelGpuReductionProfile();
             SceneAssetReference originalModelReference = null;
             if (saveState != null) saveState.TryGetAssetReference(nameof(MeshComponent.Model), out originalModelReference);
@@ -1022,6 +1023,46 @@ namespace helengine.editor {
             }
             for (int index = 0; index < count; index++) { walker.ReadValue(reader, schema.Members[index].ValueType); }
             if (stream.Position != stream.Length) throw new InvalidOperationException("Component dependency selection encountered trailing ordinal data.");
+        }
+
+        /// <summary>Routes direct file references through their registered cookers before component payloads and dependency closures are finalized.</summary>
+        /// <param name="schema">Reflected members of the component being packaged.</param>
+        /// <param name="component">Temporary component whose direct references receive packaged paths.</param>
+        /// <param name="buildRootPath">Current runtime content output root.</param>
+        void RewriteRegisteredAssetReferenceMembers(ScriptComponentReflectionSchema schema, Component component, string buildRootPath) {
+            foreach (ScriptComponentReflectionMember member in schema.Members) {
+                if (member.HasAttribute<CpuReadableModelReferenceAttribute>()) continue;
+                if (member.ValueType == typeof(SceneAssetReference)) {
+                    member.SetValue(component, RewriteRegisteredAssetReference(member.GetValue(component) as SceneAssetReference, buildRootPath));
+                } else if (member.ValueType == typeof(SceneAssetReference[])) {
+                    SceneAssetReference[] source = member.GetValue(component) as SceneAssetReference[];
+                    if (source == null) continue;
+                    SceneAssetReference[] packaged = new SceneAssetReference[source.Length];
+                    for (int index = 0; index < source.Length; index++) {
+                        packaged[index] = RewriteRegisteredAssetReference(source[index], buildRootPath);
+                    }
+                    member.SetValue(component, packaged);
+                }
+            }
+        }
+
+        /// <summary>Cooks an explicitly registered file type while preserving references handled by the existing typed asset paths.</summary>
+        /// <param name="reference">Direct authored component reference, possibly null.</param>
+        /// <param name="buildRootPath">Current runtime content output root.</param>
+        /// <returns>The cooker-produced runtime reference or the unchanged reference when no cooker claims it.</returns>
+        SceneAssetReference RewriteRegisteredAssetReference(SceneAssetReference reference, string buildRootPath) {
+            if (reference == null || reference.SourceKind != SceneAssetReferenceSourceKind.FileSystem) return reference;
+            string fullPath = ResolveProjectAssetPath(reference.RelativePath);
+            string extension = Path.GetExtension(fullPath);
+            IPackagedAssetCooker cooker = AssetImportManager.ImporterRegistry.FindPackagedAssetCooker(extension);
+            if (cooker == null) return reference;
+            PackagedAssetCookContext context = new PackagedAssetCookContext(
+                fullPath, buildRootPath, TargetPlatformId, SelectedEnvironmentId,
+                (path, asset) => WriteAsset(path, asset),
+                path => CreateFileSystemReference(path),
+                (path, bytes) => WriteBytes(path, bytes));
+            return cooker.Cook(reference, context)
+                ?? throw new InvalidOperationException($"Packaged asset cooker for '{extension}' returned no reference for '{reference.RelativePath}'.");
         }
 
         /// <summary>

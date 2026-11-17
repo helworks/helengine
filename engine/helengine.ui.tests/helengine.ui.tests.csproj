@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <Using Include="helengine" />
+    <ProjectReference Include="../helengine.ui/helengine.ui.csproj" />
+    <Compile Include="../helengine.editor.tests/testing/FakeContentStreamSource.cs" Link="testing/FakeContentStreamSource.cs" />
+    <Compile Include="../helengine.editor.tests/testing/TestRenderManager2D.cs" Link="testing/TestRenderManager2D.cs" />
+    <Compile Include="../helengine.editor.tests/testing/TestRuntimeTexture.cs" Link="testing/TestRuntimeTexture.cs" />
+    <Compile Include="../helengine.editor.tests/testing/TestTouchInputBackend.cs" Link="testing/TestTouchInputBackend.cs" />
+    <Compile Include="../helengine.core.tests/managers/rendering/SystemTextTestBackend.cs" Link="testing/SystemTextTestBackend.cs" />
+    <Compile Include="../helengine.core.tests/managers/rendering/SystemTextTestLayout.cs" Link="testing/SystemTextTestLayout.cs" />
+  </ItemGroup>
+</Project>

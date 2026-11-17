@@ -35,7 +35,7 @@ namespace helengine.editor.tests {
         /// Creates the temporary workspace.
         /// </summary>
         public PackagedAssetCookerHookTests() {
-            ProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-cook-hook-tests", Guid.NewGuid().ToString("N"));
+            ProjectRootPath = Path.Combine(@"C:\temp", "helengine-cook-hook-tests", Guid.NewGuid().ToString("N"));
             BuildRootPath = Path.Combine(ProjectRootPath, "Build");
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets", "clips"));
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "cache", "shader-cache"));
@@ -77,6 +77,36 @@ namespace helengine.editor.tests {
             Assert.False(File.Exists(Path.Combine(BuildRootPath, "clips", "a.hfake")));
             SceneAssetReference kept = Assert.Single(ReadPackagedScene().AssetReferences);
             Assert.Equal(FakePackagedAssetCooker.CookedRelativePath, kept.RelativePath.TrimStart('/'));
+        }
+
+        /// <summary>
+        /// Built-in UI cooking preserves bytes and includes the resulting runtime reference in the scene preload closure.
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void BuiltInUiCooker_preservesBinaryAndRecordsSceneDependency(bool inComponent) {
+            const string authoredPath = "ui/library.heui";
+            byte[] bytes = Convert.FromHexString("48454c4501014955010001000400000000000000");
+            string sourcePath = Path.Combine(ProjectRootPath, "assets", "ui", "library.heui");
+            Directory.CreateDirectory(Path.GetDirectoryName(sourcePath));
+            File.WriteAllBytes(sourcePath, bytes);
+            WriteScene(authoredPath, inComponent);
+            using EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath, Array.Empty<IAssetImporterRegistration>(), "windows", BuiltInShaderAssetLibrary);
+
+            EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { SceneId }, BuildRootPath);
+
+            Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(BuildRootPath, "cooked", "ui", "library.heui")));
+            SceneAssetReference reference = Assert.Single(ReadPackagedScene().AssetReferences);
+            Assert.Equal("cooked/ui/library.heui", reference.RelativePath.TrimStart('/'));
+            Assert.Contains("cooked/ui/library.heui", result.SceneCookedDependencies[SceneId]);
+            Assert.DoesNotContain("ui/library.heui", result.SceneCookedDependencies[SceneId]);
+            if (inComponent) {
+                byte[] payload = Assert.Single(Assert.Single(ReadPackagedScene().RootEntities).Components).Payload;
+                Assert.Contains("cooked/ui/library.heui", System.Text.Encoding.UTF8.GetString(payload));
+            }
+            Assert.IsType<UiBinaryAssetCooker>(CreateRegistry().FindPackagedAssetCooker(".HEUI"));
         }
 
         /// <summary>
@@ -124,6 +154,7 @@ namespace helengine.editor.tests {
             PackagedAssetCookContext context = CreateCookContext(written, referenced);
 
             Assert.Throws<ArgumentException>(() => context.WriteAsset(buildRelativePath, new ModelAsset()));
+            Assert.Throws<ArgumentException>(() => context.WriteBytes(buildRelativePath, Array.Empty<byte>()));
             Assert.Throws<ArgumentException>(() => context.CreatePackagedReference(buildRelativePath));
             Assert.Empty(written);
             Assert.Empty(referenced);
@@ -199,13 +230,14 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Writes a scene with one empty root entity and one file-system asset reference.
         /// </summary>
-        void WriteScene() {
+        /// <param name="assetRelativePath">Authored asset referenced by the scene.</param>
+        void WriteScene(string assetRelativePath = AuthoredRelativePath, bool inComponent = false) {
             byte[] hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(SceneId));
             SceneAsset scene = new SceneAsset {
                 Id = SceneId,
                 AuthoringAssetId = Convert.ToHexString(hash)[..32].ToLowerInvariant(),
                 AssetReferences = new[] {
-                    SceneAssetReferenceTestFactory.CreateFileSystemAnimationClip(AuthoredRelativePath)
+                    SceneAssetReferenceTestFactory.CreateFileSystemAnimationClip(assetRelativePath)
                 },
                 RootEntities = new[] {
                     new SceneEntityAsset {
@@ -214,7 +246,13 @@ namespace helengine.editor.tests {
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
                         LocalOrientation = float4.Identity,
-                        Components = Array.Empty<SceneComponentAssetRecord>(),
+                        Components = inComponent ? new[] {
+                            new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder()).SerializeComponent(
+                                new CookedUiReferenceComponent {
+                                    InterfaceAsset = SceneAssetReferenceTestFactory.CreateFileSystemAnimationClip(assetRelativePath),
+                                    Interfaces = new[] { SceneAssetReferenceTestFactory.CreateFileSystemAnimationClip(assetRelativePath) }
+                                }, 0, null)
+                        } : Array.Empty<SceneComponentAssetRecord>(),
                         Children = Array.Empty<SceneEntityAsset>()
                     }
                 }

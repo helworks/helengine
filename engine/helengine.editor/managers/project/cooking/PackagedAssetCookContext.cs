@@ -9,6 +9,11 @@ namespace helengine.editor {
         readonly Action<string, Asset> AssetWriter;
 
         /// <summary>
+        /// Writes validated binary payloads through the packager's cooked-output bookkeeping.
+        /// </summary>
+        readonly Action<string, byte[]> ByteWriter;
+
+        /// <summary>
         /// Creates the packaged reference for a build-relative path through the packager.
         /// </summary>
         readonly Func<string, SceneAssetReference> PackagedReferenceFactory;
@@ -42,13 +47,15 @@ namespace helengine.editor {
         /// <param name="environmentId">Selected environment id, empty when none.</param>
         /// <param name="assetWriter">Packager callback that writes an asset to an absolute path.</param>
         /// <param name="packagedReferenceFactory">Packager callback that creates a packaged reference for a build-relative path.</param>
+        /// <param name="byteWriter">Optional packager callback that writes raw bytes and tracks the cooked output.</param>
         public PackagedAssetCookContext(
             string projectAssetFullPath,
             string buildRootPath,
             string targetPlatformId,
             string environmentId,
             Action<string, Asset> assetWriter,
-            Func<string, SceneAssetReference> packagedReferenceFactory) {
+            Func<string, SceneAssetReference> packagedReferenceFactory,
+            Action<string, byte[]> byteWriter = null) {
             if (string.IsNullOrWhiteSpace(projectAssetFullPath)) {
                 throw new ArgumentException("Project asset path must be provided.", nameof(projectAssetFullPath));
             }
@@ -65,6 +72,7 @@ namespace helengine.editor {
             EnvironmentId = environmentId ?? throw new ArgumentNullException(nameof(environmentId));
             AssetWriter = assetWriter ?? throw new ArgumentNullException(nameof(assetWriter));
             PackagedReferenceFactory = packagedReferenceFactory ?? throw new ArgumentNullException(nameof(packagedReferenceFactory));
+            ByteWriter = byteWriter;
         }
 
         /// <summary>
@@ -79,6 +87,22 @@ namespace helengine.editor {
             }
 
             AssetWriter(outputPath, asset);
+        }
+
+        /// <summary>
+        /// Writes an already validated binary payload beneath the build root and records it as cooked output.
+        /// </summary>
+        /// <param name="buildRelativePath">Canonical build-relative output path.</param>
+        /// <param name="bytes">Complete binary payload to preserve unchanged.</param>
+        public void WriteBytes(string buildRelativePath, byte[] bytes) {
+            string outputPath = ResolveConfinedOutputPath(buildRelativePath);
+            if (bytes == null) {
+                throw new ArgumentNullException(nameof(bytes));
+            } else if (ByteWriter == null) {
+                throw new InvalidOperationException("This packaging context has no binary output writer.");
+            }
+
+            ByteWriter(outputPath, bytes);
         }
 
         /// <summary>
@@ -106,7 +130,7 @@ namespace helengine.editor {
             }
 
             string root = Path.GetFullPath(BuildRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            string candidate = Path.GetFullPath(Path.Combine(root, buildRelativePath.Replace('/', Path.DirectorySeparatorChar)));
+            string candidate = Path.GetFullPath(Path.Combine(root, buildRelativePath.Replace('\\', '/').Replace('/', Path.DirectorySeparatorChar)));
             StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
             if (!candidate.StartsWith(root + Path.DirectorySeparatorChar, comparison)) {
                 throw new ArgumentException($"Cooked output path '{buildRelativePath}' leaves the build root '{BuildRootPath}'.", nameof(buildRelativePath));
